@@ -6,18 +6,10 @@
 
 F5 XC multi-cloud networking
 
+
 ## Documentation
 
 Full documentation is available at **[https://f5xc-salesdemos.github.io/mcn/](https://f5xc-salesdemos.github.io/mcn/)**.
-
-## Getting Started
-
-```bash
-git clone https://github.com/f5xc-salesdemos/mcn.git
-```
-
-See the [documentation](https://f5xc-salesdemos.github.io/mcn/) for detailed setup
-and usage guides.
 
 ## Contributing
 
