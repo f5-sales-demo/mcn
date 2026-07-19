@@ -119,6 +119,14 @@ apply what fits.
 - Never guess or assume a change works. Substantiate every "it works" / "done" claim with
   evidence: passing tests, reproducible output, or a workflow run link.
 - Do not assert completion you have not verified.
+- Verify locally before you push: run the tests, then run or exercise the change itself
+  (the dev server, or the actual command path a user hits) and confirm the behavior. CI
+  and the PR are not your test harness — do not push to find out whether it works.
+- Every PR must carry that verification evidence in its description (see the PR
+  template): the commands you ran and their output, and a link to the green run.
+  Reviewers should not merge a PR whose evidence is missing.
+- Where a change needs human judgment (user-facing behavior, UX, product decisions), get
+  explicit human acceptance before merge — green CI alone is not acceptance.
 - When a change triggers GitHub Actions, watch every affected workflow run to completion
   — not just "queued" or "in progress". A merge is not done until its runs are green.
 - When a change publishes a new version or artifact, close the loop end-to-end: download,
@@ -148,9 +156,37 @@ apply what fits.
 
 ### Clean branches
 
-- Troubleshoot and experiment freely on a branch.
+- A branch is for trial-and-error: guess, probe, refactor, and learn freely while you
+  converge on the correct solution.
+- Only the verified, feature-complete result merges. Never open a PR "to see if it
+  works" — open it when it works — and never merge exploratory or trial-and-error code.
+  Iterating in the open with repeated broken PRs pollutes the repo; converge on the
+  branch first, then merge the meaningful change.
 - Never commit broken or experimental code, or speculative work that is not needed
   (YAGNI). Keep merged history green.
+
+#### After merge: clean up local branches
+
+- The server deletes the remote branch on merge (`delete_branch_on_merge`); the local
+  copy remains and must be cleaned up, or merged branches accumulate on the workstation.
+- Once your PR is merged and CI is green, return to `main` and prune:
+  `git checkout main && git pull && git fetch --prune`.
+- Delete every branch whose upstream is gone. Squash-merges mean these are not ancestors
+  of `main` (so `git branch --merged` misses them); their deleted upstream marks them
+  `[gone]`. The `/clean_gone` skill does this in one step (and removes associated
+  worktrees) where available; otherwise detect and delete them with:
+
+  ```bash
+  git for-each-ref --format '%(refname:short) %(upstream:track)' refs/heads \
+    | awk '$2 == "[gone]" {print $1}' \
+    | xargs -r git branch -D
+  ```
+
+- Detect `[gone]` with `%(upstream:track)` as above (it emits a literal `[gone]`); do not
+  grep `git branch -vv`, which renders it as `[origin/<branch>: gone]` and will not match.
+- Safety: delete only `[gone]` branches. Never delete a branch with unmerged commits or
+  uncommitted changes, and never force-delete unmerged work. If unsure, leave the branch
+  and surface it for a human.
 
 ### Local checks vs CI
 
