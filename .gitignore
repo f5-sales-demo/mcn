@@ -76,9 +76,6 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
-backend.hcl
-terraform.tfvars
-*.auto.tfvars
 
 # Python virtual environments
 venv/
