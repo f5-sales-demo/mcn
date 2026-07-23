@@ -1,23 +1,33 @@
 #cloud-config
 # volterra-node (F5 XC Secure Mesh v2 Customer Edge) bootstrap.
 #
-# Canonical SMSv2 format (verified live against the token GetCloudInitConfig API,
-# provider=azure): the node reads its registration token from
-# /etc/vpm/user_data. The key is lowercase `token:` — YAML is case-sensitive; a
-# capitalized `Token:` is NOT parsed by the VPM and the node never registers. No
-# ClusterName is needed: the site binding is automatic via the node's
-# hostname/MAC pre-declared in securemesh_site_v2.azure.not_managed.node_list.
+# Writes the full VPM config to /etc/vpm/config.yaml — the format the
+# volterra-node daemon (vpmd, default --config /etc/vpm/config.yaml) actually
+# consumes. Verified byte-for-byte against a live, ONLINE reference CE in the
+# same Azure subscription. The token-only /etc/vpm/user_data form returned by
+# the GetCloudInitConfig API is for newer node images; the marketplace
+# volterra-node image (9.2024.x) needs this config.yaml, and specifically the
+# CertifiedHardwareEndpoint — without it vpmd exits with
+# "fail to match certified hardware" and never registers.
 #
-# The registration token is provider-generated: ${token} is the Computed
-# xcsh_token.ce.uid (or var.registration_token when set as an override). Site
-# registration approval remains console-only (deferred, xcsh #1206 / #1210).
-#
-# Rendered via templatefile() at the root with { token }.
+# ${token} = generated xcsh_token.ce.uid (or var.registration_token override);
+# ${cluster_name} = the XC site name (ar-bgp-eastus0N). 0600 root-only: the
+# Token is a credential and vpmd runs as root.
 write_files:
-  # 0600 (root-only): the file holds the site registration token, a credential.
-  # The VPM daemon runs as root, so root-only read is sufficient.
-  - path: /etc/vpm/user_data
+  - path: /etc/vpm/config.yaml
     permissions: "0600"
     owner: root
     content: |
-      token: ${token}
+      Vpm:
+        ClusterType: ce
+        ClusterName: ${cluster_name}
+        Token: ${token}
+        MauriceEndpoint: https://register.ves.volterra.io
+        MauricePrivateEndpoint: https://register-tls.ves.volterra.io
+        CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/azure.yml
+        Latitude: 0.0
+        Longitude: 0.0
+      Kubernetes:
+        EtcdUseTLS: true
+        Server: vip
+        CloudProvider: disabled
