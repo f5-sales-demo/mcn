@@ -47,4 +47,10 @@ locals {
   # When ssh_public_key material is supplied (e.g. by the plan tests) it wins and
   # no file is read; otherwise read the key file once and pass the string down.
   ssh_public_key = var.ssh_public_key != "" ? var.ssh_public_key : file(pathexpand(var.ssh_public_key_path))
+
+  # --- CE site registration token fed to cloud-init ---
+  # Prefer the provider-generated xcsh_token.ce.uid (the Computed token VALUE);
+  # an explicit var.registration_token still wins when supplied (break-glass /
+  # externally-minted token). Empty var (default) => the generated token.
+  ce_registration_token = var.registration_token != "" ? var.registration_token : xcsh_token.ce.uid
 }

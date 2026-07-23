@@ -23,6 +23,18 @@ check "vip_outside_vnet_cidrs" {
   }
 }
 
+# Tenant-scoped, reusable site registration token. The provider now ships
+# xcsh_token with a Computed `uid` (system_metadata.uid) — the token VALUE a CE
+# feeds to VPM at registration (the resource `id` is the token NAME, not the
+# value). The spec is empty; only metadata is needed and namespace defaults to
+# system. This replaces the manual var.registration_token prerequisite (#1205);
+# registration approval remains console-only (deferred, #1206 / #1210).
+resource "xcsh_token" "ce" {
+  name        = "mcn-ce-registration"
+  namespace   = "system"
+  description = "MCN CE-HA registration token (tenant-scoped, reusable across CE sites)"
+}
+
 # Pure expansion of ce_count into the per-CE node map (hostname, site_name,
 # slo_ip, az, interface_name). Drives every for_each below.
 module "ce_topology" {
@@ -67,7 +79,7 @@ module "ce_node" {
 
   custom_data = base64encode(templatefile("${path.module}/cloud-init/ce-node.yaml", {
     cluster_name = each.value.site_name
-    token        = var.registration_token
+    token        = local.ce_registration_token
   }))
 
   tags = local.tags
