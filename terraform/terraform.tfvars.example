@@ -1,0 +1,36 @@
+# Copy to terraform.tfvars and adjust. All values below are the lab defaults;
+# terraform.tfvars is gitignored.
+
+# --- Azure ---
+subscription_id     = "75f86c46-9cbc-4f6c-85ea-195e3d3c8ac0"
+resource_group_name = "rmordasiewicz-f5-xc-ce-infra"
+location            = "eastus"
+
+# --- Scaling / topology ---
+ce_count     = 3           # 1..3 single-node CE sites (active/active ECMP)
+region_short = "eastus"    # -> sites ar-bgp-eastus01 / 02 / 03
+ce_asn       = 64512
+rs_asn       = 65515
+
+# --- Network CIDRs (VIP MUST be outside all of these) ---
+hub_cidr                   = "10.0.0.0/16"
+spoke_cidr                 = "10.1.0.0/16"
+mgmt_subnet_prefix         = "10.0.1.0/26"
+external_subnet_prefix     = "10.0.2.0/26"
+internal_subnet_prefix     = "10.0.3.0/26"
+route_server_subnet_prefix = "10.0.4.0/27"
+
+# --- SSH ---
+# Provide the key path (read once at the root) OR paste the material in ssh_public_key.
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+
+# --- F5 XC data-plane ---
+xc_app_namespace = "r-mordasiewicz"
+origin_ip        = "20.98.232.135"
+origin_port      = 80
+lb_domain        = "ar-bgp-ecmp.bankexample.com"
+vip              = "10.250.0.10"
+
+# --- Site registration token (LATER PR) ---
+# Leave empty for the scaffold; supply the tenant site token to actually register CEs.
+# registration_token = "..."

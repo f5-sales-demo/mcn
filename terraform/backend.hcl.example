@@ -1,0 +1,7 @@
+# Local backend config for the azurerm remote state (partial backend).
+# Copy to backend.hcl (gitignored) and init:  terraform init -backend-config=backend.hcl
+# Reuses the shared f5-sales-demo state account; only the key differs.
+resource_group_name  = "f5-sales-demo-tfstate"
+storage_account_name = "f5salesdemotfstate"
+container_name       = "tfstate"
+key                  = "mcn.tfstate"
