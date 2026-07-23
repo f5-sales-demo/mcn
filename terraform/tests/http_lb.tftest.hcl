@@ -22,8 +22,8 @@ run "loadbalancer_advertise_and_pool" {
   # this run planning cleanly at N=3 — an expansion error would fail the run.
 
   assert {
-    condition     = xcsh_http_loadbalancer.this.namespace == "r-mordasiewicz"
-    error_message = "LB must live in the app namespace r-mordasiewicz."
+    condition     = xcsh_http_loadbalancer.this.namespace == "multi-cloud-networking"
+    error_message = "LB must live in the app namespace multi-cloud-networking."
   }
 
   assert {
@@ -32,8 +32,8 @@ run "loadbalancer_advertise_and_pool" {
   }
 
   assert {
-    condition     = xcsh_origin_pool.this.namespace == "r-mordasiewicz"
-    error_message = "Origin pool must live in the app namespace r-mordasiewicz."
+    condition     = xcsh_origin_pool.this.namespace == "multi-cloud-networking"
+    error_message = "Origin pool must live in the app namespace multi-cloud-networking."
   }
 
   assert {

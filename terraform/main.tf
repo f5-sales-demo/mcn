@@ -128,10 +128,22 @@ module "client_vm" {
 # F5 XC data-plane (app tier)
 # ---------------------------------------------------------
 
+# The deployment owns its application namespace (origin pool + VIP load balancer
+# live here). Referencing xcsh_namespace.mcn.name from the pool/LB creates the
+# apply-time ordering so the namespace exists before its members. (XC sites/bgp
+# live in the fixed `system` namespace and are unaffected.)
+resource "xcsh_namespace" "mcn" {
+  name        = var.xc_app_namespace
+  description = "MCN CE-HA (BGP/ECMP) demo: origin pool + VIP-advertising load balancer."
+}
+
 resource "xcsh_origin_pool" "this" {
   name        = var.origin_pool_name
   namespace   = var.xc_app_namespace
   description = "MCN reference origin pool -> ${var.origin_ip}:${var.origin_port}"
+
+  # xcsh_namespace.mcn owns var.xc_app_namespace; depend on it so it exists first.
+  depends_on = [xcsh_namespace.mcn]
 
   port = var.origin_port
 
@@ -151,6 +163,8 @@ resource "xcsh_http_loadbalancer" "this" {
   name        = var.lb_name
   namespace   = var.xc_app_namespace
   description = "BGP/ECMP HA: custom VIP ${var.vip} advertised from every CE site."
+
+  depends_on = [xcsh_namespace.mcn]
 
   domains = [var.lb_domain]
 
