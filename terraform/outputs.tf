@@ -79,3 +79,24 @@ output "vip" {
   description = "HA VIP advertised via eBGP/ECMP."
   value       = var.vip
 }
+
+# ---------------------------------------------------------
+# CE registration token
+# ---------------------------------------------------------
+
+output "registration_token_name" {
+  description = "Name (metadata id) of the generated xcsh_token used for CE registration."
+  value       = xcsh_token.ce.name
+}
+
+output "registration_token_is_generated" {
+  description = "True when the CE cloud-init token feed uses the generated xcsh_token.ce.uid (no override supplied)."
+  # Whether an override was supplied is not itself secret (the token value is).
+  value = nonsensitive(var.registration_token == "")
+}
+
+output "ce_registration_token" {
+  description = "Resolved CE registration token fed to cloud-init: the generated xcsh_token.ce.uid, or var.registration_token when overridden."
+  value       = local.ce_registration_token
+  sensitive   = true
+}

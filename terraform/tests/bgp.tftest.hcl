@@ -1,12 +1,7 @@
 # Plan-level test focused on the BGP half of the xc-site module: two external
-# peers (one per Route Server IP), CE ASN 64512 peering to RS ASN 65515.
-#
-# NOTE: this run uses a SHORTENED interface_name so the xcsh_bgp resource plans.
-# The real XC-derived name is 71 chars and exceeds the provider's 63-char
-# object-ref validator (a confirmed provider bug — see modules/xc-site/main.tf).
-# This run therefore verifies the bgp HCL/schema wiring (where/bgp_parameters/
-# peers/external/interface) is correct; the length cap is an external provider
-# constraint that blocks the real binding until the provider is fixed.
+# peers (one per Route Server IP), CE ASN 64512 peering to RS ASN 65515. Uses
+# the REAL 71-char auto-derived SLO interface name, which now validates since
+# the provider relaxed the object-ref name cap from 63 to 128 chars.
 
 mock_provider "xcsh" {}
 
@@ -20,7 +15,7 @@ run "bgp_two_peers" {
   variables {
     site_name      = "ar-bgp-eastus02"
     hostname       = "f5-xc-ce-vm-02"
-    interface_name = "ves-io-smsv2-slo-eth0-0" # shortened; see file header
+    interface_name = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     mgmt_nic_mac   = "60:45:bd:ef:07:9f"
     rs_peer_ips    = ["10.0.4.4", "10.0.4.5"]
     ce_asn         = 64512
