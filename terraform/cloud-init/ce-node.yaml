@@ -13,8 +13,10 @@
 #
 # Rendered via templatefile() at the root with { cluster_name, token }.
 write_files:
+  # 0600 (root-only): the file holds the site registration Token, a credential.
+  # The VPM daemon runs as root, so root-only read is sufficient.
   - path: /etc/vpm/user_data
-    permissions: "0644"
+    permissions: "0600"
     owner: root
     content: |
       Token: ${token}
