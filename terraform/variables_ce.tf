@@ -1,0 +1,53 @@
+# ---------------------------------------------------------
+# CE topology / scaling
+# ---------------------------------------------------------
+
+variable "ce_count" {
+  description = "Number of single-node Secure Mesh v2 CE sites (1..3). Each originates the LB VIP via eBGP to the Azure Route Server for active/active ECMP."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.ce_count >= 1 && var.ce_count <= 3
+    error_message = "ce_count must be between 1 and 3."
+  }
+}
+
+variable "region_short" {
+  description = "Short region token used to build the per-CE key/site name (e.g. eastus -> ar-bgp-eastus01)."
+  type        = string
+  default     = "eastus"
+}
+
+variable "ce_asn" {
+  description = "BGP ASN for the Customer Edge nodes (eBGP local ASN)."
+  type        = number
+  default     = 64512
+}
+
+variable "rs_asn" {
+  description = "BGP ASN of the Azure Route Server (fixed by Azure at 65515)."
+  type        = number
+  default     = 65515
+}
+
+variable "enable_bgp" {
+  description = "Create the per-CE xcsh_bgp objects. Defaults true (this PR's whole point is BGP/ECMP). Currently BLOCKED at apply by a provider validator bug: object-ref names cap at 63 chars but the real XC SLO interface name is 71 (tracked under epic xcsh #1207). Set false to plan/deploy the rest of the topology until the provider validator is relaxed."
+  type        = bool
+  default     = true
+}
+
+# ---------------------------------------------------------
+# Site registration token (LATER PR)
+# ---------------------------------------------------------
+# The CE VM cloud-init consumes a tenant-scoped, reusable site registration
+# token (ClusterName + Token). There is no xcsh_token provider resource yet
+# (requested in f5-sales-demo/terraform-provider-xcsh#1205) and registration
+# approval is console-only (#1206 / #1210). Until those land the token is a
+# manual prerequisite input; this var is the hook. Leave empty for the scaffold.
+variable "registration_token" {
+  description = "F5 XC site registration token injected into the CE cloud-init. TODO(#1205): replace with an xcsh_token resource in a later PR. Empty renders a placeholder cloud-init."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
