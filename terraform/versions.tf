@@ -6,11 +6,12 @@ terraform {
   required_providers {
     xcsh = {
       source = "f5-sales-demo/xcsh"
-      # >= 3.72.15 matches the org baseline used by the sibling webapp-api-protection
-      # plan. The CE-HA data-plane resources (securemesh_site_v2 explicit-interface,
-      # bgp per-peer named-interface ref, http_loadbalancer advertise_custom) are all
-      # present in this line. Consumed locally via ~/.terraformrc dev_overrides.
-      version = ">= 3.72.15"
+      # >= 3.74.0 carries the xcsh_token resource's Computed `uid` attribute (the
+      # CE registration token VALUE) and the object-ref name validator relaxed
+      # 63 -> 128 chars (so the real 71-char auto-derived SLO interface name that
+      # the BGP peer binds to now validates). Consumed locally via ~/.terraformrc
+      # dev_overrides; the registry pin turns green once v3.74.0 publishes.
+      version = ">= 3.74.0"
     }
     # Azure providers deploy the hub VNet, Azure Route Server, the CE VMs and the
     # test client. azuread is read-only (resolves the deployer identity for naming/tags).

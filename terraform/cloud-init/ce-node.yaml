@@ -4,12 +4,9 @@
 # The node reads its registration config from /etc/vpm/user_data. It needs the
 # tenant-scoped site registration Token and the ClusterName (the XC site name).
 #
-# TODO(later PR — xcsh #1205 / #1206 / #1210):
-#   The site registration token is not yet a provider resource (xcsh_token,
-#   requested in #1205) and registration approval is console-only (#1206/#1210).
-#   Until those land, ${token} is supplied as a manual/prerequisite input via
-#   var.registration_token (empty renders this placeholder). Do NOT invent a
-#   token resource here — this PR is scaffold + Azure infra + XC data-plane only.
+# The registration token is provider-generated: ${token} is the Computed
+# xcsh_token.ce.uid (or var.registration_token when set as an override). Site
+# registration approval remains console-only (deferred, xcsh #1206 / #1210).
 #
 # Rendered via templatefile() at the root with { cluster_name, token }.
 write_files:
