@@ -1,0 +1,54 @@
+---
+name: Terraform
+
+# Config-validity + plan-test gate. This is a MULTI-PROVIDER plan (F5 XC + Azure),
+# but CI runs entirely WITHOUT Azure or XC credentials and does NOT perform a live
+# plan/apply:
+#
+#   - The Azure providers (azurerm/azuread) require a service principal, which the
+#     F5 corporate Entra tenant does not permit provisioning. A live plan/apply
+#     against Azure is therefore a local/VPN operation (see CONTRIBUTING.md).
+#   - The plan-level tests (tests/*.tftest.hcl) MOCK all three providers, so they
+#     need no credentials of any kind. They are command = plan (no live API call).
+on:
+  pull_request:
+    branches: [main]
+    paths: ['terraform/**', '.github/workflows/terraform.yml']
+  push:
+    branches: [main]
+    paths: ['terraform/**', '.github/workflows/terraform.yml']
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: 'true'
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          # Pinned for reproducibility (matches terraform/.terraform-version).
+          terraform_version: 1.10.5
+
+      - name: Init (no backend; CI has no Azure credentials)
+        run: terraform init -input=false -backend=false
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Validate
+        run: terraform validate -no-color
+
+      - name: Plan-level module tests (all providers mocked)
+        run: terraform test
