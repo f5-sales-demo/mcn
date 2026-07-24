@@ -476,3 +476,169 @@ variable "ref_namespace" {
   type        = string
   default     = "system"
 }
+
+# --- S5: site-mode oneof selectors (perf / os / sw / offline / re_select / upgrade / admin) --------
+# Each site-mode oneof is modeled as an enum selector superseding the pre-S5 base literal so exactly
+# ONE member of each oneof renders. Every default is the arm the base probe already applied, so a bare
+# `terraform plan` (all defaults) shows NO diff versus the pre-S5 base (defaults-supersession
+# invariant). S5a arms apply live on the single-node `azure` probe; S5b arms are plan-only.
+
+variable "perf_arm" {
+  description = <<-EOT
+    performance_enhancement_mode oneof member. `perf_mode_l7_enhanced` (default, base, empty) is S5a
+    live. `perf_mode_l3_enhanced` renders its `no_jumbo{}` sub-oneof member (S5a live).
+  EOT
+  type        = string
+  default     = "perf_mode_l7_enhanced"
+  validation {
+    condition     = contains(["perf_mode_l7_enhanced", "perf_mode_l3_enhanced"], var.perf_arm)
+    error_message = "perf_arm must be perf_mode_l7_enhanced | perf_mode_l3_enhanced."
+  }
+}
+
+variable "os_arm" {
+  description = <<-EOT
+    software_settings.os oneof member. `default_os_version` (default, base, empty) is S5a live.
+    `operating_system_version` renders the pinned OS-version string leaf (S5a live; create-only).
+  EOT
+  type        = string
+  default     = "default_os_version"
+  validation {
+    condition     = contains(["default_os_version", "operating_system_version"], var.os_arm)
+    error_message = "os_arm must be default_os_version | operating_system_version."
+  }
+}
+
+variable "os_version" {
+  description = "software_settings.os.operating_system_version. Provider validator: `LengthAtMost(20)`. Create-only. reject-os-version pushes a 21-char string. Rendered only when os_arm=operating_system_version."
+  type        = string
+  default     = "9.2024.6"
+}
+
+variable "sw_arm" {
+  description = <<-EOT
+    software_settings.sw oneof member. `default_sw_version` (default, base, empty) is S5a live.
+    `volterra_software_version` renders the pinned SW-version string leaf (S5a live; create-only).
+  EOT
+  type        = string
+  default     = "default_sw_version"
+  validation {
+    condition     = contains(["default_sw_version", "volterra_software_version"], var.sw_arm)
+    error_message = "sw_arm must be default_sw_version | volterra_software_version."
+  }
+}
+
+variable "sw_version" {
+  description = "software_settings.sw.volterra_software_version. Provider validator: `LengthAtMost(20)`. Create-only. Default is the live-proven version (iter-1). reject-sw-version pushes a 21-char string. Rendered only when sw_arm=volterra_software_version."
+  type        = string
+  default     = "crt-20250613-3382"
+}
+
+variable "offline_arm" {
+  description = <<-EOT
+    offline_survivability_mode oneof member. `no_offline_survivability_mode` (default, base, empty) is
+    S5a live. `enable_offline_survivability_mode` (empty marker) is S5a live.
+  EOT
+  type        = string
+  default     = "no_offline_survivability_mode"
+  validation {
+    condition     = contains(["no_offline_survivability_mode", "enable_offline_survivability_mode"], var.offline_arm)
+    error_message = "offline_arm must be no_offline_survivability_mode | enable_offline_survivability_mode."
+  }
+}
+
+variable "re_select_arm" {
+  description = <<-EOT
+    re_select oneof member. `geo_proximity` (default, base, empty) is S5a live. `specific_re` renders
+    `primary_re`/`backup_re` (plan-only S5b — `primary_re` must name a real RE geography).
+  EOT
+  type        = string
+  default     = "geo_proximity"
+  validation {
+    condition     = contains(["geo_proximity", "specific_re"], var.re_select_arm)
+    error_message = "re_select_arm must be geo_proximity | specific_re."
+  }
+}
+
+variable "primary_re" {
+  description = "re_select.specific_re.primary_re (Primary RE Geography). Provider validator: `LengthBetween(1, 64)`. reject-primary-re pushes a 65-char string. Rendered only when re_select_arm=specific_re."
+  type        = string
+  default     = "cov-primary-re"
+}
+
+variable "backup_re" {
+  description = "re_select.specific_re.backup_re (Backup RE Geography; no validator). Rendered only when re_select_arm=specific_re."
+  type        = string
+  default     = "cov-backup-re"
+}
+
+variable "upgrade_drain_arm" {
+  description = <<-EOT
+    upgrade_settings.kubernetes_upgrade_drain oneof selector. `unset` (default) omits the entire
+    `upgrade_settings` block (pre-S5 base never set it). `disable_upgrade_drain` (empty marker) and
+    `enable_upgrade_drain` (renders the drain leaves + vega sub-oneof) are plan-only S5b — worker-node
+    drain 400s on a non-k8s single-node probe.
+  EOT
+  type        = string
+  default     = "unset"
+  validation {
+    condition     = contains(["unset", "disable_upgrade_drain", "enable_upgrade_drain"], var.upgrade_drain_arm)
+    error_message = "upgrade_drain_arm must be unset | disable_upgrade_drain | enable_upgrade_drain."
+  }
+}
+
+variable "drain_max_unavailable" {
+  description = "enable_upgrade_drain.drain_max_unavailable_node_count (node batch size). Provider validator: `Between(1, 5000)`. reject-drain-count pushes 5001. Rendered only when upgrade_drain_arm=enable_upgrade_drain."
+  type        = number
+  default     = 1
+}
+
+variable "drain_node_timeout" {
+  description = "enable_upgrade_drain.drain_node_timeout (seconds). Provider validator: `Between(0, 900)`. reject-drain-timeout pushes 901. Rendered only when upgrade_drain_arm=enable_upgrade_drain."
+  type        = number
+  default     = 300
+}
+
+variable "vega_arm" {
+  description = <<-EOT
+    enable_upgrade_drain vega sub-oneof member. `disable_vega_upgrade_mode` (default, empty marker) |
+    `enable_vega_upgrade_mode` (empty marker). Rendered only when upgrade_drain_arm=enable_upgrade_drain.
+  EOT
+  type        = string
+  default     = "disable_vega_upgrade_mode"
+  validation {
+    condition     = contains(["disable_vega_upgrade_mode", "enable_vega_upgrade_mode"], var.vega_arm)
+    error_message = "vega_arm must be disable_vega_upgrade_mode | enable_vega_upgrade_mode."
+  }
+}
+
+variable "admin_creds" {
+  description = <<-EOT
+    When true, renders the `admin_user_credentials` block (unset in the pre-S5 base) with the `ssh_key`
+    leaf + an `admin_password` SecretType backed by `clear_secret_info`. Attempted S5a live. Default
+    false so a bare plan omits the block (defaults-supersession invariant).
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "ssh_key" {
+  description = "admin_user_credentials.ssh_key (public SSH key). Provider validator: `LengthAtMost(8192)`. reject-ssh-key pushes a >8192-char string. Rendered only when admin_creds=true. Dummy public key — never a real key."
+  type        = string
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDummyCoveragePublicKeyNotARealKey000000000000 cov-probe@example.com"
+}
+
+variable "admin_password_b64_source" {
+  description = <<-EOT
+    Cleartext DUMMY password whose base64 encoding feeds admin_password.clear_secret_info.url as
+    `string:///<base64>`. NEVER a real secret — a throwaway placeholder committed only for coverage.
+  EOT
+  type        = string
+  default     = "dummy-not-a-real-secret"
+}
+
+variable "secret_encoding_type" {
+  description = "admin_user_credentials.admin_password.secret_encoding_type. Provider validator: `OneOf(EncodingNone, EncodingBase64)`. reject-secret-encoding pushes \"BOGUS\". No terraform validation so the provider OneOf fires at plan."
+  type        = string
+  default     = "EncodingBase64"
+}
