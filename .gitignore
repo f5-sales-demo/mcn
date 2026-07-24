@@ -83,10 +83,13 @@ env/
 ENV/
 .venv/
 
-# Test coverage
+# Test coverage (generated reports). The tracked SMSv2 coverage harness lives under
+# coverage/ too, so ignore generated children but keep the harness paths tracked.
 .coverage
 htmlcov/
-coverage/
+coverage/*
+!coverage/smsv2-coverage-matrix.md
+!coverage/smsv2/
 
 # Build artifacts
 reports/
