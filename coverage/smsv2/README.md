@@ -59,7 +59,7 @@ single-node `azure` not_managed probe, so their schema is proven at PLAN only (l
 static_ipv6 `node_static_ip.ip_address` `CIDRValidator()`) are proven by `verify.sh` reject tests;
 `vlan_id` `Between(1, 4095)` is already covered by S1.
 
-Live cycle per applyable arm (fresh `probe_name`, `extended_arms=false`):
+Live cycle per live-appliable arm (fresh `probe_name`, `extended_arms=false`):
 
 ```bash
 cd coverage/smsv2
