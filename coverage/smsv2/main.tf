@@ -13,7 +13,9 @@ resource "xcsh_securemesh_site_v2" "probe" {
     not_managed {
       node_list {
         hostname = "cov-probe-node-01"
-        type     = "Control"
+        # S2: node type exposes the OneOf("Control", "Worker") enum validator. Always wired;
+        # the valid default ("Control") keeps the base probe live-appliable. Reject test pushes "Bogus".
+        type = var.node_type
 
         interface_list {
           name     = "eth0"
@@ -22,13 +24,31 @@ resource "xcsh_securemesh_site_v2" "probe" {
 
           ethernet_interface {
             device = "eth0"
+            # S2: mac exposes the MACValidator() string validator. Gated by var.string_arms so a live
+            # apply can fall back to the proven base probe (no mac) if the XC API rejects it — the
+            # validator still fires at PLAN time whenever string_arms is true.
+            mac = var.string_arms ? var.mac : null
           }
 
           network_option {
             site_local_network {}
           }
 
-          dhcp_client {}
+          # S2: address oneof. When string_arms is true, a static_ip block exposes the
+          # ip_address CIDRValidator() and default_gw IPValidator() string validators; when false the
+          # probe reverts to the proven base dhcp_client{} arm so the base live cycle stays clean.
+          dynamic "dhcp_client" {
+            for_each = var.string_arms ? [] : [1]
+            content {}
+          }
+
+          dynamic "static_ip" {
+            for_each = var.string_arms ? [1] : []
+            content {
+              ip_address = var.ip_address
+              default_gw = var.default_gw
+            }
+          }
         }
 
         # S1: a second interface exposing the vlan_interface.vlan_id leaf (validator
@@ -67,6 +87,18 @@ resource "xcsh_securemesh_site_v2" "probe" {
   local_vrf {
     default_config {}
     default_sli_config {}
+
+    # S2: sli_config exposes the nameserver/vip leaves guarded by IPv4Validator(). This is a
+    # distinct local_vrf oneof arm from default_sli_config above; gated by var.vrf_string_arms
+    # (default false) so it is only rendered under mock_provider plan tests — the validator fires
+    # at PLAN regardless. Not live-applied (oneof collision with default_sli_config is an S3 arm).
+    dynamic "sli_config" {
+      for_each = var.vrf_string_arms ? [1] : []
+      content {
+        nameserver = var.nameserver
+        vip        = var.vip
+      }
+    }
   }
 
   logs_streaming_disabled {}
