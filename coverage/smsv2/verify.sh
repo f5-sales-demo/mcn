@@ -60,6 +60,11 @@ declare -a expected=(
   # S3 interface-arm validated leaves
   "list must contain at least 1 elements and at most 8 elements, got: 0"
   'Value "2001:db8::gg/64" is not a valid CIDR range'
+  # S4 networking/services validated leaves
+  'value must be one of: ["VIP_VRRP_INVALID" "VIP_VRRP_ENABLE" "VIP_VRRP_DISABLE"], got: "BOGUS"'
+  'value must be one of: ["VIRTUAL_NETWORK_SITE_LOCAL"'
+  'Value "999.1.1.1" is not a valid IPv4 address'
+  'Value "300.2.2.2" is not a valid IPv4 address'
 )
 for msg in "${expected[@]}"; do
   case "${reject_norm}" in
@@ -71,4 +76,6 @@ done
 echo
 echo "PASS: SMSv2 validators accept valid input and reject all four numeric leaves plus the"
 echo "      mac / ip_address(CIDR) / default_gw(IP) / nameserver+vip(IPv4) / node-type string leaves,"
-echo "      and the S3 interface-arm leaves (bond devices SizeBetween(1, 8) / static_ipv6 CIDR)."
+echo "      the S3 interface-arm leaves (bond devices SizeBetween(1, 8) / static_ipv6 CIDR),"
+echo "      and the S4 networking/services leaves (vip_vrrp_mode OneOf / blocked_services network_type"
+echo "      OneOf / custom_proxy proxy_ip_address IPv4 / segment_vrf nameserver IPv4)."
