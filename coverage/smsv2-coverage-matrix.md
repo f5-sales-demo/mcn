@@ -18,6 +18,11 @@ Columns:
 | interface_list.priority (0-255) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S1: validator `Between(0, 255)` (reject 256); on the base eth0 interface, live-applied+idempotent; import caveat as mtu |
 | vlan_interface.vlan_id (1-4095) | ✅ | ✅ | ⬜ | ➖ | ➖ | S1: validator `Between(1, 4095)` (reject 4096) proven at plan; NOT live-applicable — vlan_interface on the `azure` not_managed single Control node 400s (BAD_REQUEST); gated behind `var.extended_arms`, plan-validated only |
 | custom_proxy.proxy_port (0-65535) | ✅ | ✅ | ⬜ | ➖ | ➖ | S1: validator `Between(0, 65535)` (reject 70000) proven at plan; NOT live-applicable — custom_proxy 400s on this probe; gated behind `var.extended_arms`, plan-validated only |
+| ethernet_interface.mac | ✅ | ✅ | ✅ | ✅ | ⚠️ | S2: validator `MACValidator()` (reject `"not-a-mac"`); live-applied on the base eth0 with a valid MAC (`7C-1E-52-7F-F8-12`), idempotent; whole-object import carries the labels{} #1103 drift (see S1 note); gated by `string_arms` |
+| static_ip.ip_address (CIDR) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S2: validator `CIDRValidator()` (reject `"999.999.0.0/8"`); static_ip is the `dhcp_client` address-oneof sibling, live-applied+idempotent (`10.0.1.5/24`), gated by `string_arms`; import labels{} #1103 drift |
+| static_ip.default_gw (IP) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S2: validator `IPValidator()` (reject `"10.0.0.256"`); applied live with ip_address (`10.0.1.1`); import labels{} #1103 drift |
+| local_vrf.sli_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S2: validator `IPv4Validator()` (reject `"300.1.1.1"`) proven at plan; NOT live-applied — `sli_config` is a distinct `local_vrf` oneof arm from the base `default_sli_config`; gated behind `vrf_string_arms` (default false), plan-validated only (live is an S3 oneof concern) |
+| local_vrf.sli_config.vip (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S2: validator `IPv4Validator()` (reject the IPv6 literal `"2001:db8::1"`, proving IPv4-specificity); plan-validated only, gated behind `vrf_string_arms` (S3 oneof, as nameserver) |
 <!-- remaining toggle/interface/services arms seeded ⬜ for S3–S5 -->
 | block_all_services{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1 (S0 probe) |
 | disable_ha{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1 (S0 probe) |
@@ -35,10 +40,10 @@ Columns:
 | re_select.geo_proximity{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: from_site_list S5 |
 | software_settings.os.default_os_version{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: operating_system_version S5 |
 | software_settings.sw.default_sw_version{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: volterra_software_version S5 |
-| node_list[].type (Control/…) | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1; enum values S1 |
-| interface_list.ethernet_interface{} | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1; oneof vs vlan/dedicated S3 |
+| node_list[].type (Control/Worker) | ✅ | ✅ | ✅ | ✅ | ✅ | iter-1 live; S2: validator `OneOf("Control", "Worker")` (reject `"Bogus"`); the valid `Worker` arm plans clean and `Control` applied live |
+| interface_list.ethernet_interface{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1; block arm (its `mac` leaf → Validated ✅, row above); oneof vs vlan/dedicated S3 |
 | interface_list.network_option.site_local_network{} | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1; oneof: SLI/inside S3 |
-| interface_list.dhcp_client{} | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1; oneof: static_ip/dhcp_server S3 |
+| interface_list.dhcp_client{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1; block arm; the `static_ip` address-oneof sibling (ip_address/default_gw leaves) → Validated ✅ + Applied ✅ (rows above); dhcp_server S3 |
 | labels | ✅ | ➖ | ✅ | ➖ | ➖ | iter-1; ignore_changes (empty-map drift, xcsh #1103 class) |
 
 **S1 notes (numeric-leaf input validation):**
@@ -61,10 +66,31 @@ Columns:
   at PLAN time; the live apply/idempotent/import ran with `-var extended_arms=false` on the base
   probe (which still carries the mtu and priority leaves).
 
+**S2 notes (string-leaf input validation, provider >= 3.75.1):**
+
+- **Same verify.sh harness** — the S2 string reject cases (`reject-mac`, `reject-ip-address`,
+  `reject-default-gw`, `reject-nameserver`, `reject-vip`, `reject-node-type`) are driven by the
+  same `verify.sh` Phase 2, which asserts each validator's exact diagnostic. The accept case in
+  `validation.tftest.hcl` proves every string validator also passes a valid value at plan.
+- **mac / static_ip live-applied** — unlike S1's vlan_interface/custom_proxy, the eth0
+  `ethernet_interface.mac` and the `static_ip { ip_address, default_gw }` address-oneof arm both
+  apply live (HTTP 200) on the `azure` not_managed single-node probe. The live cycle ran twice
+  with a fresh `probe_name`: (a) the base arm `-var string_arms=false` (dhcp_client, no mac), and
+  (b) the string arm `-var string_arms=true` (mac + static_ip) — both apply → 0-change re-plan →
+  import → destroy, with only the shared labels{} #1103 import drift and no string-leaf drift.
+- **nameserver / vip plan-only** — `IPv4Validator()` is proven at PLAN via `reject-nameserver`
+  (bad IPv4 `300.1.1.1`) and `reject-vip` (the IPv6 literal `2001:db8::1`, proving IPv4-specificity).
+  They live on `local_vrf.sli_config`, a distinct oneof arm from the base `default_sli_config`, so
+  they are gated behind `var.vrf_string_arms` (default false) and NOT live-applied — the live oneof
+  swap is an S3 concern. Not overclaimed: Applied stays ⬜.
+- **validator string values** — MAC uses `net.ParseMAC`, CIDR `net.ParseCIDR`, IP `net.ParseIP`,
+  IPv4 `net.ParseIP + To4()`; each skips null/empty (Optional) so absent leaves never error.
+
 <!--
 Slice roadmap:
 - S0: probe workspace + this matrix (done).
 - S1: numeric-leaf input validation (.tftest.hcl out-of-range rejection) — DONE (verify.sh; provider v3.75.0).
+- S2: string-leaf input validation (mac/CIDR/IP/IPv4/node-type) — DONE (verify.sh; provider v3.75.1).
 - S3: interface oneof arms (ethernet vs vlan_interface vs dedicated; network_option SLI/inside; dhcp_client vs static_ip vs dhcp_server; custom_proxy).
 - S4: services oneof arms (forward proxy, network policy, log streaming/receiver).
 - S5: site-mode oneof arms (offline survivability, performance mode, re_select, software_settings explicit versions).
