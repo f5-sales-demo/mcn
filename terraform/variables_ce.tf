@@ -50,3 +50,15 @@ variable "registration_token" {
   default     = ""
   sensitive   = true
 }
+
+variable "ce_os_version" {
+  description = "Pin CE OS version (e.g. 9.2024.6) to avoid force-upgrade churn; empty = latest."
+  type        = string
+  default     = ""
+}
+
+variable "ce_sw_version" {
+  description = "Pin CE F5XC software version (e.g. crt-20250613-3382) to avoid force-upgrade churn; empty = latest."
+  type        = string
+  default     = ""
+}
