@@ -10,20 +10,7 @@ variable "mtu" {
   default     = 1500
 }
 
-variable "vlan_id" {
-  description = "VLAN id for a vlan_interface arm (1-4095). Wired for S3 interface oneof coverage."
-  type        = number
-  default     = 100
-}
-
-variable "priority" {
-  description = "Interface priority (0-255). Wired for S1/S3 coverage."
-  type        = number
-  default     = 10
-}
-
-variable "proxy_port" {
-  description = "custom_proxy proxy_port (0-65535). Wired for S3 forward-proxy coverage."
-  type        = number
-  default     = 8080
-}
+# NOTE: vlan_id / priority / proxy_port variables are intentionally NOT declared here.
+# tflint (terraform_unused_declarations) rejects declared-but-unused variables. They are
+# re-introduced in S1/S3 together with the vlan_interface and custom_proxy blocks that
+# consume them (see the coverage plan Task 11), so declaration and use land together.
