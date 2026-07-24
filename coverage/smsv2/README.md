@@ -116,6 +116,48 @@ terraform plan                  -var probe_name=cov-probe-s4-x -var extended_arm
 terraform destroy -auto-approve -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE
 ```
 
+## S5 site-mode oneof arms
+
+Every site-mode oneof (performance mode, OS/SW version, offline survivability, RE selection, upgrade
+drain, admin credentials) is modeled as an **enum selector** (`perf_arm`, `os_arm`/`os_version`,
+`sw_arm`/`sw_version`, `offline_arm`, `re_select_arm`, `upgrade_drain_arm`, `vega_arm`, `admin_creds`)
+that supersedes the pre-S5 hardcoded literal, plus gated `upgrade_settings` + `admin_user_credentials`
+blocks (both unset in the base). Every default renders the identical base member, so a bare
+`terraform plan` (all defaults) is unchanged versus the pre-S5 base (verified: defaults
+apply→0-change→import→destroy round-trips with only the `labels {}` #1244 drift).
+
+**Live-appliable (S5a)** — apply→idempotent→import (labels{} #1244 drift only)→destroy on the
+single-node `azure` probe: `perf_mode_l3_enhanced{no_jumbo{}}`, `operating_system_version`
+(`9.2024.6`), `volterra_software_version` (`crt-20250613-3382`; both version leaves are **create-only**
+yet round-trip 0-change), `enable_offline_survivability_mode`, and
+`upgrade_settings.kubernetes_upgrade_drain.enable_upgrade_drain` (drain count/timeout + vega
+sub-oneof). `enable_upgrade_drain` was expected plan-only (k8s worker drain on a non-k8s node) but the
+single-node probe accepts it — reclassified live after verification.
+
+**Plan-only (S5b)** — return `[BAD_REQUEST] Invalid request parameters (status: 400)` live on the
+single-node probe, so proven at plan via `validation.tftest.hcl` positive asserts:
+
+- `admin_user_credentials` — needs node local services / a multi-node CE. Its `admin_password`
+  SecretType uses `clear_secret_info { url = "string:///<base64>" }` — the only dependency-free
+  backend (blindfold/vault/wingman need external providers → 400) — with a base64 of a **dummy
+  throwaway placeholder**; NO real secret is committed. `ssh_key` `LengthAtMost(8192)` +
+  `secret_encoding_type` `OneOf(EncodingNone, EncodingBase64)` are reject-proven at plan.
+- `re_select.specific_re` — `primary_re` must name a real RE geography (a dummy name 400s);
+  `primary_re` `LengthBetween(1, 64)` reject-proven at plan.
+
+Live cycle per S5a arm (fresh `probe_name`, `extended_arms=false`):
+
+```bash
+cd coverage/smsv2
+set -a; source /tmp/mcn-xcsh.env; set +a
+terraform apply   -auto-approve -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version
+terraform plan                  -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version  # No changes
+terraform state rm xcsh_securemesh_site_v2.probe
+terraform import  -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version xcsh_securemesh_site_v2.probe system/cov-probe-s5-x
+terraform plan                  -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version  # 0-change modulo labels {}
+terraform destroy -auto-approve -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version
+```
+
 ## S1 numeric-validation gate
 
 ```bash
