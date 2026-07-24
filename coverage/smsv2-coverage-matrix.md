@@ -58,6 +58,29 @@ Columns:
 | interface_list.vlan_interface{} (interface_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S3 `interface_arm=vlan` (primary oneof); plan-only — 400 on single-node `azure` probe (confirmed live); `vlan_id` `Between(1, 4095)` validated (S1 reject-vlan-id via the extended_arms second interface) |
 | interface_list.ipv6_auto_config{} (ipv6_address_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S3 `ipv6_arm=ipv6_auto_config`; plan-only — 400 on single-node IPv4 `azure` probe (confirmed live); renders the `host {}` autoconfig_choice member; plans clean |
 | interface_list.static_ipv6_address{} (ipv6_address_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S3 `ipv6_arm=static_ipv6_address`; plan-only — 400 on single-node IPv4 `azure` probe (confirmed live); `node_static_ip.ip_address` `CIDRValidator()` reject proven at plan (reject-static-ipv6) |
+<!-- S4: networking / services top-level oneof arms (enum selectors; live cycle uses -var extended_arms=false) -->
+| blocked_services.blocked_service{} (services_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `services_arm=blocked_services`; plan-only — provider round-trip bug: apply errors "Provider produced inconsistent result after apply: .blocked_services.blocked_service block count changed from 1 to 0" (read-back drops the block). `network_type` `OneOf` reject proven at plan (reject-network-type) |
+| blocked_services.blocked_service.network_type (OneOf) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4: validator `OneOf(VIRTUAL_NETWORK_*)` (reject `"BOGUS"`) proven at plan (reject-network-type); not live (parent arm round-trip bug above) |
+| f5_proxy{} (enterprise_proxy_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `proxy_arm=f5_proxy`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| custom_proxy.proxy_ip_address (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4: validator `IPv4Validator()` (reject `"999.1.1.1"`) proven at plan (reject-proxy-ip); custom_proxy 400s live (S1), gated behind `extended_arms`, plan-validated only |
+| dns_ntp_config.custom_dns.dns_servers | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `dns_arm=custom_dns`; renders `dns_servers`; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| dns_ntp_config.custom_ntp.ntp_servers | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `ntp_arm=custom_ntp`; renders `ntp_servers`; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| custom_proxy_bypass.proxy_bypass | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `proxy_bypass_arm=custom_proxy_bypass`; renders `proxy_bypass` domain list; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| no_proxy_bypass{} (proxy_bypass_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `proxy_bypass_arm=no_proxy_bypass`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| enable_url_categorization{} (url_categorization_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `url_cat_arm=enable_url_categorization`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| disable_url_categorization{} (url_categorization_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `url_cat_arm=disable_url_categorization`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| disable_management_network{} (management_network_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `mgmt_net_arm=disable_management_network`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| load_balancing.vip_vrrp_mode (OneOf) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S4 `vip_vrrp_mode=VIP_VRRP_ENABLE`/`VIP_VRRP_DISABLE`; validator `OneOf(VIP_VRRP_INVALID, VIP_VRRP_ENABLE, VIP_VRRP_DISABLE)` (reject `"BOGUS"`, reject-vip-vrrp-mode); both ENABLE and DISABLE live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| site_mesh_group_on_slo{no_site_mesh_group{} sm_connection_public_ip{}} (s2s_slo_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S4 `s2s_slo_arm=site_mesh_group_empty`; renders both sub-oneofs (mesh_group_choice + connection_choice) all-empty; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| enable_ha{} (node_ha_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `ha_arm=enable_ha`; plan-only — 400 on single-node `azure` probe (needs >=3 nodes); plans clean |
+| enable_management_network{} (management_network_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `mgmt_net_arm=enable_management_network`; plan-only — 400 on single-node `azure` probe; plans clean |
+| active_forward_proxy_policies.forward_proxy_policies[] (ref) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `forward_proxy_arm=active_forward_proxy_policies`; plan-only — ObjectRefType list, ref-dependent; plans clean |
+| active_enhanced_firewall_policies.enhanced_firewall_policies[] (ref) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `network_policy_arm=active_enhanced_firewall_policies`; plan-only — ObjectRefType list, ref-dependent; plans clean |
+| log_receiver_with_net{log_receiver ref, use_slo_sli{}} (logs_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `logs_arm=log_receiver_with_net`; plan-only — ObjectRefType, ref-dependent; drives logs via `log_receiver_with_net`, NOT the stale top-level `log_receiver` field (provider #1256); plans clean |
+| dc_cluster_group_sli{} (ref, s2s_sli_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_sli_arm=dc_cluster_group_sli`; plan-only — ObjectRefType, ref-dependent; plans clean |
+| dc_cluster_group_slo{} (ref, s2s_slo_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_slo_arm=dc_cluster_group_slo`; plan-only — ObjectRefType, ref-dependent; plans clean |
+| site_mesh_group_on_slo{site_mesh_group ref} (s2s_slo_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_slo_arm=site_mesh_group_ref`; plan-only — `site_mesh_group` ObjectRefType, ref-dependent; plans clean |
+| segment_vrf.segment_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `segment_vrf_arm=inline`; plan-only — needs a Segment object ref the provider cannot yet inject (specs #1053); validator `IPv4Validator()` (reject `"300.2.2.2"`, reject-segment-nameserver) proven at plan |
 
 **S1 notes (numeric-leaf input validation):**
 
@@ -122,12 +145,45 @@ Columns:
 - **is_management / is_primary** — out of S3 scope (provider-capability gap, tracked in
   api-specs-enriched #1049; needs spec injection + regen).
 
+**S4 notes (networking / services top-level oneof arms, provider v3.76.0):**
+
+- **Enum selectors supersede the base literals** — each top-level networking/services oneof is driven
+  by an enum var (`services_arm`, `ha_arm`, `dns_arm`, `ntp_arm`, `proxy_arm`, `proxy_bypass_arm`,
+  `url_cat_arm`, `mgmt_net_arm`, `s2s_slo_arm`, `s2s_sli_arm`, `forward_proxy_arm`,
+  `network_policy_arm`, `logs_arm`, `vip_vrrp_mode`, `segment_vrf_arm`) so exactly ONE member of each
+  oneof renders. Every default is the arm the pre-S4 base probe already applied, so a bare
+  `terraform plan` (all defaults) shows NO diff versus the pre-S4 base — verified live: applied the
+  committed base, swapped in the S4 code, and a defaults plan reported "No changes."
+- **Live cycle uses `-var extended_arms=false`** — as in S1–S3, `custom_proxy` and the second vlan
+  interface 400 live, so every S4a live apply/idempotent/import ran with `extended_arms=false`.
+- **S4a live-appliable arms** (HTTP 200, idempotent, import-clean modulo the known `labels {}` #1244
+  drift): `f5_proxy`, `custom_dns`, `custom_ntp`, `custom_proxy_bypass`, `no_proxy_bypass`,
+  `enable_url_categorization`, `disable_url_categorization`, `disable_management_network`,
+  `load_balancing.vip_vrrp_mode` (ENABLE + DISABLE), and `site_mesh_group_on_slo` all-empty
+  (`no_site_mesh_group{} sm_connection_public_ip{}`). Each ran apply→0-change re-plan→import→destroy.
+- **`blocked_services` reclassified plan-only** — recon expected it live (S4a), but the apply errors
+  with `Provider produced inconsistent result after apply: .blocked_services.blocked_service block
+  count changed from 1 to 0` (the provider read-back drops the block). This is a provider round-trip
+  bug, not a config error; the `network_type` `OneOf` validator is still proven at plan.
+- **S4b plan-only (ref-dependent)** — `active_forward_proxy_policies`,
+  `active_enhanced_firewall_policies`, `log_receiver_with_net`, `dc_cluster_group_sli`,
+  `dc_cluster_group_slo`, and `site_mesh_group_on_slo` with a `site_mesh_group` ref are ObjectRefType
+  arms whose referents must pre-exist; their schema is proven at PLAN via `validation.tftest.hcl`
+  positive asserts.
+- **S4c plan-only (single-node 400)** — `enable_ha` and `enable_management_network` 400 on the
+  single-node `azure` probe; proven at PLAN.
+- **`segment_vrf` plan-only** — a live `segment_vrf` needs a Segment object reference the provider
+  cannot yet inject (specs #1053); proven at PLAN, and its `segment_config.nameserver`
+  `IPv4Validator()` reject at plan (reject-segment-nameserver, `"300.2.2.2"`).
+- **Stale `log_receiver` avoided** — logs are driven via `log_receiver_with_net`, never the stale
+  top-level `log_receiver` field (provider #1256).
+
 <!--
 Slice roadmap:
 - S0: probe workspace + this matrix (done).
 - S1: numeric-leaf input validation (.tftest.hcl out-of-range rejection) — DONE (verify.sh; provider v3.75.0).
 - S2: string-leaf input validation (mac/CIDR/IP/IPv4/node-type) — DONE (verify.sh; provider v3.75.1).
 - S3: interface/addressing oneof arms (interface_choice ethernet/bond/vlan; address_choice dhcp_client/static_ip/no_ipv4_address; ipv6_address_choice; monitoring_choice; s2s_iface_choice) — DONE (verify.sh + live matrix; provider v3.76.0).
-- S4: services oneof arms (forward proxy, network policy, log streaming/receiver).
+- S4: networking/services top-level oneof arms (blocked_services, dns/ntp, enterprise proxy, proxy bypass, url categorization, management network, load_balancing vip_vrrp_mode, s2s slo/sli, forward proxy, network policy, log streaming/receiver, site mesh group, segment_vrf) — DONE (verify.sh + live matrix; provider v3.76.0).
 - S5: site-mode oneof arms (offline survivability, performance mode, re_select, software_settings explicit versions).
 -->
