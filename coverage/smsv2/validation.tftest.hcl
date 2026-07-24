@@ -366,3 +366,104 @@ run "plan_segment_vrf" {
     error_message = "segment_vrf_arm=inline must render segment_config.nameserver plan-clean through IPv4Validator (plan-only; specs #1053)."
   }
 }
+
+# S5 positive plan asserts — each site-mode oneof alternative arm PLANS cleanly through the real
+# provider v3.76.0 schema (schema-valid) whether it is live (S5a) or single-node-400 (S5b). This proves
+# the HCL wiring + schema accept every arm; the live/plan split is recorded in the matrix.
+
+run "plan_perf_l3_enhanced" {
+  command = plan
+  variables {
+    probe_name = "cov-probe-s5-perf-l3"
+    perf_arm   = "perf_mode_l3_enhanced"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l3_enhanced.no_jumbo != null
+    error_message = "perf_arm=perf_mode_l3_enhanced must render the no_jumbo sub-oneof member of perf_mode_l3_enhanced."
+  }
+}
+
+run "plan_os_sw_pinned" {
+  command = plan
+  variables {
+    probe_name = "cov-probe-s5-os-sw"
+    os_arm     = "operating_system_version"
+    sw_arm     = "volterra_software_version"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.software_settings.os.operating_system_version == "9.2024.6"
+    error_message = "os_arm=operating_system_version must render the pinned OS version plan-clean through LengthAtMost(20)."
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.software_settings.sw.volterra_software_version == "crt-20250613-3382"
+    error_message = "sw_arm=volterra_software_version must render the pinned SW version plan-clean through LengthAtMost(20)."
+  }
+}
+
+run "plan_offline_enable" {
+  command = plan
+  variables {
+    probe_name  = "cov-probe-s5-offline"
+    offline_arm = "enable_offline_survivability_mode"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.offline_survivability_mode.enable_offline_survivability_mode != null
+    error_message = "offline_arm=enable_offline_survivability_mode must render the enable member of offline_survivability_mode."
+  }
+}
+
+run "plan_specific_re" {
+  command = plan
+  variables {
+    probe_name    = "cov-probe-s5-specific-re"
+    re_select_arm = "specific_re"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.re_select.specific_re.primary_re == "cov-primary-re"
+    error_message = "re_select_arm=specific_re must render primary_re plan-clean through LengthBetween(1, 64) (plan-only S5b)."
+  }
+}
+
+run "plan_upgrade_drain_enable" {
+  command = plan
+  variables {
+    probe_name        = "cov-probe-s5-drain"
+    upgrade_drain_arm = "enable_upgrade_drain"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.upgrade_settings.kubernetes_upgrade_drain.enable_upgrade_drain.drain_node_timeout == 300
+    error_message = "upgrade_drain_arm=enable_upgrade_drain must render drain_node_timeout plan-clean through Between(0, 900) (plan-only S5b)."
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.upgrade_settings.kubernetes_upgrade_drain.enable_upgrade_drain.disable_vega_upgrade_mode != null
+    error_message = "vega_arm default must render the disable_vega_upgrade_mode sub-oneof member."
+  }
+}
+
+run "plan_upgrade_drain_disable" {
+  command = plan
+  variables {
+    probe_name        = "cov-probe-s5-drain-disable"
+    upgrade_drain_arm = "disable_upgrade_drain"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.upgrade_settings.kubernetes_upgrade_drain.disable_upgrade_drain != null
+    error_message = "upgrade_drain_arm=disable_upgrade_drain must render the disable_upgrade_drain member of kubernetes_upgrade_drain."
+  }
+}
+
+run "plan_admin_user_credentials" {
+  command = plan
+  variables {
+    probe_name  = "cov-probe-s5-admin"
+    admin_creds = true
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.admin_user_credentials.admin_password.secret_encoding_type == "EncodingBase64"
+    error_message = "admin_creds=true must render admin_password.secret_encoding_type plan-clean through OneOf(EncodingNone, EncodingBase64)."
+  }
+  assert {
+    condition     = startswith(xcsh_securemesh_site_v2.probe.admin_user_credentials.admin_password.clear_secret_info.url, "string:///")
+    error_message = "admin_password.clear_secret_info.url must be a string:/// dummy-secret URL (dependency-free backend)."
+  }
+}

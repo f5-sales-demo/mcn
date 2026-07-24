@@ -35,11 +35,11 @@ Columns:
 | no_network_policy{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: active_network_policies S4 |
 | no_s2s_connectivity_sli{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
 | no_s2s_connectivity_slo{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
-| offline_survivability_mode.no_offline_survivability_mode{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: enable S5 |
-| performance_enhancement_mode.perf_mode_l7_enhanced{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: perf_mode_l3_enhanced S5 |
-| re_select.geo_proximity{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: from_site_list S5 |
-| software_settings.os.default_os_version{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: operating_system_version S5 |
-| software_settings.sw.default_sw_version{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: volterra_software_version S5 |
+| offline_survivability_mode.no_offline_survivability_mode{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S0 base arm; S5 `offline_arm=no_offline_survivability_mode` (default); defaults cycle apply→idempotent→import (labels{} #1244 drift only)→destroy; oneof alt: enable S5 |
+| performance_enhancement_mode.perf_mode_l7_enhanced{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S0 base arm; S5 `perf_arm=perf_mode_l7_enhanced` (default); defaults cycle round-trip (labels{} #1244 drift only); oneof alt: perf_mode_l3_enhanced S5 |
+| re_select.geo_proximity{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S0 base arm; S5 `re_select_arm=geo_proximity` (default); defaults cycle round-trip (labels{} #1244 drift only); oneof alt: specific_re S5 |
+| software_settings.os.default_os_version{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S0 base arm; S5 `os_arm=default_os_version` (default); defaults cycle round-trip (labels{} #1244 drift only); oneof alt: operating_system_version S5 |
+| software_settings.sw.default_sw_version{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S0 base arm; S5 `sw_arm=default_sw_version` (default); defaults cycle round-trip (labels{} #1244 drift only); oneof alt: volterra_software_version S5 |
 | node_list[].type (Control/Worker) | ✅ | ✅ | ✅ | ✅ | ✅ | iter-1 live; S2: validator `OneOf("Control", "Worker")` (reject `"Bogus"`); the valid `Worker` arm plans clean and `Control` applied live |
 | interface_list.ethernet_interface{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1; block arm (its `mac` leaf → Validated ✅, row above); oneof vs vlan/dedicated S3 |
 | interface_list.network_option.site_local_network{} | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1; oneof: SLI/inside S3 |
@@ -81,6 +81,17 @@ Columns:
 | dc_cluster_group_slo{} (ref, s2s_slo_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_slo_arm=dc_cluster_group_slo`; plan-only — ObjectRefType, ref-dependent; plans clean |
 | site_mesh_group_on_slo{site_mesh_group ref} (s2s_slo_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_slo_arm=site_mesh_group_ref`; plan-only — `site_mesh_group` ObjectRefType, ref-dependent; plans clean |
 | segment_vrf.segment_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `segment_vrf_arm=inline`; plan-only — needs a Segment object ref the provider cannot yet inject (specs #1053); validator `IPv4Validator()` (reject `"300.2.2.2"`, reject-segment-nameserver) proven at plan |
+<!-- S5: site-mode oneof arms (perf / os / sw / offline / re_select / upgrade / admin; enum selectors; live cycle uses -var extended_arms=false) -->
+| performance_enhancement_mode.perf_mode_l3_enhanced{no_jumbo{}} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S5 `perf_arm=perf_mode_l3_enhanced`; renders the `no_jumbo{}` sub-oneof member; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| software_settings.os.operating_system_version | ✅ | ✅ | ✅ | ✅ | ⚠️ | S5 `os_arm=operating_system_version` (`9.2024.6`); validator `LengthAtMost(20)` (reject 21-char, reject-os-version); create-only leaf — live apply→idempotent→import round-trips 0-change (labels{} #1244 drift only)→destroy |
+| software_settings.sw.volterra_software_version | ✅ | ✅ | ✅ | ✅ | ⚠️ | S5 `sw_arm=volterra_software_version` (`crt-20250613-3382`); validator `LengthAtMost(20)` (reject 21-char, reject-sw-version); create-only leaf — live round-trips 0-change (labels{} #1244 drift only) |
+| offline_survivability_mode.enable_offline_survivability_mode{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S5 `offline_arm=enable_offline_survivability_mode`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| upgrade_settings...enable_upgrade_drain{} (kubernetes_upgrade_drain) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S5 `upgrade_drain_arm=enable_upgrade_drain`; recon expected 400 (k8s worker-drain on non-k8s node) but the single-node `azure` probe ACCEPTS it — reclassified live; renders drain leaves + `disable_vega_upgrade_mode{}`; apply→idempotent→import (labels{} #1244 drift)→destroy |
+| enable_upgrade_drain.drain_max_unavailable_node_count (1-5000) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S5: validator `Between(1, 5000)` (reject 5001, reject-drain-count); applied live via enable_upgrade_drain (default 1) |
+| enable_upgrade_drain.drain_node_timeout (0-900) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S5: validator `Between(0, 900)` (reject 901, reject-drain-timeout); applied live via enable_upgrade_drain (default 300) |
+| enable_upgrade_drain.disable_vega_upgrade_mode{} (vega sub-oneof) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S5 `vega_arm=disable_vega_upgrade_mode` (default); empty marker; applied live via enable_upgrade_drain; alt `enable_vega_upgrade_mode` plans clean |
+| admin_user_credentials{ssh_key, admin_password clear_secret_info} | ✅ | ✅ | ⬜ | ➖ | ➖ | S5 `admin_creds=true`; plan-only — `[BAD_REQUEST]` 400 live on the single-node `azure` probe (recon expected live, reclassified); `ssh_key` `LengthAtMost(8192)` + `secret_encoding_type` `OneOf` reject-proven at plan; dummy `string:///<base64>` secret (no real secret committed) |
+| re_select.specific_re{primary_re, backup_re} | ✅ | ✅ | ⬜ | ➖ | ➖ | S5 `re_select_arm=specific_re`; plan-only — `[BAD_REQUEST] Invalid request parameters (status: 400)` live (primary_re must name a real RE geography); `primary_re` `LengthBetween(1, 64)` (reject 65-char, reject-primary-re) proven at plan |
 
 **S1 notes (numeric-leaf input validation):**
 
@@ -178,6 +189,39 @@ Columns:
 - **Stale `log_receiver` avoided** — logs are driven via `log_receiver_with_net`, never the stale
   top-level `log_receiver` field (provider #1256).
 
+**S5 notes (site-mode oneof arms, provider v3.76.0):**
+
+- **Enum selectors supersede the base literals** — each site-mode oneof is driven by an enum var
+  (`perf_arm`, `os_arm`/`os_version`, `sw_arm`/`sw_version`, `offline_arm`, `re_select_arm`,
+  `upgrade_drain_arm`/`drain_max_unavailable`/`drain_node_timeout`/`vega_arm`, `admin_creds`) that
+  replaces the pre-S5 hardcoded `performance_enhancement_mode`/`software_settings`/
+  `offline_survivability_mode`/`re_select` literals, and adds gated `upgrade_settings` +
+  `admin_user_credentials` blocks (both unset in the base). Every default renders the identical base
+  member, so a bare `terraform plan` (all defaults) shows NO diff — verified live: defaults
+  apply→0-change re-plan→import→destroy round-trips with only the known `labels {}` #1244 drift.
+- **S5a live-appliable** (HTTP 200, idempotent, import-clean modulo `labels {}` #1244):
+  `perf_mode_l3_enhanced{no_jumbo{}}`, `operating_system_version` (`9.2024.6`),
+  `volterra_software_version` (`crt-20250613-3382`), `enable_offline_survivability_mode`, and
+  `upgrade_settings.kubernetes_upgrade_drain.enable_upgrade_drain` (drain count/timeout + vega). Each
+  ran apply→0-change re-plan→import→destroy on the single-node probe.
+- **`operating_system_version`/`volterra_software_version` are create-only** — the API forbids
+  changing them after create, but the pinned values still import/re-plan 0-change (verified).
+- **`enable_upgrade_drain` reclassified live** — recon expected a 400 (k8s worker-node drain on a
+  non-k8s single node), but the single-node `azure` probe ACCEPTS it and round-trips clean (same
+  surprise as S3 `s2s_..._enabled`). `disable_upgrade_drain` and `enable_vega_upgrade_mode` plan clean.
+- **S5b plan-only (single-node 400)** — `admin_user_credentials` and `re_select.specific_re` each
+  return `[BAD_REQUEST] Invalid request parameters (status: 400)` on the single-node probe (both were
+  expected live in recon; reclassified after verification). `admin_user_credentials` needs the node
+  local services / a multi-node CE; `re_select.specific_re.primary_re` must name a real RE geography
+  (a dummy name 400s). Their validators are reject-proven at plan.
+- **`admin_password` dummy secret** — the `admin_password` SecretType uses `clear_secret_info { url =
+  "string:///<base64>" }` (the only dependency-free backend; blindfold/vault/wingman need external
+  providers → 400) with a base64 of a throwaway placeholder. NO real secret is committed. The
+  `secret_encoding_type` is `EncodingBase64` (`OneOf(EncodingNone, EncodingBase64)`).
+- **Provider enrichment gap #1258** — filed for the `enable_upgrade_drain.drain_node_timeout`
+  required-ness (the arm inventory marks it required); the harness always supplies it (default 300).
+  Not blocking — S5 is pure-mcn coverage (no provider/specs change).
+
 <!--
 Slice roadmap:
 - S0: probe workspace + this matrix (done).
@@ -185,5 +229,5 @@ Slice roadmap:
 - S2: string-leaf input validation (mac/CIDR/IP/IPv4/node-type) — DONE (verify.sh; provider v3.75.1).
 - S3: interface/addressing oneof arms (interface_choice ethernet/bond/vlan; address_choice dhcp_client/static_ip/no_ipv4_address; ipv6_address_choice; monitoring_choice; s2s_iface_choice) — DONE (verify.sh + live matrix; provider v3.76.0).
 - S4: networking/services top-level oneof arms (blocked_services, dns/ntp, enterprise proxy, proxy bypass, url categorization, management network, load_balancing vip_vrrp_mode, s2s slo/sli, forward proxy, network policy, log streaming/receiver, site mesh group, segment_vrf) — DONE (verify.sh + live matrix; provider v3.76.0).
-- S5: site-mode oneof arms (offline survivability, performance mode, re_select, software_settings explicit versions).
+- S5: site-mode oneof arms (offline survivability, performance mode, re_select, software_settings versions, kubernetes_upgrade_drain, admin_user_credentials) — DONE (verify.sh + live matrix; provider v3.76.0). S5a live: perf_mode_l3_enhanced, os/sw versions (create-only), offline enable, enable_upgrade_drain (reclassified). S5b plan-only (400): admin_user_credentials, specific_re.
 -->

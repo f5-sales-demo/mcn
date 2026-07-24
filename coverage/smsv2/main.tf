@@ -401,24 +401,127 @@ resource "xcsh_securemesh_site_v2" "probe" {
     }
   }
 
+  # S5 offline_survivability_mode oneof {no_offline_survivability_mode | enable_offline_survivability_mode},
+  # keyed on var.offline_arm. no_offline_survivability_mode (default) is the base arm; both are empty
+  # markers and both are S5a live.
   offline_survivability_mode {
-    no_offline_survivability_mode {}
+    dynamic "no_offline_survivability_mode" {
+      for_each = var.offline_arm == "no_offline_survivability_mode" ? [1] : []
+      content {}
+    }
+
+    dynamic "enable_offline_survivability_mode" {
+      for_each = var.offline_arm == "enable_offline_survivability_mode" ? [1] : []
+      content {}
+    }
   }
 
+  # S5 performance_enhancement_mode oneof {perf_mode_l7_enhanced | perf_mode_l3_enhanced}, keyed on
+  # var.perf_arm. perf_mode_l7_enhanced (default) is the base empty arm; perf_mode_l3_enhanced renders
+  # its no_jumbo{} sub-oneof member (jumbo|no_jumbo). Both are S5a live.
   performance_enhancement_mode {
-    perf_mode_l7_enhanced {}
+    dynamic "perf_mode_l7_enhanced" {
+      for_each = var.perf_arm == "perf_mode_l7_enhanced" ? [1] : []
+      content {}
+    }
+
+    dynamic "perf_mode_l3_enhanced" {
+      for_each = var.perf_arm == "perf_mode_l3_enhanced" ? [1] : []
+      content {
+        no_jumbo {}
+      }
+    }
   }
 
+  # S5 re_select oneof {geo_proximity | specific_re}, keyed on var.re_select_arm. geo_proximity
+  # (default) is the base empty arm and S5a live; specific_re renders primary_re (LengthBetween(1, 64))
+  # + backup_re and is plan-only S5b (primary_re must name a real RE geography).
   re_select {
-    geo_proximity {}
+    dynamic "geo_proximity" {
+      for_each = var.re_select_arm == "geo_proximity" ? [1] : []
+      content {}
+    }
+
+    dynamic "specific_re" {
+      for_each = var.re_select_arm == "specific_re" ? [1] : []
+      content {
+        primary_re = var.primary_re
+        backup_re  = var.backup_re
+      }
+    }
   }
 
+  # S5 software_settings.os / .sw oneofs. Each SingleNestedBlock carries either its default_*_version{}
+  # empty marker (default arm) OR the pinned version string attribute (operating_system_version /
+  # volterra_software_version, LengthAtMost(20)) — never both. The version leaves are create-only. All
+  # arms are S5a live; the pinned-version round-trip must still import/re-plan 0-change.
   software_settings {
     os {
-      default_os_version {}
+      dynamic "default_os_version" {
+        for_each = var.os_arm == "default_os_version" ? [1] : []
+        content {}
+      }
+      operating_system_version = var.os_arm == "operating_system_version" ? var.os_version : null
     }
     sw {
-      default_sw_version {}
+      dynamic "default_sw_version" {
+        for_each = var.sw_arm == "default_sw_version" ? [1] : []
+        content {}
+      }
+      volterra_software_version = var.sw_arm == "volterra_software_version" ? var.sw_version : null
+    }
+  }
+
+  # S5 upgrade_settings.kubernetes_upgrade_drain oneof {disable_upgrade_drain | enable_upgrade_drain},
+  # UNSET in the pre-S5 base — the whole block renders only when var.upgrade_drain_arm != "unset" so a
+  # bare plan omits it. enable_upgrade_drain exposes drain_max_unavailable_node_count (Between(1, 5000))
+  # + drain_node_timeout (Between(0, 900)) + a vega sub-oneof. Plan-only S5b: worker-node drain 400s on
+  # a non-k8s single-node probe.
+  dynamic "upgrade_settings" {
+    for_each = var.upgrade_drain_arm != "unset" ? [1] : []
+    content {
+      kubernetes_upgrade_drain {
+        dynamic "disable_upgrade_drain" {
+          for_each = var.upgrade_drain_arm == "disable_upgrade_drain" ? [1] : []
+          content {}
+        }
+
+        dynamic "enable_upgrade_drain" {
+          for_each = var.upgrade_drain_arm == "enable_upgrade_drain" ? [1] : []
+          content {
+            drain_max_unavailable_node_count = var.drain_max_unavailable
+            drain_node_timeout               = var.drain_node_timeout
+
+            dynamic "disable_vega_upgrade_mode" {
+              for_each = var.vega_arm == "disable_vega_upgrade_mode" ? [1] : []
+              content {}
+            }
+
+            dynamic "enable_vega_upgrade_mode" {
+              for_each = var.vega_arm == "enable_vega_upgrade_mode" ? [1] : []
+              content {}
+            }
+          }
+        }
+      }
+    }
+  }
+
+  # S5 admin_user_credentials (UNSET in the pre-S5 base) — rendered only when var.admin_creds is true so
+  # a bare plan omits it. The admin_password SecretType uses clear_secret_info (the only dependency-free
+  # backend; blindfold/vault/wingman need external providers) with a DUMMY base64 password — never a
+  # real secret. ssh_key is LengthAtMost(8192); secret_encoding_type is OneOf(EncodingNone,
+  # EncodingBase64). Attempted S5a live.
+  dynamic "admin_user_credentials" {
+    for_each = var.admin_creds ? [1] : []
+    content {
+      ssh_key = var.ssh_key
+      admin_password {
+        clear_secret_info {
+          url = "string:///${base64encode(var.admin_password_b64_source)}"
+        }
+        secret_encoding_type = var.secret_encoding_type
+      }
     }
   }
 

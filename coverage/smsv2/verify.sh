@@ -65,6 +65,16 @@ declare -a expected=(
   'value must be one of: ["VIRTUAL_NETWORK_SITE_LOCAL"'
   'Value "999.1.1.1" is not a valid IPv4 address'
   'Value "300.2.2.2" is not a valid IPv4 address'
+  # S5 site-mode validated leaves (os/sw LengthAtMost(20), drain Between, primary_re LengthBetween,
+  # ssh_key LengthAtMost(8192), secret_encoding_type OneOf). The two LengthAtMost(20) messages are
+  # identical text, so each is qualified by its attribute path to prove BOTH leaves independently.
+  "software_settings.os.operating_system_version string length must be at most 20, got: 21"
+  "software_settings.sw.volterra_software_version string length must be at most 20, got: 21"
+  "must be between 1 and 5000, got: 5001"
+  "must be between 0 and 900, got: 901"
+  "re_select.specific_re.primary_re string length must be between 1 and 64, got: 65"
+  "admin_user_credentials.ssh_key string length must be at most 8192, got: 8200"
+  'value must be one of: ["EncodingNone" "EncodingBase64"], got: "BOGUS"'
 )
 for msg in "${expected[@]}"; do
   case "${reject_norm}" in
@@ -77,5 +87,7 @@ echo
 echo "PASS: SMSv2 validators accept valid input and reject all four numeric leaves plus the"
 echo "      mac / ip_address(CIDR) / default_gw(IP) / nameserver+vip(IPv4) / node-type string leaves,"
 echo "      the S3 interface-arm leaves (bond devices SizeBetween(1, 8) / static_ipv6 CIDR),"
-echo "      and the S4 networking/services leaves (vip_vrrp_mode OneOf / blocked_services network_type"
-echo "      OneOf / custom_proxy proxy_ip_address IPv4 / segment_vrf nameserver IPv4)."
+echo "      the S4 networking/services leaves (vip_vrrp_mode OneOf / blocked_services network_type"
+echo "      OneOf / custom_proxy proxy_ip_address IPv4 / segment_vrf nameserver IPv4), and the S5"
+echo "      site-mode leaves (os/sw version LengthAtMost(20) / drain count+timeout Between / specific_re"
+echo "      primary_re LengthBetween(1, 64) / ssh_key LengthAtMost(8192) / secret_encoding_type OneOf)."
