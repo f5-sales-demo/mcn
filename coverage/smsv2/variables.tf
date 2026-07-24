@@ -201,3 +201,278 @@ variable "extended_arms" {
   type        = bool
   default     = true
 }
+
+# --- S4: networking / services top-level oneof selectors ------------------------------------------
+# Each top-level networking/services oneof is modeled as an enum selector driving mutually-exclusive
+# `dynamic` blocks so exactly ONE member of each oneof renders (no ConflictsWith trip). Every default
+# is the arm the base probe already applies live, so a bare `terraform plan` (all defaults) shows NO
+# diff versus the pre-S4 base. Live-appliable (S4a) arms apply/idempotent/import on the single-node
+# `azure` probe; ref-dependent (S4b) and single-node-400 (S4c) arms are plan-only.
+
+variable "services_arm" {
+  description = <<-EOT
+    services oneof member. `block_all_services` (default) is the base arm. `blocked_services` renders
+    a `blocked_service` entry (S4a live) exposing the `network_type` `OneOf` validator.
+  EOT
+  type        = string
+  default     = "block_all_services"
+  validation {
+    condition     = contains(["block_all_services", "blocked_services"], var.services_arm)
+    error_message = "services_arm must be block_all_services | blocked_services."
+  }
+}
+
+variable "blocked_network_type" {
+  description = "blocked_services.blocked_service.network_type. Provider validator: `OneOf(VIRTUAL_NETWORK_*)`. reject-network-type pushes \"BOGUS\". No terraform validation so the provider OneOf fires at plan."
+  type        = string
+  default     = "VIRTUAL_NETWORK_SITE_LOCAL"
+}
+
+variable "ha_arm" {
+  description = <<-EOT
+    node_ha oneof member. `disable_ha` (default) is the base arm and live-appliable. `enable_ha`
+    400s on a single-node `azure` probe (needs >=3 nodes) so it is plan-only (S4c).
+  EOT
+  type        = string
+  default     = "disable_ha"
+  validation {
+    condition     = contains(["disable_ha", "enable_ha"], var.ha_arm)
+    error_message = "ha_arm must be disable_ha | enable_ha."
+  }
+}
+
+variable "dns_arm" {
+  description = "dns_ntp_config dns oneof member. `f5_dns_default` (default, base) | `custom_dns` (renders `dns_servers`, S4a live)."
+  type        = string
+  default     = "f5_dns_default"
+  validation {
+    condition     = contains(["f5_dns_default", "custom_dns"], var.dns_arm)
+    error_message = "dns_arm must be f5_dns_default | custom_dns."
+  }
+}
+
+variable "ntp_arm" {
+  description = "dns_ntp_config ntp oneof member. `f5_ntp_default` (default, base) | `custom_ntp` (renders `ntp_servers`, S4a live)."
+  type        = string
+  default     = "f5_ntp_default"
+  validation {
+    condition     = contains(["f5_ntp_default", "custom_ntp"], var.ntp_arm)
+    error_message = "ntp_arm must be f5_ntp_default | custom_ntp."
+  }
+}
+
+variable "dns_servers" {
+  description = "custom_dns.dns_servers (list of DNS server IPs). Rendered only when dns_arm=custom_dns. Provider validator: `SizeAtMost(64)`."
+  type        = list(string)
+  default     = ["8.8.8.8", "8.8.4.4"]
+}
+
+variable "ntp_servers" {
+  description = "custom_ntp.ntp_servers (list of NTP servers). Rendered only when ntp_arm=custom_ntp. Provider validator: `SizeAtMost(64)`."
+  type        = list(string)
+  default     = ["216.239.35.0", "216.239.35.4"]
+}
+
+variable "proxy_arm" {
+  description = <<-EOT
+    enterprise_proxy oneof member. `custom_proxy` (default) keeps the S1/S2 `proxy_port` +
+    `proxy_ip_address` coverage and renders only when `extended_arms` is true (matching the pre-S4
+    base — `custom_proxy` 400s live on this probe). `f5_proxy` is an empty marker and S4a live.
+    `none` renders neither member.
+  EOT
+  type        = string
+  default     = "custom_proxy"
+  validation {
+    condition     = contains(["custom_proxy", "f5_proxy", "none"], var.proxy_arm)
+    error_message = "proxy_arm must be custom_proxy | f5_proxy | none."
+  }
+}
+
+variable "proxy_ip_address" {
+  description = "custom_proxy.proxy_ip_address (IPv4). Provider validator: `IPv4Validator()`. reject-proxy-ip pushes \"999.1.1.1\". No terraform validation so the provider IPv4 validator fires at plan."
+  type        = string
+  default     = "10.0.0.10"
+}
+
+variable "proxy_bypass_arm" {
+  description = <<-EOT
+    proxy_bypass oneof member. `unset` (default) omits the oneof entirely (matching the pre-S4 base,
+    which never set it). `no_proxy_bypass` (empty marker) and `custom_proxy_bypass` (renders
+    `proxy_bypass` domain list) are S4a live.
+  EOT
+  type        = string
+  default     = "unset"
+  validation {
+    condition     = contains(["unset", "no_proxy_bypass", "custom_proxy_bypass"], var.proxy_bypass_arm)
+    error_message = "proxy_bypass_arm must be unset | no_proxy_bypass | custom_proxy_bypass."
+  }
+}
+
+variable "proxy_bypass_domains" {
+  description = "custom_proxy_bypass.proxy_bypass (list of domains to bypass the proxy). Rendered only when proxy_bypass_arm=custom_proxy_bypass."
+  type        = list(string)
+  default     = ["example.com", "internal.local"]
+}
+
+variable "url_cat_arm" {
+  description = <<-EOT
+    url_categorization oneof member. `unset` (default) omits the oneof (pre-S4 base never set it).
+    `disable_url_categorization` and `enable_url_categorization` are empty markers, both S4a live.
+  EOT
+  type        = string
+  default     = "unset"
+  validation {
+    condition     = contains(["unset", "disable_url_categorization", "enable_url_categorization"], var.url_cat_arm)
+    error_message = "url_cat_arm must be unset | disable_url_categorization | enable_url_categorization."
+  }
+}
+
+variable "mgmt_net_arm" {
+  description = <<-EOT
+    management_network oneof member. `unset` (default) omits the oneof (pre-S4 base never set it).
+    `disable_management_network` is an empty marker, S4a live. `enable_management_network` 400s on a
+    single-node `azure` probe so it is plan-only (S4c).
+  EOT
+  type        = string
+  default     = "unset"
+  validation {
+    condition     = contains(["unset", "disable_management_network", "enable_management_network"], var.mgmt_net_arm)
+    error_message = "mgmt_net_arm must be unset | disable_management_network | enable_management_network."
+  }
+}
+
+variable "s2s_slo_arm" {
+  description = <<-EOT
+    s2s_connectivity_slo oneof member. `no_s2s_connectivity_slo` (default, base). `dc_cluster_group_slo`
+    (ObjectRefType) is ref-dependent, plan-only (S4b). `site_mesh_group_empty` renders
+    `site_mesh_group_on_slo { no_site_mesh_group {} sm_connection_public_ip {} }` (S4a live).
+    `site_mesh_group_ref` renders the `site_mesh_group` ObjectRefType arm, plan-only (S4b).
+  EOT
+  type        = string
+  default     = "no_s2s_connectivity_slo"
+  validation {
+    condition     = contains(["no_s2s_connectivity_slo", "dc_cluster_group_slo", "site_mesh_group_empty", "site_mesh_group_ref"], var.s2s_slo_arm)
+    error_message = "s2s_slo_arm must be no_s2s_connectivity_slo | dc_cluster_group_slo | site_mesh_group_empty | site_mesh_group_ref."
+  }
+}
+
+variable "s2s_sli_arm" {
+  description = "s2s_connectivity_sli oneof member. `no_s2s_connectivity_sli` (default, base) | `dc_cluster_group_sli` (ObjectRefType, ref-dependent, plan-only S4b)."
+  type        = string
+  default     = "no_s2s_connectivity_sli"
+  validation {
+    condition     = contains(["no_s2s_connectivity_sli", "dc_cluster_group_sli"], var.s2s_sli_arm)
+    error_message = "s2s_sli_arm must be no_s2s_connectivity_sli | dc_cluster_group_sli."
+  }
+}
+
+variable "forward_proxy_arm" {
+  description = "forward_proxy oneof member. `no_forward_proxy` (default, base) | `active_forward_proxy_policies` (ObjectRefType list, ref-dependent, plan-only S4b)."
+  type        = string
+  default     = "no_forward_proxy"
+  validation {
+    condition     = contains(["no_forward_proxy", "active_forward_proxy_policies"], var.forward_proxy_arm)
+    error_message = "forward_proxy_arm must be no_forward_proxy | active_forward_proxy_policies."
+  }
+}
+
+variable "network_policy_arm" {
+  description = "network_policy oneof member. `no_network_policy` (default, base) | `active_enhanced_firewall_policies` (ObjectRefType list, ref-dependent, plan-only S4b)."
+  type        = string
+  default     = "no_network_policy"
+  validation {
+    condition     = contains(["no_network_policy", "active_enhanced_firewall_policies"], var.network_policy_arm)
+    error_message = "network_policy_arm must be no_network_policy | active_enhanced_firewall_policies."
+  }
+}
+
+variable "logs_arm" {
+  description = <<-EOT
+    logs_receiver oneof member. `logs_streaming_disabled` (default, base) | `log_receiver_with_net`
+    (ObjectRefType log_receiver + use_slo_sli, ref-dependent, plan-only S4b). Drives logs via
+    `log_receiver_with_net`, never the stale top-level `log_receiver` field (provider #1256).
+  EOT
+  type        = string
+  default     = "logs_streaming_disabled"
+  validation {
+    condition     = contains(["logs_streaming_disabled", "log_receiver_with_net"], var.logs_arm)
+    error_message = "logs_arm must be logs_streaming_disabled | log_receiver_with_net."
+  }
+}
+
+variable "vip_vrrp_mode" {
+  description = <<-EOT
+    load_balancing.vip_vrrp_mode. Empty string "" (default) omits the `load_balancing` block entirely
+    (pre-S4 base never set it). `VIP_VRRP_ENABLE`/`VIP_VRRP_DISABLE`/`VIP_VRRP_INVALID` render
+    `load_balancing`; ENABLE/DISABLE are S4a live. Provider validator: `OneOf(VIP_VRRP_INVALID,
+    VIP_VRRP_ENABLE, VIP_VRRP_DISABLE)`. reject-vip-vrrp-mode pushes "BOGUS". No terraform validation
+    so the provider OneOf fires at plan.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "segment_vrf_arm" {
+  description = <<-EOT
+    segment_vrf selector. `unset` (default) omits `segment_vrf` (pre-S4 base never set it). `inline`
+    renders one `segment_vrf { segment_config { nameserver ... } }` entry. Plan-only: a live
+    `segment_vrf` needs a Segment object reference the provider cannot yet inject (specs #1053).
+  EOT
+  type        = string
+  default     = "unset"
+  validation {
+    condition     = contains(["unset", "inline"], var.segment_vrf_arm)
+    error_message = "segment_vrf_arm must be unset | inline."
+  }
+}
+
+variable "segment_nameserver" {
+  description = "segment_vrf.segment_config.nameserver (IPv4). Provider validator: `IPv4Validator()`. reject-segment-nameserver pushes an invalid IPv4. No terraform validation so the provider IPv4 validator fires at plan."
+  type        = string
+  default     = "10.0.3.53"
+}
+
+# --- S4b plan-only ObjectRefType names (each ref points at a fictitious object in `system`; the arm
+# is proven at PLAN only, so the referent need not exist) -----------------------------------------
+
+variable "forward_proxy_policy_ref_name" {
+  description = "active_forward_proxy_policies.forward_proxy_policies[].name (plan-only ref)."
+  type        = string
+  default     = "cov-forward-proxy-policy"
+}
+
+variable "firewall_policy_ref_name" {
+  description = "active_enhanced_firewall_policies.enhanced_firewall_policies[].name (plan-only ref)."
+  type        = string
+  default     = "cov-enhanced-firewall-policy"
+}
+
+variable "log_receiver_ref_name" {
+  description = "log_receiver_with_net.log_receiver.name (plan-only ref)."
+  type        = string
+  default     = "cov-log-receiver"
+}
+
+variable "dc_cluster_group_slo_ref_name" {
+  description = "dc_cluster_group_slo.name (plan-only ref)."
+  type        = string
+  default     = "cov-dc-cluster-group-slo"
+}
+
+variable "dc_cluster_group_sli_ref_name" {
+  description = "dc_cluster_group_sli.name (plan-only ref)."
+  type        = string
+  default     = "cov-dc-cluster-group-sli"
+}
+
+variable "site_mesh_group_ref_name" {
+  description = "site_mesh_group_on_slo.site_mesh_group.name (plan-only ref)."
+  type        = string
+  default     = "cov-site-mesh-group"
+}
+
+variable "ref_namespace" {
+  description = "Namespace for the S4b plan-only ObjectRefType references."
+  type        = string
+  default     = "system"
+}

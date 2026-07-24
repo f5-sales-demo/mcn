@@ -72,6 +72,50 @@ terraform plan                  -var probe_name=cov-probe-s3-x -var extended_arm
 terraform destroy -auto-approve -var probe_name=cov-probe-s3-x -var extended_arms=false -var monitor_arm=monitor
 ```
 
+## S4 networking / services oneof arms
+
+Every top-level networking/services oneof is modeled as an **enum selector** (`services_arm`,
+`ha_arm`, `dns_arm`, `ntp_arm`, `proxy_arm`, `proxy_bypass_arm`, `url_cat_arm`, `mgmt_net_arm`,
+`s2s_slo_arm`, `s2s_sli_arm`, `forward_proxy_arm`, `network_policy_arm`, `logs_arm`, `vip_vrrp_mode`,
+`segment_vrf_arm`) that supersedes the pre-S4 base literal so exactly one member of each oneof
+renders. Every default is the base arm, so a bare `terraform plan` (all defaults) is unchanged versus
+the pre-S4 base (verified: applied the committed base, swapped in the S4 code, defaults plan =
+"No changes").
+
+**Live-appliable (S4a)** — apply→idempotent→import (labels{} #1244 drift only)→destroy on the
+single-node `azure` probe: `f5_proxy`, `custom_dns`, `custom_ntp`, `custom_proxy_bypass`,
+`no_proxy_bypass`, `enable_url_categorization`, `disable_url_categorization`,
+`disable_management_network`, `load_balancing.vip_vrrp_mode` (ENABLE + DISABLE), and
+`site_mesh_group_on_slo` all-empty (`no_site_mesh_group{} sm_connection_public_ip{}`).
+
+**Plan-only** — proven at plan via `validation.tftest.hcl` positive asserts (would 400 / needs a ref
+live):
+
+- `blocked_services` — apply hits a provider round-trip bug (`Provider produced inconsistent result
+  after apply: .blocked_services.blocked_service block count changed from 1 to 0`); the `network_type`
+  `OneOf` validator is still reject-proven.
+- `enable_ha`, `enable_management_network` — 400 on a single-node probe.
+- `active_forward_proxy_policies`, `active_enhanced_firewall_policies`, `log_receiver_with_net`,
+  `dc_cluster_group_sli`, `dc_cluster_group_slo`, `site_mesh_group_on_slo` (ref variant) — ObjectRefType
+  arms whose referents must pre-exist.
+- `segment_vrf` — needs a Segment object ref the provider cannot yet inject (specs #1053).
+
+Logs are driven via `log_receiver_with_net`, never the stale top-level `log_receiver` field
+(provider #1256).
+
+Live cycle per S4a arm (fresh `probe_name`, `extended_arms=false`):
+
+```bash
+cd coverage/smsv2
+set -a; source /tmp/mcn-xcsh.env; set +a
+terraform apply   -auto-approve -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE
+terraform plan                  -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE  # No changes
+terraform state rm xcsh_securemesh_site_v2.probe
+terraform import  -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE xcsh_securemesh_site_v2.probe system/cov-probe-s4-x
+terraform plan                  -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE  # 0-change modulo labels {}
+terraform destroy -auto-approve -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE
+```
+
 ## S1 numeric-validation gate
 
 ```bash
