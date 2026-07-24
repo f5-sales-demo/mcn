@@ -16,7 +16,7 @@ Columns:
 | azure.not_managed.node_list[].interface_list[] | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1 (live N=3) |
 | interface_list.mtu (max 16384) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S1: validator `AtMost(16384)` (reject 20000); base probe live-applied+idempotent; leaf does not drift on import but the object import carries the labels{} #1103 drift (see below) |
 | interface_list.priority (0-255) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S1: validator `Between(0, 255)` (reject 256); on the base eth0 interface, live-applied+idempotent; import caveat as mtu |
-| vlan_interface.vlan_id (1-4095) | ✅ | ✅ | ⬜ | ➖ | ➖ | S1: validator `Between(1, 4095)` (reject 4096) proven at plan; NOT live-applicable — vlan_interface on the azure not_managed single Control node 400s (BAD_REQUEST); gated behind `var.extended_arms`, plan-validated only |
+| vlan_interface.vlan_id (1-4095) | ✅ | ✅ | ⬜ | ➖ | ➖ | S1: validator `Between(1, 4095)` (reject 4096) proven at plan; NOT live-applicable — vlan_interface on the `azure` not_managed single Control node 400s (BAD_REQUEST); gated behind `var.extended_arms`, plan-validated only |
 | custom_proxy.proxy_port (0-65535) | ✅ | ✅ | ⬜ | ➖ | ➖ | S1: validator `Between(0, 65535)` (reject 70000) proven at plan; NOT live-applicable — custom_proxy 400s on this probe; gated behind `var.extended_arms`, plan-validated only |
 <!-- remaining toggle/interface/services arms seeded ⬜ for S3–S5 -->
 | block_all_services{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1 (S0 probe) |
@@ -56,7 +56,7 @@ Columns:
   on v3.75.0 for `securemesh_site_v2` interface labels). The numeric leaves themselves do not
   drift; the base probe is apply-clean and idempotent. Out of scope for S1 (numeric validators).
 - **vlan_id / proxy_port not live-applied** — `vlan_interface` and top-level `custom_proxy` both
-  return `[BAD_REQUEST] Invalid request parameters (400)` on the azure not_managed single Control
+  return `[BAD_REQUEST] Invalid request parameters (400)` on the `azure` not_managed single Control
   node. They are gated behind `var.extended_arms` (default true) so their validators are reached
   at PLAN time; the live apply/idempotent/import ran with `-var extended_arms=false` on the base
   probe (which still carries the mtu and priority leaves).
