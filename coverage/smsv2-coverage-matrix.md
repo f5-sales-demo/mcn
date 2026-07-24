@@ -43,8 +43,21 @@ Columns:
 | node_list[].type (Control/Worker) | ✅ | ✅ | ✅ | ✅ | ✅ | iter-1 live; S2: validator `OneOf("Control", "Worker")` (reject `"Bogus"`); the valid `Worker` arm plans clean and `Control` applied live |
 | interface_list.ethernet_interface{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1; block arm (its `mac` leaf → Validated ✅, row above); oneof vs vlan/dedicated S3 |
 | interface_list.network_option.site_local_network{} | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1; oneof: SLI/inside S3 |
-| interface_list.dhcp_client{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1; block arm; the `static_ip` address-oneof sibling (ip_address/default_gw leaves) → Validated ✅ + Applied ✅ (rows above); dhcp_server S3 |
+| interface_list.dhcp_client{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | iter-1 + S3 `address_arm=dhcp_client`; block arm; the `static_ip` address-oneof sibling → Validated ✅ + Applied ✅ (rows above); live-applied+idempotent, labels{} #1244 import drift |
 | labels | ✅ | ➖ | ✅ | ➖ | ➖ | iter-1; ignore_changes (empty-map drift, xcsh #1103 class) |
+<!-- S3: interface / addressing oneof arms (enum selectors; live cycle uses -var extended_arms=false) -->
+| interface_list.static_ip{} (address_choice) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S3 `address_arm=static_ip` (default); ip_address/default_gw validated (rows above); live-applied+idempotent, labels{} #1244 import drift |
+| interface_list.no_ipv4_address{} (address_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S3 `address_arm=no_ipv4_address`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| interface_list.no_ipv6_address{} (ipv6_address_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S3 `ipv6_arm=no_ipv6_address` (default); empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| interface_list.monitor{} (monitoring_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S3 `monitor_arm=monitor`; empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| interface_list.monitor_disabled{} (monitoring_choice) | ✅ | ➖ | ✅ | ✅ | ⚠️ | S3 `monitor_arm=monitor_disabled` (default); empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| interface_list.site_to_site_connectivity_interface_disabled{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S3 `s2s_iface_arm=disabled` (default); empty marker; live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| interface_list.site_to_site_connectivity_interface_enabled{} | ✅ | ➖ | ✅ | ✅ | ⚠️ | S3 `s2s_iface_arm=enabled`; empty marker; recon expected 400 (s2s wiring) but the single-node `azure` probe ACCEPTS it — live apply→idempotent→import (labels{} #1244 drift only)→destroy |
+| interface_list.ethernet_interface{} (interface_choice) | ✅ | ✅ | ✅ | ✅ | ⚠️ | S3 `interface_arm=ethernet` (default); mac leaf validated (row above); live-applied+idempotent, labels{} #1244 import drift |
+| interface_list.bond_interface{} (interface_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S3 `interface_arm=bond`; plan-only — 400 (BAD_REQUEST) on single-node `azure` probe (confirmed live); `devices` `SizeBetween(1, 8)` reject proven at plan (reject-bond-devices); `lacp.rate` `Between(1, 30)` + `devices` plan clean |
+| interface_list.vlan_interface{} (interface_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S3 `interface_arm=vlan` (primary oneof); plan-only — 400 on single-node `azure` probe (confirmed live); `vlan_id` `Between(1, 4095)` validated (S1 reject-vlan-id via the extended_arms second interface) |
+| interface_list.ipv6_auto_config{} (ipv6_address_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S3 `ipv6_arm=ipv6_auto_config`; plan-only — 400 on single-node IPv4 `azure` probe (confirmed live); renders the `host {}` autoconfig_choice member; plans clean |
+| interface_list.static_ipv6_address{} (ipv6_address_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S3 `ipv6_arm=static_ipv6_address`; plan-only — 400 on single-node IPv4 `azure` probe (confirmed live); `node_static_ip.ip_address` `CIDRValidator()` reject proven at plan (reject-static-ipv6) |
 
 **S1 notes (numeric-leaf input validation):**
 
@@ -86,12 +99,35 @@ Columns:
 - **validator string values** — MAC uses `net.ParseMAC`, CIDR `net.ParseCIDR`, IP `net.ParseIP`,
   IPv4 `net.ParseIP + To4()`; each skips null/empty (Optional) so absent leaves never error.
 
+**S3 notes (interface / addressing oneof arms, provider v3.76.0):**
+
+- **Enum selectors, not booleans** — each interface oneof is driven by an enum var
+  (`interface_arm`, `address_arm`, `ipv6_arm`, `monitor_arm`, `s2s_iface_arm`) so exactly one
+  member of each oneof renders and no two siblings coexist (which would trip `ConflictsWith`). The
+  old S2 `string_arms` boolean now gates only the `mac` leaf; the address oneof is `address_arm`.
+- **Live cycle uses `-var extended_arms=false`** — as in S1/S2, the default `extended_arms=true`
+  second interface (vlan/custom_proxy) 400s, so every live apply/idempotent/import ran with
+  `extended_arms=false` on the base probe (which still renders one member of every eth0 oneof).
+- **Live-appliable arms** — `ethernet_interface`, `dhcp_client`, `static_ip`, `no_ipv4_address`,
+  `no_ipv6_address`, `monitor`, `monitor_disabled`, `s2s_..._disabled`, `s2s_..._enabled` all
+  apply (HTTP 200), re-plan clean, and import with only the known `labels {}` #1244 drift (already
+  handled by `ignore_changes`). `s2s_..._enabled` was expected plan-only in recon but the
+  single-node `azure` probe accepts it — reclassified live after verification.
+- **Plan-only arms** — `bond_interface`, `vlan_interface`, `ipv6_auto_config`,
+  `static_ipv6_address` each return `[BAD_REQUEST] Invalid request parameters (status: 400)` on the
+  single-node `azure` not_managed probe (confirmed live), so their schema is proven at PLAN only via
+  `validation.tftest.hcl` positive asserts, and their validated leaves via `verify.sh` reject tests
+  (`reject-bond-devices` = `devices` `SizeBetween(1, 8)`, `reject-static-ipv6` = `node_static_ip`
+  `ip_address` `CIDRValidator()`). `vlan_id` `Between(1, 4095)` reject is already covered by S1.
+- **is_management / is_primary** — out of S3 scope (provider-capability gap, tracked in
+  api-specs-enriched #1049; needs spec injection + regen).
+
 <!--
 Slice roadmap:
 - S0: probe workspace + this matrix (done).
 - S1: numeric-leaf input validation (.tftest.hcl out-of-range rejection) — DONE (verify.sh; provider v3.75.0).
 - S2: string-leaf input validation (mac/CIDR/IP/IPv4/node-type) — DONE (verify.sh; provider v3.75.1).
-- S3: interface oneof arms (ethernet vs vlan_interface vs dedicated; network_option SLI/inside; dhcp_client vs static_ip vs dhcp_server; custom_proxy).
+- S3: interface/addressing oneof arms (interface_choice ethernet/bond/vlan; address_choice dhcp_client/static_ip/no_ipv4_address; ipv6_address_choice; monitoring_choice; s2s_iface_choice) — DONE (verify.sh + live matrix; provider v3.76.0).
 - S4: services oneof arms (forward proxy, network policy, log streaming/receiver).
 - S5: site-mode oneof arms (offline survivability, performance mode, re_select, software_settings explicit versions).
 -->
