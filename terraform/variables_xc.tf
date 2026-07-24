@@ -5,7 +5,7 @@
 variable "xc_app_namespace" {
   description = "F5 XC namespace for the app-tier objects (origin pool + HTTP load balancer)."
   type        = string
-  default     = "r-mordasiewicz"
+  default     = "multi-cloud-networking"
 }
 
 variable "origin_pool_name" {

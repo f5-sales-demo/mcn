@@ -58,3 +58,15 @@ variable "enable_bgp" {
   type        = bool
   default     = true
 }
+
+variable "os_version" {
+  description = "Pin the CE operating_system_version (e.g. 9.2024.6) to avoid a force-upgrade; empty = server default (latest)."
+  type        = string
+  default     = ""
+}
+
+variable "sw_version" {
+  description = "Pin the CE volterra_software_version (e.g. crt-20250613-3382) to avoid a force-upgrade; empty = server default (latest)."
+  type        = string
+  default     = ""
+}
