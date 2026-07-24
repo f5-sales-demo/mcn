@@ -98,6 +98,8 @@ module "xc_site" {
   rs_peer_ips    = module.azure_hub.rs_peer_ips
   ce_asn         = var.ce_asn
   rs_asn         = var.rs_asn
+  os_version     = var.ce_os_version
+  sw_version     = var.ce_sw_version
   enable_bgp     = var.enable_bgp
 }
 

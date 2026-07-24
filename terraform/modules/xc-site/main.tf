@@ -8,6 +8,14 @@ resource "xcsh_securemesh_site_v2" "this" {
   description = "MCN CE-HA (BGP/ECMP) single-node SMSv2 site ${var.site_name} — explicit eth0 SLO interface for BGP peer binding."
   labels      = var.labels
 
+  # The provider reads empty labels back as absent, so an unset/empty labels map
+  # perpetually re-plans as `+ labels = {}` (empty-map round-trip drift, same class
+  # as xcsh #1103). Ignore label drift to keep the site idempotent — labels are not
+  # managed by this demo. Root-cause fix belongs in the provider (read-back suppression).
+  lifecycle {
+    ignore_changes = [labels]
+  }
+
   azure {
     not_managed {
       node_list {
@@ -65,12 +73,22 @@ resource "xcsh_securemesh_site_v2" "this" {
     geo_proximity {}
   }
 
+  # Pin OS/SW versions to avoid the fresh-image force-upgrade (9.2024.6 -> latest)
+  # whose churn stalls CE provisioning. Empty vars = use the server default (latest).
   software_settings {
     os {
-      default_os_version {}
+      dynamic "default_os_version" {
+        for_each = var.os_version == "" ? [1] : []
+        content {}
+      }
+      operating_system_version = var.os_version == "" ? null : var.os_version
     }
     sw {
-      default_sw_version {}
+      dynamic "default_sw_version" {
+        for_each = var.sw_version == "" ? [1] : []
+        content {}
+      }
+      volterra_software_version = var.sw_version == "" ? null : var.sw_version
     }
   }
 }
