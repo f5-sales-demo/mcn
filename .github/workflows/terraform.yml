@@ -13,10 +13,10 @@ name: Terraform
 on:
   pull_request:
     branches: [main]
-    paths: ['terraform/**', '.github/workflows/terraform.yml']
+    paths: ['terraform/**', 'coverage/**', '.github/workflows/terraform.yml']
   push:
     branches: [main]
-    paths: ['terraform/**', '.github/workflows/terraform.yml']
+    paths: ['terraform/**', 'coverage/**', '.github/workflows/terraform.yml']
 
 permissions:
   contents: read
@@ -52,3 +52,30 @@ jobs:
 
       - name: Plan-level module tests (all providers mocked)
         run: terraform test
+
+  # SMSv2 coverage-probe validation gate. Credential-free: the numeric-leaf tests mock the
+  # xcsh provider, so the provider's own schema validators fire at plan with no XC API call.
+  # NOTE: unlike the `validate` job (which pins the provider via terraform/.terraform-version
+  # and vendored config), this job resolves f5-sales-demo/xcsh from the public registry, so it
+  # only turns green once provider v3.75.0 (which ships the SMSv2 numeric validators) is
+  # published there. Locally the same tests run against the dev_overrides build via verify.sh.
+  coverage-smsv2:
+    name: coverage-smsv2
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coverage/smsv2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.10.5
+
+      - name: Init (no backend; provider resolved from the registry)
+        run: terraform init -input=false -backend=false
+
+      - name: Numeric-validator gate (accept valid bounds + reject out-of-range)
+        run: ./verify.sh
