@@ -16,8 +16,9 @@ resource "xcsh_securemesh_site_v2" "probe" {
         type     = "Control"
 
         interface_list {
-          name = "eth0"
-          mtu  = var.mtu
+          name     = "eth0"
+          mtu      = var.mtu
+          priority = var.priority
 
           ethernet_interface {
             device = "eth0"
@@ -28,6 +29,28 @@ resource "xcsh_securemesh_site_v2" "probe" {
           }
 
           dhcp_client {}
+        }
+
+        # S1: a second interface exposing the vlan_interface.vlan_id leaf (validator
+        # Between(1, 4095)). Gated by var.extended_arms so a live apply can fall back to
+        # the proven base-only probe if the XC API rejects the vlan/proxy combination —
+        # the schema validator still fires at PLAN time regardless of this toggle.
+        dynamic "interface_list" {
+          for_each = var.extended_arms ? [1] : []
+          content {
+            name = "eth0-vlan"
+
+            vlan_interface {
+              device  = "eth0"
+              vlan_id = var.vlan_id
+            }
+
+            network_option {
+              site_local_network {}
+            }
+
+            dhcp_client {}
+          }
         }
       }
     }
@@ -70,6 +93,17 @@ resource "xcsh_securemesh_site_v2" "probe" {
     }
     sw {
       default_sw_version {}
+    }
+  }
+
+  # S1: custom_proxy exposes the proxy_port leaf (validator Between(0, 65535)). This is the
+  # custom_proxy|f5_proxy oneof, distinct from the no_forward_proxy oneof set above. Gated by
+  # var.extended_arms (see the vlan_interface note); the validator fires at PLAN time regardless.
+  dynamic "custom_proxy" {
+    for_each = var.extended_arms ? [1] : []
+    content {
+      proxy_ip_address = "10.0.0.10"
+      proxy_port       = var.proxy_port
     }
   }
 }

@@ -27,9 +27,24 @@ existing StatusObject and 500s on create.
 | Variable | Default | Purpose |
 |---|---|---|
 | `probe_name` | `cov-probe-01` | Throwaway site name (override per run). |
-| `mtu` | `1500` | SLO interface MTU (0 or 512-16384). |
-| `vlan_id` | `100` | vlan_interface id (1-4095) — wired for S3. |
-| `priority` | `10` | Interface priority (0-255) — wired for S1/S3. |
-| `proxy_port` | `8080` | custom_proxy port (0-65535) — wired for S3. |
+| `mtu` | `1500` | eth0 interface MTU. Validator `AtMost(16384)`. |
+| `priority` | `10` | eth0 interface priority. Validator `Between(0, 255)`. |
+| `vlan_id` | `100` | vlan_interface VLAN tag. Validator `Between(1, 4095)`. |
+| `proxy_port` | `8080` | custom_proxy port. Validator `Between(0, 65535)`. |
+| `extended_arms` | `true` | Render the `vlan_interface` interface + top-level `custom_proxy` so the `vlan_id`/`proxy_port` leaves are reachable at plan. Set `false` for a live apply — those two arms 400 on this single-node probe, but the base eth0 interface (carrying `mtu`/`priority`) still applies live. |
+
+## S1 numeric-validation gate
+
+```bash
+cd coverage/smsv2
+./verify.sh   # credential-free: mocks the xcsh provider; the real v3.75.0 schema validators fire at plan
+```
+
+`verify.sh` proves the SMSv2 numeric validators both accept valid bounds and reject
+out-of-range input. It wraps `terraform test` because Terraform's `expect_failures` only
+captures user custom conditions, not provider schema validators: `validation.tftest.hcl`
+asserts the accept case, and `reject-tests/*.tftest.hcl` (one leaf per file, *designed to
+fail*) are driven with `-test-directory=reject-tests` while verify.sh asserts each leaf's
+exact validator diagnostic. This is the gate the `coverage-smsv2` CI job runs.
 
 Coverage progress is tracked in `../smsv2-coverage-matrix.md`.
