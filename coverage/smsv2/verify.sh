@@ -57,6 +57,9 @@ declare -a expected=(
   'Value "300.1.1.1" is not a valid IPv4 address'
   'Value "2001:db8::1" is not a valid IPv4 address'
   'value must be one of: ["Control" "Worker"], got: "Bogus"'
+  # S3 interface-arm validated leaves
+  "list must contain at least 1 elements and at most 8 elements, got: 0"
+  'Value "2001:db8::gg/64" is not a valid CIDR range'
 )
 for msg in "${expected[@]}"; do
   case "${reject_norm}" in
@@ -67,4 +70,5 @@ done
 
 echo
 echo "PASS: SMSv2 validators accept valid input and reject all four numeric leaves plus the"
-echo "      mac / ip_address(CIDR) / default_gw(IP) / nameserver+vip(IPv4) / node-type string leaves."
+echo "      mac / ip_address(CIDR) / default_gw(IP) / nameserver+vip(IPv4) / node-type string leaves,"
+echo "      and the S3 interface-arm leaves (bond devices SizeBetween(1, 8) / static_ipv6 CIDR)."
