@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# S1 numeric-validation gate for the SMSv2 coverage probe.
+# S1 numeric- + S2 string-validation gate for the SMSv2 coverage probe.
 #
-# Proves the provider v3.75.0 SMSv2 numeric validators both ACCEPT valid bounds and REJECT
-# out-of-range input, entirely credential-free (mock_provider fires the real schema
+# Proves the provider v3.75.1 SMSv2 numeric AND string validators both ACCEPT valid input and
+# REJECT invalid input, entirely credential-free (mock_provider fires the real schema
 # validators at plan). This wraps `terraform test` because Terraform's `expect_failures`
 # only captures user-defined custom conditions, not provider schema attribute validators, so
 # a rejection cannot be asserted as a passing test run natively.
@@ -41,12 +41,22 @@ fi
 # lines into one blob so each validator message matches regardless of terminal wrapping.
 reject_norm="$(printf '%s' "${reject_out}" | sed $'s/\x1b\\[[0-9;]*m//g' | tr '\n' ' ' | sed 's/\xe2\x94\x82//g' | tr -s ' ')"
 
-# Each leaf's exact validator diagnostic must appear.
+# Each leaf's exact validator diagnostic must appear. The S1 numeric messages come from the
+# framework's int64validator; the S2 string messages come from the provider's own
+# internal/validators (MAC/CIDR/IP) and the framework's stringvalidator.OneOf (node type).
 declare -a expected=(
+  # S1 numeric
   "must be at most 16384, got: 20000"
   "must be between 0 and 255, got: 256"
   "must be between 1 and 4095, got: 4096"
   "must be between 0 and 65535, got: 70000"
+  # S2 string
+  'Value "not-a-mac" is not a valid MAC address'
+  'Value "999.999.0.0/8" is not a valid CIDR range'
+  'Value "10.0.0.256" is not a valid IP address'
+  'Value "300.1.1.1" is not a valid IPv4 address'
+  'Value "2001:db8::1" is not a valid IPv4 address'
+  'value must be one of: ["Control" "Worker"], got: "Bogus"'
 )
 for msg in "${expected[@]}"; do
   case "${reject_norm}" in
@@ -56,4 +66,5 @@ for msg in "${expected[@]}"; do
 done
 
 echo
-echo "PASS: S1 numeric validators accept valid bounds and reject all four out-of-range leaves."
+echo "PASS: SMSv2 validators accept valid input and reject all four numeric leaves plus the"
+echo "      mac / ip_address(CIDR) / default_gw(IP) / nameserver+vip(IPv4) / node-type string leaves."
