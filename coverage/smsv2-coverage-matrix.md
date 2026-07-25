@@ -235,6 +235,12 @@ Columns:
   (a) `cov-probe-s7d1-01` defaults → apply → plan "No changes" → `state rm` → `import system/...` → plan
   **0 changes**, with no `ignore_changes` anywhere; (b) `cov-probe-s7d1-02` with `labels = {}` in config →
   apply → plan **"No changes"**. Both probes destroyed; the live demo sites were never touched.
+- **Scope of the Import-clean flips.** The S7 import proof was re-run live on the base probe only. Every
+  other arm's Import-clean cell is now `✅` because the sole caveat it carried was this one shared marker,
+  and #1244's fix is resource-wide rather than arm-specific: regeneration guards **39 of 39** nested
+  `labels` closures in `securemesh_site_v2_resource.go`. Arms whose S3/S4/S5 cycle already recorded a live
+  `import (0-change)` are unchanged in meaning; the flip only removes the "modulo `labels {}`" caveat. No
+  arm was re-applied live in S7 to re-observe its own import.
 
 <!--
 Slice roadmap:
