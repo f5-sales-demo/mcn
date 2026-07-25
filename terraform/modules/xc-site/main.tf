@@ -6,15 +6,14 @@ resource "xcsh_securemesh_site_v2" "this" {
   name        = var.site_name
   namespace   = "system"
   description = "MCN CE-HA (BGP/ECMP) single-node SMSv2 site ${var.site_name} — explicit eth0 SLO interface for BGP peer binding."
-  labels      = var.labels
-
-  # The provider reads empty labels back as absent, so an unset/empty labels map
-  # perpetually re-plans as `+ labels = {}` (empty-map round-trip drift, same class
-  # as xcsh #1103). Ignore label drift to keep the site idempotent — labels are not
-  # managed by this demo. Root-cause fix belongs in the provider (read-back suppression).
-  lifecycle {
-    ignore_changes = [labels]
-  }
+  # `null`, not `{}`, when no labels are set. xcsh #1286 makes the provider preserve a
+  # config-declared empty map on the POST-APPLY read-back, but import has no config to
+  # read: the state carries only id/name/namespace and `ReadRequest` exposes nothing
+  # else, so a literal `{}` would still re-plan as `+ labels = {}` on the first
+  # post-import plan. Sending `null` when the map is empty stops asking the provider to
+  # distinguish "declared empty" from "absent" — something it cannot observe on import.
+  # (The nested `interface_list.labels {}` marker is a separate class, fixed by xcsh #1244.)
+  labels = length(var.labels) > 0 ? var.labels : null
 
   azure {
     not_managed {
