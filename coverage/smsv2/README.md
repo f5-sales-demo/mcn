@@ -45,7 +45,7 @@ Every eth0 interface oneof is modeled as an **enum selector** (`interface_arm`, 
 siblings ever coexist (which would trip the provider's `ConflictsWith`). Defaults are the live-safe
 base arm, so a bare apply (with `extended_arms=false`) stays idempotent and import-clean.
 
-**Live-appliable** (HTTP 200, idempotent, import-clean modulo the known `labels {}` #1244 drift):
+**Live-appliable** (HTTP 200, idempotent, import-clean):
 `ethernet_interface`, `dhcp_client`, `static_ip`, `no_ipv4_address`, `no_ipv6_address`, `monitor`,
 `monitor_disabled`, `site_to_site_connectivity_interface_disabled`, and
 `site_to_site_connectivity_interface_enabled` (s2s `enabled` was expected to need s2s wiring but the
@@ -68,7 +68,7 @@ terraform apply   -auto-approve -var probe_name=cov-probe-s3-x -var extended_arm
 terraform plan                  -var probe_name=cov-probe-s3-x -var extended_arms=false -var monitor_arm=monitor  # No changes
 terraform state rm xcsh_securemesh_site_v2.probe
 terraform import  -var probe_name=cov-probe-s3-x -var extended_arms=false -var monitor_arm=monitor xcsh_securemesh_site_v2.probe system/cov-probe-s3-x
-terraform plan                  -var probe_name=cov-probe-s3-x -var extended_arms=false -var monitor_arm=monitor  # 0-change modulo labels {}
+terraform plan                  -var probe_name=cov-probe-s3-x -var extended_arms=false -var monitor_arm=monitor  # No changes
 terraform destroy -auto-approve -var probe_name=cov-probe-s3-x -var extended_arms=false -var monitor_arm=monitor
 ```
 
@@ -82,7 +82,7 @@ renders. Every default is the base arm, so a bare `terraform plan` (all defaults
 the pre-S4 base (verified: applied the committed base, swapped in the S4 code, defaults plan =
 "No changes").
 
-**Live-appliable (S4a)** — apply→idempotent→import (labels{} #1244 drift only)→destroy on the
+**Live-appliable (S4a)** — apply→idempotent→import (0-change)→destroy on the
 single-node `azure` probe: `f5_proxy`, `custom_dns`, `custom_ntp`, `custom_proxy_bypass`,
 `no_proxy_bypass`, `enable_url_categorization`, `disable_url_categorization`,
 `disable_management_network`, `load_balancing.vip_vrrp_mode` (ENABLE + DISABLE), and
@@ -112,7 +112,7 @@ terraform apply   -auto-approve -var probe_name=cov-probe-s4-x -var extended_arm
 terraform plan                  -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE  # No changes
 terraform state rm xcsh_securemesh_site_v2.probe
 terraform import  -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE xcsh_securemesh_site_v2.probe system/cov-probe-s4-x
-terraform plan                  -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE  # 0-change modulo labels {}
+terraform plan                  -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE  # No changes
 terraform destroy -auto-approve -var probe_name=cov-probe-s4-x -var extended_arms=false -var vip_vrrp_mode=VIP_VRRP_ENABLE
 ```
 
@@ -124,9 +124,9 @@ drain, admin credentials) is modeled as an **enum selector** (`perf_arm`, `os_ar
 that supersedes the pre-S5 hardcoded literal, plus gated `upgrade_settings` + `admin_user_credentials`
 blocks (both unset in the base). Every default renders the identical base member, so a bare
 `terraform plan` (all defaults) is unchanged versus the pre-S5 base (verified: defaults
-apply→0-change→import→destroy round-trips with only the `labels {}` #1244 drift).
+apply→0-change→import→destroy round-trips 0-change).
 
-**Live-appliable (S5a)** — apply→idempotent→import (labels{} #1244 drift only)→destroy on the
+**Live-appliable (S5a)** — apply→idempotent→import (0-change)→destroy on the
 single-node `azure` probe: `perf_mode_l3_enhanced{no_jumbo{}}`, `operating_system_version`
 (`9.2024.6`), `volterra_software_version` (`crt-20250613-3382`; both version leaves are **create-only**
 yet round-trip 0-change), `enable_offline_survivability_mode`, and
@@ -154,7 +154,7 @@ terraform apply   -auto-approve -var probe_name=cov-probe-s5-x -var extended_arm
 terraform plan                  -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version  # No changes
 terraform state rm xcsh_securemesh_site_v2.probe
 terraform import  -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version xcsh_securemesh_site_v2.probe system/cov-probe-s5-x
-terraform plan                  -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version  # 0-change modulo labels {}
+terraform plan                  -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version  # No changes
 terraform destroy -auto-approve -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version
 ```
 
