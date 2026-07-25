@@ -13,7 +13,7 @@ terraform {
       # to validates), and the registration pair used by modules/xc-site — the
       # xcsh_site_registration data source (resolves a CE's r-<uuid> runtime
       # registration name from its site name) plus xcsh_registration_approval.
-      version = ">= 3.78.0" # TODO(controller): confirm released version
+      version = ">= 3.77.3"
     }
     # Azure providers deploy the hub VNet, Azure Route Server, the CE VMs and the
     # test client. azuread is read-only (resolves the deployer identity for naming/tags).
