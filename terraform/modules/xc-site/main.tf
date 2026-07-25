@@ -93,6 +93,33 @@ resource "xcsh_securemesh_site_v2" "this" {
   }
 }
 
+# The approve API takes the runtime registration name ("r-<uuid>"), NOT the site
+# name (GET .../registrations/<site> -> 404). registrations_by_site returns
+# HTTP 200 with items:[] for a site whose CE has not registered yet, so this read
+# never fails an early apply — it just reports found = false.
+#
+# NOTE: this data source must never carry depends_on. Its inputs are statically
+# derived from ce_topology, so it resolves at plan time; a resource dependency
+# would make the count below unknown at plan time ("The count value depends on
+# resource attributes that cannot be determined until apply").
+data "xcsh_site_registration" "this" {
+  site_name = var.site_name # == passport.cluster_name (cloud-init ClusterName)
+  hostname  = var.hostname  # discriminator for multi-node sites
+  namespace = "system"
+}
+
+# Approve the CE registration so the node reaches ONLINE without the manual
+# console step (#1206 / #1210). The registration exists only after the CE boots
+# and registers via the token, so the first apply plans no approval; re-apply
+# once the CE has registered (see the deploy ordering in main.tf).
+resource "xcsh_registration_approval" "this" {
+  count = var.approve_registration && data.xcsh_site_registration.this.found ? 1 : 0
+
+  namespace = "system"
+  name      = data.xcsh_site_registration.this.name
+  state     = "APPROVED"
+}
+
 # One bgp object per CE site: eBGP from the CE (ASN var.ce_asn) to the Azure
 # Route Server (ASN var.rs_asn), one external peer per Route Server virtual
 # router IP, each bound to the explicit SLO interface.
