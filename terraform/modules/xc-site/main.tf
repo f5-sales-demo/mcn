@@ -112,6 +112,18 @@ data "xcsh_site_registration" "this" {
 # console step (#1206 / #1210). The registration exists only after the CE boots
 # and registers via the token, so the first apply plans no approval; re-apply
 # once the CE has registered (see the deploy ordering in main.tf).
+#
+# ADOPTING AN ALREADY-APPROVED CE: the approve action only legitimately moves a
+# registration out of NEW, so applying this against a CE that is already
+# APPROVED/ONLINE would POST a redundant approve (which the API may reject —
+# xcsh #1278). Import the existing approval instead of letting Terraform create
+# it, using namespace/name with the RUNTIME registration name (the site name
+# 404s — read it from the data source's `registration_name` output):
+#
+#   terraform import 'module.xc_site["eastus01"].xcsh_registration_approval.this[0]' \
+#     system/r-dcec2400-52d5-4154-9fd0-4b042d3fe18d
+#
+# Or set approve_registration = false to keep approval out of the graph entirely.
 resource "xcsh_registration_approval" "this" {
   count = var.approve_registration && data.xcsh_site_registration.this.found ? 1 : 0
 
