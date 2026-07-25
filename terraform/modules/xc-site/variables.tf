@@ -59,6 +59,12 @@ variable "enable_bgp" {
   default     = true
 }
 
+variable "approve_registration" {
+  description = "Approve the CE's runtime registration (named r-<uuid>, resolved from the site name by the xcsh_site_registration data source) instead of clicking Approve in the console. Two-phase by nature: the registration does not exist until the CE has booted and registered via the token, so the first apply plans no approval and a later apply creates it. For a CE that is ALREADY approved/ONLINE, import the existing approval (namespace/r-<uuid>, see the note in main.tf) rather than letting Terraform create it, since re-approving a non-NEW registration may be rejected. Set false to leave approval to an operator."
+  type        = bool
+  default     = true
+}
+
 variable "os_version" {
   description = "Pin the CE operating_system_version (e.g. 9.2024.6) to avoid a force-upgrade; empty = server default (latest)."
   type        = string

@@ -4,9 +4,16 @@
 # via eBGP (ASN 64512) to Azure Route Server (ASN 65515). Equal-cost advertisements
 # from multiple CEs program ECMP (active/active) into the hub VNet.
 #
-# Deploy-time ordering (see AS-BUILT.md §5.4): Azure (VNet/subnets/RS/NICs/VMs) ->
-# XC site (explicit interface) -> token -> CE cloud-init boot -> MANUAL console
-# approval -> CE ONLINE -> xcsh_bgp + RS bgpConnection -> LB advertise. The bgp/LB
+# Deploy-time ordering: Azure (VNet/subnets/RS/NICs/VMs) -> XC site (explicit
+# interface) -> token -> CE cloud-init boot -> CE registers -> registration
+# approval -> CE ONLINE -> xcsh_bgp + RS bgpConnection -> LB advertise.
+#
+# Approval is automated, but the deploy is inherently TWO-PHASE, not a single
+# hands-off apply: a CE's registration is named r-<uuid> and only exists after
+# the node has booted and registered. The xc-site module resolves that name with
+# the xcsh_site_registration data source and approves it with
+# xcsh_registration_approval, gated on found — so the first apply plans no
+# approval, and a re-apply once the CEs have registered creates them. The bgp/LB
 # objects can be applied before ONLINE; they converge once the CE is up.
 
 # Guard: the HA VIP MUST be outside every VNet CIDR, or Azure prefers the VNet
@@ -27,8 +34,10 @@ check "vip_outside_vnet_cidrs" {
 # xcsh_token with a Computed `uid` (system_metadata.uid) — the token VALUE a CE
 # feeds to VPM at registration (the resource `id` is the token NAME, not the
 # value). The spec is empty; only metadata is needed and namespace defaults to
-# system. This replaces the manual var.registration_token prerequisite (#1205);
-# registration approval remains console-only (deferred, #1206 / #1210).
+# system. This replaces the manual var.registration_token prerequisite (#1205).
+# The console approval step (#1206 / #1210) is likewise gone: each CE's runtime
+# registration is resolved by site name and approved in the post-registration
+# phase (see modules/xc-site/main.tf and the deploy ordering above).
 resource "xcsh_token" "ce" {
   name        = "mcn-ce-registration"
   namespace   = "system"
@@ -91,16 +100,17 @@ module "xc_site" {
   source   = "./modules/xc-site"
   for_each = module.ce_topology.ce_nodes
 
-  site_name      = each.value.site_name
-  hostname       = each.value.hostname
-  interface_name = each.value.interface_name
-  mgmt_nic_mac   = module.ce_node[each.key].mgmt_nic_mac
-  rs_peer_ips    = module.azure_hub.rs_peer_ips
-  ce_asn         = var.ce_asn
-  rs_asn         = var.rs_asn
-  os_version     = var.ce_os_version
-  sw_version     = var.ce_sw_version
-  enable_bgp     = var.enable_bgp
+  site_name            = each.value.site_name
+  hostname             = each.value.hostname
+  interface_name       = each.value.interface_name
+  mgmt_nic_mac         = module.ce_node[each.key].mgmt_nic_mac
+  rs_peer_ips          = module.azure_hub.rs_peer_ips
+  ce_asn               = var.ce_asn
+  rs_asn               = var.rs_asn
+  os_version           = var.ce_os_version
+  sw_version           = var.ce_sw_version
+  enable_bgp           = var.enable_bgp
+  approve_registration = var.approve_registration
 }
 
 # The Azure side of each eBGP session (Route Server -> CE eth0/SLO IP).
