@@ -53,14 +53,58 @@ marker. `capture-sitecli.sh` refuses to execute that tier, reading the tier from
 the live catalog rather than a hardcoded list, so a build that promotes a command
 to `Exec` is respected without a code change.
 
-## Scrubbing
+## Scrubbing, and why strict is the default
 
-Captures pass through `scripts/sitecli-scrub.sh`, which removes API tokens, the
-tenant console hostname, our public addresses, the Azure VNet DNS label and
-private key material, while deliberately preserving the content that makes the
-output worth reading: `0.0.0.0`, netmasks, multicast groups, RFC1918 and
-carrier-grade NAT addresses, MAC addresses, and well-known public resolvers. See
-`tests/test-sitecli-scrub.sh`, where most cases assert preservation.
+Captures pass through `scripts/sitecli-scrub.sh`, which has two profiles.
+
+**For a company customer, infrastructure identifiers are personally identifiable
+information.** Internal addressing, MAC addresses, AS numbers and hostnames all
+identify the organisation. So the filter defaults to `strict`, which removes them:
+pointing this harness at a customer node and committing the result cannot leak by
+omission. The dangerous direction takes an explicit choice; the safe one takes
+nothing.
+
+This repository declares `lab` in `capture-manifest.json`, because its captures
+come from an F5-owned demo tenant covered by the authorized-use statement in
+`CLAUDE.md`, and there the addressing *is* the diagnostic content. That declaration
+lives in the manifest rather than in the script so it appears in a diff and has to
+be reviewed. **Capturing from a customer node: do not set it.**
+
+| | `strict` (default) | `lab` |
+| --- | --- | --- |
+| RFC1918 / RFC6598 addressing | `<private-ip>` | kept |
+| MAC addresses | `<mac>` | kept |
+| AS numbers | `<asn>` | kept |
+| Node and site names | `<node>` / `<site>` | kept |
+
+Removed under **both** profiles: API and bearer tokens, private key bodies, the
+tenant console hostname, the tenant label inside internal SA names, object UUIDs,
+the Azure VNet DNS label, public IPv4 and global-unicast IPv6, email addresses, and
+home directories carrying an account name.
+
+Kept under both, because removing it leaves the output meaningless: `0.0.0.0`,
+netmasks, broadcast, multicast groups, loopback, link-local, well-known public
+resolvers, container ids, build strings, interface names and tunnel state.
+
+Two rules exist only because real output disproved an assumption:
+
+- Hostnames are also matched as **truncations** down to 8 characters, because
+  `netstat` shortens them to fit its column (`f5-xc-ce-` for `f5-xc-ce-vm-01`) and an
+  exact-match rule silently missed it.
+- The tenant appears inside internal IPsec SA names with a unique suffix, which the
+  console-hostname rule never saw.
+
+See `tests/test-sitecli-scrub.sh` — 82 assertions, and most of them assert
+*preservation*, because over-redaction is the failure mode that makes a capture
+worthless.
+
+### Known limitation
+
+A BGP neighbour table prints the AS as a bare column with no label to anchor on, so
+ASNs are matched **by value** against the private ranges (RFC6996 16-bit and
+32-bit). A **public** ASN in that column survives `strict`. If you capture from a
+customer using public ASNs, review `show-ip-bgp*` output by hand before committing
+it.
 
 Captured text is trimmed to keep pages readable (`nh --list` alone is 3849
 lines). A trimmed capture ends with an explicit
