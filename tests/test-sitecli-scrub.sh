@@ -22,8 +22,12 @@ SCRIPT="${REPO_ROOT}/scripts/sitecli-scrub.sh"
 
 FAIL=0
 
-# scrub <text> — run the filter over stdin, echo the result.
-scrub() { printf '%s' "$1" | bash "$SCRIPT"; }
+# scrub <text> — run the filter under the LAB profile, which is what this
+# repository publishes: its captures come from F5-owned demo infrastructure, where
+# internal addressing and MAC addresses are the diagnostic content rather than a
+# customer's identity. The profile is named explicitly because the DEFAULT is
+# strict; a separate assertion below pins that default.
+scrub() { printf '%s' "$1" | SITECLI_SCRUB_PROFILE=lab bash "$SCRIPT"; }
 
 # assert_preserved <label> <text> <needle>
 # The needle must survive the scrub verbatim.
@@ -164,6 +168,118 @@ assert_preserved "MAC address, first octet 3a" \
   'link/ether 3a:0d:52:11:0e:07 brd ff:ff:ff:ff:ff:ff' '3a:0d:52:11:0e:07'
 assert_preserved "all-ones MAC broadcast" \
   'link/ether 00:0d:3a:7c:00:01 brd ff:ff:ff:ff:ff:ff' 'ff:ff:ff:ff:ff:ff'
+
+# --- profiles: strict is the default, lab must be asked for --------------------
+# For a company customer, infrastructure identifiers ARE personally identifiable
+# information: internal addressing, MAC addresses, AS numbers and host names all
+# identify the organisation. The lab profile keeps them because this repository's
+# own captures come from F5-owned demo infrastructure and their diagnostic value is
+# the point. Strict is the DEFAULT so that pointing the harness at a customer node
+# and committing the result cannot leak by omission — the dangerous direction
+# requires an explicit flag, the safe one requires nothing.
+
+# The node and site names are supplied by the caller — capture-sitecli.sh knows
+# them — because no address rule can catch a host name in a netstat column or a log
+# prefix.
+strict() {
+  printf '%s' "$1" | SITECLI_SCRUB_PROFILE=strict \
+    SITECLI_NODE=f5-xc-ce-vm-01 SITECLI_SITE=ar-bgp-eastus01 bash "$SCRIPT"
+}
+
+assert_strict_removed() {
+  local label="$1" text="$2" needle="$3" out
+  out=$(strict "$text")
+  if printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "[FAIL] strict: $label — expected '$needle' removed, got: $out"
+    FAIL=1
+  else
+    echo "[OK] strict: $label -> removed"
+  fi
+}
+
+assert_strict_preserved() {
+  local label="$1" text="$2" needle="$3" out
+  out=$(strict "$text")
+  if printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "[OK] strict: $label -> preserved"
+  else
+    echo "[FAIL] strict: $label — expected '$needle' to survive, got: $out"
+    FAIL=1
+  fi
+}
+
+# Default profile must be strict, with no environment variable set at all.
+default_out=$(printf 'inet 10.0.1.4/24' | bash "$SCRIPT")
+case "$default_out" in
+*10.0.1.4*)
+  echo "[FAIL] default profile leaked a private address — strict must be the default"
+  FAIL=1
+  ;;
+*) echo "[OK] default profile is strict" ;;
+esac
+
+# Customer-identifying detail, removed under strict.
+assert_strict_removed "RFC1918 address" 'inet 10.0.1.4/24 brd 10.0.1.63' '10.0.1.4'
+assert_strict_removed "RFC1918 172.16/12" 'peer 172.16.5.9' '172.16.5.9'
+assert_strict_removed "RFC1918 192.168/16" 'gw 192.168.1.1' '192.168.1.1'
+assert_strict_removed "carrier-grade NAT address" 'flow 100.127.192.10:53' '100.127.192.10'
+assert_strict_removed "MAC address" 'link/ether 7c:1e:52:7f:f8:12 brd ff:ff:ff:ff:ff:ff' '7c:1e:52:7f:f8:12'
+assert_strict_removed "remote AS number" 'BGP neighbor is 10.0.1.5, remote AS 65515' '65515'
+assert_strict_removed "local AS number" 'local AS number 64512 vrf-id 3' '64512'
+assert_strict_removed "node host name" \
+  'tcp 0 0 f5-xc-ce-vm-01:57472 ESTABLISHED' 'f5-xc-ce-vm-01'
+assert_strict_removed "site name" 'site ar-bgp-eastus01 is ONLINE' 'ar-bgp-eastus01'
+
+# netstat truncates the host name to fit its column, so the full name never appears
+# and an exact-match rule silently misses it. Taken from real captured output.
+assert_strict_removed "truncated host name in a netstat column" \
+  'tcp 0 0 f5-xc-ce-vm-01:53668 f5-xc-ce-:simplifymedia TIME_WAIT' 'f5-xc-ce-'
+assert_strict_removed "host name with a domain suffix appended" \
+  'tcp 0 0 f5-xc-ce-vm-01.in:50810 10.0.1.9:9505 ESTABLISHED' 'f5-xc-ce-vm-01.in'
+# A short prefix must NOT be treated as the host name, or unrelated text is eaten.
+assert_strict_preserved "short unrelated token is not mistaken for the host name" \
+  'f5 is the vendor' 'f5 is the vendor'
+
+# The AS number in a BGP neighbour table is a bare column with no "AS" prefix, so
+# the labelled rule never sees it. Private ASN ranges are redacted by value.
+assert_strict_removed "bare private ASN in a neighbour table column" \
+  '10.0.4.4        4      64512   43786   38399        0    0    0 2d05h18m   1' '64512'
+assert_strict_removed "bare 4-byte private ASN" \
+  '10.0.4.4        4  4200000001   100   200' '4200000001'
+assert_strict_preserved "message counters are not mistaken for ASNs" \
+  '10.0.4.4        4      64512   43786   38399' '43786'
+
+# Structure and non-identifying values still survive, or strict output is useless.
+assert_strict_preserved "default route under strict" '0.0.0.0/0 via 10.0.1.1' '0.0.0.0/0'
+assert_strict_preserved "netmask under strict" 'netmask 255.255.255.0' '255.255.255.0'
+assert_strict_preserved "multicast group under strict" 'join group 224.0.0.5' '224.0.0.5'
+assert_strict_preserved "loopback under strict" 'inet 127.0.0.1/8' '127.0.0.1'
+assert_strict_preserved "interface name under strict" 'vhost0 state UP' 'vhost0'
+assert_strict_preserved "tunnel state under strict" 'INSTALLED, TUNNEL, reqid 65541' 'INSTALLED, TUNNEL'
+assert_strict_preserved "build string under strict" 'Version crt-20250613-3382' 'crt-20250613-3382'
+
+# The lab profile is what this repository publishes, and must keep the detail.
+assert_preserved "lab profile keeps RFC1918" 'inet 10.0.1.4/24' '10.0.1.4'
+assert_preserved "lab profile keeps MAC" 'link/ether 7c:1e:52:7f:f8:12' '7c:1e:52:7f:f8:12'
+assert_preserved "lab profile keeps AS number" 'remote AS 65515' '65515'
+
+# Strict must remain idempotent, like the lab profile.
+s1=$(strict 'inet 10.0.1.4/24 mac 7c:1e:52:7f:f8:12 AS 65515')
+s2=$(printf '%s' "$s1" | SITECLI_SCRUB_PROFILE=strict bash "$SCRIPT")
+if [ "$s1" = "$s2" ]; then
+  echo "[OK] strict: idempotent"
+else
+  echo "[FAIL] strict: not idempotent"
+  echo "  once:  $s1"
+  echo "  twice: $s2"
+  FAIL=1
+fi
+
+# --- PII that must go under BOTH profiles --------------------------------------
+assert_removed "email address" 'contact r.mordasiewicz@f5.com for access' 'r.mordasiewicz@f5.com'
+assert_removed "macOS home directory" 'cache /Users/rmordasiewicz/.cache/thing' 'rmordasiewicz'
+assert_removed "Linux home directory" 'export DATA=/home/rmordasiewicz/data' 'rmordasiewicz'
+assert_preserved "home path keeps its shape" 'cache /Users/rmordasiewicz/.cache' '/Users/'
 
 # --- whitespace normalisation --------------------------------------------------
 # The repository .editorconfig requires LF endings, no trailing whitespace and a

@@ -1,7 +1,7 @@
 Status of IKE charon daemon (strongSwan 5.9.13, Linux 5.14.0-362.18.1.el9_3.x86_64, x86_64):
   uptime: 2 days, since Jul 23 23:13:29 2026
-  malloc: sbrk 3915776, mmap 0, used 2498176, free 1417600
-  worker threads: 11 of 16 idle, 5/0/0/0 working, job queue: 0/0/0/0, scheduled: 11
+  malloc: sbrk 3915776, mmap 0, used 2497072, free 1418704
+  worker threads: 11 of 16 idle, 5/0/0/0 working, job queue: 0/0/0/0, scheduled: 10
   loaded plugins: charon aes des rc2 sha2 sha1 mgf1 random nonce x509 revocation constraints pubkey pkcs1 pkcs7 pkcs12 pgp dnskey sshkey pem openssl pkcs8 fips-prf gmp curve25519 xcbc cmac hmac kdf gcm drbg attr kernel-pb kernel-netlink resolve socket-default stroke vici updown xauth-generic error-notify counters
 Listening IP addresses:
   10.0.2.4
@@ -23,13 +23,13 @@ ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io:    cert:  "O=Volterra, OU=ves-syst
 ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io:   remote: [ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io] uses any authentication
 ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io:   child:  dynamic === 0.0.0.0/0 TUNNEL, dpdaction=start
 Security Associations (2 up, 0 connecting):
-ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io[49]: ESTABLISHED 9 minutes ago, 10.0.1.4[ver.ar-bgp-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io]
+ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io[49]: ESTABLISHED 23 minutes ago, 10.0.1.4[ver.ar-bgp-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io]
 ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io[49]: IKEv2 SPIs: 7255460c2f95391b_i* 134ebcc2d3d400fc_r, any reauthentication in 3 hours
 ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io[49]: IKE proposal: AES_GCM_16_128/PRF_HMAC_SHA2_256/MODP_3072
 ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io{39}:  INSTALLED, TUNNEL, reqid 65541, ESP in UDP SPIs: ffff3cc0_i ffff8a40_o
 ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io{39}:  AES_GCM_16_128, 0 bytes_i, 0 bytes_o, rekeying disabled
 ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io{39}:   10.0.1.4/32 === <public-ip>/32
-ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io[48]: ESTABLISHED 23 minutes ago, 10.0.1.4[ver.ar-bgp-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io]
+ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io[48]: ESTABLISHED 38 minutes ago, 10.0.1.4[ver.ar-bgp-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io]
 ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io[48]: IKEv2 SPIs: 63a27d38028d11e4_i* 4d77e764e2dedfca_r, any reauthentication in 3 hours
 ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io[48]: IKE proposal: AES_GCM_16_128/PRF_HMAC_SHA2_256/MODP_3072
 ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io{38}:  INSTALLED, TUNNEL, reqid 65542, ESP in UDP SPIs: ffff39b0_i ffffc870_o

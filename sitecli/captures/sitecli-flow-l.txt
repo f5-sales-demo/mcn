@@ -1,12 +1,12 @@
-Flow table(size 161218560, entries 629760) @ Time 192096226
+Flow table(size 161218560, entries 629760) @ Time 192987761
 
 ICMP Aging time: 5000ms, UDP Aging time: 20000ms, TCP Aging time: 600000ms, Default Aging time: 30000ms
 Flow eviction threshold: 50, Overflow eviction threshold: 25, Eviction count: 0
-Entries: Created 385407 Added 385219 Deleted 13
-Changed 1366 Processed 385406 Used Overflow entries 0
+Entries: Created 388061 Added 387873 Deleted 13
+Changed 1370 Processed 388060 Used Overflow entries 0
 Add/Change Fails 0 Delete Fails 0
 Eviction cycles:( )
-(Created Flows/CPU: 0 0 0 0 0 0 0 0 0 0 0 0 163502 221905)(oflows 0)
+(Created Flows/CPU: 0 0 0 0 0 0 0 0 0 0 0 0 164328 223733)(oflows 0)
 
 Action:F=Forward, D=Drop N=NAT(S=SNAT, D=DNAT, Ps=SPAT, Pd=DPAT, L=Link Local Port)
  Other:K(nh)=Key_Nexthop, S(nh)=RPF_Nexthop D(nh)=Destination NH D(L)=Destination Label
@@ -16,47 +16,47 @@ TCP(r=reverse):S=SYN, F=FIN, R=RST, C=HalfClose, E=Established, D=Dead
 
     Index                Source:Port/Destination:Port                      Proto(V)
 -----------------------------------------------------------------------------------
+      572<=>410789       168.63.129.16:53                                   17 (7)
+                         10.0.1.4:57538
+(Gen: 8, K(Idx):14, Action:N(), Flags:In, Pf:,  Stats:1/126
+ E0:0, QOS:-1, S(nh):32, D(nh):19, D(L):0, SPort: 59461, TTL: 0, CPU: 12,
+ Sinfo: <public-ip>
+ Created: 192972280, Modified : 192972280, LastSeen: 192972282, Changed: 0, ACL: 1/2)
+
      3080<=>259260       172.16.191.153:40537                                6 (8->7)
                          10.101.222.86:65003
-(Gen: 11, K(Idx):4118, Action:N(SPsD), Flags:FwIn, TCP:SSrEEr,  Stats:542/60042
+(Gen: 11, K(Idx):4118, Action:N(SPsD), Flags:FwIn, TCP:SSrEEr,  Stats:654/75544
  E0:0, QOS:-1, S(nh):83, D(nh):19, D(L):0, SPort: 61601, TTL: 0, CPU: 12,
  Sinfo: <public-ip>
- Created: 185761362, Modified : 191561820, LastSeen: 192087111, Changed: 1
+ Created: 185761362, Modified : 191561820, LastSeen: 192986387, Changed: 1
 Changes: Vs - - - - - -  )
 
-    11160<=>288944       10.0.1.4:65003                                      6 (7->8)
-                         169.254.10.1:42571
-(Gen: 6, K(Idx):15, Action:N(SDPd), Flags:In, TCP:SSrEEr,  Stats:242/26820
- E0:1, QOS:-1, S(nh):19, D(nh):83, D(L):0, SPort: 60255, TTL: 0, CPU: 13,
+     4432<=>384812       168.63.129.16:53                                   17 (7)
+                         10.0.1.4:46152
+(Gen: 9, K(Idx):14, Action:N(), Flags:In, Pf:,  Stats:1/257
+ E0:0, QOS:-1, S(nh):32, D(nh):19, D(L):0, SPort: 61551, TTL: 0, CPU: 12,
  Sinfo: <public-ip>
- Created: 189109571, Modified : 191569048, LastSeen: 192091702, Changed: 1, ACL: 2/0
-Changes: Vs - - - - - -  )
+ Created: 192972276, Modified : 192972276, LastSeen: 192972306, Changed: 0, ACL: 1/2)
 
     11544<=>403232       10.0.1.4:179                                        6 (7)
                          10.0.4.5:58818
-(Gen: 0, K(Idx):4100, Action:F, Flags:, TCP:SSrEEr,  Stats:81898/5149991
+(Gen: 0, K(Idx):4100, Action:F, Flags:, TCP:SSrEEr,  Stats:82278/5173893
  QOS:-1, S(nh):19, D(nh):32, D(L):266, SPort: 54866, TTL: 0, CPU: 12,
  Sinfo: <public-ip>
- Created: 629879, Modified : 14025091, LastSeen: 192094537, Changed: 5, ACL: 65/1
+ Created: 629879, Modified : 14025091, LastSeen: 192986691, Changed: 5, ACL: 65/1
 Changes: Rd Rs Rs - - - -  Samples(Packets/Bytes):81568/5129264 )
 
     11560<=>121544       10.0.1.4:65003                                      6 (7->8)
                          169.254.0.10:42562
-(Gen: 9, K(Idx):15, Action:N(SDPd), Flags:In, TCP:SSrEEr,  Stats:695/307282
+(Gen: 9, K(Idx):15, Action:N(SDPd), Flags:In, TCP:SSrEEr,  Stats:779/331485
  E0:0, QOS:-1, S(nh):19, D(nh):83, D(L):0, SPort: 58079, TTL: 0, CPU: 13,
  Sinfo: <public-ip>
- Created: 185762364, Modified : 190683100, LastSeen: 192087090, Changed: 1, ACL: 2/0
+ Created: 185762364, Modified : 190683100, LastSeen: 192987652, Changed: 1, ACL: 2/0
 Changes: Vs - - - - - -  )
-
-    13260<=>167288       10.0.1.4:39790                                     17 (7)
-                         168.63.129.16:53
-(Gen: 4, K(Idx):15, Action:N(), Flags:FwIn, Pf:,  Stats:3/221
- QOS:-1, S(nh):19, D(nh):32, D(L):0, SPort: 60147, TTL: 0, CPU: 13,  Sinfo: <public-ip>
- Created: 188718229, Modified : 188718229, LastSeen: 192081127, Changed: 0, ACL: 1/2)
 
     16124<=>247512       10.0.1.4:65003                                      6 (7->8)
                          169.254.0.10:42572
-(Gen: 9, K(Idx):15, Action:N(SDPd), Flags:In, TCP:SSrEEr,  Stats:464/145855
+(Gen: 9, K(Idx):15, Action:N(SDPd), Flags:In, TCP:SSrEEr,  Stats:592/216227
  E0:0, QOS:-1, S(nh):19, D(nh):83, D(L):0, SPort: 54923, TTL: 0, CPU: 13,
 
-... [capture trimmed: first 60 of 1190 lines]
+... [capture trimmed: first 60 of 1186 lines]

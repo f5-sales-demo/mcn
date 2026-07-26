@@ -2,23 +2,23 @@
 ; <<>> DiG 9.16.23-RH <<>> volterra.azurecr.io
 ;; global options: +cmd
 ;; Got answer:
-;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 54618
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 23960
 ;; flags: qr rd ra; QUERY: 1, ANSWER: 5, AUTHORITY: 0, ADDITIONAL: 1
 
 ;; OPT PSEUDOSECTION:
 ; EDNS: version: 0, flags:; udp: 1224
-; COOKIE: 7df2ab53d9b91d1f (echoed)
+; COOKIE: 4e0c1bac57f26832 (echoed)
 ;; QUESTION SECTION:
 ;volterra.azurecr.io.		IN	A
 
 ;; ANSWER SECTION:
-volterra.azurecr.io.	1635	IN	CNAME	22f7044cf29c444e8ca1c1ee28c49790.trafficmanager.net.
-22f7044cf29c444e8ca1c1ee28c49790.trafficmanager.net. 135 IN CNAME eus-3.fe.azcr.io.
-eus-3.fe.azcr.io.	317	IN	CNAME	eus-3-acr-reg.trafficmanager.net.
-eus-3-acr-reg.trafficmanager.net. 237 IN CNAME	r0708eus-3-az.eastus.cloudapp.azure.com.
-r0708eus-3-az.eastus.cloudapp.azure.com. 5 IN A	<public-ip>
+volterra.azurecr.io.	743	IN	CNAME	22f7044cf29c444e8ca1c1ee28c49790.trafficmanager.net.
+22f7044cf29c444e8ca1c1ee28c49790.trafficmanager.net. 300 IN CNAME eus-3.fe.azcr.io.
+eus-3.fe.azcr.io.	53	IN	CNAME	eus-3-acr-reg.trafficmanager.net.
+eus-3-acr-reg.trafficmanager.net. 28 IN	CNAME	r0708eus-3-az.eastus.cloudapp.azure.com.
+r0708eus-3-az.eastus.cloudapp.azure.com. 3 IN A	<public-ip>
 
-;; Query time: 21 msec
+;; Query time: 6 msec
 ;; SERVER: 168.63.129.16#53(168.63.129.16)
-;; WHEN: Sun Jul 26 04:27:16 UTC 2026
+;; WHEN: Sun Jul 26 04:42:06 UTC 2026
 ;; MSG SIZE  rcvd: 250
