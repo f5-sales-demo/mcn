@@ -1,0 +1,32 @@
+---
+title: Commandes réseau
+description: >-
+  Lisez ce niveau pour la connectivité, le routage, les tunnels et la
+  transmission du plan de données sur un Customer Edge. Vingt et une commandes
+  couvrant BGP, IPsec, le plan de données Argo et la joignabilité de base.
+sidebar:
+  order: 10
+  label: Réseau
+i18n:
+  sourceHash: f285c14aa71c
+  translator: machine
+---
+
+Vingt et une des trente-quatre commandes. Elles se répartissent selon la couche que vous suspectez.
+
+| Si vous suspectez | Commencez par |
+| --- | --- |
+| Le site n'annonce pas ou n'apprend pas les routes | [BGP](./bgp/) |
+| Le tunnel vers le regional edge est interrompu | [IPsec](./ipsec/) |
+| Le trafic arrive mais est rejeté | [Statistiques de rejet](./dataplane-drops/) |
+| Une connexion spécifique se comporte de manière anormale | [Table de flux](./dataplane-flows/) |
+| La transmission est incorrecte pour tout un préfixe | [Routes et sauts suivants](./dataplane-forwarding/) |
+| Une interface est inactive ou mal configurée | [Interfaces](./ip/) |
+| Résolution de noms | [dig](./dig/) |
+| Joignabilité depuis le nœud | [curl](./curl/) |
+| Sockets et écouteurs | [netstat](./netstat/) |
+| Décalage d'horloge perturbant les certificats ou l'authentification | [chronyc-sources](./chronyc-sources/) |
+
+Le plan de données est Argo, et il conserve son propre état de transmission indépendamment de
+celui du noyau Linux. `ip` vous montre ce que Linux croit ; `rt`, `nh` et `vif` vous montrent
+ce qui transfère réellement le trafic. Lorsque ces deux états sont en désaccord, le plan de données l'emporte.

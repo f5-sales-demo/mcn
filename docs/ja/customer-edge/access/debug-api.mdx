@@ -1,0 +1,161 @@
+---
+title: デバッグ API
+description: >-
+  HTTP経由でONLINEノードに対してSite
+  CLIコマンドを実行する方法。コマンドに必要な3つのトランスポートを決定するティア対エンドポイントのルールと、それらを一覧表示するディスカバリーコールについて説明します。
+sidebar:
+  order: 20
+  label: デバッグ API
+i18n:
+  sourceHash: 36ee4d6fe690
+  translator: machine
+---
+
+import { Aside, Steps, Badge } from "@astrojs/starlight/components";
+
+`vpm/debug` APIは、登録済みノードに対してSite CLIコマンドを実行し、その出力を返します。以下の内容はすべてライブノードに対して確認されたものであり、アップストリームには公開されていません。
+
+## コマンドカタログは自己記述型
+
+`exec-user`に対して`command`キーを**省略**してPOSTすることで、ノードがサポートするコマンドを確認できます:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>"}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user" \
+  | jq -r .output | jq .
+```
+
+レスポンスはコマンド名をキーとするJSONオブジェクトです:
+
+```json
+{
+  "crictl-inspect": ["System Troubleshooting", "ExecUser", " container-id"],
+  "diagnosis":      ["System Troubleshooting", "ExecUser", "no argument needed", "GLOBAL"],
+  "ip-link-set":    ["Network Troubleshooting", "Exec", " (<device>||<group>) (up||down)"]
+}
+```
+
+各エントリは`[category, tier, exampleArgument?, scope?]`の形式であり、これらのフィールドはドキュメントではなく、コマンドの呼び出し方法を決定するものです。
+
+<Aside type="caution" title="キーを省略する。誤った値を送信しない">
+ディスカバリーは`command`を省略することで機能します。不明な値を送信すると、カタログではなくエラーが返されます:
+
+```json
+{"code":3,"details":[],"message":"exec command failed: command not supported"}
+```
+
+このメッセージは、*実際の*コマンドを誤ったエンドポイントに送信した場合にも返されるため、「このコマンドは存在しない」と誤読しやすいので注意が必要です。
+</Aside>
+
+## カタログエントリによって選択される3つのトランスポート
+
+| 条件 | メソッドとパス | ボディ | 返却値 |
+| --- | --- | --- | --- |
+| `scope`が`GLOBAL` | `GET .../vpm/debug/global/<cmd>` | なし | JSON |
+| `tier`が`ExecUser` | `POST .../vpm/debug/<node>/exec-user` | `command`配列 | テキスト |
+| `tier`が`Exec` | `POST .../vpm/debug/<node>/exec` | `command`配列 | テキスト |
+
+### `ExecUser` — 読み取り専用ティア <Badge text="31 commands" variant="note" />
+
+最も一般的なケースです。コマンド名を先頭にして、コマンドとその引数を配列として渡します:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>","command":["crictl-ps"]}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user"
+```
+
+```json
+{ "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
+```
+
+引数は単一の文字列ではなく、個別の配列要素として渡します:
+
+```json
+{ "command": ["journalctl", "-u", "vpm", "-n", "200"] }
+```
+
+### `GLOBAL` — サイト全体、かつ全く異なるトランスポート <Badge text="2 commands" variant="tip" />
+
+`health`と`diagnosis`の2つのみです。これらは`global`パスへの`GET`リクエストであり、引数を取らず、ターミナルテキストではなく構造化されたJSONを返します。
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
+```
+
+<Aside type="danger" title="GLOBALコマンドはexec-user経由では到達できない">
+これが最も時間を無駄にする落とし穴です。`health`または`diagnosis`を`exec-user`に送信すると`command not supported`が返されますが、これはコマンドがノードに存在しないかのように読めます。しかし実際にはコマンドは存在しており、誤ったトランスポートを使用していることが原因です。
+
+```bash
+# 誤り。返却値: exec command failed: command not supported
+-d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
+
+# 正しい方法。
+GET .../vpm/debug/global/health
+```
+
+</Aside>
+
+### `Exec` — 特権ティア <Badge text="1 command on this build" variant="danger" />
+
+独立したエンドポイントであり、ティアは任意ではなく強制されます。`exec`は`ExecUser`コマンドを同じ`command not supported`メッセージで拒否します。すべてのメンバーはノードを変更するか、状態マーカーを読み取ります。
+
+このテナントが稼働しているビルドでは、ティアには`ip-link-set`のみが含まれています。新しいビルドでは`systemctl-restart-NetworkManager`、`systemctl-restart-crio`、`systemctl-restart-kubelet`、`systemctl-start-crio-prune`、および3つの`marker-exists-*`コマンドが追加されています。
+
+<Aside type="danger" title="ここではExecコマンドを実行しない">
+キャプチャーハーネスはこのティアを拒否し、ハードコードされたリストではなくライブカタログからティアを読み取ります。そのため、将来のビルドでコマンドが`Exec`に昇格されても、コードを編集することなく反映されます。実行する場合は意図的に、かつ中断しても問題のないノードに対して行ってください。
+</Aside>
+
+## サイト名とノード名の確認方法
+
+ノード名はAzure VMの名前であり、`list-service`はそのノード上で実行されているサービスとともに確認する手軽な方法です:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/list-service" \
+  | jq -r '[.service[].node] | unique'
+```
+
+## このリポジトリのキャプチャーを再現する
+
+すべてのコマンドページには`scripts/capture-sitecli.sh`によってキャプチャーされた出力が埋め込まれており、このスクリプトは上記の3つのルールをすべて実装しています。
+
+<Steps>
+
+1. テナントに向けます。`XCSH_API_URL`と`XCSH_API_TOKEN`を読み取るか、アクティブな`xcsh`コンテキストにフォールバックします。
+
+2. カタログを更新し、ドキュメントの下でノードが変更されていないことを確認します:
+
+   ```bash
+   bash scripts/capture-sitecli.sh --check
+   ```
+
+   これはコミット済みのカタログとソフトウェアビルドのみを比較します。ビルドの変更は、追加または削除されたコマンドとは別に報告されます。
+
+3. 新しい証拠が必要な場合は再キャプチャーします:
+
+   ```bash
+   bash scripts/capture-sitecli.sh
+   ```
+
+</Steps>
+
+<Aside type="note" title="キャプチャーは証拠であり、再現可能なアーティファクトではない">
+カウンター、アップタイム、コンテナの経過時間は実行ごとに変化するため、再キャプチャーすると常に差分が生じます。カタログは安定した契約であり、ノードが変更されていない場合は実行間でバイト単位で同一です。これが`--check`で比較される内容です。長い出力はトリミングされ、明示的なマーカーで終わるため、切り捨てられたテーブルが完全であるかのように表示されることはありません。
+</Aside>
+
+<Aside type="danger" title="顧客ノードからキャプチャーする場合: リダクションプロファイルを確認する">
+コマンド出力にはインフラストラクチャーの識別情報（内部アドレス、MACアドレス、AS番号、ホスト名）が含まれており、顧客にとってはその組織の識別情報となります。
+
+そのため、スクラブフィルターはデフォルトで**strict**プロファイルを使用し、これらをすべて削除します。このリポジトリは`sitecli/capture-manifest.json`に`lab`を宣言しており、それらの詳細を保持しますが、これらのキャプチャーがF5所有のデモインフラストラクチャーから取得されているため、ここでのみ正しい設定です。
+
+**この設定を顧客のキャプチャーに引き継がないでください。** トークン、秘密鍵、テナント識別子、オブジェクトUUID、メールアドレス、ホームディレクトリパスは両方のプロファイルで削除されます。
+
+知っておくべき制限が1つあります: BGPネイバーテーブルはASをラベルなしの裸のカラムとして出力するため、パターンを固定するアンカーがなく、ASNはプライベート範囲に対して値でマッチングされます。そのため、**パブリック**ASNはstrictでも残り、公開前に`show-ip-bgp*`出力の手動レビューが必要です。
+</Aside>

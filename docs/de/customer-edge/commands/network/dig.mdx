@@ -1,0 +1,41 @@
+---
+title: dig
+description: >-
+  DNS-Auflösung vom Knoten, einschließlich des antwortenden Resolvers. Fehlt
+  vollständig in der älteren veröffentlichten Site CLI-Referenz.
+sidebar:
+  order: 90
+  label: dig
+i18n:
+  sourceHash: 2ac6602c8699
+  translator: machine
+---
+
+## `dig`
+
+```bash
+{"command":["dig","volterra.azurecr.io"]}
+```
+
+```text file=../../../../_data/sitecli-dig.txt
+```
+
+Lesen Sie zuerst `status:` in der Kopfzeile — `NOERROR` mit einem `ANSWER`-Zähler ungleich null ist eine
+erfolgreiche Auflösung.
+
+`SERVER:` am unteren Ende benennt den Resolver, der geantwortet hat, und das ist der Teil, der sich lohnt
+zu überprüfen: Auf einem Azure-Knoten ist dies normalerweise der Plattform-Resolver unter `168.63.129.16`,
+und etwas anderes bedeutet, dass der Knoten einen Resolver verwendet, den Sie nicht vorgesehen haben.
+
+Registrierungsfehler lassen sich häufig auf DNS zurückführen. Wenn der Knoten
+`register.ves.volterra.io` oder die Container-Registry nicht auflösen kann, funktioniert nichts Nachgelagertes,
+und dies ist der schnellste Weg, dies nachzuweisen.
+
+Der Befehl akzeptiert die üblichen `dig`-Argumente, einschließlich `@resolver` zur Abfrage eines
+bestimmten Servers — nützlich, um zu zeigen, dass ein Resolver antwortet und ein anderer nicht.
+
+:::note
+`dig` erscheint in der älteren veröffentlichten Site CLI-Referenz überhaupt nicht. Es wurde entdeckt,
+indem der Knoten nach seinem eigenen Befehlskatalog gefragt wurde und nicht durch das Lesen der Dokumentation,
+weshalb jeder Befehl auf dieser Website durch Erkundung und nicht durch Abschrift ermittelt wurde.
+:::

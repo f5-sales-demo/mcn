@@ -1,0 +1,56 @@
+---
+title: Reaching a Customer Edge
+description: Read this tier before running any command. Covers authentication, the tier-to-endpoint rule that decides where a command is sent, and the break-glass path for an unregistered node.
+sidebar:
+  order: 10
+  label: Access
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Two routes exist, and which one applies is decided by the state of the node rather
+than by preference.
+
+| Node state | Route | Scriptable | Covers |
+| --- | --- | --- | --- |
+| `ONLINE` | [Debug API](./debug-api/) | Yes | 34 commands, read-only and privileged |
+| Not registered, or unreachable | [Serial console](./serial-console/) | No — needs a terminal | The full on-box Site CLI |
+
+## Why the split is not a preference
+
+The debug API is served by the F5 Distributed Cloud control plane, which relays to
+the node over the tunnel `vpm` establishes during registration. No registration means
+no tunnel, which means the API has nothing to relay to.
+
+It fails in an unhelpful way rather than an obvious one, so a node that never came up
+looks like an API problem.
+
+Serial console goes the other way entirely — through the Azure platform to the
+node's emulated serial port. It does not care whether the node has registered, has
+network reachability, or has a working data plane. That independence is the whole
+point, and it is why boot diagnostics has to stay enabled on the CE VMs.
+
+<Aside type="note" title="What to reach for">
+If you are writing automation, or collecting evidence you want to re-run later, use
+the debug API. If registration is the thing that is broken, serial console is not a
+fallback — it is the only option.
+</Aside>
+
+## Credentials
+
+Both routes use different credentials, and neither belongs on a command line.
+
+- **Debug API** — an F5 Distributed Cloud API token, as `XCSH_API_TOKEN`, with the
+  tenant URL as `XCSH_API_URL`. The `xcsh` context file at
+  `~/.config/xcsh/contexts/<tenant>.json` holds both, which is what
+  `scripts/capture-sitecli.sh` reads when the environment does not supply them.
+- **Serial console** — your interactive Azure login. There is no service principal
+  for this: the F5 corporate Entra tenant does not permit provisioning one, which
+  is also why no part of this runs in CI.
+
+<Aside type="danger" title="Never pass a token as an argument">
+A token on a command line lands in shell history and in the process list, where
+every other user on the machine can read it. `capture-sitecli.sh` refuses
+`--token` outright for that reason and supplies the header to `curl` on stdin
+instead.
+</Aside>

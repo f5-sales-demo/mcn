@@ -1,0 +1,193 @@
+---
+title: Debug API
+description: How to run a Site CLI command on an ONLINE node over HTTP, including the tier-to-endpoint rule that decides which of three transports a command needs and the discovery call that lists them.
+sidebar:
+  order: 20
+  label: Debug API
+---
+
+import { Aside, Steps, Badge } from "@astrojs/starlight/components";
+
+The `vpm/debug` API runs Site CLI commands on a registered node and returns their
+output. Everything below was established against a live node; none of it is
+published upstream.
+
+## The command catalog is self-describing
+
+Ask the node what it supports by POSTing to `exec-user` with the `command` key
+**omitted**:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>"}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user" \
+  | jq -r .output | jq .
+```
+
+The response is a JSON object keyed by command name:
+
+```json
+{
+  "crictl-inspect": ["System Troubleshooting", "ExecUser", " container-id"],
+  "diagnosis":      ["System Troubleshooting", "ExecUser", "no argument needed", "GLOBAL"],
+  "ip-link-set":    ["Network Troubleshooting", "Exec", " (<device>||<group>) (up||down)"]
+}
+```
+
+Each entry is `[category, tier, exampleArgument?, scope?]`, and those fields are
+not documentation — they decide how the command must be called.
+
+<Aside type="caution" title="Omit the key; do not send a wrong value">
+Discovery works by leaving `command` out. Sending an unknown value instead returns
+an error, not the catalog:
+
+```json
+{"code":3,"details":[],"message":"exec command failed: command not supported"}
+```
+
+That message is also what you get for a *real* command sent to the wrong endpoint,
+so it is easy to misread as "this command does not exist".
+</Aside>
+
+## Three transports, chosen by the catalog entry
+
+| Condition | Method and path | Body | Returns |
+| --- | --- | --- | --- |
+| `scope` is `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | none | JSON |
+| `tier` is `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | `command` array | text |
+| `tier` is `Exec` | `POST .../vpm/debug/<node>/exec` | `command` array | text |
+
+### `ExecUser` — the read-only tier <Badge text="31 commands" variant="note" />
+
+The common case. Pass the command and its arguments as an array, command name
+first:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>","command":["crictl-ps"]}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user"
+```
+
+```json
+{ "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
+```
+
+Arguments are separate array elements, not a single string:
+
+```json
+{ "command": ["journalctl", "-u", "vpm", "-n", "200"] }
+```
+
+### `GLOBAL` — site-wide, and a different transport entirely <Badge text="2 commands" variant="tip" />
+
+`health` and `diagnosis` are the only two. They are `GET` requests to a `global`
+path, take no arguments, and return structured JSON rather than terminal text.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
+```
+
+<Aside type="danger" title="A GLOBAL command is not reachable through exec-user">
+This is the trap that costs the most time. Sending `health` or `diagnosis` to
+`exec-user` returns `command not supported`, which reads as though the command does
+not exist on the node — when in fact it exists and you used the wrong transport.
+
+```bash
+# Wrong. Returns: exec command failed: command not supported
+-d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
+
+# Right.
+GET .../vpm/debug/global/health
+```
+
+</Aside>
+
+### `Exec` — the privileged tier <Badge text="1 command on this build" variant="danger" />
+
+A separate endpoint, and the tier is enforced rather than advisory: `exec` rejects
+an `ExecUser` command with the same `command not supported` message. Every member
+either changes the node or reads a state marker.
+
+On the build this tenant runs, the tier contains only `ip-link-set`. Newer builds
+add `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
+`systemctl-restart-kubelet`, `systemctl-start-crio-prune` and three
+`marker-exists-*` commands.
+
+<Aside type="danger" title="Nothing here runs an Exec command">
+The capture harness refuses this tier, and reads the tier from the live catalog
+rather than a hardcoded list — so a future build that promotes a command to `Exec`
+is respected without anyone editing code. Run one only deliberately, on a node you
+are willing to disrupt.
+</Aside>
+
+## Finding the site and node names
+
+The node name is the Azure VM name, and `list-service` is a cheap way to confirm it
+alongside the services running on it:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/list-service" \
+  | jq -r '[.service[].node] | unique'
+```
+
+## Reproducing this repository's captures
+
+Every command page embeds output captured by `scripts/capture-sitecli.sh`, which
+implements all three rules above.
+
+<Steps>
+
+1. Point it at a tenant. It reads `XCSH_API_URL` and `XCSH_API_TOKEN`, or falls
+   back to the active `xcsh` context.
+
+2. Refresh the catalog and confirm the node has not changed underneath the
+   documentation:
+
+   ```bash
+   bash scripts/capture-sitecli.sh --check
+   ```
+
+   This compares the committed catalog and the software build only. It reports a
+   build change separately from added or removed commands.
+
+3. Re-capture when you want fresh evidence:
+
+   ```bash
+   bash scripts/capture-sitecli.sh
+   ```
+
+</Steps>
+
+<Aside type="note" title="Captures are evidence, not reproducible artifacts">
+Counters, uptimes and container ages move between runs, so re-capturing always
+produces a diff. The catalog is the stable contract and is byte-identical across
+runs when the node has not changed; that is what `--check` compares. Long output is
+trimmed and ends with an explicit marker, so a truncated table is never shown as if
+it were complete.
+</Aside>
+
+<Aside type="danger" title="Capturing from a customer node: check the redaction profile">
+Command output carries infrastructure identity — internal addressing, MAC addresses,
+AS numbers, hostnames — and for a customer that is identifying information about the
+organisation.
+
+The scrub filter therefore defaults to a **strict** profile that removes all of it.
+This repository declares `lab` in `sitecli/capture-manifest.json`, which keeps that
+detail, and it is only correct here because these captures come from F5-owned demo
+infrastructure.
+
+**Do not carry that setting to a customer capture.** Tokens, private keys, the tenant
+identifier, object UUIDs, email addresses and home directory paths are removed under
+both profiles.
+
+One limitation is worth knowing: a BGP neighbour table prints the AS as a bare column
+with no label to anchor a pattern on, so ASNs are matched by value against the
+private ranges. A **public** ASN there survives strict, and needs a manual review of
+`show-ip-bgp*` output before you publish it.
+</Aside>

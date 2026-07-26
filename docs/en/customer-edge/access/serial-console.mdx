@@ -1,0 +1,138 @@
+---
+title: Serial console
+description: The break-glass route into a Customer Edge that never registered, where the debug API cannot reach. Covers the boot diagnostics prerequisite, how to check availability from a script, and two failures that look like outages but are not.
+sidebar:
+  order: 30
+  label: Serial console
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Azure Serial Console attaches to the node's emulated serial port through the Azure
+platform. It does not traverse the F5 Distributed Cloud control plane, the node's
+data plane, or any network path the node controls — which is exactly why it works
+when nothing else does.
+
+Reach for it when a CE **never came up**: registration failed, the site is absent
+from the tenant, or the node is up but has no route out. In all of those cases the
+[debug API](../debug-api/) has no tunnel to relay through, and SSH is closed on the
+node as shipped.
+
+## Prerequisite: boot diagnostics
+
+Azure requires boot diagnostics on the VM before it will attach a serial console.
+This is enabled by `terraform/modules/ce-node`:
+
+```hcl
+boot_diagnostics {}
+```
+
+An empty block selects Azure-managed storage, so there is no diagnostics storage
+account, lifecycle policy or access key to own. Confirm it on a node:
+
+```bash
+az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
+```
+
+```json
+{ "bootDiagnostics": { "enabled": true } }
+```
+
+<Aside type="caution" title="Enabling it is not retroactive">
+Boot diagnostics captures the serial log **at boot**. Turning it on for a VM that
+is already running does not produce a log for the boot that already happened, so
+`az vm boot-diagnostics get-boot-log` answers:
+
+```
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+```
+
+That is expected, not a fault. A boot log exists after the node next reboots. Live
+console attach, however, works immediately — it does not depend on the log.
+</Aside>
+
+## Checking availability without a terminal
+
+Attaching needs an interactive session, but whether it *would* attach is two API
+calls. Both are useful in a health check.
+
+The service must be enabled for the subscription — an administrator can disable it
+tenant-wide:
+
+```bash
+az rest --method get --url \
+  "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.SerialConsole/consoleServices/default?api-version=2018-05-01"
+```
+
+```json
+{ "properties": { "disabled": false } }
+```
+
+Then ask for a connection to a specific node's serial port:
+
+```bash
+az rest --method post \
+  --headers "Content-Type=application/json" --body '{}' --url \
+  "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
+```
+
+A `connectionString` beginning `wss://` — on this deployment
+`eastus.gateway.serialconsole.azure.com` — means the console is attachable right
+now. Before boot diagnostics was enabled, this call had nothing to attach to.
+
+<Aside type="danger" title="That connection string is a credential">
+It is a short-lived bearer token embedded in a URL. Do not log it, paste it into a
+ticket, or commit it. Print only the host when you are demonstrating that the call
+worked.
+</Aside>
+
+## Attaching
+
+<Steps>
+
+1. Install the extension once:
+
+   ```bash
+   az extension add --name serial-console
+   ```
+
+2. Attach:
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+3. You land at the node's own login prompt, not a shell. This is the Site CLI, and
+   it needs credentials set on the node — the admin password from provisioning, or
+   one set through the change-password endpoint. Serial console proves the *channel*
+   works; it does not bypass authentication.
+
+</Steps>
+
+<Aside type="caution" title="It needs a real terminal">
+`az serial-console connect` puts the terminal into raw mode, so it cannot be run
+from a script, a pipeline, or any context without a TTY. It fails client-side
+before contacting Azure:
+
+```
+ERROR: (19, 'Operation not supported by device')
+  File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
+    GV.serial_console_instance.launch_console()
+```
+
+That traceback is terminal handling, not a serial console outage — the two API
+calls above will still report the console as available. If you need an automatable
+signal, use those instead of trying to script the attach.
+</Aside>
+
+## What you can see here that the API cannot show you
+
+- **cloud-init** running, failing, or never starting — the usual cause of a node
+  that never registers.
+- **Registration attempts** against `register.ves.volterra.io`, including a
+  configuration error or a token the tenant rejected.
+- **Kernel and boot messages** from before any agent was running.
+- The node when it has **no working network path**, which defeats every other route.
+
+For a node that *is* `ONLINE`, prefer the debug API: it is scriptable, it produces
+evidence you can re-run, and it does not occupy the single serial port.

@@ -1,0 +1,42 @@
+---
+title: 流表
+description: Argo 数据平面中的每连接状态。使用匹配表单查找单个连接；完整转储内容量巨大。
+sidebar:
+  order: 40
+  label: 流表
+i18n:
+  sourceHash: c654c4d3ca8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo 跟踪每一个连接。此节点上的表包含 629,760 条记录，因此查询方式比内容本身更为重要。
+
+## `flow-l-match`
+
+几乎始终是您所需要的命令。接受一个地址，或一个地址加端口。
+
+```bash
+{"command":["flow-l-match","100.127.192.10:53"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l-match.txt
+```
+
+每条流的动作是关键所在：`F` 表示转发，`D` 表示丢弃，`N` 表示 NAT。若某条流存在且动作为 `D`，表示数据平面做出了明确的决策，此时应将排查方向指向策略而非连通性。
+
+## `flow-l`
+
+完整转储。
+
+```bash
+{"command":["flow-l"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l.txt
+```
+
+<Aside type="caution" title="已截断，且内容量巨大">
+上方的捕获内容已截断至 1057 行中的前 60 行，而 1057 本身也是 API 自身的限制，并非完整的表。除非确实需要检查整张表，否则请使用 `flow-l-match`，并且在使用完整转储时，预计只有表头计数——表大小和条目数——才是值得关注的部分。
+</Aside>

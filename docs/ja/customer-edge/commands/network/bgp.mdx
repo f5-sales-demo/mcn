@@ -1,0 +1,75 @@
+---
+title: BGP
+description: >-
+  サイトがピアリングしているか、何をアドバタイズしているか、何を学習しているか。サマリー、完全テーブル、ネイバー詳細、アドバタイズルートをカバーする4つのコマンド。
+sidebar:
+  order: 10
+  label: BGP
+i18n:
+  sourceHash: 4b36c57cee22
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CE は BGP に FRR を使用しています。このトポロジーでは、2つの Azure Route Server インスタンスとピアリングし、VIP をアドバタイズし、VNet プレフィックスを学習します。
+
+## `show-ip-bgp-summary`
+
+まずここから始めます。1画面でピアリングが確立しているかどうか、どのくらいの期間安定しているかを確認できます。
+
+```bash
+{"command":["show-ip-bgp-summary"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
+```
+
+最初に `State/PfxRcd` を確認してください。数値は受信したプレフィックスの数を示しており、セッションが確立されていることを意味します。それ以外の値（`Active`、`Connect`、`Idle`）は、セッションが確立されていないことを示します。`Up/Down` は現在の状態が継続している時間を示すため、頻繁にリセットされるセッションは不審なほど小さい値を示します。
+
+<Aside type="caution" title="ここの vrf id は rt が求めるものではありません">
+この出力は `vrf-id 3` を報告します。これは FRR の番号付けです。Argo データプレーンは別のテーブル ID を使用しており、FRR の番号を
+[`rt --dump`](../dataplane-forwarding/) に渡すと `No such file or directory` が返されます。これは引数が誤っているのではなく、ノードが壊れているように見えてしまいます。
+</Aside>
+
+## `show-ip-bgp`
+
+ベストパス選択が表示された完全テーブルです。
+
+```bash
+{"command":["show-ip-bgp"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp.txt
+```
+
+`*` は有効なルート、`>` は選択されたベストパス、`=` はマルチパスのメンバーを示します。1つのプレフィックスに対して2つのエントリがどちらも `*=` とマークされている場合、ECMP が有効であることを意味し、このトポロジーにおける意図された状態です。
+
+## `show-ip-bgp-neighbors`
+
+ネゴシエートされたケーパビリティ、タイマー、メッセージカウンター、および最後のリセット理由を含むネイバーごとの詳細です。
+
+```bash
+{"command":["show-ip-bgp-neighbors"]}
+```
+
+サマリーでセッションのフラッピングが確認され、その原因を調査する必要がある場合に使用してください。`Last reset` とその理由が重要な行です。
+
+<Aside type="note" title="このページにはまだキャプチャされた出力がありません">
+このキャプチャは `f5-sales-demo/docs-control#795` がマージされるまでコミットできません。FRR は Graceful Restart の行でスペルミスをしており、`codespell` がファイルを拒否します。
+
+キャプチャされたテキストを修正すると、実際には発生しなかった出力を説明するドキュメントになってしまうため、代わりにアップストリームで修正されています。それまでの間は、自身のノードに対してコマンドを実行してください。
+</Aside>
+
+## `show-ip-bgp-neighbors-advertised-route`
+
+このノードがピアに通知している内容であり、ノードが認識している内容とは異なります。
+
+```bash
+{"command":["show-ip-bgp-neighbors-advertised-route"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
+```
+
+このコマンドは「VNet から VIP に到達できない」という問題に対して使用します。ここに VIP が存在しない場合、問題はこのノードにあり、ピアをいくら調査しても解決しません。

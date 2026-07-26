@@ -1,0 +1,77 @@
+---
+title: crictl
+description: Kubernetesワークロードを実行するCRI-Oランタイム。コンテナ、イメージ、検査、ログをカバーする5つのコマンド。
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-OはKubernetesワークロードを実行します。プラットフォームサービス — `vpm`、`argo_watch`、
+`site-console` — は[Docker](../docker/)コンテナであり、ここには表示されません。
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+実行中のコンテナをポッド、イメージ、再起動回数とともに表示します。注目すべきは`ATTEMPT`です。
+再起動回数が増加していればクラッシュループを示しており、この出力のコンテナIDは以下の2つのコマンドで使用します。
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+終了済みのコンテナも含めて表示します。何かが*動作していたが今は動作していない*場合に使用します —
+終了済みのエントリとそのコンテナIDを使って、失敗した実行のログを読み取ることができます。
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+イメージがノード上に実際に存在することを確認し、プルの失敗とスケジューリングの失敗を区別します。
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+完全なJSON形式で、マウント、環境変数、リソース制限、コマンドライン、および終了状態を表示します。
+出力が長いため、全体を読むよりもクエリで必要な情報を取得することを推奨します。
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="コンテナIDは実行ごとに異なります">
+これらのキャプチャ内のIDはサンプル実行時のものであり、お使いのノードには存在しません。
+まず`crictl-ps`から現在のIDを取得してください。キャプチャハーネスはまさにその処理を行っています —
+マニフェストはキャプチャ時に最初のコンテナIDを解決しており、ハードコーディングはしていません。
+</Aside>

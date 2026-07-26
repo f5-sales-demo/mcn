@@ -1,0 +1,44 @@
+---
+title: journalctl
+description: >-
+  Journal systemd per qualsiasi unità sul nodo. La fonte primaria per i
+  fallimenti di registrazione e il comportamento di vpm nel tempo.
+sidebar:
+  order: 50
+  label: journalctl
+i18n:
+  sourceHash: 38a11be4d7d8
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+Argomenti standard di `journalctl`, ciascuno come elemento separato dell'array. `-u vpm` è quello
+che si utilizza più spesso: `vpm` è l'agente che registra il nodo e gestisce
+tutto il resto su di esso, quindi il suo journal è il punto in cui compaiono i fallimenti di registrazione con
+timestamp e attraverso i riavvii.
+
+Varianti utili:
+
+| Argomenti | Risposte |
+| --- | --- |
+| `-u vpm -n 200` | Cosa ha fatto recentemente vpm |
+| `-u vpm --since "10 min ago"` | Cosa è successo mentre ho riprodotto il problema |
+| `-p err -n 100` | Errori da ogni unità |
+| `-u kubelet -n 200` | Perché lo stack Kubernetes non è integro |
+
+Preferire questo rispetto a [`docker-logs vpm`](../docker/) quando si necessita di timestamp, si vuole
+coprire un riavvio, o si vuole correlare vpm con un'altra unità.
+
+<Aside type="note" title="Nessun output acquisito in questa pagina">
+Questa acquisizione non può essere salvata fino a quando `f5-sales-demo/docs-control#795` non viene integrato. Il
+journal riproduce una riga da FRR contenente un errore ortografico, e `codespell` rifiuta il
+file. Modificare il testo acquisito renderebbe questa pagina descrittiva di un output che non si è mai
+verificato, quindi la correzione viene effettuata a monte nella configurazione gestita.
+</Aside>

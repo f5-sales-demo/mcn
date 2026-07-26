@@ -1,0 +1,33 @@
+---
+title: dig
+description: >-
+  Resolução de DNS a partir do nó, incluindo qual resolvedor respondeu. Ausente
+  da referência mais antiga do Site CLI publicada.
+sidebar:
+  order: 90
+  label: dig
+i18n:
+  sourceHash: 2ac6602c8699
+  translator: machine
+---
+
+## `dig`
+
+```bash
+{"command":["dig","volterra.azurecr.io"]}
+```
+
+```text file=../../../../_data/sitecli-dig.txt
+```
+
+Leia primeiro o `status:` no cabeçalho — `NOERROR` com uma contagem `ANSWER` diferente de zero indica uma consulta bem-sucedida.
+
+`SERVER:` no final identifica o resolvedor que respondeu, que é o ponto mais importante a verificar: em um nó Azure, normalmente é o resolvedor da plataforma em `168.63.129.16`, e qualquer outro valor indica que o nó está utilizando um resolvedor não pretendido.
+
+Falhas de registro frequentemente se reduzem a problemas de DNS. Se o nó não conseguir resolver `register.ves.volterra.io` ou o registro de contêiner, nada mais funcionará adiante, e esta é a forma mais rápida de comprovar isso.
+
+O comando aceita os argumentos usuais do `dig`, incluindo `@resolvedor` para consultar um servidor específico — útil para demonstrar que um resolvedor responde e outro não.
+
+:::note
+`dig` não aparece na referência mais antiga do Site CLI publicada. Foi descoberto solicitando ao próprio nó seu catálogo de comandos, em vez de consultar a documentação, razão pela qual todos os comandos neste site são descobertos e não transcritos.
+:::

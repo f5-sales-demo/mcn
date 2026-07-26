@@ -1,0 +1,81 @@
+---
+title: docker
+description: >-
+  รันไทม์ Docker ซึ่งรันบริการแพลตฟอร์ม CE มีห้าคำสั่ง และเป็นที่สำหรับค้นหา vpm
+  เอง
+sidebar:
+  order: 40
+  label: docker
+i18n:
+  sourceHash: 9db8ec324ab5
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Docker รันบริการแพลตฟอร์ม ส่วน Kubernetes workloads อยู่ภายใต้
+[CRI-O](../crictl/)
+
+## `docker-ps`
+
+```bash
+{"command":["docker-ps"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps.txt
+```
+
+<Aside type="tip" title="สามคอนเทนเนอร์คือรายการทั้งหมด ไม่ใช่โหนดที่เสียหาย">
+`vpm`, `argo_watch` และ `site-console` เนื่องจากส่วนใหญ่ของโหนดรันภายใต้ CRI-O
+`docker-ps` ที่แสดงผลสั้นๆ อาจดูเหมือนความล้มเหลว หากคุณคาดว่าจะเห็น Kubernetes workloads ที่นี่
+แต่ไม่ใช่เช่นนั้น — นี่คือชุดคอนเทนเนอร์ Docker ที่สมบูรณ์บน CE ที่ทำงานปกติ และ
+`vpm` ที่ปรากฏอยู่และมีสถานะ `Up` คือบรรทัดที่สำคัญที่สุดในหน้านี้
+</Aside>
+
+## `docker-ps-a`
+
+```bash
+{"command":["docker-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps-a.txt
+```
+
+รวมคอนเทนเนอร์ที่หยุดทำงานแล้ว ดังนั้น `vpm` ที่หยุดทำงานซ้ำๆ จะทิ้งหลักฐานไว้ที่นี่
+
+## `docker-images`
+
+```bash
+{"command":["docker-images"]}
+```
+
+```text file=../../../../_data/sitecli-docker-images.txt
+```
+
+แท็กของอิมเมจระบุเวอร์ชันแพลตฟอร์มที่โหนดกำลังรันอยู่จริง ซึ่งควรนำไปเปรียบเทียบกับ
+build ของซอฟต์แวร์ที่รายงานโดย [`health`](../health/)
+
+## `docker-inspect`
+
+```bash
+{"command":["docker-inspect","<container-id-or-name"]}
+```
+
+```text file=../../../../_data/sitecli-docker-inspect.txt
+```
+
+รับทั้งชื่อและ id ดังนั้น `docker-inspect vpm` ใช้งานได้และมีความเสถียรข้ามการรีสตาร์ท
+ผลลัพธ์เป็น JSON เต็มรูปแบบ: mounts, environment, restart policy และสถานะการออก
+
+## `docker-logs`
+
+```bash
+{"command":["docker-logs","<container-id-or-name>"]}
+```
+
+```text file=../../../../_data/sitecli-docker-logs.txt
+```
+
+`docker-logs vpm` คือวิธีที่เร็วที่สุดในการเข้าถึงข้อผิดพลาดการลงทะเบียน สำหรับข้อมูล
+เดียวกันพร้อม timestamp และข้ามการรีสตาร์ท ให้ใช้
+[`journalctl`](../journalctl/) แทน

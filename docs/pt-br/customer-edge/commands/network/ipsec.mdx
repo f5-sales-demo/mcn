@@ -1,0 +1,51 @@
+---
+title: IPsec
+description: >-
+  Se os túneis para as bordas regionais da F5 estão estabelecidos e os
+  contadores de tráfego que comprovam que eles transportam dados. Dois comandos,
+  um resumido e um detalhado.
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+O CE constrói túneis IPsec para as bordas regionais da F5. Se estiverem inativos, o
+site fica isolado da rede global, independentemente de quão saudável pareça localmente.
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+A primeira linha é a resposta: `Security Associations (2 up, 0 connecting)`. Qualquer
+valor em `connecting` indica um túnel que está tentando se conectar e falhando.
+
+Cada SA nomeia a borda regional em que termina — `ny8-nyc`, `dc12-ash` são códigos de
+POP da F5 — portanto, isso também informa *quais* bordas o site está conectado.
+
+`ESTABLISHED` com uma duração, seguido de `INSTALLED, TUNNEL`, é um par saudável: o
+primeiro é a sessão IKE, o segundo é o SA filho que efetivamente transporta o tráfego.
+Uma sessão IKE estabelecida sem SA filho instalado é a falha relevante.
+
+## `ipsec-statusall`
+
+As mesmas informações, mais os contadores de bytes e pacotes por SA, temporizadores de
+renovação de chave e os algoritmos negociados.
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+Utilize este comando para distinguir "o túnel está ativo" de "o túnel está transportando
+tráfego". Um túnel estabelecido há horas com bytes próximos de zero está ativo e sem
+uso, o que geralmente indica que o problema está no roteamento e não no túnel.

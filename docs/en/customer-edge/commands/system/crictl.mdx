@@ -1,0 +1,78 @@
+---
+title: crictl
+description: The CRI-O runtime, which runs the Kubernetes workloads. Five commands covering containers, images, inspection and logs.
+sidebar:
+  order: 30
+  label: crictl
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O runs the Kubernetes workloads. The platform services — `vpm`, `argo_watch`,
+`site-console` — are [Docker](../docker/) containers and will not appear here.
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+Running containers with their pod, image and restart count. `ATTEMPT` is the one to
+read: a climbing restart count is a crash loop, and the container id from this
+output feeds the two commands below.
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+Includes exited containers. Use it when something *was* running and is not now —
+the exited entry and its container id are what let you read the logs of the run that
+failed.
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+Confirms an image is actually present on the node, which distinguishes a pull
+failure from a scheduling one.
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+Full JSON: mounts, environment, resource limits, the command line, and the exit
+state. Long, so query it rather than reading it.
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="Container ids are per-run">
+The ids in these captures came from one sample run and will not exist on your node.
+Take a current one from `crictl-ps` first. The capture harness does exactly that —
+its manifest resolves the first container id at capture time rather than hardcoding
+one.
+</Aside>

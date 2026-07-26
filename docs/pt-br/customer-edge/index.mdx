@@ -1,0 +1,109 @@
+---
+title: Diagnósticos do Customer Edge
+description: >-
+  Leia esta seção primeiro quando um Customer Edge apresentar problemas.
+  Estabelece qual dos dois caminhos de acesso se aplica, pois o caminho
+  incorreto retorna silenciosamente nada.
+sidebar:
+  order: 10
+  label: Customer Edge
+i18n:
+  sourceHash: 6fd834c949c2
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Um Customer Edge (CE) é o nó do F5 Distributed Cloud que este repositório provisiona no
+Azure — `terraform/modules/ce-node`, construído a partir da
+imagem de marketplace `volterraedgeservices/volterra-node`.
+
+Ele executa o plano de dados (Argo), o plano de controle (Vega), um proxy Envoy, uma
+stack Kubernetes e o `vpm`, o agente que registra o nó e gerencia tudo mais nele.
+
+Quando um CE apresenta problemas, o Site CLI é o instrumento. A primeira decisão é qual
+caminho de acesso se aplica, e errar nisso desperdiça tempo de uma forma que parece um
+nó com defeito.
+
+## Dois caminhos de acesso, e eles não são intercambiáveis
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="Para um nó que está <code>ONLINE</code>. Programável, somente leitura e cobre 34 comandos."
+    href="./access/debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="Para um nó que nunca foi registrado. A única rota quando a API não consegue responder."
+    href="./access/serial-console/"
+  />
+</CardGrid>
+
+A debug API alcança o nó **por meio do plano de controle do F5 Distributed Cloud**.
+Essa é exatamente a razão pela qual a distinção importa: a API só pode responder depois que o nó
+tiver sido registrado e reportar `ONLINE`.
+
+Um nó que falhou ao registrar — cloud-init inválido, token expirado, sem rota para
+`register.ves.volterra.io` — é exatamente o caso em que você precisa de diagnósticos, e
+exatamente o caso em que a API não consegue atender.
+
+O nó também recusa SSH conforme fornecido. A porta 22 está fechada no próprio CE, não por um
+grupo de segurança de rede:
+
+```console
+$ ssh -o ConnectTimeout=10 admin@<ce-public-ip>
+ssh: connect to host <ce-public-ip> port 22: Connection refused
+```
+
+Verificado também de dentro da VNet, a partir de um jump host na mesma sub-rede, portanto
+abrir uma regra no grupo de segurança não altera isso.
+
+Portanto: se o site está `ONLINE`, use a debug API. Se não estiver, o serial console é a
+única forma de acesso.
+
+<Aside type="caution" title="Verifique o estado do site primeiro">
+Uma requisição informa qual caminho você está seguindo:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/config/namespaces/system/sites/<site>" \
+  | jq -r '.spec.site_state'
+```
+
+`ONLINE` significa que a debug API funcionará. Qualquer outro valor — ou um site que não
+existe — significa serial console.
+</Aside>
+
+## Regras de segurança
+
+Estas se aplicam a todos os comandos em todas as páginas abaixo.
+
+- **Somente leitura, a menos que você tenha certeza.** A superfície de comandos está dividida em dois
+  níveis de privilégio, e o nível `Exec` ou modifica o nó ou lê um marcador de estado.
+  Nenhum comando nessas páginas executa um comando `Exec`, e o harness de captura também não.
+- **Nunca assuma que um comando é seguro pelo seu nome.** `ip-link-set` parece uma
+  consulta e derruba uma interface. `systemctl-restart-crio` reinicia o
+  runtime de contêiner sob um plano de dados ativo.
+- **Prefira o comando mais específico que responde à pergunta.** `health` e
+  `diagnosis` resumem o nó de forma eficiente; `flow-l` despeja uma tabela de fluxo com 629.760 entradas.
+- **Um CE serve tráfego em produção.** Estes são ambientes de demonstração compartilhados. Assuma que alguém
+  está apresentando a partir do site que você está depurando.
+
+## O que está documentado aqui
+
+Todos os comandos acessíveis por meio da debug API na build de software que este tenant executa,
+cada um com saída capturada de um nó ativo em vez de transcrita de outra fonte.
+
+A [referência de comandos](./commands/) lista todos eles com sua categoria, nível de privilégio
+e transporte; os [fluxos de trabalho](./workflows/) os encadeiam nas sequências que você
+realmente usa quando algo está errado.
+
+As partes do Site CLI exclusivas do nó — `configure`, `configure-network`,
+`factory-reset`, `upgrade` e aproximadamente sessenta outros comandos `ExecCLI` — não estão
+cobertas.
+
+Eles são acessíveis apenas a partir de uma sessão de serial console, portanto nada sobre eles pode ser
+verificado programaticamente, e sintaxe de comando não verificada é exatamente o defeito que esta
+documentação existe para evitar repetir.

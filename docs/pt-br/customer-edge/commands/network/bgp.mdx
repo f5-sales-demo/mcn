@@ -1,0 +1,91 @@
+---
+title: BGP
+description: >-
+  Se o site está em peering, o que ele anuncia e o que aprende. Quatro comandos
+  cobrindo o resumo, a tabela completa, detalhes do vizinho e rotas anunciadas.
+sidebar:
+  order: 10
+  label: BGP
+i18n:
+  sourceHash: 4b36c57cee22
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+O CE executa o FRR para BGP. Nesta topologia, ele realiza peering com as duas instâncias
+do Azure Route Server, anuncia o VIP e aprende o prefixo da VNet.
+
+## `show-ip-bgp-summary`
+
+Comece aqui. Uma tela informa se o peering está ativo e há quanto tempo está
+estável.
+
+```bash
+{"command":["show-ip-bgp-summary"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
+```
+
+Leia `State/PfxRcd` primeiro. Um número indica a contagem de prefixos recebidos e significa que a
+sessão está estabelecida; qualquer outro valor — `Active`, `Connect`, `Idle` — indica uma sessão
+que não está ativa. `Up/Down` mostra há quanto tempo o estado atual persiste, portanto uma sessão
+que continua reiniciando apresentará um valor suspeitosamente pequeno.
+
+<Aside type="caution" title="O vrf id aqui não é o que o rt espera">
+Esta saída reporta `vrf-id 3`. Essa é a numeração do FRR. O plano de dados do Argo utiliza um
+id de tabela separado, e passar o número do FRR para
+[`rt --dump`](../dataplane-forwarding/) retorna `No such file or directory`, o que
+parece um nó com problema em vez de um argumento incorreto.
+</Aside>
+
+## `show-ip-bgp`
+
+A tabela completa, com a seleção do melhor caminho visível.
+
+```bash
+{"command":["show-ip-bgp"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp.txt
+```
+
+`*` é uma rota válida, `>` o melhor caminho selecionado, `=` um membro de multipaths. Duas
+entradas para um mesmo prefixo, ambas marcadas com `*=`, significam que o ECMP está em efeito,
+que é o estado esperado nesta topologia.
+
+## `show-ip-bgp-neighbors`
+
+Detalhes por vizinho: capacidades negociadas, temporizadores, contadores de mensagens e o
+motivo do último reset.
+
+```bash
+{"command":["show-ip-bgp-neighbors"]}
+```
+
+Utilize este comando quando o resumo indicar que uma sessão está oscilando e você precisar saber o motivo.
+`Last reset` e seu respectivo motivo são as linhas úteis.
+
+<Aside type="note" title="Nenhuma saída capturada nesta página ainda">
+Esta captura não pode ser confirmada até que `f5-sales-demo/docs-control#795` seja aplicado. O FRR
+possui um erro de digitação em sua linha de Graceful Restart, e o `codespell` rejeita o arquivo.
+
+Corrigir o texto capturado faria com que esta documentação descrevesse uma saída que nunca
+ocorreu, portanto a correção está sendo feita no upstream. Execute o comando em seu próprio
+nó enquanto isso.
+</Aside>
+
+## `show-ip-bgp-neighbors-advertised-route`
+
+O que este nó está informando aos seus pares, em oposição ao que ele conhece.
+
+```bash
+{"command":["show-ip-bgp-neighbors-advertised-route"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
+```
+
+Este é o comando para o cenário "o VIP não está acessível pela VNet". Se o VIP estiver
+ausente aqui, o problema está neste nó e nenhuma análise do peer irá ajudar.

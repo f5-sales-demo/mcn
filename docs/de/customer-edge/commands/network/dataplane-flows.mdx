@@ -1,0 +1,45 @@
+---
+title: Flow-Tabelle
+description: >-
+  Verbindungsstatus pro Verbindung in der Argo-Datenebene. Verwenden Sie das
+  Match-Formular, um eine einzelne Verbindung zu finden; der vollständige Dump
+  ist enorm groß.
+sidebar:
+  order: 40
+  label: Flow-Tabelle
+i18n:
+  sourceHash: c654c4d3ca8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo verfolgt jede Verbindung. Die Tabelle auf diesem Knoten hat 629.760 Einträge, daher ist die Art der Abfrage wichtiger als der Inhalt.
+
+## `flow-l-match`
+
+Fast immer die bevorzugte Wahl. Akzeptiert eine Adresse oder eine Adresse mit Port.
+
+```bash
+{"command":["flow-l-match","100.127.192.10:53"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l-match.txt
+```
+
+Die Aktion bei jedem Flow ist entscheidend: `F` für Weiterleitung (forward), `D` für Verwerfen (drop), `N` für NAT. Ein Flow mit der Aktion `D` bedeutet, dass die Datenebene eine bewusste Entscheidung getroffen hat, was Sie zur Richtlinienkonfiguration statt zur Konnektivität weiterleitet.
+
+## `flow-l`
+
+Der vollständige Dump.
+
+```bash
+{"command":["flow-l"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l.txt
+```
+
+<Aside type="caution" title="Gekürzt und enorm groß">
+Die obige Aufzeichnung ist auf die ersten 60 von 1057 Zeilen gekürzt, wobei 1057 selbst das Limit der API war und nicht die gesamte Tabelle. Verwenden Sie `flow-l-match`, sofern Sie nicht wirklich die gesamte Tabelle durchsuchen müssen, und rechnen Sie damit, dass bei einer solchen Abfrage nur die Kopfzeileninformationen — Tabellengröße und Eintragsanzahl — wirklich relevant sind.
+</Aside>

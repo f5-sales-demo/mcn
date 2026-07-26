@@ -1,0 +1,54 @@
+---
+title: 'O tráfego chega, mas não passa'
+description: >-
+  Sequência ordenada para um site que faz peering corretamente e parece
+  saudável, mas ainda perde tráfego. Identifica o motivo de um descarte.
+sidebar:
+  order: 30
+  label: Plano de dados
+i18n:
+  sourceHash: df00d76ad275
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+Para um site que está `ONLINE` com BGP estabelecido. Se as rotas forem o problema, comece
+com [BGP](../bgp-diagnostics/).
+
+<Steps>
+
+1. **Algo está sendo descartado e por quê?**
+   [`dropstats-non-zero`](../../commands/network/dataplane-drops/). Execute duas vezes
+   enquanto reproduz o problema: estes são totais acumulados desde o início da operação, portanto um contador não nulo
+   não significa nada por si só, e um que está *aumentando* significa tudo.
+
+2. **Localize a conexão específica.**
+   [`flow-l-match`](../../commands/network/dataplane-flows/) com o endereço, ou
+   endereço e porta. A ação no fluxo é a resposta: `F` para encaminhar, `D` para descartar, `N`
+   para NAT. Um fluxo presente com ação `D` é uma decisão deliberada de política, e direciona você
+   à política em vez de à conectividade.
+
+3. **Nenhum fluxo?** O tráfego não está chegando ao plano de dados. Confirme se o plano de
+   dados reivindicou a interface esperada com
+   [`vif`](../../commands/network/dataplane-forwarding/), e compare seus contadores
+   com o que [`ip`](../../commands/network/ip/) reporta.
+
+   As duas visões diferem legitimamente, pois o tráfego tratado pelo plano de dados nunca
+   chega ao kernel. Zero de RX na interface esperada não é normal.
+
+4. **Fluxo presente e encaminhando, mas ainda não chegando?** Verifique para onde está sendo enviado:
+   `rt` para a rota, depois `nh` para resolver o próximo salto. Um próximo salto do tipo `Drop`
+   é um buraco negro, e um próximo salto do tipo `Tunnel` coloca o próprio túnel em escopo.
+
+5. **Se o caminho passar por um túnel**, confirme se ele está ativo e transportando bytes com
+   [`ipsec-statusall`](../../commands/network/ipsec/). Um túnel estabelecido há horas
+   com contadores próximos de zero está ativo e sem uso, o que aponta de volta para o roteamento.
+
+</Steps>
+
+<Aside type="tip" title="Argo e Linux mantêm estados separados">
+A maioria dos sintomas confusos do plano de dados surge da leitura da visão do kernel assumindo
+que ela é autoritativa. `ip` mostra o que o Linux acredita; `rt`, `nh` e `vif` mostram o que
+encaminha o tráfego. Quando discordam, o plano de dados é o que move os pacotes.
+</Aside>

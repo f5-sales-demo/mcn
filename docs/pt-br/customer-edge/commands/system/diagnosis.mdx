@@ -1,0 +1,44 @@
+---
+title: diagnosis
+description: >-
+  Sondagens de conectividade e DNS que o nó executa contra si mesmo, retornadas
+  como JSON. Indica o que o nó acredita sobre sua própria acessibilidade.
+sidebar:
+  order: 20
+  label: diagnosis
+i18n:
+  sourceHash: 2c9fe6fab17a
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="Escopo GLOBAL — um transporte diferente">
+Como `health`, uma requisição `GET` para o caminho `global` e não acessível através do `exec-user`.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+O nó sonda seu próprio gateway e reporta o resultado por nó, portanto em um site
+com múltiplos nós você obtém um bloco para cada um. `gateway_connectivity` traz um
+resumo de ping — `sent`, `received`, `lost` e tempos de ida e volta.
+
+<Aside type="note" title="100% de perda para o gateway não é necessariamente uma falha">
+Nesta topologia o gateway não responde a ICMP, portanto `lost: 100` é o estado
+estável enquanto o site está `ONLINE` e encaminhando tráfego. Trate este campo como
+um sinal apenas quando você já tiver outras evidências de um problema, ou quando ele
+mudar.
+</Aside>
+
+`resolv_conf` é o campo mais consistentemente útil: ele mostra o resolvedor que o nó
+efetivamente utilizará, o que vale a pena comparar com o que você espera antes de
+gastar tempo no [`dig`](../../network/dig/).

@@ -1,0 +1,32 @@
+---
+title: Comandos de rede
+description: >-
+  Leia este nível para conectividade, roteamento, túneis e encaminhamento do
+  plano de dados em um Customer Edge. Vinte e um comandos cobrindo BGP, IPsec, o
+  plano de dados Argo e alcançabilidade básica.
+sidebar:
+  order: 10
+  label: Rede
+i18n:
+  sourceHash: f285c14aa71c
+  translator: machine
+---
+
+Vinte e um dos trinta e quatro comandos. Eles se dividem pela camada que você suspeita.
+
+| Se você suspeita | Comece em |
+| --- | --- |
+| O site não está anunciando ou aprendendo rotas | [BGP](./bgp/) |
+| O túnel para o edge regional está inativo | [IPsec](./ipsec/) |
+| O tráfego chega, mas é descartado | [Estatísticas de descarte](./dataplane-drops/) |
+| Uma conexão específica se comporta de forma estranha | [Tabela de fluxos](./dataplane-flows/) |
+| O encaminhamento está errado para um prefixo inteiro | [Rotas e próximos saltos](./dataplane-forwarding/) |
+| Uma interface está inativa ou mal configurada | [Interfaces](./ip/) |
+| Resolução de nomes | [dig](./dig/) |
+| Alcançabilidade fora do nó | [curl](./curl/) |
+| Sockets e listeners | [netstat](./netstat/) |
+| Desvio de clock quebrando certificados ou autenticação | [chronyc-sources](./chronyc-sources/) |
+
+O plano de dados é o Argo, e ele mantém seu próprio estado de encaminhamento separado do
+kernel Linux. `ip` mostra o que o Linux acredita; `rt`, `nh` e `vif` mostram
+o que realmente encaminha o tráfego. Quando esses dois discordam, o plano de dados prevalece.

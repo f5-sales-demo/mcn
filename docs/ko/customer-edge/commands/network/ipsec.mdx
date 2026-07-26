@@ -1,0 +1,49 @@
+---
+title: IPsec
+description: >-
+  F5 리전 엣지로의 터널이 설정되어 있는지 여부, 그리고 터널이 데이터를 전달하고 있음을 증명하는 트래픽 카운터를 확인합니다. 두 가지
+  명령어, 하나는 요약이고 하나는 상세 정보입니다.
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+CE는 F5 리전 엣지로 IPsec 터널을 구성합니다. 터널이 다운되면, 로컬에서 얼마나
+정상적으로 보이든 관계없이 사이트는 글로벌 네트워크로부터 격리됩니다.
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+첫 번째 줄이 핵심 답변입니다: `Security Associations (2 up, 0 connecting)`. `connecting`
+상태에 있는 항목은 시도 중이지만 실패하고 있는 터널입니다.
+
+각 SA는 종단점이 되는 리전 엣지의 이름을 나타냅니다 — `ny8-nyc`, `dc12-ash`는 F5 POP
+코드입니다 — 따라서 이를 통해 사이트가 *어느* 엣지에 연결되어 있는지도 확인할 수 있습니다.
+
+경과 시간과 함께 표시되는 `ESTABLISHED`, 이어서 `INSTALLED, TUNNEL`은 정상적인 쌍입니다:
+첫 번째는 IKE 세션이고, 두 번째는 실제로 트래픽을 전달하는 자식 SA입니다. 설치된 자식 SA
+없이 IKE 세션만 설정된 경우가 주목해야 할 장애 유형입니다.
+
+## `ipsec-statusall`
+
+SA별 바이트 및 패킷 카운터, 재키 타이머, 협상된 알고리즘이 추가된 동일한 정보를 제공합니다.
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+"터널이 올라와 있다"와 "터널이 트래픽을 전달하고 있다"를 구별하는 데 사용합니다. 몇 시간째
+설정되어 있지만 바이트 수가 거의 0에 가까운 터널은 올라와 있지만 사용되지 않는 것으로, 일반적으로
+문제가 터널이 아닌 라우팅에 있음을 의미합니다.

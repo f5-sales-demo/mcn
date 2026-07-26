@@ -1,0 +1,192 @@
+---
+title: Debug API
+description: >-
+  วิธีรันคำสั่ง Site CLI บนโหนดที่ ONLINE ผ่าน HTTP รวมถึงกฎ tier-to-endpoint
+  ที่กำหนดว่าคำสั่งใดต้องใช้ transport ใดจากสามตัวเลือก และการเรียก discovery
+  ที่แสดงรายการคำสั่งเหล่านั้น
+sidebar:
+  order: 20
+  label: Debug API
+i18n:
+  sourceHash: 36ee4d6fe690
+  translator: machine
+---
+
+import { Aside, Steps, Badge } from "@astrojs/starlight/components";
+
+API `vpm/debug` ใช้รันคำสั่ง Site CLI บนโหนดที่ลงทะเบียนแล้วและส่งคืนผลลัพธ์
+ข้อมูลทั้งหมดด้านล่างนี้ได้รับการยืนยันจากโหนดที่ใช้งานจริง และไม่มีการเผยแพร่ upstream
+
+## แคตตาล็อกคำสั่งอธิบายตัวเองได้
+
+สอบถามโหนดว่ารองรับอะไรบ้างโดย POST ไปที่ `exec-user` โดย **ละเว้น** คีย์ `command`:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>"}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user" \
+  | jq -r .output | jq .
+```
+
+การตอบสนองเป็น JSON object ที่มีคีย์เป็นชื่อคำสั่ง:
+
+```json
+{
+  "crictl-inspect": ["System Troubleshooting", "ExecUser", " container-id"],
+  "diagnosis":      ["System Troubleshooting", "ExecUser", "no argument needed", "GLOBAL"],
+  "ip-link-set":    ["Network Troubleshooting", "Exec", " (<device>||<group>) (up||down)"]
+}
+```
+
+แต่ละรายการคือ `[category, tier, exampleArgument?, scope?]` และฟิลด์เหล่านั้น
+ไม่ใช่เอกสารประกอบ — แต่เป็นตัวกำหนดวิธีที่ต้องเรียกใช้คำสั่ง
+
+<Aside type="caution" title="ละเว้นคีย์ อย่าส่งค่าที่ไม่ถูกต้อง">
+การ discovery ทำงานโดยการละเว้น `command` ออก การส่งค่าที่ไม่รู้จักแทนจะส่งคืน
+ข้อผิดพลาด ไม่ใช่แคตตาล็อก:
+
+```json
+{"code":3,"details":[],"message":"exec command failed: command not supported"}
+```
+
+ข้อความนั้นยังเป็นสิ่งที่คุณจะได้รับสำหรับคำสั่ง *จริง* ที่ส่งไปยัง endpoint ที่ไม่ถูกต้อง
+ดังนั้นจึงอ่านผิดได้ง่ายว่า "คำสั่งนี้ไม่มีอยู่"
+</Aside>
+
+## สาม transport ที่เลือกโดยรายการในแคตตาล็อก
+
+| เงื่อนไข | Method และ path | Body | ส่งคืน |
+| --- | --- | --- | --- |
+| `scope` เป็น `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | ไม่มี | JSON |
+| `tier` เป็น `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | อาร์เรย์ `command` | ข้อความ |
+| `tier` เป็น `Exec` | `POST .../vpm/debug/<node>/exec` | อาร์เรย์ `command` | ข้อความ |
+
+### `ExecUser` — tier แบบอ่านอย่างเดียว <Badge text="31 คำสั่ง" variant="note" />
+
+กรณีทั่วไป ส่งคำสั่งและอาร์กิวเมนต์เป็นอาร์เรย์ โดยชื่อคำสั่งอยู่ก่อน:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>","command":["crictl-ps"]}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user"
+```
+
+```json
+{ "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
+```
+
+อาร์กิวเมนต์เป็น element อาร์เรย์แยกกัน ไม่ใช่สตริงเดียว:
+
+```json
+{ "command": ["journalctl", "-u", "vpm", "-n", "200"] }
+```
+
+### `GLOBAL` — ครอบคลุมทั้ง site และใช้ transport ที่แตกต่างออกไปโดยสิ้นเชิง <Badge text="2 คำสั่ง" variant="tip" />
+
+`health` และ `diagnosis` เป็นเพียงสองคำสั่งเท่านั้น คำสั่งเหล่านี้เป็น `GET` request ไปยัง path `global`
+ไม่รับอาร์กิวเมนต์ และส่งคืน JSON ที่มีโครงสร้างแทนที่จะเป็นข้อความ terminal
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
+```
+
+<Aside type="danger" title="คำสั่ง GLOBAL ไม่สามารถเข้าถึงได้ผ่าน exec-user">
+นี่คือกับดักที่ใช้เวลามากที่สุด การส่ง `health` หรือ `diagnosis` ไปยัง
+`exec-user` จะส่งคืน `command not supported` ซึ่งอ่านดูเหมือนว่าคำสั่ง
+ไม่มีอยู่บนโหนด — ทั้งที่จริงแล้วมีอยู่แต่คุณใช้ transport ที่ไม่ถูกต้อง
+
+```bash
+# ผิด ส่งคืน: exec command failed: command not supported
+-d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
+
+# ถูกต้อง
+GET .../vpm/debug/global/health
+```
+
+</Aside>
+
+### `Exec` — tier แบบมีสิทธิ์พิเศษ <Badge text="1 คำสั่งใน build นี้" variant="danger" />
+
+เป็น endpoint แยกต่างหาก และ tier ถูกบังคับใช้จริงไม่ใช่แค่คำแนะนำ: `exec` ปฏิเสธ
+คำสั่ง `ExecUser` ด้วยข้อความ `command not supported` เดียวกัน สมาชิกทุกคน
+จะเปลี่ยนแปลงโหนดหรืออ่าน state marker
+
+ใน build ที่ tenant นี้ใช้งาน tier มีเพียง `ip-link-set` เท่านั้น Build ใหม่กว่า
+เพิ่ม `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
+`systemctl-restart-kubelet`, `systemctl-start-crio-prune` และคำสั่ง
+`marker-exists-*` อีกสามคำสั่ง
+
+<Aside type="danger" title="ไม่มีสิ่งใดที่นี่รันคำสั่ง Exec">
+harness ที่ใช้บันทึกปฏิเสธ tier นี้ และอ่าน tier จากแคตตาล็อกที่ใช้งานจริง
+แทนที่จะเป็นรายการที่ hardcode ไว้ — ดังนั้น build ในอนาคตที่เลื่อนคำสั่งไปยัง `Exec`
+จะได้รับการปฏิบัติตามโดยไม่ต้องมีใครแก้ไขโค้ด รันเฉพาะเมื่อตั้งใจ บนโหนดที่คุณยินดีให้หยุดชะงัก
+</Aside>
+
+## การค้นหาชื่อ site และ node
+
+ชื่อ node คือชื่อ Azure VM และ `list-service` เป็นวิธีที่ประหยัดในการยืนยัน
+พร้อมกับ service ที่รันอยู่บนโหนดนั้น:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/list-service" \
+  | jq -r '[.service[].node] | unique'
+```
+
+## การสร้างซ้ำข้อมูลที่บันทึกไว้ใน repository นี้
+
+ทุกหน้าคำสั่งฝังผลลัพธ์ที่บันทึกโดย `scripts/capture-sitecli.sh` ซึ่ง
+ใช้กฎทั้งสามข้อด้านบน
+
+<Steps>
+
+1. ชี้ไปที่ tenant อ่านค่า `XCSH_API_URL` และ `XCSH_API_TOKEN` หรือ
+   ใช้ context `xcsh` ที่ active อยู่แทน
+
+2. รีเฟรชแคตตาล็อกและยืนยันว่าโหนดไม่ได้เปลี่ยนแปลงไปจากที่อยู่ใน
+   เอกสาร:
+
+   ```bash
+   bash scripts/capture-sitecli.sh --check
+   ```
+
+   สิ่งนี้เปรียบเทียบแคตตาล็อกที่ commit ไว้และ software build เท่านั้น รายงาน
+   การเปลี่ยนแปลง build แยกต่างหากจากคำสั่งที่เพิ่มหรือลบออก
+
+3. บันทึกใหม่เมื่อต้องการข้อมูลที่อัปเดต:
+
+   ```bash
+   bash scripts/capture-sitecli.sh
+   ```
+
+</Steps>
+
+<Aside type="note" title="ข้อมูลที่บันทึกเป็นหลักฐาน ไม่ใช่ artifact ที่สร้างซ้ำได้">
+ตัวนับ uptime และอายุของ container เปลี่ยนแปลงระหว่างการรัน ดังนั้นการบันทึกใหม่จะ
+สร้าง diff เสมอ แคตตาล็อกคือสัญญาที่มั่นคงและ byte เหมือนกันทุก run เมื่อโหนด
+ไม่ได้เปลี่ยนแปลง นั่นคือสิ่งที่ `--check` เปรียบเทียบ ผลลัพธ์ที่ยาวจะถูกตัดทอน
+และจบด้วย marker ที่ชัดเจน ดังนั้นตารางที่ถูกตัดทอนจะไม่แสดงราวกับว่าสมบูรณ์
+</Aside>
+
+<Aside type="danger" title="การบันทึกจากโหนดของลูกค้า: ตรวจสอบ redaction profile">
+ผลลัพธ์คำสั่งมีข้อมูลระบุตัวตนของโครงสร้างพื้นฐาน — การกำหนด address ภายใน,
+MAC address, AS number, hostname — และสำหรับลูกค้านั้นเป็นข้อมูลที่ระบุตัวตน
+ขององค์กร
+
+ดังนั้น scrub filter จึงค่าเริ่มต้นเป็น profile **strict** ที่ลบข้อมูลเหล่านั้นทั้งหมด
+Repository นี้ประกาศ `lab` ใน `sitecli/capture-manifest.json` ซึ่งเก็บรายละเอียดนั้นไว้
+และถูกต้องที่นี่เท่านั้นเนื่องจากข้อมูลที่บันทึกเหล่านี้มาจากโครงสร้างพื้นฐานสาธิตที่ F5 เป็นเจ้าของ
+
+**อย่านำการตั้งค่านั้นไปใช้กับการบันทึกของลูกค้า** Token, private key, ตัวระบุ tenant,
+object UUID, อีเมล และ path ของ home directory จะถูกลบออกภายใต้ทั้งสอง profile
+
+ข้อจำกัดหนึ่งที่ควรทราบ: ตาราง BGP neighbour จะพิมพ์ AS เป็น column ล้วน
+โดยไม่มีป้ายกำกับที่จะยึด pattern ได้ ดังนั้น ASN จึงถูกจับคู่ตามค่ากับ private range
+**public** ASN ที่นั่นจะรอดผ่าน strict และต้องมีการตรวจสอบด้วยตนเองของ
+ผลลัพธ์ `show-ip-bgp*` ก่อนที่จะเผยแพร่
+</Aside>

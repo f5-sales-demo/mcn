@@ -1,0 +1,44 @@
+---
+title: Tabella dei flussi
+description: >-
+  Stato per connessione nel piano dati Argo. Utilizzare il modulo di
+  corrispondenza per trovare una connessione; il dump completo è enorme.
+sidebar:
+  order: 40
+  label: Tabella dei flussi
+i18n:
+  sourceHash: c654c4d3ca8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo tiene traccia di ogni connessione. La tabella su questo nodo contiene 629.760 voci, pertanto il modo in cui si esegue la query è più importante del contenuto stesso.
+
+## `flow-l-match`
+
+Nella quasi totalità dei casi è quella di cui si ha bisogno. Accetta un indirizzo, oppure un indirizzo e una porta.
+
+```bash
+{"command":["flow-l-match","100.127.192.10:53"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l-match.txt
+```
+
+L'azione su ciascun flusso è il punto centrale: `F` inoltro, `D` scarto, `N` NAT. La presenza di un flusso con azione `D` indica che il piano dati ha preso una decisione deliberata, il che reindirizza l'analisi verso le policy anziché verso la connettività.
+
+## `flow-l`
+
+Il dump completo.
+
+```bash
+{"command":["flow-l"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l.txt
+```
+
+<Aside type="caution" title="Ridotto ed enorme">
+La cattura precedente è ridotta alle prime 60 righe su 1057, e 1057 era essa stessa il limite imposto dall'API, non l'intera tabella. Utilizzare `flow-l-match` a meno che non sia effettivamente necessario esaminare l'intera tabella, e aspettarsi che i conteggi nell'intestazione — dimensione della tabella e numero di voci — siano le uniche parti degne di nota quando lo si fa.
+</Aside>

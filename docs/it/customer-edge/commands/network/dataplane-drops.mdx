@@ -1,0 +1,49 @@
+---
+title: Statistiche di scarto
+description: >-
+  Perché il piano dati Argo sta scartando i pacchetti, per motivo. Iniziare da
+  qui quando il traffico raggiunge il nodo ma non arriva a destinazione.
+sidebar:
+  order: 30
+  label: Statistiche di scarto
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo conta ogni scarto per motivo. Questo è il modo più rapido per distinguere "il pacchetto
+non è mai arrivato" da "il pacchetto è arrivato ed è stato scartato deliberatamente".
+
+## `dropstats-non-zero`
+
+Preferire questo. Mostra solo i contatori che si sono attivati, il che equivale a poche righe
+invece di sessantacinque.
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="Non-zero non significa malfunzionamento">
+Questi sono totali cumulativi dall'avvio del piano dati, non una frequenza. `Flow Action
+Drop` conta le operazioni eseguite dalla policy nel suo normale funzionamento. Ciò che conta è se un contatore sta *aumentando*
+mentre si riproduce il problema, quindi eseguire il comando due volte e confrontare.
+</Aside>
+
+## `dropstats`
+
+Ogni contatore, inclusi gli zeri.
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+Vale la pena leggere per intero almeno una volta, per conoscere quali motivi esistono. Dopodiché, la variante
+non-zero è quella da utilizzare.

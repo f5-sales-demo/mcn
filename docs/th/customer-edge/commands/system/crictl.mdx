@@ -1,0 +1,76 @@
+---
+title: crictl
+description: >-
+  CRI-O runtime ซึ่งรันเวิร์กโหลด Kubernetes มีห้าคำสั่งที่ครอบคลุมคอนเทนเนอร์
+  อิมเมจ การตรวจสอบ และล็อก
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O รันเวิร์กโหลด Kubernetes บริการของแพลตฟอร์ม — `vpm`, `argo_watch`,
+`site-console` — เป็นคอนเทนเนอร์ [Docker](../docker/) และจะไม่ปรากฏที่นี่
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+แสดงคอนเทนเนอร์ที่กำลังทำงานพร้อมกับ pod อิมเมจ และจำนวนการรีสตาร์ท `ATTEMPT` คือสิ่งที่ควรอ่าน: จำนวนการรีสตาร์ทที่เพิ่มขึ้นบ่งชี้ถึง crash loop และ container id จากผลลัพธ์นี้ใช้ป้อนให้กับสองคำสั่งด้านล่าง
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+รวมถึงคอนเทนเนอร์ที่หยุดทำงานแล้ว ใช้เมื่อบางอย่าง*เคย*ทำงานอยู่แต่ไม่ทำงานในขณะนี้ — รายการที่หยุดทำงานและ container id ของมันช่วยให้คุณอ่านล็อกของการรันที่ล้มเหลวได้
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+ยืนยันว่าอิมเมจมีอยู่จริงบนโหนด ซึ่งช่วยแยกแยะความล้มเหลวในการดึงอิมเมจออกจากปัญหาการจัดตารางงาน
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+JSON แบบเต็ม: การเมาท์ environment ขีดจำกัดทรัพยากร คำสั่งที่ใช้รัน และสถานะการออก ข้อมูลยาว ดังนั้นควรค้นหาแทนที่จะอ่านทั้งหมด
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="Container id มีอายุเพียงการรันครั้งเดียว">
+id ในการบันทึกเหล่านี้มาจากการรันตัวอย่างหนึ่งครั้งและจะไม่มีอยู่บนโหนดของคุณ
+ดึง id ปัจจุบันจาก `crictl-ps` ก่อน เครื่องมือบันทึกทำสิ่งนั้นพอดี —
+manifest ของมันแก้ไข container id แรกเมื่อบันทึก แทนที่จะกำหนดค่าตายตัวไว้
+</Aside>

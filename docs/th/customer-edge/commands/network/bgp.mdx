@@ -1,0 +1,77 @@
+---
+title: BGP
+description: >-
+  ไม่ว่าไซต์จะทำการ peering อยู่หรือไม่ สิ่งที่โฆษณา และสิ่งที่เรียนรู้ได้
+  คำสั่งสี่คำสั่งครอบคลุม summary ตาราง full table รายละเอียด neighbour และ
+  advertised routes
+sidebar:
+  order: 10
+  label: BGP
+i18n:
+  sourceHash: 4b36c57cee22
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CE รัน FRR สำหรับ BGP บนโทโพโลยีนี้จะทำการ peer กับอินสแตนซ์ Azure Route Server สองตัว โฆษณา VIP และเรียนรู้ VNet prefix
+
+## `show-ip-bgp-summary`
+
+เริ่มต้นที่นี่ หน้าจอเดียวบอกคุณได้ว่า peering ขึ้นอยู่หรือไม่ และมันเสถียรมานานแค่ไหน
+
+```bash
+{"command":["show-ip-bgp-summary"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
+```
+
+อ่าน `State/PfxRcd` ก่อน ตัวเลขคือจำนวน prefix ที่ได้รับและหมายความว่า session นั้น established แล้ว สิ่งอื่นใด — `Active`, `Connect`, `Idle` — คือ session ที่ยังไม่ขึ้น `Up/Down` แสดงว่าสถานะปัจจุบันดำเนินมานานแค่ไหน ดังนั้น session ที่รีเซ็ตซ้ำๆ จะแสดงค่าที่น้อยผิดปกติ
+
+<Aside type="caution" title="vrf id ที่แสดงที่นี่ไม่ใช่ตัวที่ rt ต้องการ">
+ผลลัพธ์นี้รายงาน `vrf-id 3` นั่นคือหมายเลขของ FRR data plane ของ Argo ใช้ตาราง id แยกต่างหาก และการส่งหมายเลขของ FRR ไปยัง
+[`rt --dump`](../dataplane-forwarding/) จะคืนค่า `No such file or directory` ซึ่งดูเหมือนโหนดที่เสียหายมากกว่าการส่ง argument ที่ผิด
+</Aside>
+
+## `show-ip-bgp`
+
+ตารางแบบ full พร้อมการเลือก best-path ที่มองเห็นได้
+
+```bash
+{"command":["show-ip-bgp"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp.txt
+```
+
+`*` คือ route ที่ valid, `>` คือ best path ที่เลือก, `=` คือสมาชิก multipath สองรายการสำหรับ prefix เดียวที่ทั้งคู่ทำเครื่องหมาย `*=` หมายความว่า ECMP กำลังทำงาน ซึ่งเป็นสถานะที่ต้องการบนโทโพโลยีนี้
+
+## `show-ip-bgp-neighbors`
+
+รายละเอียดต่อ neighbour: ความสามารถที่ negotiate แล้ว, timers, message counters และสาเหตุของการรีเซ็ตครั้งล่าสุด
+
+```bash
+{"command":["show-ip-bgp-neighbors"]}
+```
+
+ใช้คำสั่งนี้เมื่อ summary แสดงว่า session กำลัง flapping และคุณต้องการทราบสาเหตุ `Last reset` และสาเหตุของมันคือบรรทัดที่มีประโยชน์
+
+<Aside type="note" title="ยังไม่มีผลลัพธ์ที่บันทึกไว้ในหน้านี้">
+การบันทึกนี้ไม่สามารถ commit ได้จนกว่า `f5-sales-demo/docs-control#795` จะ land FRR สะกดคำผิดในบรรทัด Graceful Restart และ `codespell` ปฏิเสธไฟล์นั้น
+
+การแก้ไขข้อความที่บันทึกไว้จะทำให้เอกสารนี้อธิบายผลลัพธ์ที่ไม่เคยเกิดขึ้น ดังนั้นจึงกำลังแก้ไขที่ต้นทางแทน รันคำสั่งกับโหนดของคุณเองในระหว่างนี้
+</Aside>
+
+## `show-ip-bgp-neighbors-advertised-route`
+
+สิ่งที่โหนดนี้บอกกับ peer เทียบกับสิ่งที่โหนดรู้
+
+```bash
+{"command":["show-ip-bgp-neighbors-advertised-route"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
+```
+
+คำสั่งนี้ใช้สำหรับกรณี "VIP ไม่สามารถเข้าถึงได้จาก VNet" หาก VIP ไม่ปรากฏที่นี่ ปัญหาอยู่ที่โหนดนี้ และไม่ว่าจะมองที่ peer มากแค่ไหนก็ไม่ช่วยอะไร

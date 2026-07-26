@@ -1,0 +1,43 @@
+---
+title: 丟棄統計
+description: Argo 資料平面依原因丟棄封包的情況。當流量已到達節點但未能送達時，請從此處開始排查。
+sidebar:
+  order: 30
+  label: 丟棄統計
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo 會依原因統計每次丟棄事件。這是區分「封包從未到達」與「封包已到達但被刻意丟棄」的最快方式。
+
+## `dropstats-non-zero`
+
+建議優先使用此指令。它只顯示已觸發的計數器，僅有數行，而非六十五行。
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="非零不代表異常">
+這些是資料平面啟動以來的累計總數，而非速率。`Flow Action
+Drop` 計數的是政策正常執行的結果。真正重要的是，當您重現問題時，某個計數器是否*持續增加*，因此請執行該指令兩次並加以比較。
+</Aside>
+
+## `dropstats`
+
+包含所有計數器，含數值為零的項目。
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+建議完整閱讀一次，以了解有哪些丟棄原因存在。之後日常使用時，請改用非零版本的指令。

@@ -1,0 +1,69 @@
+---
+title: Interfacce
+description: >-
+  Stato dell'interfaccia e del collegamento lato Linux sul nodo, più l'unico
+  comando privilegiato che lo modifica. Ciò che Linux rileva, che il piano dati
+  può contraddire.
+sidebar:
+  order: 60
+  label: Interfacce
+i18n:
+  sourceHash: 7ad734b3a357
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Questi riportano la visione del kernel. Il piano dati Argo mantiene la propria,
+visibile tramite [`vif`](../dataplane-forwarding/), e le due possono non concordare.
+
+## `ip`
+
+Accetta un sottocomando `ip`. `addr` è quello più comune; `route`, `link` e `neigh`
+funzionano anch'essi.
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+Il CE dispone di tre NIC per progetto, e l'ordine è importante: `eth0` è l'interfaccia
+di gestione e SLO che trasporta l'indirizzo BGP locale del sito, con interfacce esterna
+e interna a seguire. Si noti `a-i-eth0` nell'output — il piano dati ha preso il
+controllo dell'interfaccia fisica e presenta la propria.
+
+## `ip-link-show`
+
+Solo livello di collegamento: stato, MTU, disciplina di accodamento, MAC.
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+Più rapido di `ip addr` quando la domanda è "il collegamento è attivo e qual è il suo
+MTU". Le discrepanze di MTU sono una causa ricorrente di tunnel che si stabiliscono ma
+non trasmettono traffico.
+
+## `ip-link-set` <Badge text="Livello Exec — mutante" variant="danger" />
+
+Porta un'interfaccia o un gruppo su o giù.
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="Non eseguito qui, e non raggiungibile nel modo consueto">
+Questo è l'unico comando di livello `Exec` in questa build. Va all'endpoint `exec`
+anziché a `exec-user`, e modifica il nodo: portare `eth0` giù su un CE remoto rimuove
+il percorso attraverso cui lo si gestisce, inclusa la stessa API di debug.
+
+Deliberatamente non è presente alcun output acquisito in questa pagina. Il sistema di
+acquisizione rifiuta l'intero livello `Exec`, e legge il livello dal catalogo attivo
+anziché da un elenco hardcoded, quindi ciò rimane valido se una build futura promuove
+altri comandi in esso.
+</Aside>

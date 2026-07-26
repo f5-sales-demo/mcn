@@ -1,0 +1,43 @@
+---
+title: 플로우 테이블
+description: Argo 데이터 플레인의 연결별 상태. 특정 연결을 찾으려면 match 형식을 사용하세요. 전체 덤프는 매우 큽니다.
+sidebar:
+  order: 40
+  label: 플로우 테이블
+i18n:
+  sourceHash: c654c4d3ca8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo는 모든 연결을 추적합니다. 이 노드의 테이블에는 629,760개의 항목이 있으므로
+내용보다 쿼리 방법이 더 중요합니다.
+
+## `flow-l-match`
+
+거의 항상 이 명령을 사용하게 됩니다. 주소 또는 주소와 포트를 인자로 받습니다.
+
+```bash
+{"command":["flow-l-match","100.127.192.10:53"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l-match.txt
+```
+
+각 플로우의 액션이 핵심입니다: `F`는 전달(forward), `D`는 차단(drop), `N`은 NAT입니다. 액션이 `D`인 플로우가 존재한다는 것은 데이터 플레인이 의도적인 결정을 내렸음을 의미하며, 이는 연결 문제가 아닌 정책 문제로 방향을 전환해야 함을 나타냅니다.
+
+## `flow-l`
+
+전체 덤프입니다.
+
+```bash
+{"command":["flow-l"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l.txt
+```
+
+<Aside type="caution" title="축약되었으며 매우 큰 데이터">
+위의 캡처는 1057줄 중 처음 60줄만 표시하도록 축약된 것이며, 1057줄 자체도 전체 테이블이 아니라 API의 자체 제한에 의한 것입니다. 전체 테이블을 실제로 살펴볼 필요가 없다면 `flow-l-match`를 사용하세요. 전체 덤프를 사용할 경우 헤더의 카운트(테이블 크기 및 항목 수)만이 유의미한 정보임을 참고하십시오.
+</Aside>

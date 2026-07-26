@@ -1,0 +1,62 @@
+---
+title: 從未上線的站點
+description: 針對 CE 無法完成註冊的有序排查步驟，此情況下除錯 API 無法提供協助，因為它依賴於失敗的註冊流程。
+sidebar:
+  order: 10
+  label: 註冊
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="API 無法對此進行除錯">
+除錯 API 透過 F5 Distributed Cloud 控制平面，經由註冊所建立的通道來連接節點。若註冊失敗則不存在通道，因此本站點上的所有指令對於這種特定故障均無法使用。請從
+[序列主控台](../../access/serial-console/) 進行操作。
+</Aside>
+
+<Steps>
+
+1. **確認租戶所見的狀態。** 站點清單中缺少站點，與站點存在但非 `ONLINE` 狀態是不同的問題。
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   若站點已存在且回報 `ONLINE`，則表示註冊已成功，您使用的是錯誤的排查流程。
+
+2. **檢查是否有待核准的註冊請求。** 節點可能已完成註冊但正在等待核准，這從外部看起來與失敗的情況完全相同。
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **確認虛擬機器確實正在運行**，再假設是軟體故障。
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **連接序列主控台。** 此步驟需要終端機 — 無法以腳本執行。
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   若連接遭到拒絕，請在判斷節點無法連線之前，先確認虛擬機器是否已啟用開機診斷；該先決條件及其故障模式已於 [序列主控台](../../access/serial-console/) 頁面說明。
+
+5. **依照以下順序讀取主控台所顯示的內容。** 先查看 cloud-init — 若節點的 cloud-init 從未完成，則不存在可用於註冊的設定。接著查看註冊嘗試本身，然後是 DNS：若節點無法解析 `register.ves.volterra.io`，則所有下游流程均無法運作。
+
+6. **一旦節點變為 `ONLINE`**，請使用 [`health`](../../commands/system/health/) 進行驗證，並確認狀態為 `state: PROVISIONED`。
+
+</Steps>
+
+## 常見原因
+
+- cloud-init 未完成，導致 `/etc/vpm/config.yaml` 不存在或內容有誤。
+- 註冊權杖已過期、已被使用，或屬於其他租戶。
+- 無法對外路由至 `register.ves.volterra.io`。
+- 時鐘偏差過大導致憑證失效 — 可稍後透過 [`chronyc-sources`](../../commands/network/chronyc-sources/) 快速排除，但在節點上線之前無法存取該指令。

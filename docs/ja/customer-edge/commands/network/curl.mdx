@@ -1,0 +1,42 @@
+---
+title: curl
+description: ノード上の2つの異なるネットワークコンテキストから到達性テストを実行します。どちらを使用するかによって、障害が実際に何を示すかが決まります。
+sidebar:
+  order: 80
+  label: curl
+i18n:
+  sourceHash: 6ab13d8c3593
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+2つのコマンドがあり、その違いが全ての価値を決定します。
+
+## `curl-host`
+
+ホストネットワーク名前空間内で実行されます。データプレーンが関与する前の、ノード自身の接続性を確認します。
+
+```bash
+{"command":["curl-host","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-host.txt
+```
+
+## `curl-vega`
+
+Kubernetesクラスターコンテキスト内で実行されるため、クラスターのDNSおよびネットワークパスを経由します。
+
+```bash
+{"command":["curl-vega","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-vega.txt
+```
+
+<Aside type="tip" title="このペアは二分法です">
+両方を実行してください。`curl-host` が成功し `curl-vega` が失敗した場合、ノードは接続性を持っており、クラスターネットワークまたはそのDNSに問題があります。両方が失敗した場合、問題はノードの上流にあります。ルーティング、ファイアウォール、またはエグレスパスが原因です。`curl-host` のみが失敗した場合、異常な状態が発生しており、まずホストのルーティングテーブルを確認してください。
+</Aside>
+
+どちらも通常の `curl` 引数を個別の配列要素として受け付けます。接続およびTLSハンドシェイクの行は通常、障害が現れる箇所であるため、`-v` オプションを使用することをお勧めします。

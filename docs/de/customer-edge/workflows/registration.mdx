@@ -1,0 +1,87 @@
+---
+title: 'Eine Site, die nie online kam'
+description: >-
+  Geordnete Abfolge für eine CE, deren Registrierung fehlschlug und bei der die
+  Debug-API nicht helfen kann, da sie von der fehlgeschlagenen Registrierung
+  abhängt.
+sidebar:
+  order: 10
+  label: Registrierung
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="Die API kann dies nicht debuggen">
+Die Debug-API erreicht den Knoten über die F5 Distributed Cloud-Steuerungsebene und
+den Tunnel, den die Registrierung aufbaut. Falls die Registrierung fehlschlug, gibt
+es keinen Tunnel, sodass jeder Befehl auf dieser Site für genau diesen Fehlerfall
+nicht verfügbar ist. Arbeiten Sie über die
+[serielle Konsole](../../access/serial-console/).
+</Aside>
+
+<Steps>
+
+1. **Bestätigen Sie, was der Mandant sieht.** Das Fehlen in der Site-Liste ist ein
+   anderes Problem als vorhanden, aber nicht `ONLINE`.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   Wenn die Site existiert und `ONLINE` meldet, war die Registrierung erfolgreich und
+   Sie befinden sich im falschen Workflow.
+
+2. **Prüfen Sie auf eine ausstehende Registrierung.** Ein Knoten kann sich
+   registrieren und dann auf eine Genehmigung warten, was von außen identisch mit
+   einem Fehler aussieht.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **Bestätigen Sie, dass die VM tatsächlich läuft**, bevor Sie einen Softwarefehler
+   annehmen.
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **Verbinden Sie die serielle Konsole.** Dies erfordert ein Terminal — es kann nicht
+   geskriptet werden.
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   Falls dies abgelehnt wird, prüfen Sie, ob die Boot-Diagnose auf der VM aktiviert
+   ist, bevor Sie schlussfolgern, dass der Knoten nicht erreichbar ist. Diese
+   Voraussetzung und ihre Fehlermodi werden auf der Seite
+   [serielle Konsole](../../access/serial-console/) beschrieben.
+
+5. **Lesen Sie, was die Konsole anzeigt, in dieser Reihenfolge.** Zuerst cloud-init —
+   ein Knoten, dessen cloud-init nie abgeschlossen wurde, hat keine Konfiguration für
+   die Registrierung. Dann die Registrierungsversuche selbst, dann DNS: Wenn der
+   Knoten `register.ves.volterra.io` nicht auflösen kann, kann nichts Nachgelagertes
+   funktionieren.
+
+6. **Sobald der Knoten `ONLINE` ist**, überprüfen Sie mit
+   [`health`](../../commands/system/health/) und erwarten Sie `state: PROVISIONED`.
+
+</Steps>
+
+## Die häufigen Ursachen
+
+- cloud-init wurde nicht abgeschlossen, sodass `/etc/vpm/config.yaml` fehlt oder
+  falsch ist.
+- Das Registrierungstoken ist abgelaufen, bereits verbraucht oder stammt von einem
+  anderen Mandanten.
+- Keine Ausgangsroute zu `register.ves.volterra.io`.
+- Uhrzeitabweichung groß genug, um Zertifikate ungültig zu machen — später schnell
+  auszuschließen mit
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), aber nicht erreichbar,
+  bis der Knoten online ist.

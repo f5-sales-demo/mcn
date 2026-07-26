@@ -1,0 +1,45 @@
+---
+title: curl
+description: Reachability tests from two different network contexts on the node. Which one you use decides what a failure actually proves.
+sidebar:
+  order: 80
+  label: curl
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Two commands, and the distinction between them is the entire value.
+
+## `curl-host`
+
+Runs in the host network namespace — the node's own connectivity, before the data
+plane is involved.
+
+```bash
+{"command":["curl-host","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-host.txt
+```
+
+## `curl-vega`
+
+Runs inside the Kubernetes cluster context, so it traverses the cluster's DNS and
+network path.
+
+```bash
+{"command":["curl-vega","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-vega.txt
+```
+
+<Aside type="tip" title="The pair is a bisection">
+Run both. If `curl-host` succeeds and `curl-vega` fails, the node has connectivity
+and the cluster network or its DNS is broken. If both fail, the problem is upstream
+of the node — routing, a firewall, or the egress path. If only `curl-host` fails, you
+have found something unusual and should check the host routing table first.
+</Aside>
+
+Both accept normal `curl` arguments as separate array elements. `-v` is worth keeping
+because the connection and TLS handshake lines are usually where the failure shows.

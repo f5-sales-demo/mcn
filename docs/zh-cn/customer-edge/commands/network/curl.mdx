@@ -1,0 +1,42 @@
+---
+title: curl
+description: 从节点上两种不同网络上下文进行可达性测试。您使用哪种方式决定了失败实际证明了什么。
+sidebar:
+  order: 80
+  label: curl
+i18n:
+  sourceHash: 6ab13d8c3593
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+两个命令，它们之间的区别就是全部价值所在。
+
+## `curl-host`
+
+在主机网络命名空间中运行——即节点自身的连接性，在数据平面介入之前。
+
+```bash
+{"command":["curl-host","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-host.txt
+```
+
+## `curl-vega`
+
+在 Kubernetes 集群上下文内部运行，因此会经过集群的 DNS 和网络路径。
+
+```bash
+{"command":["curl-vega","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-vega.txt
+```
+
+<Aside type="tip" title="这对命令是一种二分法">
+两者都运行。如果 `curl-host` 成功而 `curl-vega` 失败，说明节点具有连接性，问题在于集群网络或其 DNS。如果两者都失败，问题位于节点上游——路由、防火墙或出口路径。如果仅 `curl-host` 失败，则说明出现了不寻常的情况，应首先检查主机路由表。
+</Aside>
+
+两者均接受普通的 `curl` 参数，以独立数组元素的形式传入。建议保留 `-v` 参数，因为连接和 TLS 握手行通常是故障显现的位置。

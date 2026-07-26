@@ -1,0 +1,89 @@
+---
+title: การวินิจฉัย Customer Edge
+description: >-
+  อ่านส่วนนี้เป็นอันดับแรกเมื่อ Customer Edge ทำงานผิดปกติ
+  เพื่อระบุว่าเส้นทางการเข้าถึงใดใน 2 เส้นทางที่ใช้งานได้
+  เนื่องจากการเลือกผิดจะไม่ส่งคืนข้อมูลใดๆ โดยไม่มีการแจ้งเตือน
+sidebar:
+  order: 10
+  label: Customer Edge
+i18n:
+  sourceHash: 6fd834c949c2
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Customer Edge (CE) คือโหนด F5 Distributed Cloud ที่ repository นี้จัดสรรไว้ใน
+Azure — `terraform/modules/ce-node` ซึ่งสร้างจาก
+marketplace image `volterraedgeservices/volterra-node`
+
+โหนดนี้รัน data plane (Argo), control plane (Vega), Envoy proxy,
+Kubernetes stack และ `vpm` ซึ่งเป็น agent ที่ลงทะเบียนโหนดและจัดการทุกอย่างที่อยู่บนนั้น
+
+เมื่อ CE ทำงานผิดปกติ Site CLI คือเครื่องมือที่ใช้ การตัดสินใจแรกคือต้องระบุว่าเส้นทางการเข้าถึงใดที่เหมาะสม เนื่องจากการเลือกผิดจะทำให้เสียเวลาในลักษณะที่ดูเหมือนโหนดเสียหาย
+
+## เส้นทางการเข้าถึง 2 เส้นทาง และใช้แทนกันไม่ได้
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    href="./access/debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered. The only route when the API cannot answer."
+    href="./access/serial-console/"
+  />
+</CardGrid>
+
+debug API เข้าถึงโหนด**ผ่าน F5 Distributed Cloud control plane**
+นั่นคือเหตุผลทั้งหมดที่การแบ่งแยกนี้มีความสำคัญ: API จะตอบสนองได้ก็ต่อเมื่อโหนดได้ลงทะเบียนแล้วและรายงานสถานะ `ONLINE`
+
+โหนดที่ไม่สามารถลงทะเบียนได้ — cloud-init ผิดพลาด, token หมดอายุ, ไม่มีเส้นทางไปยัง
+`register.ves.volterra.io` — คือกรณีที่คุณต้องการการวินิจฉัยพอดี และก็คือกรณีที่ API ไม่สามารถให้บริการได้
+
+โหนดยังปฏิเสธ SSH ตามที่จัดส่งมา พอร์ต 22 ปิดอยู่บน CE เอง ไม่ใช่โดย network security group:
+
+```console
+$ ssh -o ConnectTimeout=10 admin@<ce-public-ip>
+ssh: connect to host <ce-public-ip> port 22: Connection refused
+```
+
+ยืนยันแล้วจากภายใน VNet เช่นกัน จาก jump host บน subnet เดียวกัน ดังนั้นการเปิด security group rule ไม่ทำให้เปลี่ยนแปลง
+
+ดังนั้น: หาก site อยู่ในสถานะ `ONLINE` ให้ใช้ debug API หากไม่ใช่ serial console คือวิธีเดียวที่เข้าถึงได้
+
+<Aside type="caution" title="ตรวจสอบสถานะ site ก่อน">
+Request เดียวบอกคุณได้ว่าอยู่ในเส้นทางใด:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/config/namespaces/system/sites/<site>" \
+  | jq -r '.spec.site_state'
+```
+
+`ONLINE` หมายความว่า debug API จะทำงานได้ ค่าอื่นใด — หรือ site ที่ไม่มีอยู่ — หมายความว่าต้องใช้ serial console
+</Aside>
+
+## กฎความปลอดภัย
+
+กฎเหล่านี้ใช้บังคับกับทุกคำสั่งในทุกหน้าด้านล่าง
+
+- **อ่านอย่างเดียวเว้นแต่คุณมั่นใจ** พื้นที่คำสั่งแบ่งออกเป็น 2 ระดับสิทธิ์ และระดับ `Exec` จะทั้งเปลี่ยนแปลงโหนดหรืออ่าน state marker ไม่มีสิ่งใดในหน้าเหล่านี้ที่รันคำสั่ง `Exec` และ capture harness ก็ไม่รันเช่นกัน
+- **อย่าสันนิษฐานว่าคำสั่งปลอดภัยจากชื่อของมัน** `ip-link-set` ดูเหมือน query และทำให้ interface หยุดทำงาน `systemctl-restart-crio` รีสตาร์ท container runtime ภายใต้ data plane ที่กำลังทำงานอยู่
+- **เลือกคำสั่งที่แคบที่สุดที่ตอบคำถามได้** `health` และ `diagnosis` สรุปสถานะโหนดได้อย่างรวดเร็ว ในขณะที่ `flow-l` ดึงข้อมูล flow table ที่มี 629,760 รายการ
+- **CE ให้บริการ live traffic** นี่คือสภาพแวดล้อม demo ที่ใช้ร่วมกัน สมมติว่ามีคนกำลังนำเสนอจาก site ที่คุณกำลัง debug อยู่
+
+## สิ่งที่ถูกจัดทำเป็นเอกสารที่นี่
+
+ทุกคำสั่งที่เข้าถึงได้ผ่าน debug API บน software build ที่ tenant นี้รันอยู่ แต่ละคำสั่งมี output ที่ capture จากโหนดจริง ไม่ใช่คัดลอกมาจากที่อื่น
+
+[command reference](./commands/) แสดงรายการทั้งหมดพร้อมหมวดหมู่ ระดับสิทธิ์ และ transport ส่วน [workflows](./workflows/) เชื่อมต่อคำสั่งเหล่านั้นเข้าเป็นลำดับขั้นตอนที่คุณใช้จริงเมื่อเกิดปัญหา
+
+ส่วนที่ใช้ได้เฉพาะบน Site CLI — `configure`, `configure-network`,
+`factory-reset`, `upgrade` และอีกประมาณหกสิบคำสั่ง `ExecCLI` — ไม่ได้รวมอยู่ในเอกสาร
+
+คำสั่งเหล่านั้นเข้าถึงได้เฉพาะจาก serial console session ดังนั้นจึงไม่มีสิ่งใดเกี่ยวกับคำสั่งเหล่านั้นที่สามารถตรวจสอบได้โดยทางโปรแกรม และ syntax คำสั่งที่ไม่ได้รับการตรวจสอบคือข้อบกพร่องที่เอกสารนี้มีจุดประสงค์เพื่อหลีกเลี่ยงการเกิดซ้ำ

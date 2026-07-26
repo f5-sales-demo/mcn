@@ -1,0 +1,32 @@
+---
+title: Comandi di rete
+description: >-
+  Leggi questo livello per connettività, routing, tunnel e inoltro del piano
+  dati su un Customer Edge. Ventuno comandi che coprono BGP, IPsec, il piano
+  dati Argo e la raggiungibilità di base.
+sidebar:
+  order: 10
+  label: Rete
+i18n:
+  sourceHash: f285c14aa71c
+  translator: machine
+---
+
+Ventuno dei trentaquattro comandi. Si dividono in base al livello su cui si hanno dei sospetti.
+
+| Se sospetti che | Inizia da |
+| --- | --- |
+| Il sito non stia pubblicando o acquisendo route | [BGP](./bgp/) |
+| Il tunnel verso il regional edge sia inattivo | [IPsec](./ipsec/) |
+| Il traffico arrivi ma venga scartato | [Statistiche di drop](./dataplane-drops/) |
+| Una connessione specifica si comporti in modo anomalo | [Tabella dei flussi](./dataplane-flows/) |
+| L'inoltro sia errato per un intero prefisso | [Route e next hop](./dataplane-forwarding/) |
+| Un'interfaccia sia inattiva o mal configurata | [Interfacce](./ip/) |
+| Risoluzione dei nomi | [dig](./dig/) |
+| Raggiungibilità dal nodo | [curl](./curl/) |
+| Socket e listener | [netstat](./netstat/) |
+| Disallineamento dell'orologio che compromette certificati o autenticazione | [chronyc-sources](./chronyc-sources/) |
+
+Il piano dati è Argo, e mantiene il proprio stato di inoltro separato da quello del
+kernel Linux. `ip` mostra ciò che Linux ritiene corretto; `rt`, `nh` e `vif` mostrano ciò che
+effettivamente inoltra il traffico. Quando i due non concordano, il piano dati ha la precedenza.

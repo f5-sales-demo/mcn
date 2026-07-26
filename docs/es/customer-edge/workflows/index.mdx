@@ -1,0 +1,38 @@
+---
+title: Flujos de trabajo de diagnóstico
+description: >-
+  Consulte este nivel cuando tenga un síntoma en mente en lugar de un comando.
+  Cada flujo de trabajo es una secuencia ordenada que permite identificar la
+  causa, con enlaces a las páginas de comandos para la sintaxis.
+sidebar:
+  order: 30
+  label: Flujos de trabajo
+i18n:
+  sourceHash: 6f0f5a56a919
+  translator: machine
+---
+
+La [referencia de comandos](../commands/) está organizada según lo que hace cada comando. Estos
+están organizados según lo que ha salido mal.
+
+| Síntoma | Flujo de trabajo |
+| --- | --- |
+| El sitio nunca se puso en línea, o se eliminó del tenant | [Registro](./registration/) |
+| Las rutas no se anuncian ni se aprenden; la VIP no es accesible | [BGP](./bgp-diagnostics/) |
+| El tráfico llega al nodo pero no arriba | [Plano de datos](./dataplane-diagnostics/) |
+
+Cada paso enlaza a la página que documenta el comando. Nada se reitera aquí,
+por lo que la sintaxis tiene exactamente un único lugar y no puede quedar desincronizada con el nodo.
+
+## Antes de cualquiera de ellos
+
+Establezca cuál es la ruta de acceso que está utilizando, porque eso cambia lo que es posible:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/config/namespaces/system/sites/<site>" | jq -r '.spec.site_state'
+```
+
+`ONLINE` significa que la [API de depuración](../access/debug-api/) responderá. Cualquier otro valor significa
+[consola serie](../access/serial-console/), y también significa que el flujo de trabajo de registro
+es el que necesita.

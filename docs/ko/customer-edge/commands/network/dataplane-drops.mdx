@@ -1,0 +1,43 @@
+---
+title: 드롭 통계
+description: Argo 데이터 플레인이 패킷을 폐기하는 이유별 현황. 트래픽이 노드에 도달하지만 수신되지 않을 때 여기서 시작하세요.
+sidebar:
+  order: 30
+  label: 드롭 통계
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo는 모든 폐기를 이유별로 계산합니다. 이는 "패킷이 도달하지 않음"과 "패킷이 도달했지만 의도적으로 드롭됨"을 구분하는 가장 빠른 방법입니다.
+
+## `dropstats-non-zero`
+
+이 명령을 우선 사용하세요. 발생한 카운터만 표시하므로 65개의 줄 대신 소수의 줄만 나타납니다.
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="Non-zero가 문제를 의미하지는 않습니다">
+이것은 데이터 플레인이 시작된 이후의 누적 합계이며, 속도가 아닙니다. `Flow Action
+Drop`은 정책이 제 역할을 하고 있음을 나타냅니다. 중요한 것은 문제를 재현하는 동안 카운터가 *증가*하고 있는지 여부이므로, 명령을 두 번 실행하여 비교하세요.
+</Aside>
+
+## `dropstats`
+
+0인 카운터를 포함한 모든 카운터입니다.
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+어떤 이유가 존재하는지 파악하기 위해 한 번 전체를 읽어보는 것이 좋습니다. 그 이후에는 non-zero 변형을 사용하는 것이 적합합니다.

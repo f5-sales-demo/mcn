@@ -1,0 +1,39 @@
+---
+title: journalctl
+description: Systemd journal for any unit on the node. The primary source for registration failures and vpm behaviour over time.
+sidebar:
+  order: 50
+  label: journalctl
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+Standard `journalctl` arguments, each a separate array element. `-u vpm` is the one
+you want most often: `vpm` is the agent that registers the node and manages
+everything else on it, so its journal is where registration failures appear with
+timestamps and across restarts.
+
+Useful variants:
+
+| Arguments | Answers |
+| --- | --- |
+| `-u vpm -n 200` | What has vpm been doing recently |
+| `-u vpm --since "10 min ago"` | What happened while I reproduced it |
+| `-p err -n 100` | Errors from every unit |
+| `-u kubelet -n 200` | Why the Kubernetes stack is unhealthy |
+
+Prefer this over [`docker-logs vpm`](../docker/) when you need timestamps, want to
+span a restart, or want to correlate vpm against another unit.
+
+<Aside type="note" title="No captured output on this page yet">
+This capture cannot be committed until `f5-sales-demo/docs-control#795` lands. The
+journal echoes a line from FRR containing a misspelling, and `codespell` rejects the
+file. Editing captured text would make this page describe output that never
+occurred, so the fix is being made upstream in the managed configuration instead.
+</Aside>
