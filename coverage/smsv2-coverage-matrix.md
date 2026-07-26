@@ -355,6 +355,14 @@ to "excluded" to make the table look finished.
 Totals: 1 n/a, 8 excluded with a reason, 5 partially covered, **155 still open**. Every open row
 above is a candidate slice, not a defect — but the table is no longer silent about them.
 
+All 155 open arms are tracked, so closing epic terraform-provider-xcsh#1207 does not drop them:
+
+| Tracking issue | Families | Arms |
+|---|---|---|
+| mcn #646 | J, L, M, N — `local_vrf` oneofs + the six `SiteStaticRoutesListType` subtrees | 96 |
+| mcn #647 | K, O, P, Q — SLI `network_option`, `ipv6_auto_config.router`, `cluster_static_ip`, bond remainder | 33 |
+| mcn #648 | B, C, D, E, F, H, I — `advanced_delivery`/`log_anonymization` oneofs, `tunnel_*`, `annotations`/`disable`, `custom_proxy` remainder, ref `tenant` | 26 |
+
 Two details that would not fit in a table cell:
 
 - **Family J's shape.** Each of the six `SiteStaticRoutesListType` instances carries `attrs`,
