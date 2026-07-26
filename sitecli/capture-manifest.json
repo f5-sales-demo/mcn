@@ -16,10 +16,27 @@
     "Commands in the Exec tier are refused by the script itself from catalog",
     "metadata and need no entry here."
   ],
+  "_scrub_profile_note": [
+    "scrub_profile selects how much infrastructure identity survives.",
+    "",
+    "For a company customer, infrastructure identifiers ARE personally identifiable",
+    "information: internal addressing, MAC addresses, AS numbers and hostnames all",
+    "identify the organisation. The scrub filter therefore defaults to 'strict',",
+    "which removes them, so pointing the harness at a customer node and committing",
+    "the result cannot leak by omission.",
+    "",
+    "This repository declares 'lab' because its captures come from an F5-owned demo",
+    "tenant covered by the authorized-use statement in CLAUDE.md, where the",
+    "addressing IS the diagnostic content. That choice lives here rather than in the",
+    "script so it shows up in a diff and has to be reviewed.",
+    "",
+    "Capturing from a customer node: do NOT set this to lab."
+  ],
   "defaults": {
     "site": "ar-bgp-eastus01",
     "node": "f5-xc-ce-vm-01",
-    "max_lines": 60
+    "max_lines": 60,
+    "scrub_profile": "lab"
   },
   "commands": {
     "chronyc-sources": { "args": [] },
