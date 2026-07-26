@@ -1,8 +1,8 @@
-# S1 numeric- + S2 string-leaf input validation for xcsh_securemesh_site_v2 (provider >= 3.75.1).
+# S1 numeric- + S2 string-leaf input validation for xcsh_securemesh_site_v2 (provider >= 3.80.0).
 #
 # POSITIVE case: valid bounds AND valid mac/ip/CIDR/node-type plan cleanly through the REAL
 # provider schema. mock_provider means no XC credentials are needed — the schema (and its
-# numeric + string validators) come from the dev_overrides build locally / the registry v3.75.1
+# numeric + string validators) come from the dev_overrides build locally / the registry v3.80.0
 # in CI, and fire during plan regardless of whether the API is contacted.
 #
 # The out-of-range REJECT cases live in ./reject-tests/reject.tftest.hcl. They cannot be
@@ -175,6 +175,40 @@ run "plan_blocked_services" {
   assert {
     condition     = xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].network_type == "VIRTUAL_NETWORK_SITE_LOCAL"
     error_message = "services_arm=blocked_services must render a blocked_service with the default network_type."
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].ssh != null
+    error_message = "the default blocked_service_arm=ssh must render the ssh member of service_choice."
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].web_user_interface == null && xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].dns == null
+    error_message = "exactly ONE service_choice member may render — F5 keeps a single member and silently drops the rest."
+  }
+}
+
+run "plan_blocked_service_dns" {
+  command = plan
+  variables {
+    probe_name          = "cov-probe-s7-blocked-dns"
+    services_arm        = "blocked_services"
+    blocked_service_arm = "dns"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].dns != null && xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].ssh == null
+    error_message = "blocked_service_arm=dns must render only the dns member of service_choice."
+  }
+}
+
+run "plan_blocked_service_web_user_interface" {
+  command = plan
+  variables {
+    probe_name          = "cov-probe-s7-blocked-wui"
+    services_arm        = "blocked_services"
+    blocked_service_arm = "web_user_interface"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].web_user_interface != null && xcsh_securemesh_site_v2.probe.blocked_services.blocked_service[0].ssh == null
+    error_message = "blocked_service_arm=web_user_interface must render only the web_user_interface member of service_choice."
   }
 }
 
@@ -383,6 +417,18 @@ run "plan_perf_l3_enhanced" {
   }
 }
 
+run "plan_l7_jumbo_enabled" {
+  command = plan
+  variables {
+    probe_name   = "cov-probe-s7-l7-jumbo-enabled"
+    l7_jumbo_arm = "jumbo_enabled"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_enabled != null && xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_disabled == null
+    error_message = "l7_jumbo_arm=jumbo_enabled must render only the jumbo_enabled member of the perf_mode_l7_enhanced jumbo sub-oneof."
+  }
+}
+
 run "plan_os_sw_pinned" {
   command = plan
   variables {
@@ -459,8 +505,8 @@ run "plan_admin_user_credentials" {
     admin_creds = true
   }
   assert {
-    condition     = xcsh_securemesh_site_v2.probe.admin_user_credentials.admin_password.secret_encoding_type == "EncodingBase64"
-    error_message = "admin_creds=true must render admin_password.secret_encoding_type plan-clean through OneOf(EncodingNone, EncodingBase64)."
+    condition     = xcsh_securemesh_site_v2.probe.admin_user_credentials.ssh_key != null
+    error_message = "admin_creds=true must render the ssh_key leaf (LengthAtMost(8192))."
   }
   assert {
     condition     = startswith(xcsh_securemesh_site_v2.probe.admin_user_credentials.admin_password.clear_secret_info.url, "string:///")

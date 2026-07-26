@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # S1 numeric- + S2 string-validation gate for the SMSv2 coverage probe.
 #
-# Proves the provider v3.75.1 SMSv2 numeric AND string validators both ACCEPT valid input and
+# Proves the provider v3.80.0 SMSv2 numeric AND string validators both ACCEPT valid input and
 # REJECT invalid input, entirely credential-free (mock_provider fires the real schema
 # validators at plan). This wraps `terraform test` because Terraform's `expect_failures`
 # only captures user-defined custom conditions, not provider schema attribute validators, so
@@ -66,7 +66,7 @@ declare -a expected=(
   'Value "999.1.1.1" is not a valid IPv4 address'
   'Value "300.2.2.2" is not a valid IPv4 address'
   # S5 site-mode validated leaves (os/sw LengthAtMost(20), drain Between, primary_re LengthBetween,
-  # ssh_key LengthAtMost(8192), secret_encoding_type OneOf). The two LengthAtMost(20) messages are
+  # ssh_key LengthAtMost(8192)). The two LengthAtMost(20) messages are
   # identical text, so each is qualified by its attribute path to prove BOTH leaves independently.
   "software_settings.os.operating_system_version string length must be at most 20, got: 21"
   "software_settings.sw.volterra_software_version string length must be at most 20, got: 21"
@@ -74,7 +74,6 @@ declare -a expected=(
   "must be between 0 and 900, got: 901"
   "re_select.specific_re.primary_re string length must be between 1 and 64, got: 65"
   "admin_user_credentials.ssh_key string length must be at most 8192, got: 8200"
-  'value must be one of: ["EncodingNone" "EncodingBase64"], got: "BOGUS"'
 )
 for msg in "${expected[@]}"; do
   case "${reject_norm}" in
@@ -90,4 +89,4 @@ echo "      the S3 interface-arm leaves (bond devices SizeBetween(1, 8) / static
 echo "      the S4 networking/services leaves (vip_vrrp_mode OneOf / blocked_services network_type"
 echo "      OneOf / custom_proxy proxy_ip_address IPv4 / segment_vrf nameserver IPv4), and the S5"
 echo "      site-mode leaves (os/sw version LengthAtMost(20) / drain count+timeout Between / specific_re"
-echo "      primary_re LengthBetween(1, 64) / ssh_key LengthAtMost(8192) / secret_encoding_type OneOf)."
+echo "      primary_re LengthBetween(1, 64) / ssh_key LengthAtMost(8192)."
