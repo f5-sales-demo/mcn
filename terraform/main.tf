@@ -140,22 +140,30 @@ module "client_vm" {
 # F5 XC data-plane (app tier)
 # ---------------------------------------------------------
 
-# The deployment owns its application namespace (origin pool + VIP load balancer
-# live here). Referencing xcsh_namespace.mcn.name from the pool/LB creates the
-# apply-time ordering so the namespace exists before its members. (XC sites/bgp
-# live in the fixed `system` namespace and are unaffected.)
-resource "xcsh_namespace" "mcn" {
-  name        = var.xc_app_namespace
-  description = "MCN CE-HA (BGP/ECMP) demo: origin pool + VIP-advertising load balancer."
+# The application namespace (origin pool + VIP load balancer live here) is an
+# input, never an owned object. This deployment CANNOT create a namespace:
+# POST /api/web/namespaces is 403 for every name with the deploying credential,
+# because namespace creation is tenant-scoped in this shared enterprise tenant
+# (issue #634). A `resource` block therefore expresses semantics the API does not
+# permit, and the only way to make an apply succeed was to import a namespace
+# somebody else owns — which put a personal namespace, and the unrelated demos
+# living in it, on the destroy list (issue #637).
+#
+# Reading it instead means Terraform never creates, updates or destroys it. The
+# read still gives the pool and the load balancer their apply-time ordering: they
+# take their namespace from this data source, so a missing namespace fails the
+# plan loudly rather than half-applying. `namespace` is empty because a namespace
+# object is not itself contained in a namespace (the API returns
+# `metadata.namespace: ""` for one).
+data "xcsh_namespace" "mcn" {
+  name      = var.xc_app_namespace
+  namespace = ""
 }
 
 resource "xcsh_origin_pool" "this" {
   name        = var.origin_pool_name
-  namespace   = var.xc_app_namespace
+  namespace   = data.xcsh_namespace.mcn.name
   description = "MCN reference origin pool -> ${var.origin_ip}:${var.origin_port}"
-
-  # xcsh_namespace.mcn owns var.xc_app_namespace; depend on it so it exists first.
-  depends_on = [xcsh_namespace.mcn]
 
   port = var.origin_port
 
@@ -173,10 +181,8 @@ resource "xcsh_origin_pool" "this" {
 
 resource "xcsh_http_loadbalancer" "this" {
   name        = var.lb_name
-  namespace   = var.xc_app_namespace
+  namespace   = data.xcsh_namespace.mcn.name
   description = "BGP/ECMP HA: custom VIP ${var.vip} advertised from every CE site."
-
-  depends_on = [xcsh_namespace.mcn]
 
   domains = [var.lb_domain]
 
@@ -205,7 +211,7 @@ resource "xcsh_http_loadbalancer" "this" {
 
   default_route_pools {
     pool {
-      namespace = var.xc_app_namespace
+      namespace = data.xcsh_namespace.mcn.name
       name      = xcsh_origin_pool.this.name
     }
     weight   = 1
