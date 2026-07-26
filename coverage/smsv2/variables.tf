@@ -228,6 +228,20 @@ variable "blocked_network_type" {
   default     = "VIRTUAL_NETWORK_SITE_LOCAL"
 }
 
+variable "blocked_service_arm" {
+  description = <<-EOT
+    blocked_service service_choice member: `dns` | `ssh` (default) | `web_user_interface`. Exactly one
+    marker renders — F5's runtime keeps a single member, so sending two siblings silently drops one.
+    Rendered only when services_arm=blocked_services.
+  EOT
+  type        = string
+  default     = "ssh"
+  validation {
+    condition     = contains(["dns", "ssh", "web_user_interface"], var.blocked_service_arm)
+    error_message = "blocked_service_arm must be dns | ssh | web_user_interface."
+  }
+}
+
 variable "ha_arm" {
   description = <<-EOT
     node_ha oneof member. `disable_ha` (default) is the base arm and live-appliable. `enable_ha`
@@ -485,14 +499,29 @@ variable "ref_namespace" {
 
 variable "perf_arm" {
   description = <<-EOT
-    performance_enhancement_mode oneof member. `perf_mode_l7_enhanced` (default, base, empty) is S5a
-    live. `perf_mode_l3_enhanced` renders its `no_jumbo{}` sub-oneof member (S5a live).
+    performance_enhancement_mode oneof member. `perf_mode_l7_enhanced` (default, base) renders its own
+    jumbo sub-oneof via l7_jumbo_arm and is S5a live. `perf_mode_l3_enhanced` renders its `no_jumbo{}`
+    sub-oneof member (S5a live).
   EOT
   type        = string
   default     = "perf_mode_l7_enhanced"
   validation {
     condition     = contains(["perf_mode_l7_enhanced", "perf_mode_l3_enhanced"], var.perf_arm)
     error_message = "perf_arm must be perf_mode_l7_enhanced | perf_mode_l3_enhanced."
+  }
+}
+
+variable "l7_jumbo_arm" {
+  description = <<-EOT
+    perf_mode_l7_enhanced jumbo sub-oneof member: `jumbo_disabled` (default) | `jumbo_enabled`. New in
+    provider v3.80.0 (specs v2.1.194). The server materializes `jumbo_disabled`, so declaring it keeps
+    the object import-clean; an undeclared marker re-plans as a removal after import.
+  EOT
+  type        = string
+  default     = "jumbo_disabled"
+  validation {
+    condition     = contains(["jumbo_disabled", "jumbo_enabled"], var.l7_jumbo_arm)
+    error_message = "l7_jumbo_arm must be jumbo_disabled | jumbo_enabled."
   }
 }
 
@@ -635,10 +664,4 @@ variable "admin_password_b64_source" {
   EOT
   type        = string
   default     = "dummy-not-a-real-secret"
-}
-
-variable "secret_encoding_type" {
-  description = "admin_user_credentials.admin_password.secret_encoding_type. Provider validator: `OneOf(EncodingNone, EncodingBase64)`. reject-secret-encoding pushes \"BOGUS\". No terraform validation so the provider OneOf fires at plan."
-  type        = string
-  default     = "EncodingBase64"
 }
