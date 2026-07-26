@@ -1,35 +1,41 @@
 ---
-title: คอนโซลแบบอนุกรม
+title: Serial console
 description: >-
   เส้นทาง break-glass เข้าสู่ Customer Edge ที่ไม่เคยลงทะเบียน ซึ่ง debug API
-  ไม่สามารถเข้าถึงได้ ครอบคลุมข้อกำหนดเบื้องต้นเรื่อง boot diagnostics
+  ไม่สามารถเข้าถึงได้ ครอบคลุมข้อกำหนดเบื้องต้นด้านการวินิจฉัยการบูต
   วิธีตรวจสอบความพร้อมใช้งานจากสคริปต์
-  และความล้มเหลวสองกรณีที่ดูเหมือนเกิดปัญหาแต่จริงแล้วไม่ใช่
+  และสองความล้มเหลวที่ดูเหมือนเกิดปัญหาแต่ไม่ใช่
 sidebar:
   order: 30
-  label: คอนโซลแบบอนุกรม
+  label: Serial console
 i18n:
-  sourceHash: 872d359be18d
+  sourceHash: 80d13f3a4194
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-Azure Serial Console เชื่อมต่อกับพอร์ตอนุกรมจำลองของโหนดผ่านแพลตฟอร์ม Azure
-ไม่ผ่าน control plane ของ F5 Distributed Cloud, data plane ของโหนด หรือเส้นทางเครือข่ายใด ๆ ที่โหนดควบคุม — ซึ่งนั่นคือเหตุผลว่าทำไมมันจึงทำงานได้เมื่อวิธีอื่นทั้งหมดล้มเหลว
+Azure Serial Console เชื่อมต่อกับพอร์ต serial จำลองของโหนดผ่าน Azure
+แพลตฟอร์ม โดยไม่ผ่านระนาบควบคุม F5 Distributed Cloud, ระนาบข้อมูลของโหนด
+หรือเส้นทางเครือข่ายใดๆ ที่โหนดควบคุม — ซึ่งนั่นคือเหตุผลที่มันยังทำงานได้
+เมื่อทุกอย่างล้มเหลว
 
-ใช้งานเมื่อ CE **ไม่เคยเริ่มทำงาน**: การลงทะเบียนล้มเหลว, ไซต์ไม่ปรากฏใน tenant, หรือโหนดทำงานอยู่แต่ไม่มีเส้นทางออก ในทุกกรณีเหล่านั้น [debug API](../debug-api/) ไม่มีอุโมงค์ให้ส่งผ่าน และ SSH ถูกปิดไว้บนโหนดตามที่จัดส่งมา
+ใช้เมื่อ CE **ไม่เคยเริ่มทำงาน**: การลงทะเบียนล้มเหลว, ไซต์ไม่ปรากฏใน
+tenant, หรือโหนดทำงานอยู่แต่ไม่มีเส้นทางออก ในกรณีเหล่านั้นทั้งหมด
+[debug API](../debug-api/) ไม่มีอุโมงค์ให้ส่งต่อ และ SSH ถูกปิดบนโหนด
+ตามที่จัดส่งมา
 
-## ข้อกำหนดเบื้องต้น: boot diagnostics
+## ข้อกำหนดเบื้องต้น: การวินิจฉัยการบูต
 
-Azure กำหนดให้เปิดใช้งาน boot diagnostics บน VM ก่อนที่จะแนบ serial console ได้
-สิ่งนี้เปิดใช้งานโดย `terraform/modules/ce-node`:
+Azure ต้องการการวินิจฉัยการบูตบน VM ก่อนที่จะแนบ serial console
+ได้ ซึ่งเปิดใช้งานโดย `terraform/modules/ce-node`:
 
 ```hcl
 boot_diagnostics {}
 ```
 
-บล็อกว่างเปล่าจะเลือกใช้ที่จัดเก็บที่ Azure จัดการ ดังนั้นจึงไม่มีบัญชีที่จัดเก็บ diagnostics, นโยบาย lifecycle หรือคีย์การเข้าถึงที่ต้องดูแล ยืนยันบนโหนด:
+บล็อกว่างเปล่าจะเลือก Azure-managed storage ดังนั้นจึงไม่มี diagnostics storage
+account, lifecycle policy หรือ access key ที่ต้องจัดการ ยืนยันบนโหนด:
 
 ```bash
 az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
@@ -40,21 +46,25 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 ```
 
 <Aside type="caution" title="การเปิดใช้งานไม่มีผลย้อนหลัง">
-Boot diagnostics จะบันทึก serial log **ขณะบูต** การเปิดใช้งานสำหรับ VM ที่กำลังทำงานอยู่แล้วจะไม่สร้าง log สำหรับการบูตที่เกิดขึ้นไปแล้ว ดังนั้น
-`az vm boot-diagnostics get-boot-log` จะตอบกลับว่า:
+การวินิจฉัยการบูตจะบันทึก serial log **ขณะบูต** การเปิดใช้งานสำหรับ VM ที่
+กำลังทำงานอยู่จะไม่สร้างล็อกสำหรับการบูตที่เกิดขึ้นไปแล้ว ดังนั้น
+`az vm boot-diagnostics get-boot-log` จะตอบว่า:
 
 ```
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
-นั่นเป็นสิ่งที่คาดไว้ ไม่ใช่ข้อผิดพลาด boot log จะมีอยู่หลังจากโหนดรีบูตครั้งต่อไป อย่างไรก็ตาม การแนบคอนโซลแบบสดจะทำงานได้ทันที — ไม่ขึ้นอยู่กับ log
+นั่นเป็นสิ่งที่คาดไว้ ไม่ใช่ความผิดพลาด ล็อกการบูตจะมีอยู่หลังจากที่โหนดบูตใหม่ในครั้งถัดไป
+อย่างไรก็ตาม การแนบ console แบบสดทำงานได้ทันที — ไม่ขึ้นอยู่กับล็อก
 </Aside>
 
-## การตรวจสอบความพร้อมใช้งานโดยไม่ต้องใช้ terminal
+## การตรวจสอบความพร้อมใช้งานโดยไม่มีเทอร์มินัล
 
-การแนบต้องใช้เซสชันแบบโต้ตอบ แต่การตรวจสอบว่าจะสามารถแนบได้หรือไม่ใช้เพียงสอง API call เท่านั้น ทั้งสองมีประโยชน์ในการตรวจสอบสุขภาพระบบ
+การแนบต้องใช้เซสชันแบบโต้ตอบ แต่การตรวจสอบว่า *จะ* แนบได้หรือไม่ใช้เพียงสอง API
+call ซึ่งทั้งสองมีประโยชน์ในการตรวจสอบสุขภาพ
 
-บริการต้องเปิดใช้งานสำหรับ subscription — ผู้ดูแลระบบสามารถปิดใช้งานได้ทั่วทั้ง tenant:
+บริการต้องเปิดใช้งานสำหรับ subscription — ผู้ดูแลระบบสามารถปิดใช้งาน
+ได้ทั่วทั้ง tenant:
 
 ```bash
 az rest --method get --url \
@@ -65,7 +75,7 @@ az rest --method get --url \
 { "properties": { "disabled": false } }
 ```
 
-จากนั้นขอการเชื่อมต่อไปยังพอร์ตอนุกรมของโหนดเฉพาะ:
+จากนั้นขอการเชื่อมต่อไปยังพอร์ต serial ของโหนดที่ระบุ:
 
 ```bash
 az rest --method post \
@@ -73,11 +83,13 @@ az rest --method post \
   "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
 ```
 
-`connectionString` ที่ขึ้นต้นด้วย `wss://` — บน deployment นี้คือ
-`eastus.gateway.serialconsole.azure.com` — หมายความว่าคอนโซลสามารถแนบได้ในขณะนี้ ก่อนที่จะเปิดใช้งาน boot diagnostics การเรียกนี้ไม่มีสิ่งใดให้แนบ
+`connectionString` ที่ขึ้นต้นด้วย `wss://` — ในการ deploy นี้คือ
+`eastus.gateway.serialconsole.azure.com` — หมายความว่า console สามารถแนบได้
+ในขณะนี้ ก่อนที่จะเปิดใช้งานการวินิจฉัยการบูต การเรียกนี้ไม่มีสิ่งใดให้แนบ
 
-<Aside type="danger" title="connection string นั้นคือข้อมูลรับรองความถูกต้อง">
-มันคือ bearer token อายุสั้นที่ฝังอยู่ใน URL อย่าบันทึก, วางในตั๋วสนับสนุน หรือ commit มัน แสดงเฉพาะ host เมื่อคุณกำลังสาธิตว่าการเรียกนั้นทำงาน
+<Aside type="danger" title="connection string นั้นคือ credential">
+มันคือ bearer token อายุสั้นที่ฝังอยู่ใน URL อย่าบันทึก, วางลงในตั๋ว
+หรือ commit มัน พิมพ์เฉพาะ host เมื่อคุณกำลังแสดงให้เห็นว่าการเรียกทำงาน
 </Aside>
 
 ## การแนบ
@@ -96,12 +108,34 @@ az rest --method post \
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-3. คุณจะเข้าสู่ prompt การเข้าสู่ระบบของโหนด ไม่ใช่ shell นี่คือ Site CLI และต้องใช้ข้อมูลรับรองที่ตั้งค่าบนโหนด — รหัสผ่าน admin จากการจัดเตรียม หรือรหัสที่ตั้งค่าผ่าน endpoint เปลี่ยนรหัสผ่าน Serial console พิสูจน์ว่า *ช่องทาง* ทำงาน ไม่ได้ข้ามผ่านการยืนยันตัวตน
+3. คุณจะไปถึง login prompt ของโหนดเอง ไม่ใช่ shell นี่คือ Site CLI และ
+   ต้องใช้ credentials ที่ตั้งไว้บนโหนด — รหัสผ่านผู้ดูแลจากการ provisioning หรือ
+   รหัสผ่านที่ตั้งผ่าน change-password endpoint Serial console พิสูจน์ว่า *ช่องทาง*
+   ทำงาน แต่ไม่ได้ข้ามผ่านการยืนยันตัวตน
 
 </Steps>
 
-<Aside type="caution" title="ต้องใช้ terminal จริง">
-`az serial-console connect` จะเปลี่ยน terminal เป็นโหมด raw ดังนั้นจึงไม่สามารถรันจากสคริปต์, pipeline หรือบริบทใด ๆ ที่ไม่มี TTY ได้ มันล้มเหลวฝั่งไคลเอนต์ก่อนที่จะติดต่อ Azure:
+บันทึกจาก `f5-xc-ce-vm-01` ตัดส่วนกลางออกที่ systemd unit output
+ไม่ได้เพิ่มข้อมูลใด:
+
+```text file=../../../_data/serial-console-boot.txt
+```
+
+สี่สิ่งในบันทึกนั้นที่ควรสังเกต เพราะตอบคำถามที่ debug API ไม่สามารถตอบได้:
+
+- **cloud-init เสร็จสมบูรณ์** — `Datasource DataSourceAzure`, เสร็จใน 22.37 วินาที
+  โหนดที่ไม่เคยลงทะเบียนมักล้มเหลวที่นี่ และนี่คือจุดที่คุณเห็นมัน
+- **Container runtime ทั้งสองเริ่มทำงาน** `Container Runtime Interface for OCI (CRI-O)`
+  และ `Docker Application Container Engine` ต่างก็เป็น `[ OK ]` ซึ่งเป็นหลักฐาน
+  ณ เวลาบูตของพฤติกรรม dual-runtime ที่ทำให้ผู้คนประหลาดใจใน
+  [crictl](../../commands/system/crictl/) และ [docker](../../commands/system/docker/)
+- **`VP Manager image load` และ `Argo Watch service`** — `vpm` และ Argo เริ่มทำงาน
+- **Prompt คือของโหนดเอง** อยู่เบื้องหลัง audit banner Serial console ให้
+  login prompt ไม่ใช่ session
+
+<Aside type="caution" title="การแนบแบบโต้ตอบต้องใช้เทอร์มินัลจริง — แต่สามารถเขียนสคริปต์ได้">
+`az serial-console connect` จะตั้งค่าเทอร์มินัลเป็น raw mode ดังนั้นจึงไม่สามารถ
+เรียกใช้จาก pipeline หรือบริบทใดที่ไม่มี TTY มันล้มเหลวฝั่ง client ก่อนติดต่อ Azure:
 
 ```
 ERROR: (19, 'Operation not supported by device')
@@ -109,14 +143,41 @@ ERROR: (19, 'Operation not supported by device')
     GV.serial_console_instance.launch_console()
 ```
 
-traceback นั้นเป็นเรื่องของการจัดการ terminal ไม่ใช่การหยุดทำงานของ serial console — สอง API call ข้างต้นจะยังรายงานว่าคอนโซลพร้อมใช้งาน หากคุณต้องการสัญญาณที่ใช้กับระบบอัตโนมัติได้ ให้ใช้วิธีเหล่านั้นแทนการพยายามสร้างสคริปต์สำหรับการแนบ
+traceback นั้นคือการจัดการเทอร์มินัล ไม่ใช่ serial console ขัดข้อง
+
+อย่างไรก็ตาม การแนบนั้น **สามารถ** เขียนสคริปต์ได้ — ขับเคลื่อน websocket โดยตรงแทน
+CLI บันทึกข้างต้นถูกบันทึกด้วยวิธีนั้น โดยไม่มี TTY ดูที่
+`scripts/serial_console_capture.py` ซึ่งเป็นวิธีที่คุณจะรวบรวมหลักฐานการบูตจาก
+โหนดที่ล้มเหลวในการลงทะเบียนโดยไม่มีมนุษย์นั่งอยู่ที่เทอร์มินัล
 </Aside>
 
-## สิ่งที่คุณสามารถเห็นได้ที่นี่ซึ่ง API ไม่สามารถแสดงให้คุณเห็น
+<Aside type="caution" title="คาดว่าจะต้องลองใหม่: gateway ปฏิเสธประมาณทุกๆ ครั้งเว้นครั้ง">
+เฟรมแรกของ gateway คือ challenge ไม่ใช่ output และ client ตอบด้วย
+bearer token แม้ว่าจะทำถูกต้องก็ตาม socket มักปิดทันที:
 
-- **cloud-init** ที่กำลังทำงาน, ล้มเหลว หรือไม่เคยเริ่มต้น — สาเหตุปกติของโหนดที่ไม่เคยลงทะเบียน
-- **ความพยายามลงทะเบียน** กับ `register.ves.volterra.io` รวมถึงข้อผิดพลาดในการกำหนดค่าหรือ token ที่ tenant ปฏิเสธ
-- **ข้อความ Kernel และการบูต** จากก่อนที่ agent ใด ๆ จะทำงาน
+```
+[close] code=1011 reason=Connection not trusted
+```
+
+วัดจากการพยายามซ้ำๆ บนสามโหนด พบว่าสลับกัน: การปฏิเสธจะตามด้วย
+ความสำเร็จบนโหนดเดียวกัน ซึ่งสอดคล้องกับเซสชันก่อนหน้าที่ยังถูกยึดอยู่
+และการพยายามที่ถูกปฏิเสธจะล้างมัน
+
+**มันไม่ใช่ปัญหา credential** แม้จะมีข้อความนั้น การลองใหม่มักเพียงพอ
+ซึ่งเป็นเหตุผลที่ `scripts/serial_console_capture.py` ลองใหม่ตามค่าเริ่มต้น
+
+ใช้ token เดียวสำหรับทั้ง session request และ challenge อยู่แล้ว ตรงกับ
+`az` extension นั่นคือแนวทางที่ถูกต้อง แต่ไม่ใช่สาเหตุของปัญหานี้
+</Aside>
+
+## สิ่งที่คุณเห็นได้ที่นี่ซึ่ง API ไม่สามารถแสดงได้
+
+- **cloud-init** ทำงาน, ล้มเหลว, หรือไม่เคยเริ่มต้น — สาเหตุปกติของโหนด
+  ที่ไม่เคยลงทะเบียน
+- **ความพยายามลงทะเบียน** กับ `register.ves.volterra.io` รวมถึง
+  ข้อผิดพลาดการกำหนดค่าหรือ token ที่ tenant ปฏิเสธ
+- **ข้อความ Kernel และการบูต** จากก่อนที่ agent ใดจะทำงาน
 - โหนดเมื่อมัน **ไม่มีเส้นทางเครือข่ายที่ใช้งานได้** ซึ่งทำให้ทุกเส้นทางอื่นล้มเหลว
 
-สำหรับโหนดที่ `ONLINE` อยู่ ควรใช้ debug API: มันใช้กับสคริปต์ได้, สร้างหลักฐานที่คุณสามารถรันซ้ำได้ และไม่ครอบครองพอร์ตอนุกรมเพียงพอร์ตเดียว
+สำหรับโหนดที่ *อยู่ใน* `ONLINE` ให้ใช้ debug API แทน: มันเขียนสคริปต์ได้,
+สร้างหลักฐานที่คุณสามารถเรียกใช้ซ้ำได้ และไม่ครอบครอง serial port เดียว
