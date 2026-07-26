@@ -1,0 +1,88 @@
+---
+title: Command reference
+description: Every Site CLI command reachable through the debug API, with its category, privilege tier and transport. Read a specific command page for syntax and captured output.
+sidebar:
+  order: 20
+  label: Commands
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Captured from a live node running software build `crt-20250613-3382`, which exposes
+**34 commands**. Each page below shows real output from that node rather than
+transcribed examples.
+
+The `Tier` column is not advisory. It selects the endpoint a command must be sent
+to, and sending a command to the wrong one returns `command not supported` — which
+reads as though the command does not exist. See
+[the debug API](../access/debug-api/) before using this table.
+
+| Command | Category | Tier | Transport | Example argument |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | Network | `ExecUser` | `exec-user` | none |
+| [`crictl-images`](./system/crictl/) | System | `ExecUser` | `exec-user` | none |
+| [`crictl-inspect`](./system/crictl/) | System | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | System | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | System | `ExecUser` | `exec-user` | none |
+| [`crictl-ps-a`](./system/crictl/) | System | `ExecUser` | `exec-user` | none |
+| [`curl-host`](./network/curl/) | Network | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | Network | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | System | `ExecUser` | `global` GET | none |
+| [`dig`](./network/dig/) | Network | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | System | `ExecUser` | `exec-user` | none |
+| [`docker-inspect`](./system/docker/) | System | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | System | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | System | `ExecUser` | `exec-user` | none |
+| [`docker-ps-a`](./system/docker/) | System | `ExecUser` | `exec-user` | none |
+| [`dropstats`](./network/dataplane-drops/) | Network | `ExecUser` | `exec-user` | none |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | Network | `ExecUser` | `exec-user` | none |
+| [`flow-l`](./network/dataplane-flows/) | Network | `ExecUser` | `exec-user` | none |
+| [`flow-l-match`](./network/dataplane-flows/) | Network | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | System | `ExecUser` | `global` GET | none |
+| [`ip`](./network/ip/) | Network | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | Network | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | Network | `ExecUser` | `exec-user` | none |
+| [`ipsec-status`](./network/ipsec/) | Network | `ExecUser` | `exec-user` | none |
+| [`ipsec-statusall`](./network/ipsec/) | Network | `ExecUser` | `exec-user` | none |
+| [`journalctl`](./system/journalctl/) | System | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | Network | `ExecUser` | `exec-user` | none |
+| [`nh`](./network/dataplane-forwarding/) | Network | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | Network | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-summary`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`vif`](./network/dataplane-forwarding/) | Network | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="One command here changes the node">
+`ip-link-set` is `Exec` tier and takes an interface up or down. It is documented for
+completeness, has no captured output, and is never executed by the capture harness.
+</Aside>
+
+## Available on newer builds only
+
+A current build (`crt-20260201-0179`) exposes **43** commands — a strict superset,
+with no removals and no changed metadata. The nine this tenant does not have:
+
+| Command | Category | Tier |
+| --- | --- | --- |
+| `collect-database-stats` | System | `ExecUser` |
+| `iptables-lv` | Network | `ExecUser` |
+| `marker-exists-NetworkManager` | System | `Exec` |
+| `marker-exists-crio` | System | `Exec` |
+| `marker-exists-kubelet` | System | `Exec` |
+| `systemctl-restart-NetworkManager` | System | `Exec` |
+| `systemctl-restart-crio` | System | `Exec` |
+| `systemctl-restart-kubelet` | System | `Exec` |
+| `systemctl-start-crio-prune` | System | `Exec` |
+
+They are listed by name and tier only, from catalog discovery against a node on that
+build. There is no captured output for them here, because this tenant cannot run
+them. Note that four of the nine restart services under a live data plane.
+
+<Aside type="note" title="Detecting the surface moving">
+Because the surface grows with the software build, the catalog records the build it
+came from, and `scripts/capture-sitecli.sh --check` reports a build change
+separately from added or removed commands. When these nodes are upgraded, that check
+is what tells you these nine arrived.
+</Aside>

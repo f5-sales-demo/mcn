@@ -1,0 +1,99 @@
+---
+title: Customer Edge diagnostics
+description: Read this tier first when a Customer Edge misbehaves. Establishes which of the two access paths applies, because the wrong one silently returns nothing.
+sidebar:
+  order: 10
+  label: Customer Edge
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+A Customer Edge (CE) is the F5 Distributed Cloud node this repository provisions
+into Azure — `terraform/modules/ce-node`, built from the
+`volterraedgeservices/volterra-node` marketplace image. It runs the data plane
+(Argo), the control plane (Vega), an Envoy proxy, a Kubernetes stack, and `vpm`,
+the agent that registers the node and manages everything else on it.
+
+When a CE misbehaves, the Site CLI is the instrument. The first decision is which
+access path applies, and getting it wrong wastes time in a way that looks like a
+broken node.
+
+## Two access paths, and they are not interchangeable
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    href="./access/debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered. The only route when the API cannot answer."
+    href="./access/serial-console/"
+  />
+</CardGrid>
+
+The debug API reaches the node **through the F5 Distributed Cloud control plane**.
+That is the whole reason the split matters: the API can only answer once the node
+has registered and reports `ONLINE`. A node that failed to register — bad
+cloud-init, an expired token, no route to `register.ves.volterra.io` — is exactly
+the case where you need diagnostics, and exactly the case the API cannot serve.
+
+The node also refuses SSH as shipped. Port 22 is closed on the CE itself, not by a
+network security group:
+
+```console
+$ ssh -o ConnectTimeout=10 admin@<ce-public-ip>
+ssh: connect to host <ce-public-ip> port 22: Connection refused
+```
+
+Verified from inside the VNet as well, from a jump host on the same subnet, so
+opening a security group rule does not change it.
+
+So: if the site is `ONLINE`, use the debug API. If it is not, serial console is the
+only way in.
+
+<Aside type="caution" title="Check the site state first">
+One request tells you which path you are on:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/config/namespaces/system/sites/<site>" \
+  | jq -r '.spec.site_state'
+```
+
+`ONLINE` means the debug API will work. Anything else — or a site that does not
+exist — means serial console.
+</Aside>
+
+## Safety rules
+
+These hold for every command on every page below.
+
+- **Read-only unless you are certain.** The command surface is split into two
+  privilege tiers, and the `Exec` tier either mutates the node or reads a state
+  marker. Nothing on these pages runs an `Exec` command, and neither does the
+  capture harness.
+- **Never assume a command is safe from its name.** `ip-link-set` reads like a
+  query and takes an interface down. `systemctl-restart-crio` restarts the
+  container runtime under a live data plane.
+- **Prefer the narrowest command that answers the question.** `health` and
+  `diagnosis` summarise the node cheaply; `flow-l` dumps a 629,760-entry flow
+  table.
+- **A CE serves live traffic.** These are shared demo environments. Assume someone
+  is presenting from the site you are debugging.
+
+## What is documented here
+
+Every command reachable through the debug API on the software build this tenant
+runs, each with output captured from a live node rather than transcribed from
+elsewhere. The [command reference](./commands/) lists all of them with their
+category, privilege tier and transport; the [workflows](./workflows/) chain them
+into the sequences you actually use when something is wrong.
+
+The on-box-only parts of the Site CLI — `configure`, `configure-network`,
+`factory-reset`, `upgrade` and roughly sixty further `ExecCLI` commands — are not
+covered. They are reachable only from a serial console session, so nothing about
+them can be verified programmatically, and unverified command syntax is the defect
+this documentation exists to avoid repeating.
