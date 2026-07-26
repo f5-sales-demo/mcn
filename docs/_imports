@@ -32,3 +32,4 @@ sitecli/captures/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 sitecli/captures/sitecli-show-ip-bgp-summary.txt
 sitecli/captures/sitecli-show-ip-bgp.txt
 sitecli/captures/sitecli-vif.txt
+sitecli/captures/serial-console-boot.txt
