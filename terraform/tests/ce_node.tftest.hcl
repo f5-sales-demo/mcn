@@ -61,4 +61,21 @@ run "ce_vm_and_nics" {
     condition     = azurerm_linux_virtual_machine.this.os_disk[0].storage_account_type == "StandardSSD_LRS"
     error_message = "CE OS disk must be StandardSSD_LRS."
   }
+
+  # Azure Serial Console requires boot diagnostics. It is the only way into a CE
+  # that has not registered: the vpm/debug API used for every other diagnostic is
+  # reached through the XC control plane, so it answers only once the node is
+  # ONLINE, and the node refuses SSH as shipped. Losing this block would silently
+  # remove the break-glass path for the exact failure it exists to debug.
+  assert {
+    condition     = length(azurerm_linux_virtual_machine.this.boot_diagnostics) == 1
+    error_message = "CE VM must enable boot diagnostics, or Azure Serial Console cannot attach."
+  }
+
+  # An empty block means Azure-managed storage, so there is no diagnostics storage
+  # account, lifecycle policy or access key for us to own.
+  assert {
+    condition     = azurerm_linux_virtual_machine.this.boot_diagnostics[0].storage_account_uri == null
+    error_message = "CE boot diagnostics must use Azure-managed storage (no storage_account_uri)."
+  }
 }

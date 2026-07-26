@@ -1,0 +1,13 @@
+# Gitignored local inputs copied into a new git worktree, so the worktree can run
+# `terraform plan` instead of being born broken.
+#
+# Without these, a fresh worktree fails at `terraform init` (no backend config)
+# and then at plan time (no variable values), which looks like a problem with the
+# branch rather than a missing local file.
+#
+# Neither file is committed: backend.hcl names the shared state container, and
+# terraform.tfvars carries per-engineer values. XC provider credentials are NOT
+# listed here — they come from the environment or the xcsh context file and must
+# never be written into the repository.
+terraform/backend.hcl
+terraform/terraform.tfvars

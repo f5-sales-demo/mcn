@@ -119,5 +119,12 @@ resource "azurerm_linux_virtual_machine" "this" {
 
   custom_data = var.custom_data
 
+  # Required for Azure Serial Console, which is the only way into a CE that has
+  # not registered: the vpm/debug API used for every other diagnostic is reached
+  # through the XC control plane, so it answers only once the node is ONLINE, and
+  # the node refuses SSH as shipped. Empty block = Azure-managed storage, so there
+  # is no diagnostics storage account or access key to own.
+  boot_diagnostics {}
+
   tags = var.tags
 }
