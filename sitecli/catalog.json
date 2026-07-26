@@ -1,0 +1,163 @@
+{
+  "build": "crt-20250613-3382",
+  "commands": {
+    "chronyc-sources": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "crictl-images": {
+      "category": "System Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "crictl-inspect": {
+      "category": "System Troubleshooting",
+      "example": " container-id",
+      "tier": "ExecUser"
+    },
+    "crictl-logs": {
+      "category": "System Troubleshooting",
+      "example": " container-id",
+      "tier": "ExecUser"
+    },
+    "crictl-ps": {
+      "category": "System Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "crictl-ps-a": {
+      "category": "System Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "curl-host": {
+      "category": "Network Troubleshooting",
+      "example": " -v cloud.f5.com",
+      "tier": "ExecUser"
+    },
+    "curl-vega": {
+      "category": "Network Troubleshooting",
+      "example": " -v cloud.f5.com",
+      "tier": "ExecUser"
+    },
+    "diagnosis": {
+      "category": "System Troubleshooting",
+      "example": "no argument needed",
+      "scope": "GLOBAL",
+      "tier": "ExecUser"
+    },
+    "dig": {
+      "category": "Network Troubleshooting",
+      "example": "@192.168.0.2 http://volterra.azurecr.io",
+      "tier": "ExecUser"
+    },
+    "docker-images": {
+      "category": "System Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "docker-inspect": {
+      "category": "System Troubleshooting",
+      "example": " container-id OR name",
+      "tier": "ExecUser"
+    },
+    "docker-logs": {
+      "category": "System Troubleshooting",
+      "example": " container-id OR name",
+      "tier": "ExecUser"
+    },
+    "docker-ps": {
+      "category": "System Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "docker-ps-a": {
+      "category": "System Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "dropstats": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "dropstats-non-zero": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "flow-l": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "flow-l-match": {
+      "category": "Network Troubleshooting",
+      "example": " 100.127.192.10:53",
+      "tier": "ExecUser"
+    },
+    "health": {
+      "category": "System Troubleshooting",
+      "example": "no argument needed",
+      "scope": "GLOBAL",
+      "tier": "ExecUser"
+    },
+    "ip": {
+      "category": "Network Troubleshooting",
+      "example": "help OR addr",
+      "tier": "ExecUser"
+    },
+    "ip-link-set": {
+      "category": "Network Troubleshooting",
+      "example": " (<device>||<group>) (up||down)",
+      "tier": "Exec"
+    },
+    "ip-link-show": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "ipsec-status": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "ipsec-statusall": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "journalctl": {
+      "category": "System Troubleshooting",
+      "example": " -u vpm -n 200",
+      "tier": "ExecUser"
+    },
+    "netstat": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "nh": {
+      "category": "Network Troubleshooting",
+      "example": " --help OR --list",
+      "tier": "ExecUser"
+    },
+    "rt": {
+      "category": "Network Troubleshooting",
+      "example": " --help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id",
+      "tier": "ExecUser"
+    },
+    "show-ip-bgp": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "show-ip-bgp-neighbors": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "show-ip-bgp-neighbors-advertised-route": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "show-ip-bgp-summary": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "vif": {
+      "category": "Network Troubleshooting",
+      "example": " --list",
+      "tier": "ExecUser"
+    }
+  },
+  "source": {
+    "node": "f5-xc-ce-vm-01",
+    "site": "ar-bgp-eastus01"
+  }
+}

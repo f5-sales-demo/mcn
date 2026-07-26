@@ -1,0 +1,116 @@
+{
+  "fqdn": "f5-xc-ce-vm-01.ar-bgp-eastus01.example-tenant-redacted.tenant.int.ves.io",
+  "hostname": "f5-xc-ce-vm-01",
+  "initial_password_changed": false,
+  "lte_support": false,
+  "os_info": {
+    "bios": {
+      "date": "02/27/2023",
+      "vendor": "American Megatrends Inc.",
+      "version": "090008"
+    },
+    "board": {
+      "asset_tag": "",
+      "name": "Virtual Machine",
+      "serial": "0000-0010-8188-8100-3906-9242-45",
+      "vendor": "Microsoft Corporation",
+      "version": "7.0"
+    },
+    "chassis": {
+      "asset_tag": "7783-7084-3265-9085-8269-3286-77",
+      "serial": "4606-7519-9061-8256-6452-0422-83",
+      "type": 3,
+      "vendor": "Microsoft Corporation",
+      "version": "7.0"
+    },
+    "cpu": {
+      "cache": 36608,
+      "cores": 8,
+      "cpus": 8,
+      "flags": "fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology cpuid pni pclmulqdq vmx ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch invpcid_single tpr_shadow ept vpid ept_ad fsgsbase bmi1 hle avx2 smep bmi2 erms invpcid rtm avx512f avx512dq rdseed adx smap clflushopt clwb avx512cd avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves vnmi avx512_vnni arch_capabilities",
+      "model": "Intel(R) Xeon(R) Platinum 8272CL CPU @ 2.60GHz",
+      "speed": 2600,
+      "threads": 8,
+      "vendor": "GenuineIntel"
+    },
+    "gpu": null,
+    "kernel": {
+      "architecture": "x86_64",
+      "release": "5.14.0-362.18.1.el9_3.x86_64",
+      "version": "#1 SMP PREEMPT_DYNAMIC Wed Jan 3 15:54:45 EST 2024"
+    },
+    "memory": {
+      "size_mb": 32768,
+      "speed": 0,
+      "type": "Other"
+    },
+    "network": [
+      {
+        "driver": "hv_netvsc",
+        "ip_address": [],
+        "link_quality": "QUALITY_UNKNOWN",
+        "link_type": "LINK_TYPE_UNKNOWN",
+        "mac_address": "7c:1e:52:7f:f8:12",
+        "name": "a-i-eth0",
+        "port": "",
+        "speed": 0
+      },
+      {
+        "driver": "hv_netvsc",
+        "ip_address": [
+          "10.0.3.5/26"
+        ],
+        "link_quality": "QUALITY_UNKNOWN",
+        "link_type": "LINK_TYPE_UNKNOWN",
+        "mac_address": "7c:1e:52:7f:f5:60",
+        "name": "eth1",
+        "port": "",
+        "speed": 0
+      },
+      {
+        "driver": "hv_netvsc",
+        "ip_address": [
+          "10.0.2.4/26"
+        ],
+        "link_quality": "QUALITY_UNKNOWN",
+        "link_type": "LINK_TYPE_UNKNOWN",
+        "mac_address": "7c:1e:52:7f:fb:66",
+        "name": "eth2",
+        "port": "",
+        "speed": 0
+      }
+    ],
+    "numa_nodes": 1,
+    "os": {
+      "architecture": "amd64",
+      "name": "Red Hat Enterprise Linux 9.2024.6.3 (Plow)",
+      "release": "9.6",
+      "vendor": "rhel",
+      "version": "9.2024.6"
+    },
+    "product": {
+      "name": "Virtual Machine",
+      "serial": "0000-0008-0950-8923-7674-0527-50",
+      "vendor": "Microsoft Corporation",
+      "version": "7.0"
+    },
+    "storage": [
+      {
+        "driver": "sd",
+        "model": "Virtual Disk",
+        "name": "sda",
+        "serial": "600224807e1be5b8bba4f8f8ea9561bc",
+        "size_gb": 31,
+        "vendor": "Msft"
+      }
+    ],
+    "usb": []
+  },
+  "os_version": "9.2024.6",
+  "public_ip": "10.0.1.4/26",
+  "roles": [],
+  "software_version": "crt-20250613-3382",
+  "state": "PROVISIONED",
+  "version": "branch: https://gitlab.com/f5/volterra/ves.io/vpm/-/commits/release-2025-6-1 <br>commit-sha: https://gitlab.com/f5/volterra/ves.io/vpm/-/commit/4b4cdf36cd9c2ffa426d5d6a5cbc5a6e8ee21c2f 11300894793 2025-09-10T03:47:20Z <br>dependent-repo-versions: {ares:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/ares/-/tags/version-674e5a684e4fa9f25ea5819c54110c32ccac2c23},codegen:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/codegen/-/tags/v1.9.0},maurice:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/sre/maurice/-/commit/},pikachu:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/sre/pikachu/-/tags/version-97c36b3861fad5a3b3d27ef85ae2d22da26e5850},rakar:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/rakar/-/tags/version-735954a6abeaf91e80651f59a3dc9c38ea66d424},schema:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/schema/-/tags/version-bf20334205acdba4051d9713318e64e51fd32247},stdlib:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/stdlib/-/commit/21b88a739638},vega:{SHA1URL:https://gitlab.com/f5/volterra/ves.io/vega/-/tags/version-}}",
+  "wifi_support": false
+}
