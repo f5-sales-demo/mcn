@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Repository-specific pre-commit checks, invoked by the `local-hooks` hook in
+# .pre-commit-config.yaml (which is governance-managed and must not be edited
+# here — this file is the sanctioned extension point).
+#
+# Everything below is offline and credential-free, so it behaves identically on a
+# workstation and in CI. Refreshing the CE command catalog is deliberately NOT
+# here: it needs a live tenant, and no runner can hold that credential. See
+# scripts/capture-sitecli.sh.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+run() {
+  printf '\n== %s\n' "$1"
+  shift
+  "$@"
+}
+
+# The hook is wired with `always_run: true` and `pass_filenames: false`, so the
+# relevance check has to happen here. The CE suite takes ~12s; running it on a
+# commit that touches only Terraform earns nothing and is how hooks end up
+# disabled. `git diff` against HEAD covers the staged set; when there is no HEAD
+# yet (initial commit) fall back to running everything.
+staged() {
+  if git rev-parse --verify -q HEAD >/dev/null; then
+    git diff --cached --name-only
+  else
+    git ls-files
+  fi
+}
+
+if staged | grep -qE '^(sitecli/|scripts/(capture-sitecli|check-sitecli-docs|sitecli-scrub|pre-commit-local)\.sh|tests/test-(sitecli-scrub|check-sitecli-docs)\.sh|docs/(_imports|en/customer-edge/))'; then
+  run "CE scrub filter tests" bash tests/test-sitecli-scrub.sh
+  run "CE docs consistency gate tests" bash tests/test-check-sitecli-docs.sh
+  run "CE catalog vs documentation" bash scripts/check-sitecli-docs.sh
+else
+  printf 'CE Site CLI checks skipped (no related paths staged)\n'
+fi
+
+# shfmt is enforced by the Lint Code Base gate (super-linter SHELL_SHFMT) but is
+# absent from .pre-commit-config.yaml, which is governance-managed. Without this,
+# a formatting-only failure is only discoverable after pushing — which is exactly
+# how it was found. Runs on every staged shell script, not just the CE ones.
+if command -v shfmt >/dev/null 2>&1; then
+  # No mapfile: macOS ships bash 3.2, where it does not exist. Anything that runs
+  # in a git hook on this fleet has to work there.
+  sh_files=$(staged | grep -E '\.sh$' || true)
+  if [ -n "$sh_files" ]; then
+    printf '\n== shfmt (mirrors the CI Lint Code Base gate)\n'
+    printf '%s\n' "$sh_files" | tr '\n' '\0' | xargs -0 shfmt -d
+  fi
+else
+  printf '\nshfmt not installed — the CI Lint Code Base gate will still enforce it\n'
+fi

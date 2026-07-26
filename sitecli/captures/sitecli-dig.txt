@@ -1,0 +1,24 @@
+
+; <<>> DiG 9.16.23-RH <<>> volterra.azurecr.io
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 39462
+;; flags: qr rd ra; QUERY: 1, ANSWER: 5, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1224
+; COOKIE: 047cbead522a9d94 (echoed)
+;; QUESTION SECTION:
+;volterra.azurecr.io.		IN	A
+
+;; ANSWER SECTION:
+volterra.azurecr.io.	526	IN	CNAME	22f7044cf29c444e8ca1c1ee28c49790.trafficmanager.net.
+22f7044cf29c444e8ca1c1ee28c49790.trafficmanager.net. 300 IN CNAME eus-3.fe.azcr.io.
+eus-3.fe.azcr.io.	342	IN	CNAME	eus-3-acr-reg.trafficmanager.net.
+eus-3-acr-reg.trafficmanager.net. 239 IN CNAME	r0708eus-3-az.eastus.cloudapp.azure.com.
+r0708eus-3-az.eastus.cloudapp.azure.com. 7 IN A	<public-ip>
+
+;; Query time: 5 msec
+;; SERVER: 168.63.129.16#53(168.63.129.16)
+;; WHEN: Sun Jul 26 03:37:28 UTC 2026
+;; MSG SIZE  rcvd: 250

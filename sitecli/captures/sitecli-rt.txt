@@ -1,0 +1,10 @@
+Flags: L=Label Valid, P=Proxy ARP, T=Trap ARP, F=Flood ARP, H=Proxy ARP for host interface, V=Preferred VRF
+Labels/Misc: S=SiteId N=NetworkId
+vRouter inet4 routing table 0/2/unicast
+Destination           PPL        Flags        Label         Nexthop  Labels/Misc
+                                 Number of routes: 4
+
+0.0.0.0/0               0                       -              0
+169.254.254.102/32     32            L        263             13
+172.16.12.126/32       32            L          0             46     (S,N):7856:0
+172.16.84.126/32       32            L          0             46     (S,N):7856:0
