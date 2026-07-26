@@ -1,0 +1,38 @@
++-----------------------------------------------+
+Connected to the serial port of the VM.
+If no login prompt is displayed, press ENTER.
++-----------------------------------------------+
+
+
+Probing EDD (edd=off to disable)... ok
+Memory KASLR using RDRAND RDTSC...
+init_cea_offsets KASLR using RDRAND RDTSC...
+Poking KASLR using RDRAND RDTSC...
+
+Welcome to Red Hat Enterprise Linux 9.2024.6.3 (Plow) dracut-057-44.git20230822.el9 (Initramfs)!
+
+[  OK  ] Started Dispatch Password …ts to Console Directory Watch.
+
+... [320 lines of systemd unit output elided]
+
+[  OK  ] Started Serial Getty on ttyS0.
+[  OK  ] Reached target Login Prompts.
+[  OK  ] Started OpenSSH server daemon.
+[  OK  ] Started Container Runtime Interface for OCI (CRI-O).
+[   19.960784] cloud-init[1311]: Cloud-init v. 23.1.1-12.el9_3 running 'modules:config' at Sun, 26 Jul 2026 13:13:54 +0000. Up 19.84 seconds.
+[  OK  ] Finished Apply the settings specified in cloud-config.
+         Starting Execute cloud user/final scripts...
+[  OK  ] Started Docker Application Container Engine.
+         Starting Argo Watch service...
+         Starting VP Manager image load...
+[  OK  ] Started Argo Watch service.
+[   21.544663] cloud-init[1512]: Cloud-init v. 23.1.1-12.el9_3 running 'modules:final' at Sun, 26 Jul 2026 13:13:56 +0000. Up 21.41 seconds.
+[   22.751629] cloud-init[1512]: Cloud-init v. 23.1.1-12.el9_3 finished at Sun, 26 Jul 2026 13:13:57 +0000. Datasource DataSourceAzure [seed=/var/lib/waagent].  Up 22.37 seconds
+[  OK  ] Finished Execute cloud user/final scripts.
+[  OK  ] Started libcontainer conta…f4b59f3b96c31ee10cd95f6eb371c.
+
+
+UNAUTHORIZED ACCESS TO THIS DEVICE IS PROHIBITED
+All actions performed on this device are audited
+f5-xc-ce-vm-01 login: [  123.107074] Warning: Deprecated Driver is detected: iptables will not be maintained in a future major release and may be disabled
+[  123.144641] Warning: Deprecated Driver is detected: ip6tables will not be maintained in a future major release and may be disabled
