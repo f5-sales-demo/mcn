@@ -3,9 +3,14 @@
 # ---------------------------------------------------------
 
 variable "xc_app_namespace" {
-  description = "F5 XC namespace for the app-tier objects (origin pool + HTTP load balancer)."
+  description = "Name of a PRE-EXISTING F5 XC namespace to place the app-tier objects (origin pool + HTTP load balancer) in. This deployment reads the namespace, it never creates or deletes it: namespace creation is tenant-scoped and 403s for the deploying credential (issue #634)."
   type        = string
   default     = "multi-cloud-networking"
+
+  validation {
+    condition     = length(var.xc_app_namespace) > 0
+    error_message = "xc_app_namespace must name an existing namespace; it is looked up, not created."
+  }
 }
 
 variable "origin_pool_name" {
