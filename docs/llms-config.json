@@ -1,4 +1,3 @@
 {
-  "promote": ["**/customer-edge/access"],
   "demote": ["**/customer-edge/commands/**"]
 }
