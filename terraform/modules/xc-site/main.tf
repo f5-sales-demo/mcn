@@ -65,7 +65,14 @@ resource "xcsh_securemesh_site_v2" "this" {
   }
 
   performance_enhancement_mode {
-    perf_mode_l7_enhanced {}
+    perf_mode_l7_enhanced {
+      # Provider v3.80.0 gave perf_mode_l7_enhanced a {jumbo_disabled | jumbo_enabled}
+      # sub-oneof. F5 materialises jumbo_disabled server-side, so leaving both members
+      # undeclared makes the site land and then re-plan the marker as a removal on
+      # every subsequent plan — it never reaches 0 changes. Declaring the server
+      # default explicitly is what settles it (same fix coverage/smsv2 took in #625).
+      jumbo_disabled {}
+    }
   }
 
   re_select {
