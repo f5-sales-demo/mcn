@@ -142,7 +142,7 @@ That traceback is terminal handling, not a serial console outage.
 
 The attach itself, however, **is** automatable — drive the websocket directly instead
 of the CLI. The transcript above was captured that way, with no TTY. See
-`scripts/serial-console-capture.py`, which is how you would collect boot evidence from
+`scripts/serial_console_capture.py`, which is how you would collect boot evidence from
 a node that failed to register without a human sitting at a terminal.
 </Aside>
 
@@ -155,10 +155,11 @@ bearer token. Even when that is done correctly the socket often closes immediate
 ```
 
 Measured across repeated attempts on three nodes, this alternates: a refusal is
-followed by a success on the same node, which is consistent with a previous session
-still being held and the refused attempt clearing it. **It is not a credential
-problem**, and the message is misleading — retrying is normally enough, which is why
-`scripts/serial-console-capture.py` retries by default.
+followed by a success on the same node. That is consistent with a previous session
+still being held, and the refused attempt clearing it.
+
+**It is not a credential problem**, despite the message. Retrying is normally enough,
+which is why `scripts/serial_console_capture.py` retries by default.
 
 Use a single token for both the session request and the challenge anyway, matching the
 `az` extension. That is correct practice, but it is not what causes this.

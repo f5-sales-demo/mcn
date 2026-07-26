@@ -1,31 +1,29 @@
 ---
 title: 串行控制台
-description: >-
-  通过串行控制台访问从未完成注册的客户边缘节点——调试 API
-  无法到达的紧急入口。涵盖启动诊断的前置条件、如何通过脚本检查可用性，以及两种看似故障但实际并非故障的情形。
+description: 当客户边缘节点从未完成注册、调试 API 无法到达时的最后手段。涵盖引导诊断前提条件、如何通过脚本检查可用性，以及两种看似故障实则并非如此的情形。
 sidebar:
   order: 30
   label: 串行控制台
 i18n:
-  sourceHash: 872d359be18d
+  sourceHash: 80d13f3a4194
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-Azure 串行控制台通过 Azure 平台连接到节点的模拟串行端口。它不经过 F5 Distributed Cloud 控制平面、节点的数据平面，也不经过节点控制的任何网络路径——这正是它在其他一切手段均失效时仍然有效的原因。
+Azure 串行控制台通过 Azure 平台连接到节点的模拟串行端口。它不经过 F5 Distributed Cloud 控制平面、节点的数据平面，也不经过节点所控制的任何网络路径——这正是它在其他一切方法均失效时仍能正常工作的原因。
 
-当 CE **从未启动**时，请使用此方式：注册失败、站点不在租户中，或者节点已启动但没有出站路由。在所有这些情况下，[调试 API](../debug-api/) 没有可用的隧道进行中继，且 SSH 在节点出厂时是关闭的。
+当 CE **从未成功启动**时，请使用此方法：注册失败、站点不出现在租户中，或节点已启动但没有出站路由。在所有这些情况下，[调试 API](../debug-api/) 没有可用的隧道进行转发，且节点出厂时 SSH 处于关闭状态。
 
-## 前置条件：启动诊断
+## 前提条件：引导诊断
 
-Azure 要求在虚拟机上启用启动诊断，才能连接串行控制台。这由 `terraform/modules/ce-node` 启用：
+Azure 要求在 VM 上启用引导诊断，才能连接串行控制台。`terraform/modules/ce-node` 已启用此功能：
 
 ```hcl
 boot_diagnostics {}
 ```
 
-空块会选择 Azure 托管存储，因此无需自行管理诊断存储账户、生命周期策略或访问密钥。在节点上确认此配置：
+空块会选择 Azure 托管存储，因此无需自行管理诊断存储账户、生命周期策略或访问密钥。在节点上确认该配置：
 
 ```bash
 az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
@@ -36,20 +34,20 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 ```
 
 <Aside type="caution" title="启用操作不具有追溯效力">
-启动诊断在**启动时**捕获串行日志。对已在运行的虚拟机启用此功能，不会为已发生的启动生成日志，因此 `az vm boot-diagnostics get-boot-log` 会返回：
+引导诊断在**引导时**捕获串行日志。对已在运行的 VM 开启此功能，不会为已完成的引导过程生成日志，因此 `az vm boot-diagnostics get-boot-log` 会返回：
 
 ```
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
-这是预期行为，并非故障。节点下次重启后才会存在启动日志。但是，实时控制台连接可立即生效——它不依赖于启动日志。
+这是预期行为，并非故障。节点下次重启后才会存在引导日志。但实时控制台连接可立即使用——它不依赖于日志。
 </Aside>
 
 ## 在无终端环境下检查可用性
 
-连接需要交互式会话，但是否*能够*连接只需两次 API 调用即可判断。两者都适用于健康检查。
+连接需要交互式会话，但能否成功连接可通过两次 API 调用来判断。两者均可用于健康检查。
 
-该服务必须在订阅中处于启用状态——管理员可以在租户范围内将其禁用：
+该服务必须在订阅级别启用——管理员可以在租户范围内将其禁用：
 
 ```bash
 az rest --method get --url \
@@ -68,13 +66,13 @@ az rest --method post \
   "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
 ```
 
-以 `wss://` 开头的 `connectionString`——在此部署中为 `eastus.gateway.serialconsole.azure.com`——表示控制台当前可连接。在启用启动诊断之前，此调用没有可连接的目标。
+若返回的 `connectionString` 以 `wss://` 开头——在本部署中为 `eastus.gateway.serialconsole.azure.com`——则表示控制台当前可连接。在启用引导诊断之前，此调用没有任何可连接的对象。
 
 <Aside type="danger" title="该连接字符串是一种凭据">
-它是嵌入在 URL 中的短期持有者令牌。请勿记录、粘贴到工单中或提交到代码仓库。在演示调用成功时，仅打印主机名即可。
+它是一个嵌入在 URL 中的短期存活的持有者令牌。请勿将其记录到日志、粘贴到工单或提交到代码仓库。在演示调用成功时，仅打印主机名即可。
 </Aside>
 
-## 连接操作
+## 连接步骤
 
 <Steps>
 
@@ -90,12 +88,24 @@ az rest --method post \
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-3. 进入后显示的是节点自身的登录提示符，而非 Shell。这是站点 CLI，需要在节点上设置的凭据——来自预配过程的管理员密码，或通过修改密码端点设置的密码。串行控制台证明*通道*可用，但不绕过身份验证。
+3. 连接后进入的是节点自身的登录提示符，而非 Shell。这是站点 CLI，需要在节点上设置的凭据——即配置时设置的管理员密码，或通过修改密码端点设置的密码。串行控制台证明的是*通道*可用，而非绕过身份验证。
 
 </Steps>
 
-<Aside type="caution" title="需要真实终端">
-`az serial-console connect` 会将终端设置为原始模式，因此无法在脚本、管道或任何没有 TTY 的上下文中运行。它会在联系 Azure 之前在客户端失败：
+以下内容从 `f5-xc-ce-vm-01` 捕获，中间省略了 systemd 单元输出中无关紧要的部分：
+
+```text file=../../../_data/serial-console-boot.txt
+```
+
+该记录中有四处值得关注，因为它们能回答调试 API 无法解答的问题：
+
+- **cloud-init 已完成** — `Datasource DataSourceAzure`，在 22.37 秒时完成。从未完成注册的节点通常在此处出现失败，在此可以看到具体原因。
+- **两个容器运行时均已启动。** `Container Runtime Interface for OCI (CRI-O)` 和 `Docker Application Container Engine` 的状态均为 `[ OK ]`，这是引导时双运行时行为的证明，该行为在 [crictl](../../commands/system/crictl/) 和 [docker](../../commands/system/docker/) 文档中曾令用户感到困惑。
+- **`VP Manager image load` 和 `Argo Watch service`** — `vpm` 和 Argo 正在启动。
+- **提示符是节点自身的**，位于其审计横幅之后。串行控制台提供的是登录提示符，而非会话。
+
+<Aside type="caution" title="交互式连接需要真实终端——但可通过脚本实现自动化">
+`az serial-console connect` 会将终端置于原始模式，因此无法在管道或任何没有 TTY 的上下文中运行。它会在客户端侧失败，且在联系 Azure 之前就已退出：
 
 ```
 ERROR: (19, 'Operation not supported by device')
@@ -103,14 +113,30 @@ ERROR: (19, 'Operation not supported by device')
     GV.serial_console_instance.launch_console()
 ```
 
-该堆栈跟踪是终端处理问题，而非串行控制台故障——上述两次 API 调用仍会报告控制台为可用状态。如果需要可自动化的信号，请使用那些 API 调用，而不是尝试为连接操作编写脚本。
+该堆栈跟踪是终端处理问题，并非串行控制台故障。
+
+然而，连接本身**是**可以自动化的——直接驱动 WebSocket，而非使用 CLI。上述记录正是以这种方式捕获的，无需 TTY。请参阅 `scripts/serial_console_capture.py`，这是在无需人工守候终端的情况下，从注册失败节点收集引导证据的方法。
 </Aside>
 
-## 此处可见而 API 无法显示的信息
+<Aside type="caution" title="请做好重试准备：网关约每隔一次拒绝连接">
+网关的第一帧是挑战请求，而非输出，客户端需以持有者令牌作答。即便操作正确，套接字也常常立即关闭：
 
-- **cloud-init** 正在运行、失败或从未启动——这是节点从未注册的常见原因。
-- 针对 `register.ves.volterra.io` 的**注册尝试**，包括配置错误或被租户拒绝的令牌。
-- 任何代理运行之前的**内核及启动消息**。
-- 节点处于**无可用网络路径**状态时的情况——此时所有其他访问方式均失效。
+```
+[close] code=1011 reason=Connection not trusted
+```
 
-对于状态为 `ONLINE` 的节点，建议优先使用调试 API：它可编写脚本、生成可重复执行的诊断证据，且不会占用唯一的串行端口。
+经对三个节点的反复尝试测量，此现象呈交替出现规律：一次拒绝之后，同一节点的下一次尝试通常成功。这与前一会话仍被占用、被拒绝的尝试将其清除的情况相符。
+
+**这不是凭据问题**，尽管消息如此显示。通常重试即可解决，这也是 `scripts/serial_console_capture.py` 默认进行重试的原因。
+
+无论如何，请对会话请求和挑战请求使用同一个令牌，与 `az` 扩展的做法保持一致。这是正确做法，但这并非导致上述问题的原因。
+</Aside>
+
+## 此处可见而 API 无法显示的内容
+
+- **cloud-init** 的运行、失败或从未启动——这是节点从未完成注册的常见原因。
+- 对 `register.ves.volterra.io` 的**注册尝试**，包括配置错误或租户拒绝的令牌。
+- 任何代理运行之前的**内核和引导消息**。
+- 节点处于**无可用网络路径**状态时的情况，这会使所有其他访问方式失效。
+
+对于状态为 `ONLINE` 的节点，优先使用调试 API：它支持脚本化、能产生可重复运行的证据，且不会占用唯一的串行端口。

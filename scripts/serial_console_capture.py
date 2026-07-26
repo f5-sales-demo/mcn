@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capture Azure Serial Console output from a Customer Edge without a terminal.
 
-    python3 scripts/serial-console-capture.py --resource-group RG --vm-name NAME
+    python3 scripts/serial_console_capture.py --resource-group RG --vm-name NAME
 
 Why this exists: serial console is the only way into a CE that never registered,
 because the vpm/debug API is reached through the F5 Distributed Cloud control plane
@@ -48,7 +48,7 @@ except ImportError:  # pragma: no cover - environment guard
         "websocket-client is required.\n"
         "  az extension add --name serial-console\n"
         "and run this with the azure-cli python, e.g.\n"
-        "  $(brew --prefix azure-cli)/libexec/bin/python3 scripts/serial-console-capture.py ..."
+        "  $(brew --prefix azure-cli)/libexec/bin/python3 scripts/serial_console_capture.py ..."
     )
 
 ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
