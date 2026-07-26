@@ -1,5 +1,5 @@
 {
-  "fqdn": "f5-xc-ce-vm-01.ar-bgp-eastus01.f5-sales-demo-rljyvvmw.tenant.int.ves.io",
+  "fqdn": "f5-xc-ce-vm-01.ar-bgp-eastus01.<tenant>.tenant.int.ves.io",
   "hostname": "f5-xc-ce-vm-01",
   "initial_password_changed": false,
   "lte_support": false,
