@@ -1,0 +1,21 @@
+
+* Uses proxy env variable NO_PROXY == '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.127.0.0/18,100.127.192.0/18,169.254.0.0/16,int.ves.io,int.volterra.us,ar-bgp-eastus01.f5-sales-demo-rljyvvmw.tenant.local'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying <public-ip>:80...
+* Connected to cloud.f5.com (<public-ip>) port 80 (#0)
+> GET / HTTP/1.1
+> Host: cloud.f5.com
+> User-Agent: curl/7.76.1
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 301 Moved Permanently
+< location: https://cloud.f5.com/
+< server: volt-adc
+< date: Sun, 26 Jul 2026 03:37:24 GMT
+< connection: close
+< content-length: 0
+<
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+* Closing connection 0

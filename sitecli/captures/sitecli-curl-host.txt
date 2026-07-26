@@ -1,0 +1,20 @@
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying <public-ip>:80...
+* Connected to cloud.f5.com (<public-ip>) port 80 (#0)
+> GET / HTTP/1.1
+> Host: cloud.f5.com
+> User-Agent: curl/7.76.1
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 301 Moved Permanently
+< location: https://cloud.f5.com/
+< server: volt-adc
+< date: Sun, 26 Jul 2026 03:37:22 GMT
+< connection: close
+< content-length: 0
+<
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+* Closing connection 0
