@@ -17,7 +17,15 @@ terraform {
       # workaround in modules/xc-site: import-marker suppression for the nested
       # interface_list `labels {}` block (#1244) and preservation of a
       # config-declared empty top-level metadata `labels` map (#1286).
-      version = ">= 3.77.5"
+      # >= 3.81.1 is where xcsh_registration_approval first WORKS. Below it every
+      # approve omitted the required `passport` and the API returned 500
+      # "Validation approval: Passport is required" (xcsh#1355), so
+      # approve_registration = true — the default, and the whole point of the
+      # hands-off two-phase deploy — could never complete; approvals had to be
+      # POSTed out of band and imported. The provider now derives `passport`
+      # server-side (reads the sibling registration and echoes it verbatim), so
+      # it is not a Terraform attribute and modules/xc-site needs no change.
+      version = ">= 3.81.1"
     }
     # Azure providers deploy the hub VNet, Azure Route Server, the CE VMs and the
     # test client. azuread is read-only (resolves the deployer identity for naming/tags).
