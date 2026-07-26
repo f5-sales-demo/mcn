@@ -5,32 +5,52 @@ to exercise schema arms. The object creates/reads/deletes with **no backing Azur
 VM** (each an HTTP 200). Never targets the live demo sites
 (`ar-bgp-eastus01/02/03`).
 
-## Local runs (dev_overrides — no `terraform init`)
+## Runs — always against a registry release
 
-`~/.terraformrc` `dev_overrides` points `f5-sales-demo/xcsh` at the local provider
-build. dev_overrides forbids `terraform init` (it errors), so run `plan`/`apply`/
-`destroy` directly.
+Drive this probe with an explicit `TF_CLI_CONFIG_FILE`, never with the ambient
+`~/.terraformrc`:
 
 ```bash
 cd coverage/smsv2
+printf 'provider_installation {\n  direct {}\n}\n' > /tmp/tfrc-registry-only.hcl
+export TF_CLI_CONFIG_FILE=/tmp/tfrc-registry-only.hcl
+terraform init -upgrade    # confirm the log names the version you expect
 set -a; source /tmp/mcn-xcsh.env; set +a   # live XC creds (env-only, never commit)
 terraform apply -auto-approve -var probe_name=cov-probe-s0-01
 terraform plan  -var probe_name=cov-probe-s0-01   # expect: No changes (idempotent)
 terraform destroy -auto-approve -var probe_name=cov-probe-s0-01
 ```
 
+A `dev_overrides` entry in `~/.terraformrc` silently substitutes a local working-tree build for
+the released provider, and the resulting failure does not look like a version problem: against a
+pre-v3.80.0 build this probe errors with `Blocks of type "jumbo_disabled" are not expected here`,
+which reads as a config bug. `dev_overrides` also forbids `terraform init`, so the lock file
+cannot be refreshed while it is active. `TF_CLI_CONFIG_FILE` overrides `~/.terraformrc` outright,
+so it is the only supported way in.
+
+`versions.tf` is the only **tracked** place a provider version is pinned. `.terraform.lock.hcl`
+pins the resolved version at runtime but is gitignored, so `terraform init -upgrade` is what tells
+you which release you are actually testing — read its log. See the comment in `versions.tf` for why
+nothing else may restate a version.
+
 Use a **fresh `-var probe_name=` per run** — a stale name collides with the tenant's
 existing StatusObject and 500s on create. XC site names reject underscores, so keep them
 hyphenated.
 
-To run against the **pinned registry release** instead of the local build (what the S7 live proof
-used), point Terraform at an empty CLI config so `dev_overrides` is out of the way, then `init`:
+## Adding a file here needs `git add -f`
+
+`.gitignore` ignores `coverage/` wholesale (a rule aimed at test-coverage output, which this
+directory is not). Every tracked file here was force-added, so `git add -A` **silently skips** any
+new one — `git status` will not even list it, because it is ignored rather than untracked:
 
 ```bash
-: > /tmp/tfrc-registry-only.hcl
-export TF_CLI_CONFIG_FILE=/tmp/tfrc-registry-only.hcl
-terraform init -upgrade   # installs the version versions.tf pins (>= 3.80.0)
+git add -f coverage/smsv2/reject-tests/reject-my-new-leaf.tftest.hcl
 ```
+
+S8 lost `reject-drain-count-min.tftest.hcl` this way. `verify.sh` caught it in CI — the assertion
+was present but its reject case was not in the commit, so the diagnostic never appeared — which is
+exactly why the assertion list lives in `verify.sh` rather than being inferred from the files on
+disk. `.gitignore` is managed by docs-control, so the rule cannot be fixed from this repo.
 
 ## Variables
 
@@ -49,6 +69,7 @@ terraform init -upgrade   # installs the version versions.tf pins (>= 3.80.0)
 | `s2s_iface_arm` | `disabled` | eth0 site_to_site_connectivity_interface_choice oneof: `disabled` \| `enabled`. Both live-appliable. |
 | `blocked_service_arm` | `ssh` | blocked_service service_choice oneof: `dns` \| `ssh` \| `web_user_interface`. All three live-appliable; F5 keeps exactly one member. |
 | `l7_jumbo_arm` | `jumbo_disabled` | perf_mode_l7_enhanced jumbo sub-oneof: `jumbo_disabled` \| `jumbo_enabled`. Both live-appliable; `jumbo_disabled` is the server default. |
+| `l3_jumbo_arm` | `no_jumbo` | perf_mode_l3_enhanced jumbo sub-oneof: `no_jumbo` \| `jumbo`. Different member names from the l7 pair. Rendered only when `perf_arm=perf_mode_l3_enhanced`; both live-appliable. |
 
 ## S3 interface / addressing oneof arms
 
@@ -203,7 +224,7 @@ import.
 
 ```bash
 cd coverage/smsv2
-./verify.sh   # credential-free: mocks the xcsh provider; the real v3.80.0 schema validators fire at plan
+./verify.sh   # credential-free: mocks the xcsh provider; the real schema validators fire at plan
 ```
 
 `verify.sh` proves the SMSv2 numeric validators both accept valid bounds and reject

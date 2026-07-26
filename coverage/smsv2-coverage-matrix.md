@@ -11,6 +11,13 @@ Columns:
 - **Import-clean** — `terraform import` of the object re-plans with 0 changes.
 - **Notes** — slice that covers the arm and any caveats.
 
+> **Read the S8 completeness audit before quoting this table as "exhaustive."** The rows below are
+> the arms the slices *worked*; they are not the resource. A mechanical enumeration of the
+> `xcsh_securemesh_site_v2` schema finds **997 arms**, of which **312** are in scope for this probe
+> and **143** are rendered by it. The other **169** are classified — covered elsewhere, excluded
+> with a reason, or **still open** — in [S8 completeness audit](#s8-completeness-audit-provider-v3811)
+> at the bottom of this file. Nothing here is evidence about an arm that has no row.
+
 | Branch / leaf | Structural | Validated | Applied | Idempotent | Import-clean | Notes |
 |---|---|---|---|---|---|---|
 | azure.not_managed.node_list[].interface_list[] | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1 (live N=3) |
@@ -21,20 +28,20 @@ Columns:
 | ethernet_interface.mac | ✅ | ✅ | ✅ | ✅ | ✅ | S2: validator `MACValidator()` (reject `"not-a-mac"`); live-applied on the base eth0 with a valid MAC (`7C-1E-52-7F-F8-12`), idempotent; whole-object import re-plans 0-change (S7); gated by `string_arms` |
 | static_ip.ip_address (CIDR) | ✅ | ✅ | ✅ | ✅ | ✅ | S2: validator `CIDRValidator()` (reject `"999.999.0.0/8"`); static_ip is the `dhcp_client` address-oneof sibling, live-applied+idempotent (`10.0.1.5/24`), gated by `string_arms`; whole-object import re-plans 0-change (S7) |
 | static_ip.default_gw (IP) | ✅ | ✅ | ✅ | ✅ | ✅ | S2: validator `IPValidator()` (reject `"10.0.0.256"`); applied live with ip_address (`10.0.1.1`); whole-object import re-plans 0-change (S7) |
-| local_vrf.sli_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S2: validator `IPv4Validator()` (reject `"300.1.1.1"`) proven at plan; NOT live-applied — `sli_config` is a distinct `local_vrf` oneof arm from the base `default_sli_config`; gated behind `vrf_string_arms` (default false), plan-validated only (live is an S3 oneof concern) |
-| local_vrf.sli_config.vip (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S2: validator `IPv4Validator()` (reject the IPv6 literal `"2001:db8::1"`, proving IPv4-specificity); plan-validated only, gated behind `vrf_string_arms` (S3 oneof, as nameserver) |
+| local_vrf.sli_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S2: `IPv4Validator()` (reject `"300.1.1.1"`) proven at plan; NOT live — `sli_config` is a distinct `local_vrf` oneof arm from `default_sli_config`, gated behind `vrf_string_arms`. **S8: its "live is an S3 concern" deferral was never honoured** — S3 did only the *interface* oneofs, so the `local_vrf` oneof stays open (S8 gaps L/M) |
+| local_vrf.sli_config.vip (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S2: validator `IPv4Validator()` (reject the IPv6 literal `"2001:db8::1"`, proving IPv4-specificity); plan-validated only, gated behind `vrf_string_arms`. **S8: same never-honoured deferral as `nameserver` above** |
 <!-- remaining toggle/interface/services arms seeded ⬜ for S3–S5 -->
 | block_all_services{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1 (S0 probe) |
 | disable_ha{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1 (S0 probe) |
-| dns_ntp_config.f5_dns_default{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: custom_dns S3 |
-| dns_ntp_config.f5_ntp_default{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: custom_ntp S3 |
-| local_vrf.default_config{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
-| local_vrf.default_sli_config{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
-| logs_streaming_disabled{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: log_receiver S4 |
-| no_forward_proxy{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: custom/active fwd proxy S4 |
-| no_network_policy{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe; oneof: active_network_policies S4 |
-| no_s2s_connectivity_sli{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
-| no_s2s_connectivity_slo{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
+| dns_ntp_config.f5_dns_default{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; oneof alt `custom_dns` covered in S4 (row below). Import-clean flipped in S8: this default arm was in the object on both S8 `perf_mode_l3_enhanced` probes, each of which imported and re-planned 0-change |
+| dns_ntp_config.f5_ntp_default{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; oneof alt `custom_ntp` covered in S4 (row below). Import-clean flipped in S8, same evidence as `f5_dns_default` |
+| local_vrf.default_config{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; the `slo_config` oneof sibling is still open (S8 gap L). Import-clean flipped in S8 (both l3 probes imported 0-change with this arm present) |
+| local_vrf.default_sli_config{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; the `sli_config` oneof sibling is plan-only (rows above). Import-clean flipped in S8, same evidence |
+| logs_streaming_disabled{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; oneof alt `log_receiver_with_net` is plan-only S4b. Import-clean flipped in S8, same evidence |
+| no_forward_proxy{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; oneof alt `active_forward_proxy_policies` is plan-only S4b. Import-clean flipped in S8, same evidence |
+| no_network_policy{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; oneof alt `active_enhanced_firewall_policies` is plan-only S4b. Import-clean flipped in S8, same evidence |
+| no_s2s_connectivity_sli{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; oneof alt `dc_cluster_group_sli` is plan-only S4b. Import-clean flipped in S8, same evidence |
+| no_s2s_connectivity_slo{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 probe; oneof alts `dc_cluster_group_slo` / `site_mesh_group_on_slo` covered in S4. Import-clean flipped in S8, same evidence |
 | offline_survivability_mode.no_offline_survivability_mode{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `offline_arm=no_offline_survivability_mode` (default); defaults cycle apply→idempotent→import (0-change)→destroy; oneof alt: enable S5 |
 | performance_enhancement_mode.perf_mode_l7_enhanced{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `perf_arm=perf_mode_l7_enhanced` (default); defaults cycle round-trip (0-change); carries its own jumbo sub-oneof since v3.80.0 (rows below); oneof alt: perf_mode_l3_enhanced S5 |
 | re_select.geo_proximity{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `re_select_arm=geo_proximity` (default); defaults cycle round-trip (0-change); oneof alt: specific_re S5 |
@@ -42,9 +49,9 @@ Columns:
 | software_settings.sw.default_sw_version{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `sw_arm=default_sw_version` (default); defaults cycle round-trip (0-change); oneof alt: volterra_software_version S5 |
 | node_list[].type (Control/Worker) | ✅ | ✅ | ✅ | ✅ | ✅ | iter-1 live; S2: validator `OneOf("Control", "Worker")` (reject `"Bogus"`); the valid `Worker` arm plans clean and `Control` applied live |
 | interface_list.ethernet_interface{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1; block arm (its `mac` leaf → Validated ✅, row above); oneof vs vlan/dedicated S3 |
-| interface_list.network_option.site_local_network{} | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1; oneof: SLI/inside S3 |
+| interface_list.network_option.site_local_network{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1; empty marker, nothing to validate. **S8: the "oneof: SLI/inside S3" deferral was never honoured** — the `site_local_inside_network{}` sibling is still open (S8 gap P); S3 selected only `site_local_network`, so this oneof has one of two members covered |
 | interface_list.dhcp_client{} | ✅ | ➖ | ✅ | ✅ | ✅ | iter-1 + S3 `address_arm=dhcp_client`; block arm; the `static_ip` address-oneof sibling → Validated ✅ + Applied ✅ (rows above); live-applied+idempotent, whole-object import re-plans 0-change (S7) |
-| labels (top-level metadata map) | ✅ | ➖ | ✅ | ✅ | ✅ | S7: `ignore_changes` removed; xcsh #1286 preserves a config-declared `labels = {}` on post-apply read-back (verified live: apply→plan "No changes"). Import still cannot see config, so the module sends `null` when the map is empty (verified: a literal `{}` re-plans `+ labels = {}` post-import) |
+| labels (top-level metadata map) | ✅ | ➖ | ✅ | ✅ | ✅ | S7: `ignore_changes` removed; xcsh #1103 **and** #1244 are both fixed and released — neither is still an open blocker. #1286 preserves a config-declared `labels = {}` on read-back. **`length(var.labels) > 0 ? var.labels : null` is LOAD-BEARING — never reduce it to a bare `var.labels`** (see the S7 note). |
 <!-- S3: interface / addressing oneof arms (enum selectors; live cycle uses -var extended_arms=false) -->
 | interface_list.static_ip{} (address_choice) | ✅ | ✅ | ✅ | ✅ | ✅ | S3 `address_arm=static_ip` (default); ip_address/default_gw validated (rows above); live-applied+idempotent, whole-object import re-plans 0-change (S7) |
 | interface_list.no_ipv4_address{} (address_choice) | ✅ | ➖ | ✅ | ✅ | ✅ | S3 `address_arm=no_ipv4_address`; empty marker; live apply→idempotent→import (0-change)→destroy |
@@ -85,14 +92,16 @@ Columns:
 | site_mesh_group_on_slo{site_mesh_group ref} (s2s_slo_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_slo_arm=site_mesh_group_ref`; plan-only — `site_mesh_group` ObjectRefType, ref-dependent; plans clean |
 | segment_vrf.segment_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `segment_vrf_arm=inline`; plan-only — needs a Segment object ref the provider cannot yet inject (specs #1053); validator `IPv4Validator()` (reject `"300.2.2.2"`, reject-segment-nameserver) proven at plan |
 <!-- S5: site-mode oneof arms (perf / os / sw / offline / re_select / upgrade / admin; enum selectors; live cycle uses -var extended_arms=false) -->
-| performance_enhancement_mode.perf_mode_l3_enhanced{no_jumbo{}} | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `perf_arm=perf_mode_l3_enhanced`; renders the `no_jumbo{}` sub-oneof member; live apply→idempotent→import (0-change)→destroy |
+| performance_enhancement_mode.perf_mode_l3_enhanced{} | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `perf_arm=perf_mode_l3_enhanced`; carries its own jumbo sub-oneof, spelled DIFFERENTLY from the l7 pair (`jumbo`/`no_jumbo`, not `jumbo_enabled`/`jumbo_disabled`) — rows below; live apply→idempotent→import (0-change)→destroy |
+| perf_mode_l3_enhanced.no_jumbo{} (jumbo sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S8 `l3_jumbo_arm=no_jumbo` (default). S5 rendered this marker unconditionally; S8 made it a selector and re-verified live on v3.81.1: read-back `{"perf_mode_l3_enhanced":{"no_jumbo":{}}}`, apply→0-change re-plan→`state rm`→import→0-change plan→destroy |
+| perf_mode_l3_enhanced.jumbo{} (jumbo sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | **S8, new** `l3_jumbo_arm=jumbo`; empty marker. Was the one unselected member of a covered oneof at the end of S7. Live on v3.81.1: read-back `{"perf_mode_l3_enhanced":{"jumbo":{}}}` (genuinely persisted, not defaulted), apply→0-change re-plan→`state rm`→import→0-change plan→destroy |
 | perf_mode_l7_enhanced.jumbo_disabled{} (jumbo sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S7 `l7_jumbo_arm=jumbo_disabled` (default); sub-oneof new in provider v3.80.0; the server materializes this marker, so declaring it is what keeps the object import-clean; live apply→idempotent→import (0-change)→destroy |
 | perf_mode_l7_enhanced.jumbo_enabled{} (jumbo sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S7 `l7_jumbo_arm=jumbo_enabled`; empty marker; live apply→idempotent→import (0-change)→destroy; read-back returns `jumbo_enabled` |
 | software_settings.os.operating_system_version | ✅ | ✅ | ✅ | ✅ | ✅ | S5 `os_arm=operating_system_version` (`9.2024.6`); validator `LengthAtMost(20)` (reject 21-char, reject-os-version); create-only leaf — live apply→idempotent→import round-trips 0-change (0-change)→destroy |
 | software_settings.sw.volterra_software_version | ✅ | ✅ | ✅ | ✅ | ✅ | S5 `sw_arm=volterra_software_version` (`crt-20250613-3382`); validator `LengthAtMost(20)` (reject 21-char, reject-sw-version); create-only leaf — live round-trips 0-change (0-change) |
 | offline_survivability_mode.enable_offline_survivability_mode{} | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `offline_arm=enable_offline_survivability_mode`; empty marker; live apply→idempotent→import (0-change)→destroy |
 | upgrade_settings...enable_upgrade_drain{} (kubernetes_upgrade_drain) | ✅ | ✅ | ✅ | ✅ | ✅ | S5 `upgrade_drain_arm=enable_upgrade_drain`; recon expected 400 (k8s worker-drain on non-k8s node) but the single-node `azure` probe ACCEPTS it — reclassified live; renders drain leaves + `disable_vega_upgrade_mode{}`; apply→idempotent→import (0-change)→destroy |
-| enable_upgrade_drain.drain_max_unavailable_node_count (1-5000) | ✅ | ✅ | ✅ | ✅ | ✅ | S5: validator `Between(1, 5000)` (reject 5001, reject-drain-count); applied live via enable_upgrade_drain (default 1) |
+| enable_upgrade_drain.drain_max_unavailable_node_count (1-5000) | ✅ | ✅ | ✅ | ✅ | ✅ | S5: `Between(1, 5000)`, upper reject 5001 (reject-drain-count); applied live via enable_upgrade_drain (default 1). **S8 closed the LOWER bound**: reject-drain-count-min pushes 0, so both bounds are asserted — a regression dropping the minimum used to pass |
 | enable_upgrade_drain.drain_node_timeout (0-900) | ✅ | ✅ | ✅ | ✅ | ✅ | S5: validator `Between(0, 900)` (reject 901, reject-drain-timeout); applied live via enable_upgrade_drain (default 300) |
 | enable_upgrade_drain.disable_vega_upgrade_mode{} (vega sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `vega_arm=disable_vega_upgrade_mode` (default); empty marker; applied live via enable_upgrade_drain; alt `enable_vega_upgrade_mode` plans clean |
 | admin_user_credentials{ssh_key, admin_password clear_secret_info} | ✅ | ✅ | ⬜ | ➖ | ➖ | S5 `admin_creds=true`; plan-only — `[BAD_REQUEST]` 400 live on the single-node `azure` probe (recon expected live, reclassified); `ssh_key` `LengthAtMost(8192)` reject-proven at plan; dummy `string:///<base64>` secret (no real secret committed) |
@@ -101,17 +110,23 @@ Columns:
 **S1 notes (numeric-leaf input validation):**
 
 - **How "Validated" is proven** — `coverage/smsv2/verify.sh` drives `terraform test` with a
-  mocked `xcsh` provider (credential-free; the real v3.75.0 schema validators still fire at
-  plan). `validation.tftest.hcl` asserts valid bounds plan clean; `reject-tests/*.tftest.hcl`
+  mocked `xcsh` provider (credential-free; the real schema validators still fire at plan — the
+  version is whatever `terraform init` resolved against the floor in `coverage/smsv2/versions.tf`,
+  the only tracked pin, and S8 removed the drifted per-file copies of that number).
+  `validation.tftest.hcl` asserts valid bounds plan clean; `reject-tests/*.tftest.hcl`
   each push one leaf out of range and are *designed to fail* — `expect_failures` cannot capture
   provider schema validators (only user custom conditions), so verify.sh asserts the exact
-  validator diagnostic per leaf instead.
+  validator diagnostic per leaf instead. As of S8: 23 reject cases, 23 asserted diagnostics,
+  counted by the script rather than restated in prose.
 - **mtu is `AtMost(16384)` only** — the API's discontinuous rule {0} ∪ [512,16384] has no single
   minimum, so the failing test uses `mtu = 20000` (a small value like 200 is *not* rejected).
 - **import caveat CLEARED (S7)** — the whole-object `terraform import` used to re-plan one
   in-place change, `- labels {}` on the interface. That is fixed in provider v3.77.5 (xcsh
   #1244 emits the import guards for the nested `interface_list.labels {}` marker). Re-verified
-  live on v3.77.5: apply → plan "No changes" → `state rm` → `import` → plan **0 changes**.
+  live on v3.77.5: apply → plan "No changes" → `state rm` → `import` → plan **0 changes**, and
+  again on v3.81.1 in S8. S8 confirmed the guard is load-bearing rather than defensive: the API
+  read-back of a probe that never declares it returns `interface_list[0].labels: {}`, i.e. the
+  server really does materialize the marker.
 - **vlan_id / proxy_port not live-applied** — `vlan_interface` and top-level `custom_proxy` both
   return `[BAD_REQUEST] Invalid request parameters (400)` on the `azure` not_managed single Control
   node. They are gated behind `var.extended_arms` (default true) so their validators are reached
@@ -279,6 +294,134 @@ Columns:
   `cov-probe-s7-nettype-inside-01`, `cov-probe-s7-jumbo-enabled-01` and `cov-probe-s7-defaults-01` each
   ran the full cycle and were destroyed. The live demo sites were never in state and never touched.
 
+## S8 completeness audit (provider v3.81.1)
+
+Every slice before this one grew the table row by row and never asked what was *missing*. S8 asks.
+
+### Method (reproducible)
+
+```bash
+cd coverage/smsv2
+printf 'provider_installation {\n  direct {}\n}\n' > /tmp/tfrc
+TF_CLI_CONFIG_FILE=/tmp/tfrc terraform init -upgrade      # log must name the version you expect
+TF_CLI_CONFIG_FILE=/tmp/tfrc terraform providers schema -json > /tmp/schema.json
+# then walk resource_schemas["xcsh_securemesh_site_v2"].block recursively over
+# .attributes and .block_types, emitting one dotted path per arm.
+```
+
+### Headline
+
+| Measure | Count |
+|---|---|
+| Arms in the `xcsh_securemesh_site_v2` schema at v3.81.1 (415 attributes + 582 blocks) | 997 |
+| Out of scope: the 10 non-`azure` site-provider subtrees, 68 arms each | 680 |
+| Out of scope: the Terraform `timeouts` meta-block | 5 |
+| **In scope for this probe** | **312** |
+| Rendered by `coverage/smsv2/main.tf` | 143 |
+| **Not rendered — classified below** | **169** |
+
+The 11 site-provider subtrees (`aws`, `azure`, `baremetal`, `equinix`, `gcp`, `kvm`, `nutanix`,
+`oci`, `openshift_virtualization`, `openstack`, `vmware`) were verified **byte-identical** modulo
+the top-level key: dumping each subtree with its prefix rewritten to `SITE` and `diff`-ing against
+`azure` gives no differences for all ten. They come from one generated code path, so the `azure`
+rows describe their structure too — but only `azure` is live-verified, and nothing here claims a
+CE was ever booted on AWS or vSphere.
+
+### Gap classification
+
+Not covered, and why. "Still open" means exactly that: no arm below has been quietly downgraded
+to "excluded" to make the table look finished.
+
+| # | Family | Arms | Class | Reason / evidence |
+|---|---|---|---|---|
+| A | `id` | 1 | ➖ n/a | Computed Terraform identifier, not an API arm. |
+| B | `annotations`, `description`, `disable` | 3 | ⚠️ partial | `description` **is** applied live by the production module (`terraform/modules/xc-site/main.tf`), just not by this probe, and has no validator anywhere. `annotations`/`disable` are **still open**: S8 saw the server materialize `metadata.annotations: {}` unprompted, so a literal `{}` is an untested drift source. |
+| C | `tunnel_type`, `tunnel_dead_timeout` | 2 | ⬜ still open | Both `Optional + Computed`; S8 saw the server materialize them (`SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL` / `0`) on a probe declaring neither. Computed absorbs the default — which is exactly why 8 slices missed them: undeclared, they cannot drift. Never *set* from config, so no round-trip evidence. |
+| D | `enable_advanced_delivery{}` / `disable_advanced_delivery{}` | 2 | ⬜ still open | A whole top-level oneof with no row in any slice. S8 evidence: neither key appears in the read-back of a live site, so unlike C the server does **not** default it — it is genuinely unexercised, not merely invisible. |
+| E | `enable_log_anonymization{}` / `disable_log_anonymization{}` | 2 | ⬜ still open | Same as D: a whole top-level oneof, absent from the read-back, never rendered. |
+| F | `.tenant` on every ObjectRefType | 12 | ⬜ still open | Not excluded, just untested. Every arm carrying one is itself plan-only (ref-dependent), so a `tenant` round-trip could not have been observed even incidentally. A cross-tenant ref is the only thing that would exercise it. |
+| G | `SecretType.blindfold_secret_info{...}` (×2 sites) | 8 | ➖ excluded | Needs an offline Blindfold seal plus a real decryption/store provider. Sealing is non-deterministic, so an inline seal drifts on every plan; the seal must be done once and pinned. The probe deliberately uses `clear_secret_info`, the only dependency-free backend — `vault`/`wingman` 400 for the same reason. |
+| H | `clear_secret_info.provider_ref` (×2 sites) | 2 | ⬜ still open | The `url` sibling is covered; `provider_ref` names a secret-management provider object that must pre-exist. Same class as F. |
+| I | `custom_proxy.username`, `.password{...}`, `{enable,disable}_re_tunnel{}` | 6 | ⬜ still open at plan | `custom_proxy` itself returns `[BAD_REQUEST] 400` on the single-node `azure` probe, so nothing under it can be live. But its `proxy_ip_address`/`proxy_port` leaves *are* plan-asserted and these are not — there is no reason they could not be. |
+| J | `static_routes` / `static_v6_routes` under `local_vrf.{sli,slo}_config` and `segment_vrf.segment_config` | 84 | ⬜ still open | **Largest single gap: 27% of the in-scope surface.** Six instances of one identical `SiteStaticRoutesListType`. Even the `no_static_routes{}` empty siblings are unrendered. One selector on one instance covers all six. |
+| K | `interface_list.ipv6_auto_config.router{...}` | 21 | ⬜ still open | The probe renders only the `host{}` member of `autoconfig_choice`. The `router` member carries `network_prefix`, a `dns_config` oneof, and a `stateful` DHCPv6 subtree with pools. `ipv6_auto_config` as a whole is already plan-only (400 on a single-node IPv4 probe), so this is a plan-level gap. |
+| L | `local_vrf.slo_config{...}` | 7 | ⬜ still open | The SLO counterpart of `sli_config`. The probe always selects the `default_config{}` empty marker, so this member of the oneof has never been rendered — not even at plan. |
+| M | `local_vrf.sli_config` unwired leaves (`secondary_nameserver`, `labels{}`, `no_static_routes{}`, `no_v6_static_routes{}`) | 4 | ⬜ still open | `sli_config` renders only `nameserver` + `vip`, for their IPv4 validators. |
+| N | `segment_vrf.segment_config.secondary_nameserver` | 1 | ⬜ still open | Sibling of the covered `nameserver`; `segment_vrf` is plan-only regardless. |
+| O | `bond_interface.{name, link_polling_interval, link_up_delay}`, `.active_backup{}` | 4 | ⬜ still open | `active_backup{}` is the unselected member of the bond mode oneof (`lacp` is covered). `bond_interface` is plan-only (400), so this is a plan-level gap. |
+| P | Unselected members of covered oneofs: `site_local_inside_network{}`, `use_management_network{}`, `sm_connection_pvt_ip{}`, `cluster_static_ip{}` (+ `interface_ip_map{}`) | 6 | ⬜ still open | The most misleading class: every *sibling* is ✅. SLI `site_local_inside_network` is the notable one — its row promised it as "S3" and S3 never did it. `perf_mode_l3_enhanced.jumbo{}` sat here until S8. |
+| Q | `interface_list.description_spec`, `interface_list.labels{}`, `node_static_ip.default_gw`, `node_list.public_ip` | 4 | ⚠️ mixed | `public_ip` **is** applied live by the production module (`public_ip = ""`). `interface_list.labels{}` is covered indirectly but load-bearingly — see the note below. `description_spec` and `node_static_ip.default_gw` are **still open**. |
+
+Totals: 1 n/a, 8 excluded with a reason, 5 partially covered, **155 still open**. Every open row
+above is a candidate slice, not a defect — but the table is no longer silent about them.
+
+Two details that would not fit in a table cell:
+
+- **Family J's shape.** Each of the six `SiteStaticRoutesListType` instances carries `attrs`,
+  `ip_address`, `ip_prefixes`, a `default_gateway{}` marker, and a `node_interface.list[].interface`
+  ObjectRef (with `kind`/`name`/`namespace`/`tenant`/`uid`). Because all six are identical, one
+  selector on one instance would establish the shape for the whole 84.
+- **Family Q's `interface_list.labels{}`.** Nobody declares it, yet S8's read-back shows the server
+  materializing it (`interface_list[0].labels: {}`). Suppressing exactly that marker is what xcsh
+  #1244's import guards do, so the resource's whole import-clean story rests on an arm with no row.
+  It is covered in effect, not by declaration — which is why it is listed here rather than as ✅.
+
+### Also confirmed absent from the provider schema
+
+`interface_list.is_management` and `interface_list.is_primary` appear in the API read-back but have
+**no attribute in the provider schema at v3.81.1** (a grep of the 997-arm enumeration finds zero
+hits). That matches the S3 note's deferral to api-specs-enriched #1049: it needs spec injection and
+a regeneration, so it is a provider gap, not a probe gap.
+
+Likewise `segment_vrf` has **no `segment` ObjectRef attribute at all** — the exclusion recorded in
+the S4 notes ("needs a Segment object ref the provider cannot yet inject", specs #1053) is
+structurally accurate, not an excuse: there is nowhere to put the reference.
+
+### Caveats this audit will not sign off
+
+Read these before treating the ✅ column as proof.
+
+- **A create path verified only by `terraform import` is NOT verified.** This is not hypothetical.
+  S6's `xcsh_registration_approval` passed review on an import of an *already-approved* registration
+  plus a 0-change plan; the approve `POST` was never exercised, and it could never have worked —
+  the provider discarded the required object-typed `passport`, so every real approve returned
+  `500 "Validation approval: Passport is required"` (xcsh #1355, fixed in v3.81.1 and only then
+  live-proven on a fresh CE). Applied to this matrix: every `Applied ✅` cell here **was** reached
+  by a real `apply` (HTTP 200) — that failure was in a different resource. But the **Import-clean
+  column is different**, and the S7 note says so: most cells were flipped to ✅ by *reasoning* that
+  xcsh #1244's fix is resource-wide (39 of 39 nested `labels` closures guarded), not by re-running
+  an import per arm. Only the base/defaults probe, the `blocked_service` members, the
+  `network_type` non-default, the l7 `jumbo_enabled` arm and (in S8) both l3 jumbo arms have a
+  per-arm import actually observed.
+- **`api-specs-enriched#1108`: the contract-diff gate diffs a release against ITSELF, never N-1 → N,
+  so it cannot see upstream removals.** F5 dropped **307 schemas and 74 properties** during a
+  16-day window and the gate reported none of it — which is how the `apm*` family removal silently
+  broke the provider build (xcsh #1351). So a green Contract-diff gate is **not** evidence that
+  upstream is stable, and no completeness claim in this file leans on it. The enumeration above is
+  a point-in-time snapshot of v3.81.1: arms can vanish under it without any gate going red. Re-run
+  the Method above after every provider bump rather than trusting the counts.
+- **Every plan-only arm names its reason** — single-node 400, a missing ref object, or an
+  entitlement — and the reasons are recorded per row above and in the S3/S4/S5 notes. Where a
+  slice *expected* live and got a 400, the row says "reclassified" rather than being quietly
+  restated as excluded (`s2s_..._enabled` and `enable_upgrade_drain` went the other way: expected
+  plan-only, accepted live, reclassified up).
+- **No arm in this file is entitlement-blocked.** That reason appears in other coverage efforts in
+  this org (Bot Defense, WAAP); it does not apply to `xcsh_securemesh_site_v2`.
+
+### S8 live evidence
+
+Registry v3.81.1 (`TF_CLI_CONFIG_FILE` pointing at `provider_installation { direct {} }`, never
+`~/.terraformrc` `dev_overrides`), disposable probes only:
+
+- `cov-probe-s8-l3jumbo-01` — `perf_arm=perf_mode_l3_enhanced l3_jumbo_arm=jumbo`: apply (1 added)
+  → read-back `{"perf_mode_l3_enhanced":{"jumbo":{}}}` → re-plan "no changes" → `state rm` →
+  `import system/cov-probe-s8-l3jumbo-01` → post-import plan "no changes" → destroy.
+- `cov-probe-s8-l3nojumbo-01` — same arm at its `no_jumbo` default (regression check on making the
+  marker a selector): apply → read-back `{"perf_mode_l3_enhanced":{"no_jumbo":{}}}` → re-plan
+  "no changes" → import → post-import plan "no changes" → destroy.
+- Both destroyed. The live demo sites `ar-bgp-eastus01/02/03` were read over the API only
+  (`GET .../securemesh_site_v2s/<site>`, HTTP 200 each) and were never in any Terraform state.
+
 <!--
 Slice roadmap:
 - S0: probe workspace + this matrix (done).
@@ -290,4 +433,11 @@ Slice roadmap:
 - S7: labels workaround retired (provider v3.77.5) + blocked_services promoted plan-only -> live once the
   x-f5xc-wire-name contract shipped (provider v3.80.0), including the blocked_service service_choice
   members and the new perf_mode_l7_enhanced jumbo sub-oneof — DONE (verify.sh + live matrix).
+- S8: completeness audit against provider v3.81.1 — DONE. Mechanical 997-arm schema enumeration;
+  every stale annotation reconciled; perf_mode_l3_enhanced jumbo sub-oneof closed (live, both members);
+  drain_max_unavailable_node_count lower bound closed; per-file provider-version claims collapsed onto
+  versions.tf + the lock file; the stale "object-ref name capped at 63" blocker retired in all six sites
+  (mcn #592) and every root plan test now runs with enable_bgp at its true default. Remaining gaps are
+  classified above rather than closed — 155 arms still open, tracked as follow-up slices.
+  Closes epic terraform-provider-xcsh#1207.
 -->

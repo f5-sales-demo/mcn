@@ -1,6 +1,6 @@
 # DESIGNED TO FAIL — proves re_select.specific_re.primary_re validator LengthBetween(1, 64) rejects a
 # 65-char string (> max). Run via verify.sh (not plain terraform test). mock_provider => no
-# credentials; validator fires from the real v3.76.0 schema at plan. re_select_arm=specific_re renders
+# credentials; validator fires from the real provider schema at plan. re_select_arm=specific_re renders
 # the specific_re leaves so primary_re is reachable.
 mock_provider "xcsh" {}
 

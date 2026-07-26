@@ -13,10 +13,9 @@ run "root_plans_end_to_end" {
   variables {
     ce_count = 2
     deployer = "tester"
-    # enable_bgp=false works around the provider's 63-char object-ref name cap
-    # (the real 71-char XC interface name is rejected at plan; see main.tf /
-    # modules/xc-site). This verifies the rest of the graph plans clean.
-    enable_bgp     = false
+    # enable_bgp is left at its true default so the root integration test plans the WHOLE
+    # graph, bgp objects included. It used to be forced false only to dodge the provider's
+    # object-ref name length cap, relaxed in v3.74.0 (see modules/xc-site/main.tf).
     ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   }
 
