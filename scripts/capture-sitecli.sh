@@ -128,7 +128,7 @@ fi
 
 SITE_BASE="${API_URL}/api/operate/namespaces/${NAMESPACE}/sites/${SITE}"
 
-# Handed to the scrub filter so it can remove host names that no address rule would
+# Handed to the scrub filter so it can remove hostnames that no address rule would
 # see — a netstat host:port column, a journal line prefix.
 SITECLI_NODE="$NODE"
 SITECLI_SITE="$SITE"

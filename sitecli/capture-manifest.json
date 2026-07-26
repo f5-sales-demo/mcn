@@ -20,7 +20,7 @@
     "scrub_profile selects how much infrastructure identity survives.",
     "",
     "For a company customer, infrastructure identifiers ARE personally identifiable",
-    "information: internal addressing, MAC addresses, AS numbers and host names all",
+    "information: internal addressing, MAC addresses, AS numbers and hostnames all",
     "identify the organisation. The scrub filter therefore defaults to 'strict',",
     "which removes them, so pointing the harness at a customer node and committing",
     "the result cannot leak by omission.",

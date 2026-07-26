@@ -171,7 +171,7 @@ assert_preserved "all-ones MAC broadcast" \
 
 # --- profiles: strict is the default, lab must be asked for --------------------
 # For a company customer, infrastructure identifiers ARE personally identifiable
-# information: internal addressing, MAC addresses, AS numbers and host names all
+# information: internal addressing, MAC addresses, AS numbers and hostnames all
 # identify the organisation. The lab profile keeps them because this repository's
 # own captures come from F5-owned demo infrastructure and their diagnostic value is
 # the point. Strict is the DEFAULT so that pointing the harness at a customer node
@@ -179,7 +179,7 @@ assert_preserved "all-ones MAC broadcast" \
 # requires an explicit flag, the safe one requires nothing.
 
 # The node and site names are supplied by the caller — capture-sitecli.sh knows
-# them — because no address rule can catch a host name in a netstat column or a log
+# them — because no address rule can catch a hostname in a netstat column or a log
 # prefix.
 strict() {
   printf '%s' "$1" | SITECLI_SCRUB_PROFILE=strict \
@@ -226,18 +226,18 @@ assert_strict_removed "carrier-grade NAT address" 'flow 100.127.192.10:53' '100.
 assert_strict_removed "MAC address" 'link/ether 7c:1e:52:7f:f8:12 brd ff:ff:ff:ff:ff:ff' '7c:1e:52:7f:f8:12'
 assert_strict_removed "remote AS number" 'BGP neighbor is 10.0.1.5, remote AS 65515' '65515'
 assert_strict_removed "local AS number" 'local AS number 64512 vrf-id 3' '64512'
-assert_strict_removed "node host name" \
+assert_strict_removed "node hostname" \
   'tcp 0 0 f5-xc-ce-vm-01:57472 ESTABLISHED' 'f5-xc-ce-vm-01'
 assert_strict_removed "site name" 'site ar-bgp-eastus01 is ONLINE' 'ar-bgp-eastus01'
 
-# netstat truncates the host name to fit its column, so the full name never appears
+# netstat truncates the hostname to fit its column, so the full name never appears
 # and an exact-match rule silently misses it. Taken from real captured output.
-assert_strict_removed "truncated host name in a netstat column" \
+assert_strict_removed "truncated hostname in a netstat column" \
   'tcp 0 0 f5-xc-ce-vm-01:53668 f5-xc-ce-:simplifymedia TIME_WAIT' 'f5-xc-ce-'
-assert_strict_removed "host name with a domain suffix appended" \
+assert_strict_removed "hostname with a domain suffix appended" \
   'tcp 0 0 f5-xc-ce-vm-01.in:50810 10.0.1.9:9505 ESTABLISHED' 'f5-xc-ce-vm-01.in'
-# A short prefix must NOT be treated as the host name, or unrelated text is eaten.
-assert_strict_preserved "short unrelated token is not mistaken for the host name" \
+# A short prefix must NOT be treated as the hostname, or unrelated text is eaten.
+assert_strict_preserved "short unrelated token is not mistaken for the hostname" \
   'f5 is the vendor' 'f5 is the vendor'
 
 # The AS number in a BGP neighbour table is a bare column with no "AS" prefix, so

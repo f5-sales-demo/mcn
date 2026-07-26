@@ -10,7 +10,7 @@
 #   SITECLI_SCRUB_PROFILE=lab                assume F5-owned demo infrastructure
 #
 # For a company customer, infrastructure identifiers ARE personally identifiable
-# information: internal addressing, MAC addresses, AS numbers and host names all
+# information: internal addressing, MAC addresses, AS numbers and hostnames all
 # identify the organisation. Strict is the default so that pointing the harness at a
 # customer node and committing the result cannot leak by omission — the dangerous
 # direction requires an explicit choice, the safe one requires nothing. This
@@ -81,7 +81,7 @@ function is_known_resolver(ip) {
   return (ip in RESOLVERS)
 }
 
-# Replace a host name and any truncation of it down to MIN_HOST_PREFIX characters.
+# Replace a hostname and any truncation of it down to MIN_HOST_PREFIX characters.
 function redact_host(line, name, placeholder,   i) {
   if (name == "") return line
   for (i = length(name); i >= MIN_HOST_PREFIX; i--) {
@@ -274,10 +274,10 @@ BEGIN {
 
   # --- strict profile: infrastructure identity is customer PII ----------------
   if (!LAB) {
-    # Host names. The node and site are supplied by the caller, so this catches
+    # Hostnames. The node and site are supplied by the caller, so this catches
     # netstat host:port columns and log prefixes that no address rule would see.
     # Longest form first, then progressively shorter prefixes: netstat truncates the
-    # host name to fit its column ("f5-xc-ce-" for "f5-xc-ce-vm-01"), so an exact
+    # hostname to fit its column ("f5-xc-ce-" for "f5-xc-ce-vm-01"), so an exact
     # match alone silently misses it. The floor of 8 characters keeps a short prefix
     # from swallowing unrelated text.
     line = redact_host(line, node, "<node>")

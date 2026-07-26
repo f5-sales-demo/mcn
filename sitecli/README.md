@@ -58,7 +58,7 @@ to `Exec` is respected without a code change.
 Captures pass through `scripts/sitecli-scrub.sh`, which has two profiles.
 
 **For a company customer, infrastructure identifiers are personally identifiable
-information.** Internal addressing, MAC addresses, AS numbers and host names all
+information.** Internal addressing, MAC addresses, AS numbers and hostnames all
 identify the organisation. So the filter defaults to `strict`, which removes them:
 pointing this harness at a customer node and committing the result cannot leak by
 omission. The dangerous direction takes an explicit choice; the safe one takes
@@ -88,7 +88,7 @@ resolvers, container ids, build strings, interface names and tunnel state.
 
 Two rules exist only because real output disproved an assumption:
 
-- Host names are also matched as **truncations** down to 8 characters, because
+- Hostnames are also matched as **truncations** down to 8 characters, because
   `netstat` shortens them to fit its column (`f5-xc-ce-` for `f5-xc-ce-vm-01`) and an
   exact-match rule silently missed it.
 - The tenant appears inside internal IPsec SA names with a unique suffix, which the
