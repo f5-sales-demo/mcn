@@ -36,7 +36,7 @@ Columns:
 | no_s2s_connectivity_sli{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
 | no_s2s_connectivity_slo{} | ✅ | ➖ | ✅ | ✅ | ⬜ | S0 probe |
 | offline_survivability_mode.no_offline_survivability_mode{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `offline_arm=no_offline_survivability_mode` (default); defaults cycle apply→idempotent→import (0-change)→destroy; oneof alt: enable S5 |
-| performance_enhancement_mode.perf_mode_l7_enhanced{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `perf_arm=perf_mode_l7_enhanced` (default); defaults cycle round-trip (0-change); oneof alt: perf_mode_l3_enhanced S5 |
+| performance_enhancement_mode.perf_mode_l7_enhanced{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `perf_arm=perf_mode_l7_enhanced` (default); defaults cycle round-trip (0-change); carries its own jumbo sub-oneof since v3.80.0 (rows below); oneof alt: perf_mode_l3_enhanced S5 |
 | re_select.geo_proximity{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `re_select_arm=geo_proximity` (default); defaults cycle round-trip (0-change); oneof alt: specific_re S5 |
 | software_settings.os.default_os_version{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `os_arm=default_os_version` (default); defaults cycle round-trip (0-change); oneof alt: operating_system_version S5 |
 | software_settings.sw.default_sw_version{} | ✅ | ➖ | ✅ | ✅ | ✅ | S0 base arm; S5 `sw_arm=default_sw_version` (default); defaults cycle round-trip (0-change); oneof alt: volterra_software_version S5 |
@@ -59,8 +59,11 @@ Columns:
 | interface_list.ipv6_auto_config{} (ipv6_address_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S3 `ipv6_arm=ipv6_auto_config`; plan-only — 400 on single-node IPv4 `azure` probe (confirmed live); renders the `host {}` autoconfig_choice member; plans clean |
 | interface_list.static_ipv6_address{} (ipv6_address_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S3 `ipv6_arm=static_ipv6_address`; plan-only — 400 on single-node IPv4 `azure` probe (confirmed live); `node_static_ip.ip_address` `CIDRValidator()` reject proven at plan (reject-static-ipv6) |
 <!-- S4: networking / services top-level oneof arms (enum selectors; live cycle uses -var extended_arms=false) -->
-| blocked_services.blocked_service{} (services_choice) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `services_arm=blocked_services`; plan-only — provider read-back drops the block (inconsistent result after apply), tracked provider #1257. `network_type` `OneOf` reject proven at plan |
-| blocked_services.blocked_service.network_type (OneOf) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4: validator `OneOf(VIRTUAL_NETWORK_*)` (reject `"BOGUS"`) proven at plan (reject-network-type); not live (parent arm round-trip bug above) |
+| blocked_services.blocked_service{} (services_choice) | ✅ | ✅ | ✅ | ✅ | ✅ | S4 `services_arm=blocked_services`, live on provider v3.80.0 (S7): apply→idempotent→import (0-change)→destroy. The API read-back returns the configured entry, so the block genuinely round-trips. `network_type` `OneOf` reject proven at plan |
+| blocked_services.blocked_service.network_type (OneOf) | ✅ | ✅ | ✅ | ✅ | ✅ | S4: validator `OneOf(VIRTUAL_NETWORK_*)` (reject `"BOGUS"`) proven at plan (reject-network-type); live-verified in S7 on both the default `VIRTUAL_NETWORK_SITE_LOCAL` and a non-default `VIRTUAL_NETWORK_SITE_LOCAL_INSIDE` — each echoed back unchanged |
+| blocked_service.ssh{} (service_choice) | ✅ | ➖ | ✅ | ✅ | ✅ | S7 `blocked_service_arm=ssh` (default); empty marker; live apply→idempotent→import (0-change)→destroy; read-back returns `ssh` |
+| blocked_service.dns{} (service_choice) | ✅ | ➖ | ✅ | ✅ | ✅ | S7 `blocked_service_arm=dns`; empty marker; live apply→idempotent→import (0-change)→destroy; read-back returns `dns` |
+| blocked_service.web_user_interface{} (service_choice) | ✅ | ➖ | ✅ | ✅ | ✅ | S7 `blocked_service_arm=web_user_interface`; empty marker; live apply→idempotent→import (0-change)→destroy; read-back returns `web_user_interface` |
 | f5_proxy{} (enterprise_proxy_choice) | ✅ | ➖ | ✅ | ✅ | ✅ | S4 `proxy_arm=f5_proxy`; empty marker; live apply→idempotent→import (0-change)→destroy |
 | custom_proxy.proxy_ip_address (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4: validator `IPv4Validator()` (reject `"999.1.1.1"`) proven at plan (reject-proxy-ip); custom_proxy 400s live (S1), gated behind `extended_arms`, plan-validated only |
 | dns_ntp_config.custom_dns.dns_servers | ✅ | ➖ | ✅ | ✅ | ✅ | S4 `dns_arm=custom_dns`; renders `dns_servers`; live apply→idempotent→import (0-change)→destroy |
@@ -83,6 +86,8 @@ Columns:
 | segment_vrf.segment_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `segment_vrf_arm=inline`; plan-only — needs a Segment object ref the provider cannot yet inject (specs #1053); validator `IPv4Validator()` (reject `"300.2.2.2"`, reject-segment-nameserver) proven at plan |
 <!-- S5: site-mode oneof arms (perf / os / sw / offline / re_select / upgrade / admin; enum selectors; live cycle uses -var extended_arms=false) -->
 | performance_enhancement_mode.perf_mode_l3_enhanced{no_jumbo{}} | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `perf_arm=perf_mode_l3_enhanced`; renders the `no_jumbo{}` sub-oneof member; live apply→idempotent→import (0-change)→destroy |
+| perf_mode_l7_enhanced.jumbo_disabled{} (jumbo sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S7 `l7_jumbo_arm=jumbo_disabled` (default); sub-oneof new in provider v3.80.0; the server materializes this marker, so declaring it is what keeps the object import-clean; live apply→idempotent→import (0-change)→destroy |
+| perf_mode_l7_enhanced.jumbo_enabled{} (jumbo sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S7 `l7_jumbo_arm=jumbo_enabled`; empty marker; live apply→idempotent→import (0-change)→destroy; read-back returns `jumbo_enabled` |
 | software_settings.os.operating_system_version | ✅ | ✅ | ✅ | ✅ | ✅ | S5 `os_arm=operating_system_version` (`9.2024.6`); validator `LengthAtMost(20)` (reject 21-char, reject-os-version); create-only leaf — live apply→idempotent→import round-trips 0-change (0-change)→destroy |
 | software_settings.sw.volterra_software_version | ✅ | ✅ | ✅ | ✅ | ✅ | S5 `sw_arm=volterra_software_version` (`crt-20250613-3382`); validator `LengthAtMost(20)` (reject 21-char, reject-sw-version); create-only leaf — live round-trips 0-change (0-change) |
 | offline_survivability_mode.enable_offline_survivability_mode{} | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `offline_arm=enable_offline_survivability_mode`; empty marker; live apply→idempotent→import (0-change)→destroy |
@@ -90,7 +95,7 @@ Columns:
 | enable_upgrade_drain.drain_max_unavailable_node_count (1-5000) | ✅ | ✅ | ✅ | ✅ | ✅ | S5: validator `Between(1, 5000)` (reject 5001, reject-drain-count); applied live via enable_upgrade_drain (default 1) |
 | enable_upgrade_drain.drain_node_timeout (0-900) | ✅ | ✅ | ✅ | ✅ | ✅ | S5: validator `Between(0, 900)` (reject 901, reject-drain-timeout); applied live via enable_upgrade_drain (default 300) |
 | enable_upgrade_drain.disable_vega_upgrade_mode{} (vega sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `vega_arm=disable_vega_upgrade_mode` (default); empty marker; applied live via enable_upgrade_drain; alt `enable_vega_upgrade_mode` plans clean |
-| admin_user_credentials{ssh_key, admin_password clear_secret_info} | ✅ | ✅ | ⬜ | ➖ | ➖ | S5 `admin_creds=true`; plan-only — `[BAD_REQUEST]` 400 live on the single-node `azure` probe (recon expected live, reclassified); `ssh_key` `LengthAtMost(8192)` + `secret_encoding_type` `OneOf` reject-proven at plan; dummy `string:///<base64>` secret (no real secret committed) |
+| admin_user_credentials{ssh_key, admin_password clear_secret_info} | ✅ | ✅ | ⬜ | ➖ | ➖ | S5 `admin_creds=true`; plan-only — `[BAD_REQUEST]` 400 live on the single-node `azure` probe (recon expected live, reclassified); `ssh_key` `LengthAtMost(8192)` reject-proven at plan; dummy `string:///<base64>` secret (no real secret committed) |
 | re_select.specific_re{primary_re, backup_re} | ✅ | ✅ | ⬜ | ➖ | ➖ | S5 `re_select_arm=specific_re`; plan-only — `[BAD_REQUEST] Invalid request parameters (status: 400)` live (primary_re must name a real RE geography); `primary_re` `LengthBetween(1, 64)` (reject 65-char, reject-primary-re) proven at plan |
 
 **S1 notes (numeric-leaf input validation):**
@@ -169,12 +174,16 @@ Columns:
   interface 400 live, so every S4a live apply/idempotent/import ran with `extended_arms=false`.
 - **S4a live-appliable arms** (HTTP 200, idempotent, import-clean): `f5_proxy`, `custom_dns`, `custom_ntp`, `custom_proxy_bypass`, `no_proxy_bypass`,
   `enable_url_categorization`, `disable_url_categorization`, `disable_management_network`,
-  `load_balancing.vip_vrrp_mode` (ENABLE + DISABLE), and `site_mesh_group_on_slo` all-empty
-  (`no_site_mesh_group{} sm_connection_public_ip{}`). Each ran apply→0-change re-plan→import→destroy.
-- **`blocked_services` reclassified plan-only** — recon expected it live (S4a), but the apply errors
+  `load_balancing.vip_vrrp_mode` (ENABLE + DISABLE), `site_mesh_group_on_slo` all-empty
+  (`no_site_mesh_group{} sm_connection_public_ip{}`), and — since S7 — `blocked_services`. Each ran
+  apply→0-change re-plan→import→destroy.
+- **`blocked_services` is live as of S7** — S4 had to reclassify it plan-only because the apply failed
   with `Provider produced inconsistent result after apply: .blocked_services.blocked_service block
-  count changed from 1 to 0` (the provider read-back drops the block). This is a provider round-trip
-  bug, not a config error; the `network_type` `OneOf` validator is still proven at plan.
+  count changed from 1 to 0`. Root cause was provider #1257: the provider sent the JSON key
+  `blocked_service` while F5's runtime key is the misspelled `blocked_sevice`, so the API ignored the
+  block and the read-back found nothing. The wire-name contract (api-specs `x-f5xc-wire-name`, specs
+  `v2.1.194`, provider `v3.80.0`) fixed it, and the arm now applies live — see the S7 notes for the
+  read-back evidence.
 - **S4b plan-only (ref-dependent)** — `active_forward_proxy_policies`,
   `active_enhanced_firewall_policies`, `log_receiver_with_net`, `dc_cluster_group_sli`,
   `dc_cluster_group_slo`, and `site_mesh_group_on_slo` with a `site_mesh_group` ref are ObjectRefType
@@ -216,7 +225,8 @@ Columns:
 - **`admin_password` dummy secret** — the `admin_password` SecretType uses `clear_secret_info { url =
   "string:///<base64>" }` (the only dependency-free backend; blindfold/vault/wingman need external
   providers → 400) with a base64 of a throwaway placeholder. NO real secret is committed. The
-  `secret_encoding_type` is `EncodingBase64` (`OneOf(EncodingNone, EncodingBase64)`).
+  `secret_encoding_type` leaf S5 also covered **no longer exists**: the upstream F5 spec dropped it from
+  SecretType, so provider v3.80.0 (specs v2.1.194) has no such attribute and its reject test is retired.
 - **Provider enrichment gap #1258** — filed for the `enable_upgrade_drain.drain_node_timeout`
   required-ness (the arm inventory marks it required); the harness always supplies it (default 300).
   Not blocking — S5 is pure-mcn coverage (no provider/specs change).
@@ -242,6 +252,33 @@ Columns:
   `import (0-change)` are unchanged in meaning; the flip only removes the "modulo `labels {}`" caveat. No
   arm was re-applied live in S7 to re-observe its own import.
 
+**S7 notes (`blocked_services` promoted to live, provider v3.80.0):**
+
+- **The probe is pinned to `>= 3.80.0`** — the first release carrying the `x-f5xc-wire-name` contract
+  (specs `v2.1.194`). `blocked_services` cannot round-trip on any earlier provider.
+- **F5's runtime really does use the misspelled key.** Until now that claim rested on a code comment.
+  The live read-back of `GET /api/config/namespaces/system/securemesh_site_v2s/<probe>` returns
+  `spec.blocked_services.blocked_sevice[]` — the corrected `blocked_service` spelling is **not** what
+  the API emits, so the wire-name mapping is load-bearing, not decorative. The Terraform-facing name
+  stays `blocked_service` (`tfsdk` tag unchanged), so no HCL rename was needed.
+- **`service_choice` keeps exactly ONE member.** The pre-S7 config set `ssh {}` *and*
+  `web_user_interface {}` in the same `blocked_service`; the read-back came back with only `ssh`, and
+  the provider's absent-marker suppression hid that silent drop behind a 0-change plan. The members are
+  now an enum selector (`blocked_service_arm` = `dns` | `ssh` | `web_user_interface`) and each was
+  live-cycled on its own: apply → 0-change re-plan → `state rm` → `import` → 0-change plan → destroy,
+  with the read-back returning the configured member every time.
+- **`network_type` round-trips on a non-default value too** — `VIRTUAL_NETWORK_SITE_LOCAL_INSIDE` was
+  applied and echoed back unchanged, so the leaf is genuinely persisted rather than defaulted.
+- **Two unrelated v3.80.0 schema deltas had to be absorbed** to keep the probe valid and import-clean at
+  the pinned version: SecretType lost `secret_encoding_type` (see the S5 note), and
+  `perf_mode_l7_enhanced` gained a `{jumbo_disabled | jumbo_enabled}` sub-oneof whose server-materialized
+  `jumbo_disabled` marker re-planned as a removal after import until the config declared it
+  (`l7_jumbo_arm`). Both are upstream spec changes, not probe defects.
+- **Live proof (registry v3.80.0, `dev_overrides` off, disposable probes only):**
+  `cov-probe-s7-bs-ssh-02`, `cov-probe-s7-bs-web-user-interface-02`, `cov-probe-s7-bs-dns-02`,
+  `cov-probe-s7-nettype-inside-01`, `cov-probe-s7-jumbo-enabled-01` and `cov-probe-s7-defaults-01` each
+  ran the full cycle and were destroyed. The live demo sites were never in state and never touched.
+
 <!--
 Slice roadmap:
 - S0: probe workspace + this matrix (done).
@@ -250,4 +287,7 @@ Slice roadmap:
 - S3: interface/addressing oneof arms (interface_choice ethernet/bond/vlan; address_choice dhcp_client/static_ip/no_ipv4_address; ipv6_address_choice; monitoring_choice; s2s_iface_choice) — DONE (verify.sh + live matrix; provider v3.76.0).
 - S4: networking/services top-level oneof arms (blocked_services, dns/ntp, enterprise proxy, proxy bypass, url categorization, management network, load_balancing vip_vrrp_mode, s2s slo/sli, forward proxy, network policy, log streaming/receiver, site mesh group, segment_vrf) — DONE (verify.sh + live matrix; provider v3.76.0).
 - S5: site-mode oneof arms (offline survivability, performance mode, re_select, software_settings versions, kubernetes_upgrade_drain, admin_user_credentials) — DONE (verify.sh + live matrix; provider v3.76.0). S5a live: perf_mode_l3_enhanced, os/sw versions (create-only), offline enable, enable_upgrade_drain (reclassified). S5b plan-only (400): admin_user_credentials, specific_re.
+- S7: labels workaround retired (provider v3.77.5) + blocked_services promoted plan-only -> live once the
+  x-f5xc-wire-name contract shipped (provider v3.80.0), including the blocked_service service_choice
+  members and the new perf_mode_l7_enhanced jumbo sub-oneof — DONE (verify.sh + live matrix).
 -->

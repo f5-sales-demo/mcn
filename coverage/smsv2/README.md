@@ -20,7 +20,17 @@ terraform destroy -auto-approve -var probe_name=cov-probe-s0-01
 ```
 
 Use a **fresh `-var probe_name=` per run** — a stale name collides with the tenant's
-existing StatusObject and 500s on create.
+existing StatusObject and 500s on create. XC site names reject underscores, so keep them
+hyphenated.
+
+To run against the **pinned registry release** instead of the local build (what the S7 live proof
+used), point Terraform at an empty CLI config so `dev_overrides` is out of the way, then `init`:
+
+```bash
+: > /tmp/tfrc-registry-only.hcl
+export TF_CLI_CONFIG_FILE=/tmp/tfrc-registry-only.hcl
+terraform init -upgrade   # installs the version versions.tf pins (>= 3.80.0)
+```
 
 ## Variables
 
@@ -37,6 +47,8 @@ existing StatusObject and 500s on create.
 | `ipv6_arm` | `no_ipv6_address` | eth0 ipv6_address_choice oneof: `no_ipv6_address` \| `ipv6_auto_config` \| `static_ipv6_address`. `no_ipv6_address` is live; the other two are plan-only (400 live). |
 | `monitor_arm` | `monitor_disabled` | eth0 monitoring_choice oneof: `monitor` \| `monitor_disabled`. Both live-appliable. |
 | `s2s_iface_arm` | `disabled` | eth0 site_to_site_connectivity_interface_choice oneof: `disabled` \| `enabled`. Both live-appliable. |
+| `blocked_service_arm` | `ssh` | blocked_service service_choice oneof: `dns` \| `ssh` \| `web_user_interface`. All three live-appliable; F5 keeps exactly one member. |
+| `l7_jumbo_arm` | `jumbo_disabled` | perf_mode_l7_enhanced jumbo sub-oneof: `jumbo_disabled` \| `jumbo_enabled`. Both live-appliable; `jumbo_disabled` is the server default. |
 
 ## S3 interface / addressing oneof arms
 
@@ -85,15 +97,13 @@ the pre-S4 base (verified: applied the committed base, swapped in the S4 code, d
 **Live-appliable (S4a)** — apply→idempotent→import (0-change)→destroy on the
 single-node `azure` probe: `f5_proxy`, `custom_dns`, `custom_ntp`, `custom_proxy_bypass`,
 `no_proxy_bypass`, `enable_url_categorization`, `disable_url_categorization`,
-`disable_management_network`, `load_balancing.vip_vrrp_mode` (ENABLE + DISABLE), and
-`site_mesh_group_on_slo` all-empty (`no_site_mesh_group{} sm_connection_public_ip{}`).
+`disable_management_network`, `load_balancing.vip_vrrp_mode` (ENABLE + DISABLE),
+`site_mesh_group_on_slo` all-empty (`no_site_mesh_group{} sm_connection_public_ip{}`), and
+`blocked_services` (live since S7 — see below).
 
 **Plan-only** — proven at plan via `validation.tftest.hcl` positive asserts (would 400 / needs a ref
 live):
 
-- `blocked_services` — apply hits a provider round-trip bug (`Provider produced inconsistent result
-  after apply: .blocked_services.blocked_service block count changed from 1 to 0`); the `network_type`
-  `OneOf` validator is still reject-proven.
 - `enable_ha`, `enable_management_network` — 400 on a single-node probe.
 - `active_forward_proxy_policies`, `active_enhanced_firewall_policies`, `log_receiver_with_net`,
   `dc_cluster_group_sli`, `dc_cluster_group_slo`, `site_mesh_group_on_slo` (ref variant) — ObjectRefType
@@ -140,8 +150,9 @@ single-node probe, so proven at plan via `validation.tftest.hcl` positive assert
 - `admin_user_credentials` — needs node local services / a multi-node CE. Its `admin_password`
   SecretType uses `clear_secret_info { url = "string:///<base64>" }` — the only dependency-free
   backend (blindfold/vault/wingman need external providers → 400) — with a base64 of a **dummy
-  throwaway placeholder**; NO real secret is committed. `ssh_key` `LengthAtMost(8192)` +
-  `secret_encoding_type` `OneOf(EncodingNone, EncodingBase64)` are reject-proven at plan.
+  throwaway placeholder**; NO real secret is committed. `ssh_key` `LengthAtMost(8192)` is
+  reject-proven at plan. The `secret_encoding_type` leaf S5 covered is gone — the upstream F5 spec
+  dropped it from SecretType, so provider v3.80.0 has no such attribute.
 - `re_select.specific_re` — `primary_re` must name a real RE geography (a dummy name 400s);
   `primary_re` `LengthBetween(1, 64)` reject-proven at plan.
 
@@ -158,11 +169,41 @@ terraform plan                  -var probe_name=cov-probe-s5-x -var extended_arm
 terraform destroy -auto-approve -var probe_name=cov-probe-s5-x -var extended_arms=false -var os_arm=operating_system_version -var sw_arm=volterra_software_version
 ```
 
+## S7 `blocked_services` (provider >= 3.80.0)
+
+`versions.tf` pins `>= 3.80.0` — the first release carrying the `x-f5xc-wire-name` contract (specs
+`v2.1.194`). On anything older, `blocked_services` fails the apply with `Provider produced inconsistent
+result after apply` (provider #1257): the provider sent JSON key `blocked_service` while F5's runtime
+key is the misspelled `blocked_sevice`, so the API dropped the block. Verified against the live API —
+`GET /api/config/namespaces/system/securemesh_site_v2s/<probe>` returns
+`spec.blocked_services.blocked_sevice[]`, so the wire-name mapping is load-bearing. The
+Terraform-facing name is unchanged (`blocked_service`).
+
+`blocked_service`'s `service_choice` members (`dns`, `ssh`, `web_user_interface`) are an enum selector
+because **F5 keeps exactly one** — configuring two silently dropped one, and the provider's
+absent-marker suppression hid the drop behind a 0-change plan.
+
+```bash
+cd coverage/smsv2
+set -a; source /tmp/mcn-xcsh.env; set +a
+terraform apply   -auto-approve -var probe_name=cov-probe-s7-bs-x -var extended_arms=false -var services_arm=blocked_services -var blocked_service_arm=ssh
+terraform plan                  -var probe_name=cov-probe-s7-bs-x -var extended_arms=false -var services_arm=blocked_services -var blocked_service_arm=ssh  # No changes
+terraform state rm xcsh_securemesh_site_v2.probe
+terraform import  -var probe_name=cov-probe-s7-bs-x -var extended_arms=false -var services_arm=blocked_services -var blocked_service_arm=ssh xcsh_securemesh_site_v2.probe system/cov-probe-s7-bs-x
+terraform plan                  -var probe_name=cov-probe-s7-bs-x -var extended_arms=false -var services_arm=blocked_services -var blocked_service_arm=ssh  # No changes
+terraform destroy -auto-approve -var probe_name=cov-probe-s7-bs-x -var extended_arms=false -var services_arm=blocked_services -var blocked_service_arm=ssh
+```
+
+Two unrelated v3.80.0 schema deltas came with the pin: SecretType lost `secret_encoding_type`, and
+`perf_mode_l7_enhanced` gained a `{jumbo_disabled | jumbo_enabled}` sub-oneof. The server materializes
+`jumbo_disabled`, so `l7_jumbo_arm` declares it — an undeclared marker re-plans as a removal after
+import.
+
 ## S1 numeric-validation gate
 
 ```bash
 cd coverage/smsv2
-./verify.sh   # credential-free: mocks the xcsh provider; the real v3.75.0 schema validators fire at plan
+./verify.sh   # credential-free: mocks the xcsh provider; the real v3.80.0 schema validators fire at plan
 ```
 
 `verify.sh` proves the SMSv2 numeric validators both accept valid bounds and reject
