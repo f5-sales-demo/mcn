@@ -18,11 +18,10 @@ run "site_and_interface_binding" {
     rs_peer_ips    = ["10.0.4.4", "10.0.4.5"]
     ce_asn         = 64512
     rs_asn         = 65515
-    # Site-focused run. bgp disabled here because the real 71-char interface name
-    # asserted below exceeds the provider's 63-char object-ref cap (blocker, see
-    # modules/xc-site/main.tf). Asserting the OUTPUT is fine — outputs are not
-    # length-validated — so this still proves the interface-name binding string.
-    enable_bgp = false
+    # enable_bgp left at its true default. It used to be forced false because the real
+    # 71-char interface name asserted below exceeded the provider's object-ref name cap;
+    # v3.74.0 relaxed that cap, so the real name now validates as an INPUT, not merely as
+    # an (unvalidated) output. See modules/xc-site/main.tf.
   }
 
   assert {
