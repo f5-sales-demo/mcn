@@ -8,9 +8,9 @@ mock_provider "xcsh" {}
 
 variables {
   deployer = "tester"
-  # enable_bgp=false: work around the provider 63-char object-ref name cap (see
-  # main.tf). The LB/advertise/origin-pool under test are independent of bgp.
-  enable_bgp     = false
+  # enable_bgp left at its true default; the LB/advertise/origin-pool under test are
+  # independent of bgp either way. It used to be forced false only to dodge the provider's
+  # object-ref name length cap, relaxed in v3.74.0.
   ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   # Pinned rather than inherited: `terraform test` also reads the gitignored
   # terraform.tfvars, so an assertion against a hard-coded namespace literal would

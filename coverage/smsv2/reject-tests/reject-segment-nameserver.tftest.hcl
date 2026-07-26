@@ -1,6 +1,6 @@
 # DESIGNED TO FAIL — proves segment_vrf.segment_config.nameserver validator IPv4Validator() rejects
 # a malformed IPv4. Run via verify.sh (not plain terraform test). mock_provider => no credentials;
-# validator fires from the real v3.76.0 schema at plan. segment_vrf_arm=inline renders the
+# validator fires from the real provider schema at plan. segment_vrf_arm=inline renders the
 # segment_config so the nameserver leaf is reachable. The malformed value ("300.2.2.2") differs from
 # the S2 local_vrf nameserver reject ("300.1.1.1") so its diagnostic is unambiguous. segment_nameserver
 # has no terraform validation so the provider IPv4 validator fires.

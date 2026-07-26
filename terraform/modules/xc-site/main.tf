@@ -142,18 +142,18 @@ resource "xcsh_registration_approval" "this" {
 # Route Server (ASN var.rs_asn), one external peer per Route Server virtual
 # router IP, each bound to the explicit SLO interface.
 #
-# KNOWN BLOCKER (provider bug — tracked under epic xcsh #1207 alongside the
-# #1205/#1206 token/approval gaps): the provider caps EVERY object-ref name at
-# stringvalidator.LengthBetween(1, 63) (see terraform-provider-xcsh
-# internal/provider/bgp_resource.go). The interface object XC auto-generates for
-# the explicit SLO interface is 71 chars
-# (ves-io-securemesh-site-v2-<site>-network-<hostname>-eth0-0), which the API
-# accepts (see AS-BUILT.md §3.2 / the live bgp JSON) but the provider rejects at
-# plan/apply time. No naming choice inside the mandated scheme fits (even minimal
-# names land at ~65), so the pure-Terraform BGP binding cannot apply until the
-# provider validator is relaxed. enable_bgp defaults true (faithful intent); the
-# plan tests set it false to work around the provider bug, and a dedicated bgp
-# test verifies the HCL/schema wiring with a shortened interface name.
+# NOT BLOCKED — and nothing about this arm is gated any more. The object-ref name
+# length limit that used to block it is gone: the provider relaxed it to
+# stringvalidator.LengthBetween(1, 128) in v3.74.0, so the 71-char interface object
+# XC auto-generates for the explicit SLO interface
+# (ves-io-securemesh-site-v2-<site>-network-<hostname>-eth0-0) validates. The floor
+# that guarantees it is declared once, in versions.tf — do not restate the number.
+#
+# var.enable_bgp therefore defaults true and every test now runs with that default;
+# it survives only as an escape hatch for deploying the topology without BGP. It is
+# NOT an ordering gate: var.interface_name is derived statically from ce_topology, and
+# XC accepts a bgp object naming an interface that does not exist yet (it converges
+# once the CE is up — see the deploy ordering in the root main.tf).
 resource "xcsh_bgp" "this" {
   count = var.enable_bgp ? 1 : 0
 

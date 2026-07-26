@@ -1,7 +1,7 @@
 # DESIGNED TO FAIL — proves interface_list.mtu validator AtMost(16384) rejects >16384.
 # One reject run per file: a failing run halts the rest of its own file, so each leaf gets
 # its own file to guarantee its validator fires. Run via verify.sh (not plain terraform test).
-# mock_provider => no credentials; validator fires from the real v3.75.0 schema at plan.
+# mock_provider => no credentials; validator fires from the real provider schema at plan.
 mock_provider "xcsh" {}
 
 run "reject_mtu_over_max" {

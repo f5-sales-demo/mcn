@@ -281,7 +281,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
   }
 
   # S4 segment_vrf (plan-only — a live segment_vrf needs a Segment object ref the provider cannot yet
-  # inject, specs #1053). Renders one entry exposing the segment_config.nameserver IPv4Validator leaf.
+  # inject, api-specs-enriched #1053). Renders one entry exposing the segment_config.nameserver IPv4Validator leaf.
   dynamic "segment_vrf" {
     for_each = var.segment_vrf_arm == "inline" ? [1] : []
     content {
@@ -438,8 +438,8 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # var.perf_arm. perf_mode_l7_enhanced (default) carries its own jumbo sub-oneof
   # {jumbo_disabled | jumbo_enabled}, new in provider v3.80.0 (specs v2.1.194) and keyed on
   # var.l7_jumbo_arm; the server materializes jumbo_disabled, so the default declares it and the
-  # object stays import-clean. perf_mode_l3_enhanced renders its no_jumbo{} sub-oneof member
-  # (jumbo|no_jumbo). Both are S5a live.
+  # object stays import-clean. perf_mode_l3_enhanced carries its OWN, differently spelled jumbo
+  # sub-oneof {jumbo | no_jumbo}, keyed on var.l3_jumbo_arm. Both are S5a live.
   performance_enhancement_mode {
     dynamic "perf_mode_l7_enhanced" {
       for_each = var.perf_arm == "perf_mode_l7_enhanced" ? [1] : []
@@ -459,7 +459,15 @@ resource "xcsh_securemesh_site_v2" "probe" {
     dynamic "perf_mode_l3_enhanced" {
       for_each = var.perf_arm == "perf_mode_l3_enhanced" ? [1] : []
       content {
-        no_jumbo {}
+        dynamic "no_jumbo" {
+          for_each = var.l3_jumbo_arm == "no_jumbo" ? [1] : []
+          content {}
+        }
+
+        dynamic "jumbo" {
+          for_each = var.l3_jumbo_arm == "jumbo" ? [1] : []
+          content {}
+        }
       }
     }
   }

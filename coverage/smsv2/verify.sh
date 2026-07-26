@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # S1 numeric- + S2 string-validation gate for the SMSv2 coverage probe.
 #
-# Proves the provider v3.80.0 SMSv2 numeric AND string validators both ACCEPT valid input and
-# REJECT invalid input, entirely credential-free (mock_provider fires the real schema
-# validators at plan). This wraps `terraform test` because Terraform's `expect_failures`
-# only captures user-defined custom conditions, not provider schema attribute validators, so
-# a rejection cannot be asserted as a passing test run natively.
+# Proves the SMSv2 numeric AND string validators both ACCEPT valid input and REJECT invalid
+# input, entirely credential-free (mock_provider fires the real schema validators at plan).
+# The version under test is whatever `terraform init` resolved against the floor in versions.tf
+# (the lock file is gitignored) — deliberately NOT restated here, because the per-file copies of
+# it drifted across four releases before S8 removed them.
+#
+# This wraps `terraform test` because Terraform's `expect_failures` only captures user-defined
+# custom conditions, not provider schema attribute validators, so a rejection cannot be asserted
+# as a passing test run natively.
 #
 #   Phase 1 (accept): plain `terraform test` runs the root accept case -> must exit 0.
 #   Phase 2 (reject): `terraform test -test-directory=reject-tests` runs the DESIGNED-TO-FAIL
@@ -28,7 +32,8 @@ if ! terraform test; then
 fi
 
 echo
-echo "== Phase 2: reject out-of-range input (terraform test -test-directory=reject-tests) =="
+reject_files="$(find reject-tests -name '*.tftest.hcl' | wc -l | tr -d ' ')"
+echo "== Phase 2: reject out-of-range input (${reject_files} cases via terraform test -test-directory=reject-tests) =="
 reject_out="$(terraform test -test-directory=reject-tests 2>&1)"
 reject_rc=$?
 echo "${reject_out}"
@@ -71,6 +76,7 @@ declare -a expected=(
   "software_settings.os.operating_system_version string length must be at most 20, got: 21"
   "software_settings.sw.volterra_software_version string length must be at most 20, got: 21"
   "must be between 1 and 5000, got: 5001"
+  "must be between 1 and 5000, got: 0"
   "must be between 0 and 900, got: 901"
   "re_select.specific_re.primary_re string length must be between 1 and 64, got: 65"
   "admin_user_credentials.ssh_key string length must be at most 8192, got: 8200"
@@ -83,10 +89,8 @@ for msg in "${expected[@]}"; do
 done
 
 echo
-echo "PASS: SMSv2 validators accept valid input and reject all four numeric leaves plus the"
-echo "      mac / ip_address(CIDR) / default_gw(IP) / nameserver+vip(IPv4) / node-type string leaves,"
-echo "      the S3 interface-arm leaves (bond devices SizeBetween(1, 8) / static_ipv6 CIDR),"
-echo "      the S4 networking/services leaves (vip_vrrp_mode OneOf / blocked_services network_type"
-echo "      OneOf / custom_proxy proxy_ip_address IPv4 / segment_vrf nameserver IPv4), and the S5"
-echo "      site-mode leaves (os/sw version LengthAtMost(20) / drain count+timeout Between / specific_re"
-echo "      primary_re LengthBetween(1, 64) / ssh_key LengthAtMost(8192)."
+# Count-driven, NOT a hand-maintained prose list: the previous summary re-listed the leaves and
+# drifted out of step with `expected` (it still said "all four numeric leaves" and left a
+# parenthesis unclosed). The array above is the single source of truth for what is asserted.
+echo "PASS: the accept case plans clean and all ${#expected[@]} asserted validator diagnostics were emitted"
+echo "      by the ${reject_files} reject cases in reject-tests/ (see the 'expected' array for the exact list)."
