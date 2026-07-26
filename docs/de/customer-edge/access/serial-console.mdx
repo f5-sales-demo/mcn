@@ -3,31 +3,31 @@ title: Serielle Konsole
 description: >-
   Der Break-Glass-Zugang zu einem Customer Edge, der sich nie registriert hat
   und über den die Debug-API nicht erreichbar ist. Behandelt die
-  Boot-Diagnose-Voraussetzung, die Verfügbarkeitsprüfung per Skript sowie zwei
-  Fehler, die wie Ausfälle aussehen, es aber nicht sind.
+  Boot-Diagnose-Voraussetzung, die Überprüfung der Verfügbarkeit per Skript
+  sowie zwei Fehler, die wie Ausfälle aussehen, aber keiner sind.
 sidebar:
   order: 30
   label: Serielle Konsole
 i18n:
-  sourceHash: 872d359be18d
+  sourceHash: 80d13f3a4194
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-Die serielle Azure-Konsole bindet sich über die Azure-Plattform an den emulierten seriellen Port des Knotens an. Sie durchläuft weder die F5 Distributed Cloud-Steuerungsebene, noch die Datenebene des Knotens oder einen anderen Netzwerkpfad, den der Knoten kontrolliert – genau deshalb funktioniert sie, wenn nichts anderes mehr funktioniert.
+Die serielle Azure-Konsole verbindet sich über die Azure-Plattform mit dem emulierten seriellen Port des Knotens. Sie durchläuft weder die F5 Distributed Cloud-Steuerungsebene, die Datenebene des Knotens noch irgendeinen Netzwerkpfad, den der Knoten kontrolliert — genau deshalb funktioniert sie, wenn nichts anderes mehr funktioniert.
 
-Nutzen Sie sie, wenn ein CE **nie hochgefahren ist**: die Registrierung fehlgeschlagen ist, der Standort im Mandanten fehlt oder der Knoten läuft, aber keine Route nach außen hat. In all diesen Fällen hat die [Debug-API](../debug-api/) keinen Tunnel, über den sie weitergeleitet werden könnte, und SSH ist auf dem Knoten im Auslieferungszustand gesperrt.
+Greifen Sie darauf zurück, wenn ein CE **nie gestartet ist**: Die Registrierung ist fehlgeschlagen, der Standort fehlt im Mandanten, oder der Knoten ist zwar aktiv, hat aber keine ausgehende Route. In all diesen Fällen hat die [Debug-API](../debug-api/) keinen Tunnel, über den sie kommunizieren könnte, und SSH ist auf dem Knoten im Auslieferungszustand deaktiviert.
 
 ## Voraussetzung: Boot-Diagnose
 
-Azure erfordert Boot-Diagnose auf der VM, bevor eine serielle Konsole angebunden werden kann. Dies wird durch `terraform/modules/ce-node` aktiviert:
+Azure erfordert Boot-Diagnose auf der VM, bevor eine serielle Konsole angehängt werden kann. Dies wird durch `terraform/modules/ce-node` aktiviert:
 
 ```hcl
 boot_diagnostics {}
 ```
 
-Ein leerer Block wählt von Azure verwalteten Speicher, sodass kein Diagnosespeicherkonto, keine Lebenszyklusrichtlinie oder kein Zugriffsschlüssel verwaltet werden muss. Überprüfung an einem Knoten:
+Ein leerer Block wählt von Azure verwalteten Speicher aus, sodass kein Diagnosespeicherkonto, keine Lebenszyklusrichtlinie und kein Zugriffsschlüssel verwaltet werden müssen. Bestätigen Sie dies auf einem Knoten:
 
 ```bash
 az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
@@ -38,20 +38,20 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 ```
 
 <Aside type="caution" title="Die Aktivierung wirkt nicht rückwirkend">
-Die Boot-Diagnose erfasst das serielle Protokoll **beim Booten**. Das nachträgliche Aktivieren für eine bereits laufende VM erzeugt kein Protokoll für den bereits abgeschlossenen Startvorgang, weshalb `az vm boot-diagnostics get-boot-log` folgende Antwort liefert:
+Die Boot-Diagnose erfasst das serielle Protokoll **beim Booten**. Das Aktivieren für eine bereits laufende VM erzeugt kein Protokoll für den bereits erfolgten Bootvorgang, daher antwortet `az vm boot-diagnostics get-boot-log` mit:
 
 ```
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
-Dies ist zu erwarten und kein Fehler. Ein Boot-Protokoll ist verfügbar, sobald der Knoten das nächste Mal neu gestartet wird. Das direkte Anschließen der Konsole hingegen funktioniert sofort – es ist nicht vom Protokoll abhängig.
+Das ist erwartet und kein Fehler. Ein Boot-Protokoll ist verfügbar, nachdem der Knoten das nächste Mal neu startet. Das direkte Anhängen der Konsole hingegen funktioniert sofort — es ist nicht vom Protokoll abhängig.
 </Aside>
 
 ## Verfügbarkeit ohne Terminal prüfen
 
-Das Anschließen erfordert eine interaktive Sitzung, ob es jedoch möglich *wäre*, lässt sich mit zwei API-Aufrufen feststellen. Beide sind für eine Integritätsprüfung nützlich.
+Das Anhängen erfordert eine interaktive Sitzung, aber ob es *möglich wäre* anzuhängen, lässt sich mit zwei API-Aufrufen prüfen. Beide sind für eine Integritätsprüfung nützlich.
 
-Der Dienst muss für das Abonnement aktiviert sein – ein Administrator kann ihn mandantenweit deaktivieren:
+Der Dienst muss für das Abonnement aktiviert sein — ein Administrator kann ihn mandantenweit deaktivieren:
 
 ```bash
 az rest --method get --url \
@@ -62,7 +62,7 @@ az rest --method get --url \
 { "properties": { "disabled": false } }
 ```
 
-Anschließend wird eine Verbindung zum seriellen Port eines bestimmten Knotens angefragt:
+Dann einen Verbindungsversuch zum seriellen Port eines bestimmten Knotens anfordern:
 
 ```bash
 az rest --method post \
@@ -70,13 +70,13 @@ az rest --method post \
   "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
 ```
 
-Ein `connectionString`, der mit `wss://` beginnt – in dieser Bereitstellung `eastus.gateway.serialconsole.azure.com` – bedeutet, dass die Konsole aktuell anschließbar ist. Bevor die Boot-Diagnose aktiviert wurde, hatte dieser Aufruf nichts, woran er sich anschließen konnte.
+Ein `connectionString`, der mit `wss://` beginnt — in dieser Deployment-Umgebung `eastus.gateway.serialconsole.azure.com` — bedeutet, dass die Konsole gerade angehängt werden kann. Vor der Aktivierung der Boot-Diagnose hatte dieser Aufruf nichts, womit er sich verbinden konnte.
 
-<Aside type="danger" title="Diese Verbindungszeichenfolge ist ein Anmeldedatum">
-Es handelt sich um ein kurzlebiges Bearer-Token, das in eine URL eingebettet ist. Protokollieren Sie es nicht, fügen Sie es nicht in ein Ticket ein und übergeben Sie es nicht an ein Versionsverwaltungssystem. Geben Sie nur den Host aus, wenn Sie demonstrieren, dass der Aufruf funktioniert hat.
+<Aside type="danger" title="Dieser Verbindungsstring ist ein Zugangsdatum">
+Es handelt sich um ein kurzlebiges Bearer-Token, das in eine URL eingebettet ist. Protokollieren Sie es nicht, fügen Sie es nicht in ein Ticket ein und committen Sie es nicht. Geben Sie beim Nachweis eines erfolgreichen Aufrufs nur den Host aus.
 </Aside>
 
-## Anschließen
+## Anhängen
 
 <Steps>
 
@@ -86,18 +86,30 @@ Es handelt sich um ein kurzlebiges Bearer-Token, das in eine URL eingebettet ist
    az extension add --name serial-console
    ```
 
-2. Anschließen:
+2. Anhängen:
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-3. Sie gelangen zur eigenen Anmeldeaufforderung des Knotens, nicht zu einer Shell. Dies ist die Site-CLI und erfordert auf dem Knoten hinterlegte Anmeldedaten – das Admin-Passwort aus der Bereitstellung oder eines, das über den Endpunkt zur Passwortänderung gesetzt wurde. Die serielle Konsole beweist, dass der *Kanal* funktioniert; sie umgeht die Authentifizierung nicht.
+3. Sie landen am eigenen Login-Prompt des Knotens, nicht in einer Shell. Dies ist die Site CLI und erfordert auf dem Knoten hinterlegte Anmeldedaten — das Admin-Passwort aus der Provisionierung oder eines, das über den Change-Password-Endpunkt gesetzt wurde. Die serielle Konsole beweist, dass der *Kanal* funktioniert; sie umgeht die Authentifizierung nicht.
 
 </Steps>
 
-<Aside type="caution" title="Ein echtes Terminal ist erforderlich">
-`az serial-console connect` versetzt das Terminal in den Raw-Modus und kann daher nicht aus einem Skript, einer Pipeline oder einem Kontext ohne TTY ausgeführt werden. Es schlägt clientseitig fehl, bevor Azure kontaktiert wird:
+Aufgezeichnet von `f5-xc-ce-vm-01`, in der Mitte gekürzt, wo die systemd-Unit-Ausgabe nichts Wesentliches beiträgt:
+
+```text file=../../../_data/serial-console-boot.txt
+```
+
+Vier Dinge in diesem Mitschnitt sind es wert, beachtet zu werden, da sie Fragen beantworten, die die Debug-API nicht beantworten kann:
+
+- **cloud-init abgeschlossen** — `Datasource DataSourceAzure`, fertiggestellt nach 22,37 Sekunden. Ein Knoten, der sich nie registriert, ist hier meist gescheitert, und genau hier sieht man es.
+- **Beide Container-Laufzeitumgebungen gestartet.** `Container Runtime Interface for OCI (CRI-O)` und `Docker Application Container Engine` zeigen jeweils `[ OK ]`, was der boot-zeitliche Nachweis des Dual-Runtime-Verhaltens ist, das Nutzer bei [crictl](../../commands/system/crictl/) und [docker](../../commands/system/docker/) überrascht.
+- **`VP Manager image load` und `Argo Watch service`** — `vpm` und Argo starten.
+- **Der Prompt ist der eigene des Knotens**, hinter seinem Audit-Banner. Die serielle Konsole liefert einen Login-Prompt, keine Sitzung.
+
+<Aside type="caution" title="Das interaktive Anhängen erfordert ein echtes Terminal — lässt sich aber skripten">
+`az serial-console connect` versetzt das Terminal in den Raw-Modus und kann daher nicht aus einer Pipeline oder einem Kontext ohne TTY ausgeführt werden. Es schlägt clientseitig fehl, noch bevor Azure kontaktiert wird:
 
 ```
 ERROR: (19, 'Operation not supported by device')
@@ -105,14 +117,30 @@ ERROR: (19, 'Operation not supported by device')
     GV.serial_console_instance.launch_console()
 ```
 
-Dieser Traceback betrifft die Terminalverarbeitung, keinen Ausfall der seriellen Konsole – die beiden oben genannten API-Aufrufe melden die Konsole weiterhin als verfügbar. Wenn Sie ein automatisierbares Signal benötigen, verwenden Sie diese stattdessen, anstatt das Anschließen zu skripten.
+Dieser Traceback betrifft die Terminal-Behandlung, nicht einen Ausfall der seriellen Konsole.
+
+Das Anhängen selbst ist jedoch **automatisierbar** — steuern Sie den WebSocket direkt statt über die CLI. Der obige Mitschnitt wurde auf diese Weise aufgezeichnet, ohne TTY. Siehe `scripts/serial_console_capture.py` — so würden Sie Boot-Nachweise von einem Knoten sammeln, der sich nicht registriert hat, ohne dass ein Mensch an einem Terminal sitzt.
 </Aside>
 
-## Was hier sichtbar ist, was die API nicht zeigen kann
+<Aside type="caution" title="Wiederholen Sie es: Das Gateway lehnt ungefähr jeden zweiten Versuch ab">
+Das erste Frame des Gateways ist eine Challenge, keine Ausgabe, und der Client beantwortet sie mit einem Bearer-Token. Selbst wenn das korrekt durchgeführt wird, schließt sich der Socket häufig sofort:
 
-- **cloud-init** beim Ausführen, beim Fehlschlagen oder wenn es nie gestartet wurde – die übliche Ursache eines Knotens, der sich nie registriert.
-- **Registrierungsversuche** gegenüber `register.ves.volterra.io`, einschließlich Konfigurationsfehlern oder eines vom Mandanten abgelehnten Tokens.
-- **Kernel- und Boot-Meldungen** aus der Zeit, bevor ein Agent gestartet war.
+```
+[close] code=1011 reason=Connection not trusted
+```
+
+Gemessen über wiederholte Versuche auf drei Knoten wechselt dies ab: Auf eine Ablehnung folgt ein Erfolg auf demselben Knoten. Das deutet darauf hin, dass eine vorherige Sitzung noch gehalten wird und der abgelehnte Versuch diese freigibt.
+
+**Es ist kein Problem mit den Zugangsdaten**, trotz der Meldung. Normalerweise reicht ein erneuter Versuch, weshalb `scripts/serial_console_capture.py` standardmäßig wiederholt.
+
+Verwenden Sie ohnehin ein einzelnes Token sowohl für die Sitzungsanforderung als auch für die Challenge, entsprechend der `az`-Erweiterung. Das ist die korrekte Vorgehensweise, aber nicht die Ursache dieses Problems.
+</Aside>
+
+## Was Sie hier sehen können, was die API nicht zeigen kann
+
+- **cloud-init** läuft, schlägt fehl oder startet gar nicht — die übliche Ursache für einen Knoten, der sich nie registriert.
+- **Registrierungsversuche** bei `register.ves.volterra.io`, einschließlich eines Konfigurationsfehlers oder eines vom Mandanten abgelehnten Tokens.
+- **Kernel- und Boot-Meldungen** aus der Zeit, bevor ein Agent ausgeführt wurde.
 - Den Knoten, wenn er **keinen funktionierenden Netzwerkpfad** hat, was jeden anderen Zugangsweg ausschließt.
 
-Für einen Knoten, der `ONLINE` ist, wird die Debug-API bevorzugt: Sie ist skriptfähig, erzeugt Nachweise, die erneut ausgeführt werden können, und belegt nicht den einzelnen seriellen Port.
+Für einen Knoten, der `ONLINE` ist, bevorzugen Sie die Debug-API: Sie ist skriptbar, liefert Nachweise, die Sie wiederholen können, und belegt nicht den einzelnen seriellen Port.
