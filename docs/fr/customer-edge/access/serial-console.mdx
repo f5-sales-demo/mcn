@@ -1,42 +1,42 @@
 ---
 title: Console série
 description: >-
-  La voie de secours pour accéder à un Customer Edge qui n'a jamais été
-  enregistré, là où l'API de débogage ne peut pas atteindre. Couvre le prérequis
-  de diagnostics de démarrage, comment vérifier la disponibilité depuis un
-  script, et deux échecs qui ressemblent à des pannes mais n'en sont pas.
+  Le recours ultime pour accéder à un Customer Edge qui n'a jamais été
+  enregistré, quand l'API de débogage est inaccessible. Couvre le prérequis de
+  diagnostic de démarrage, comment vérifier la disponibilité depuis un script,
+  et deux pannes apparentes qui n'en sont pas.
 sidebar:
   order: 30
   label: Console série
 i18n:
-  sourceHash: 872d359be18d
+  sourceHash: 80d13f3a4194
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-La console série Azure se connecte au port série émulé du nœud via la
-Plateforme Azure. Elle ne traverse pas le plan de contrôle F5 Distributed Cloud, le plan de
-données du nœud, ni aucun chemin réseau que le nœud contrôle — c'est précisément pour
-cette raison qu'elle fonctionne quand rien d'autre ne fonctionne.
+La console série Azure se connecte au port série émulé du nœud via la Plateforme
+Azure. Elle ne transite pas par le plan de contrôle de F5 Distributed Cloud, le plan
+de données du nœud, ni aucun chemin réseau contrôlé par le nœud — c'est précisément
+pourquoi elle fonctionne quand rien d'autre ne fonctionne.
 
-Utilisez-la lorsqu'un CE **n'a jamais démarré** : l'enregistrement a échoué, le site est absent
-du tenant, ou le nœud est actif mais n'a aucune route de sortie. Dans tous ces cas,
-l'[API de débogage](../debug-api/) n'a aucun tunnel par lequel relayer, et SSH est fermé sur le
-nœud tel qu'il est livré.
+Utilisez-la lorsqu'un CE **n'a jamais démarré** : l'enregistrement a échoué, le site
+est absent du tenant, ou le nœud est opérationnel mais ne dispose d'aucune route de
+sortie. Dans tous ces cas, l'[API de débogage](../debug-api/) ne dispose d'aucun
+tunnel pour relayer les données, et SSH est fermé sur le nœud tel que livré.
 
-## Prérequis : diagnostics de démarrage
+## Prérequis : diagnostic de démarrage
 
-Azure exige que les diagnostics de démarrage soient activés sur la VM avant de pouvoir
-attacher une console série. Cela est activé par `terraform/modules/ce-node` :
+Azure exige que les diagnostics de démarrage soient activés sur la VM avant de
+pouvoir attacher une console série. Cela est activé par `terraform/modules/ce-node` :
 
 ```hcl
 boot_diagnostics {}
 ```
 
-Un bloc vide sélectionne le stockage géré par Azure, de sorte qu'il n'y a pas de compte
-de stockage de diagnostics, de politique de cycle de vie ou de clé d'accès à gérer.
-Vérifiez-le sur un nœud :
+Un bloc vide sélectionne le stockage géré par Azure, de sorte qu'il n'y a aucun
+compte de stockage de diagnostics, politique de cycle de vie ou clé d'accès à gérer.
+Confirmez-le sur un nœud :
 
 ```bash
 az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
@@ -47,23 +47,23 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 ```
 
 <Aside type="caution" title="L'activation n'est pas rétroactive">
-Les diagnostics de démarrage capturent le journal série **au démarrage**. Les activer pour une
-VM déjà en cours d'exécution ne produit pas de journal pour le démarrage qui a déjà eu lieu,
-donc `az vm boot-diagnostics get-boot-log` répond :
+Les diagnostics de démarrage capturent le journal série **au démarrage**. Les activer
+sur une VM déjà en cours d'exécution ne produit pas de journal pour le démarrage qui
+a déjà eu lieu, donc `az vm boot-diagnostics get-boot-log` répond :
 
 ```
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
-C'est normal, pas une erreur. Un journal de démarrage existe après le prochain redémarrage
-du nœud. L'attachement de la console en direct, en revanche, fonctionne immédiatement —
-il ne dépend pas du journal.
+C'est un comportement attendu, pas une erreur. Un journal de démarrage existera après
+le prochain redémarrage du nœud. L'attachement à la console en direct, cependant,
+fonctionne immédiatement — il ne dépend pas du journal.
 </Aside>
 
 ## Vérification de la disponibilité sans terminal
 
-L'attachement nécessite une session interactive, mais savoir si l'attachement *serait*
-possible se résume à deux appels API. Les deux sont utiles dans un contrôle de santé.
+L'attachement nécessite une session interactive, mais savoir si cela *fonctionnerait*
+ne requiert que deux appels API. Les deux sont utiles dans un contrôle de santé.
 
 Le service doit être activé pour l'abonnement — un administrateur peut le désactiver
 à l'échelle du tenant :
@@ -77,7 +77,7 @@ az rest --method get --url \
 { "properties": { "disabled": false } }
 ```
 
-Ensuite, demandez une connexion au port série d'un nœud spécifique :
+Demandez ensuite une connexion au port série d'un nœud spécifique :
 
 ```bash
 az rest --method post \
@@ -85,14 +85,14 @@ az rest --method post \
   "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
 ```
 
-Un `connectionString` commençant par `wss://` — sur ce déploiement
+Un `connectionString` commençant par `wss://` — dans ce déploiement
 `eastus.gateway.serialconsole.azure.com` — signifie que la console est attachable
-immédiatement. Avant l'activation des diagnostics de démarrage, cet appel n'avait rien
-à attacher.
+immédiatement. Avant que les diagnostics de démarrage ne soient activés, cet appel
+n'avait rien à attacher.
 
-<Aside type="danger" title="Cette chaîne de connexion est un identifiant">
-Il s'agit d'un jeton bearer à durée de vie courte intégré dans une URL. Ne le journalisez
-pas, ne le collez pas dans un ticket, et ne le commitez pas. Affichez uniquement l'hôte
+<Aside type="danger" title="Cette chaîne de connexion est un justificatif d'identité">
+Il s'agit d'un jeton porteur de courte durée intégré dans une URL. Ne le journalisez
+pas, ne le collez pas dans un ticket, et ne le commitez pas. N'affichez que l'hôte
 lorsque vous démontrez que l'appel a fonctionné.
 </Aside>
 
@@ -112,18 +112,38 @@ lorsque vous démontrez que l'appel a fonctionné.
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-3. Vous arrivez à l'invite de connexion propre au nœud, et non à un shell. Il s'agit
-   de la CLI du site, qui nécessite des identifiants définis sur le nœud — le mot de
-   passe administrateur du provisionnement, ou l'un défini via l'endpoint de changement
-   de mot de passe. La console série prouve que le *canal* fonctionne ; elle ne contourne
-   pas l'authentification.
+3. Vous arrivez à l'invite de connexion propre au nœud, pas à un shell. Il s'agit du
+   Site CLI, qui nécessite des identifiants définis sur le nœud — le mot de passe
+   administrateur issu du provisionnement, ou un mot de passe défini via le point de
+   terminaison change-password. La console série prouve que le *canal* fonctionne ;
+   elle ne contourne pas l'authentification.
 
 </Steps>
 
-<Aside type="caution" title="Elle nécessite un vrai terminal">
-`az serial-console connect` met le terminal en mode brut, il ne peut donc pas être
-exécuté depuis un script, un pipeline, ou tout contexte sans TTY. Il échoue côté client
-avant de contacter Azure :
+Capturé depuis `f5-xc-ce-vm-01`, tronqué au milieu là où la sortie de l'unité
+systemd n'apporte rien :
+
+```text file=../../../_data/serial-console-boot.txt
+```
+
+Quatre éléments de cette transcription méritent attention, car ils répondent à des
+questions que l'API de débogage ne peut pas résoudre :
+
+- **cloud-init s'est terminé** — `Datasource DataSourceAzure`, terminé à 22,37
+  secondes. Un nœud qui ne s'enregistre jamais a généralement échoué ici, et c'est
+  là que vous le constatez.
+- **Les deux moteurs de conteneurs ont démarré.** `Container Runtime Interface for OCI (CRI-O)`
+  et `Docker Application Container Engine` affichent chacun `[ OK ]`, ce qui
+  constitue la preuve au démarrage du comportement à double moteur d'exécution qui
+  surprend dans [crictl](../../commands/system/crictl/) et [docker](../../commands/system/docker/).
+- **`VP Manager image load` et `Argo Watch service`** — `vpm` et Argo démarrent.
+- **L'invite est celle du nœud**, derrière sa bannière d'audit. La console série vous
+  donne une invite de connexion, pas une session.
+
+<Aside type="caution" title="L'attachement interactif nécessite un vrai terminal — mais il peut être scripté">
+`az serial-console connect` place le terminal en mode brut, il ne peut donc pas
+s'exécuter depuis un pipeline ou tout contexte sans TTY. Il échoue côté client, avant
+de contacter Azure :
 
 ```
 ERROR: (19, 'Operation not supported by device')
@@ -131,21 +151,48 @@ ERROR: (19, 'Operation not supported by device')
     GV.serial_console_instance.launch_console()
 ```
 
-Cette trace d'erreur concerne la gestion du terminal, pas une panne de la console série —
-les deux appels API ci-dessus signaleront toujours la console comme disponible. Si vous
-avez besoin d'un signal automatisable, utilisez-les plutôt que d'essayer de scripter
-l'attachement.
+Cette trace de pile concerne la gestion du terminal, pas une panne de la console
+série.
+
+L'attachement lui-même, cependant, **est** automatisable — pilotez directement le
+websocket au lieu d'utiliser la CLI. La transcription ci-dessus a été capturée de
+cette façon, sans TTY. Consultez `scripts/serial_console_capture.py`, qui est la
+méthode permettant de collecter les preuves de démarrage d'un nœud qui n'a pas réussi
+à s'enregistrer sans qu'un opérateur humain soit devant un terminal.
 </Aside>
 
-## Ce que vous pouvez voir ici que l'API ne peut pas vous montrer
+<Aside type="caution" title="Attendez-vous à réessayer : la passerelle refuse environ une tentative sur deux">
+La première trame de la passerelle est un défi, pas une sortie, et le client y répond
+avec un jeton porteur. Même lorsque cela est fait correctement, le socket se ferme
+souvent immédiatement :
 
-- **cloud-init** en cours d'exécution, en échec, ou ne démarrant jamais — cause habituelle
-  d'un nœud qui ne s'enregistre jamais.
+```
+[close] code=1011 reason=Connection not trusted
+```
+
+Mesuré sur des tentatives répétées sur trois nœuds, cela alterne : un refus est suivi
+d'un succès sur le même nœud. Cela est cohérent avec une session précédente encore
+maintenue, et la tentative refusée qui la libère.
+
+**Il ne s'agit pas d'un problème d'identifiants**, malgré le message. Réessayer est
+généralement suffisant, c'est pourquoi `scripts/serial_console_capture.py` réessaie
+par défaut.
+
+Utilisez néanmoins un seul jeton pour la demande de session et le défi, en
+correspondance avec l'extension `az`. C'est la pratique correcte, mais ce n'est pas
+ce qui cause ce problème.
+</Aside>
+
+## Ce que vous pouvez voir ici que l'API ne peut pas montrer
+
+- **cloud-init** en cours d'exécution, en échec, ou ne démarrant jamais — cause
+  habituelle d'un nœud qui ne s'enregistre jamais.
 - **Les tentatives d'enregistrement** contre `register.ves.volterra.io`, incluant une
   erreur de configuration ou un jeton rejeté par le tenant.
-- **Les messages du noyau et du démarrage** d'avant le démarrage de tout agent.
-- Le nœud lorsqu'il **n'a aucun chemin réseau fonctionnel**, ce qui neutralise toutes les
-  autres routes.
+- **Les messages du noyau et de démarrage** d'avant qu'aucun agent ne soit en cours
+  d'exécution.
+- Le nœud lorsqu'il **n'a aucun chemin réseau fonctionnel**, ce qui rend inutilisable
+  toute autre voie d'accès.
 
 Pour un nœud qui est `ONLINE`, préférez l'API de débogage : elle est scriptable, elle
-produit des résultats que vous pouvez relancer, et elle n'occupe pas le port série unique.
+produit des preuves que vous pouvez rejouer, et elle n'occupe pas le port série unique.
