@@ -1,0 +1,38 @@
+---
+title: diagnosis
+description: Connectivity and DNS probes the node runs against itself, returned as JSON. Tells you what the node believes about its own reachability.
+sidebar:
+  order: 20
+  label: diagnosis
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="GLOBAL scope — a different transport">
+Like `health`, a `GET` to the `global` path and not reachable through `exec-user`.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+The node probes its own gateway and reports the result per node, so on a multi-node
+site you get one block each. `gateway_connectivity` carries a ping summary — `sent`,
+`received`, `lost` and round-trip times.
+
+<Aside type="note" title="100% loss to the gateway is not necessarily a fault">
+On this topology the gateway does not answer ICMP, so `lost: 100` is the steady
+state while the site is `ONLINE` and forwarding. Treat this field as a signal only
+when you already have other evidence of a problem, or when it changes.
+</Aside>
+
+`resolv_conf` is the more consistently useful field: it shows the resolver the node
+will actually use, which is worth comparing against what you expect before spending
+time in [`dig`](../../network/dig/).

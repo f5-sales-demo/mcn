@@ -1,0 +1,85 @@
+---
+title: crictl
+description: >-
+  Die CRI-O-Laufzeitumgebung, die die Kubernetes-Workloads ausführt. Fünf
+  Befehle für Container, Images, Inspektion und Protokolle.
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O führt die Kubernetes-Workloads aus. Die Plattform-Dienste — `vpm`, `argo_watch`,
+`site-console` — sind [Docker](../docker/)-Container und erscheinen hier nicht.
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+Laufende Container mit ihrem Pod, Image und Neustart-Zähler. `ATTEMPT` ist der
+entscheidende Wert: ein steigender Neustart-Zähler deutet auf eine Absturz-Schleife hin,
+und die Container-ID aus dieser Ausgabe wird von den beiden nachfolgenden Befehlen
+verwendet.
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+Enthält beendete Container. Verwenden Sie diesen Befehl, wenn etwas *lief* und jetzt
+nicht mehr läuft — der beendete Eintrag und seine Container-ID ermöglichen es Ihnen,
+die Protokolle des fehlgeschlagenen Durchlaufs zu lesen.
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+Bestätigt, dass ein Image tatsächlich auf dem Knoten vorhanden ist, und unterscheidet
+damit einen Pull-Fehler von einem Scheduling-Fehler.
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+Vollständiges JSON: Mounts, Umgebungsvariablen, Ressourcenlimits, die Befehlszeile und
+der Beendigungsstatus. Umfangreich, daher empfiehlt es sich, gezielt abzufragen
+statt es vollständig zu lesen.
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="Container-IDs sind laufzeitspezifisch">
+Die IDs in diesen Aufzeichnungen stammen aus einem einzelnen Beispieldurchlauf und
+existieren nicht auf Ihrem Knoten. Entnehmen Sie zunächst eine aktuelle ID aus
+`crictl-ps`. Das Aufzeichnungs-Framework macht genau das — sein Manifest löst die
+erste Container-ID zum Zeitpunkt der Aufzeichnung auf, anstatt sie fest einzuprogrammieren.
+</Aside>

@@ -1,0 +1,35 @@
+---
+title: journalctl
+description: 节点上任意单元的 Systemd 日志。注册失败和 vpm 长期行为的主要信息来源。
+sidebar:
+  order: 50
+  label: journalctl
+i18n:
+  sourceHash: 38a11be4d7d8
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+标准 `journalctl` 参数，每个参数作为独立的数组元素。`-u vpm` 是最常用的选项：`vpm` 是负责注册节点并管理其上所有其他组件的代理，因此其日志记录了注册失败的时间戳及跨重启的完整信息。
+
+常用变体：
+
+| 参数 | 用途 |
+| --- | --- |
+| `-u vpm -n 200` | 查看 vpm 最近的活动情况 |
+| `-u vpm --since "10 min ago"` | 查看复现问题期间发生的事件 |
+| `-p err -n 100` | 查看所有单元的错误信息 |
+| `-u kubelet -n 200` | 诊断 Kubernetes 栈不健康的原因 |
+
+当需要时间戳、希望跨重启查看日志，或需要将 vpm 与其他单元进行关联分析时，建议优先使用此方式，而非 [`docker-logs vpm`](../docker/)。
+
+<Aside type="note" title="本页暂无已捕获的输出">
+在 `f5-sales-demo/docs-control#795` 合并之前，无法提交此捕获内容。该日志中 FRR 输出的某行包含一处拼写错误，导致 `codespell` 拒绝该文件。若修改已捕获的文本，将使本页描述从未实际发生过的输出，因此该修复正在上游的托管配置中进行。
+</Aside>

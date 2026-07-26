@@ -1,0 +1,75 @@
+---
+title: Routes et sauts suivants
+description: >-
+  Ce que le plan de données Argo transfère réellement, ce qui ne correspond pas
+  nécessairement à ce que Linux croit. Couvre la table de routes du vRouter, la
+  table des sauts suivants et les interfaces virtuelles.
+sidebar:
+  order: 50
+  label: Routes et sauts suivants
+i18n:
+  sourceHash: 79de27e2024e
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo maintient l'état de transfert séparé du noyau Linux. Lorsque
+[`ip`](../ip/) et ces commandes divergent, ce sont ces commandes qui déterminent le routage du trafic.
+
+## `rt`
+
+La table de routes du vRouter, par VRF.
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="L'identifiant VRF n'est pas celui rapporté par BGP">
+`show-ip-bgp-summary` affiche `vrf-id 3`. Il s'agit de la numérotation de FRR, qui appartient à un
+espace de nommage différent de l'identifiant de table du vRouter. Le passer ici échoue d'une manière qui
+s'apparente à un nœud défaillant :
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+La même réponse est renvoyée pour `--dump 0`. Sur cette topologie, **VRF 2** est la
+table inet4 renseignée, VRF 1 contenant deux routes. Si vous ne connaissez pas l'identifiant,
+sondez en partant de 1 vers le haut plutôt que de vous fier à la sortie BGP.
+</Aside>
+
+## `nh`
+
+La table des sauts suivants. Chaque route pointe vers un identifiant de saut suivant, et cette table permet de les résoudre.
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+Chaque entrée comporte un `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — ainsi que le VRF auquel
+elle appartient. Une route résolvant vers un saut suivant `Drop` est un trou noir, et cette
+combinaison mérite d'être vérifiée chaque fois qu'un préfixe est présent dans `rt` mais que le trafic disparaît quand même.
+
+## `vif`
+
+La table des interfaces virtuelles : ce à quoi le plan de données se lie, ainsi que les
+compteurs par interface.
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+La légende des indicateurs en haut de la table mérite d'être lue une fois — `Vp` désigne l'interface
+physique vhost, `Dpdk` une interface gérée par DPDK. Utilisez-la pour confirmer que le plan de données a bien pris en charge
+l'interface attendue, et pour consulter les compteurs RX et TX que Linux n'affiche pas
+car le trafic n'atteint jamais le noyau.

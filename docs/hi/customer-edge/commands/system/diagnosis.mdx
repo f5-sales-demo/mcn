@@ -1,0 +1,37 @@
+---
+title: diagnosis
+description: >-
+  नोड द्वारा स्वयं के विरुद्ध चलाए गए कनेक्टिविटी और DNS प्रोब, JSON के रूप में
+  लौटाए गए। आपको बताता है कि नोड अपनी स्वयं की पहुँच के बारे में क्या मानता है।
+sidebar:
+  order: 20
+  label: diagnosis
+i18n:
+  sourceHash: 2c9fe6fab17a
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="GLOBAL स्कोप — एक अलग ट्रांसपोर्ट">
+`health` की तरह, `global` पथ पर एक `GET` अनुरोध और `exec-user` के माध्यम से पहुँचने योग्य नहीं।
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+नोड अपने स्वयं के गेटवे की जाँच करता है और प्रति नोड परिणाम रिपोर्ट करता है, इसलिए मल्टी-नोड साइट पर आपको प्रत्येक के लिए एक ब्लॉक मिलता है। `gateway_connectivity` में एक पिंग सारांश होता है — `sent`, `received`, `lost` और राउंड-ट्रिप समय।
+
+<Aside type="note" title="गेटवे तक 100% हानि आवश्यक रूप से कोई खराबी नहीं है">
+इस टोपोलॉजी पर गेटवे ICMP का उत्तर नहीं देता, इसलिए `lost: 100` वह सामान्य स्थिति है जब साइट `ONLINE` है और फ़ॉरवर्डिंग कर रही है। इस फ़ील्ड को केवल तभी संकेत के रूप में मानें जब आपके पास पहले से किसी समस्या के अन्य प्रमाण हों, या जब यह बदल जाए।
+</Aside>
+
+`resolv_conf` अधिक लगातार उपयोगी फ़ील्ड है: यह वह रिज़ॉल्वर दिखाता है जिसे नोड वास्तव में उपयोग करेगा, जिसे [`dig`](../../network/dig/) में समय बिताने से पहले आप जो अपेक्षा करते हैं उससे तुलना करना उचित है।

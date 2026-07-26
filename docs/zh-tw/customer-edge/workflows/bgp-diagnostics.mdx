@@ -1,0 +1,38 @@
+---
+title: 路由未被廣播或學習
+description: 針對站點已上線但 VIP 無法到達，或未學習到應有前綴的有序排查流程。
+sidebar:
+  order: 20
+  label: BGP
+i18n:
+  sourceHash: eff4d5527048
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+適用於狀態為 `ONLINE` 的站點——若站點未上線，請先參閱
+[註冊](../registration/)。
+
+<Steps>
+
+1. **對等會話是否已建立？**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/)。查看 `State/PfxRcd`：若為數字則表示已建立連線，`Up/Down` 欄位顯示會話是否穩定。若站點已運行數天但該值仍偏小，表示會話正在反覆重連。
+
+2. **若會話已中斷**，原因通常出在 BGP 層以下。請使用
+   [`ip-link-show`](../../commands/network/ip/) 確認承載對等連線的介面是否正常，然後確認能否到達對等地址。在此拓撲中，對等節點為 Azure Route Server 實例。
+
+3. **若會話已建立但 VIP 無法到達**，請使用
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/) 檢查節點實際廣播的內容。若 VIP 不在廣播清單中，問題出在本節點，查看對等節點無濟於事。
+
+4. **若節點廣播正確但流量仍未到達**，表示控制平面與資料平面存在不一致。請使用 [`rt`](../../commands/network/dataplane-forwarding/) 檢查資料平面實際使用的轉發表，注意其 VRF id 與 BGP 回報的並不相同。
+
+   接著使用 `nh` 解析下一跳。若 `rt` 中某個前綴的下一跳為 `Drop`，則表示該路由為黑洞路由。
+
+5. **若會話反覆重連**，請透過 [`show-ip-bgp-neighbors`](../../commands/network/bgp/) 查看最後一次重置原因及協商後的計時器。
+
+</Steps>
+
+<Aside type="caution" title="兩種不同的 VRF 編號方案">
+`show-ip-bgp-summary` 回報的是 FRR 的 `vrf-id`。Argo 資料平面對其路由表採用獨立的編號方式，若將 FRR 的編號傳入 `rt --dump`，將返回 `No such file or directory`——這看起來像是節點故障，實則是參數有誤。在此拓撲中，VRF 2 為已填充的 inet4 路由表。
+</Aside>

@@ -1,0 +1,118 @@
+---
+title: Serielle Konsole
+description: >-
+  Der Break-Glass-Zugang zu einem Customer Edge, der sich nie registriert hat
+  und über den die Debug-API nicht erreichbar ist. Behandelt die
+  Boot-Diagnose-Voraussetzung, die Verfügbarkeitsprüfung per Skript sowie zwei
+  Fehler, die wie Ausfälle aussehen, es aber nicht sind.
+sidebar:
+  order: 30
+  label: Serielle Konsole
+i18n:
+  sourceHash: 872d359be18d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Die serielle Azure-Konsole bindet sich über die Azure-Plattform an den emulierten seriellen Port des Knotens an. Sie durchläuft weder die F5 Distributed Cloud-Steuerungsebene, noch die Datenebene des Knotens oder einen anderen Netzwerkpfad, den der Knoten kontrolliert – genau deshalb funktioniert sie, wenn nichts anderes mehr funktioniert.
+
+Nutzen Sie sie, wenn ein CE **nie hochgefahren ist**: die Registrierung fehlgeschlagen ist, der Standort im Mandanten fehlt oder der Knoten läuft, aber keine Route nach außen hat. In all diesen Fällen hat die [Debug-API](../debug-api/) keinen Tunnel, über den sie weitergeleitet werden könnte, und SSH ist auf dem Knoten im Auslieferungszustand gesperrt.
+
+## Voraussetzung: Boot-Diagnose
+
+Azure erfordert Boot-Diagnose auf der VM, bevor eine serielle Konsole angebunden werden kann. Dies wird durch `terraform/modules/ce-node` aktiviert:
+
+```hcl
+boot_diagnostics {}
+```
+
+Ein leerer Block wählt von Azure verwalteten Speicher, sodass kein Diagnosespeicherkonto, keine Lebenszyklusrichtlinie oder kein Zugriffsschlüssel verwaltet werden muss. Überprüfung an einem Knoten:
+
+```bash
+az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
+```
+
+```json
+{ "bootDiagnostics": { "enabled": true } }
+```
+
+<Aside type="caution" title="Die Aktivierung wirkt nicht rückwirkend">
+Die Boot-Diagnose erfasst das serielle Protokoll **beim Booten**. Das nachträgliche Aktivieren für eine bereits laufende VM erzeugt kein Protokoll für den bereits abgeschlossenen Startvorgang, weshalb `az vm boot-diagnostics get-boot-log` folgende Antwort liefert:
+
+```
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+```
+
+Dies ist zu erwarten und kein Fehler. Ein Boot-Protokoll ist verfügbar, sobald der Knoten das nächste Mal neu gestartet wird. Das direkte Anschließen der Konsole hingegen funktioniert sofort – es ist nicht vom Protokoll abhängig.
+</Aside>
+
+## Verfügbarkeit ohne Terminal prüfen
+
+Das Anschließen erfordert eine interaktive Sitzung, ob es jedoch möglich *wäre*, lässt sich mit zwei API-Aufrufen feststellen. Beide sind für eine Integritätsprüfung nützlich.
+
+Der Dienst muss für das Abonnement aktiviert sein – ein Administrator kann ihn mandantenweit deaktivieren:
+
+```bash
+az rest --method get --url \
+  "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.SerialConsole/consoleServices/default?api-version=2018-05-01"
+```
+
+```json
+{ "properties": { "disabled": false } }
+```
+
+Anschließend wird eine Verbindung zum seriellen Port eines bestimmten Knotens angefragt:
+
+```bash
+az rest --method post \
+  --headers "Content-Type=application/json" --body '{}' --url \
+  "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
+```
+
+Ein `connectionString`, der mit `wss://` beginnt – in dieser Bereitstellung `eastus.gateway.serialconsole.azure.com` – bedeutet, dass die Konsole aktuell anschließbar ist. Bevor die Boot-Diagnose aktiviert wurde, hatte dieser Aufruf nichts, woran er sich anschließen konnte.
+
+<Aside type="danger" title="Diese Verbindungszeichenfolge ist ein Anmeldedatum">
+Es handelt sich um ein kurzlebiges Bearer-Token, das in eine URL eingebettet ist. Protokollieren Sie es nicht, fügen Sie es nicht in ein Ticket ein und übergeben Sie es nicht an ein Versionsverwaltungssystem. Geben Sie nur den Host aus, wenn Sie demonstrieren, dass der Aufruf funktioniert hat.
+</Aside>
+
+## Anschließen
+
+<Steps>
+
+1. Erweiterung einmalig installieren:
+
+   ```bash
+   az extension add --name serial-console
+   ```
+
+2. Anschließen:
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+3. Sie gelangen zur eigenen Anmeldeaufforderung des Knotens, nicht zu einer Shell. Dies ist die Site-CLI und erfordert auf dem Knoten hinterlegte Anmeldedaten – das Admin-Passwort aus der Bereitstellung oder eines, das über den Endpunkt zur Passwortänderung gesetzt wurde. Die serielle Konsole beweist, dass der *Kanal* funktioniert; sie umgeht die Authentifizierung nicht.
+
+</Steps>
+
+<Aside type="caution" title="Ein echtes Terminal ist erforderlich">
+`az serial-console connect` versetzt das Terminal in den Raw-Modus und kann daher nicht aus einem Skript, einer Pipeline oder einem Kontext ohne TTY ausgeführt werden. Es schlägt clientseitig fehl, bevor Azure kontaktiert wird:
+
+```
+ERROR: (19, 'Operation not supported by device')
+  File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
+    GV.serial_console_instance.launch_console()
+```
+
+Dieser Traceback betrifft die Terminalverarbeitung, keinen Ausfall der seriellen Konsole – die beiden oben genannten API-Aufrufe melden die Konsole weiterhin als verfügbar. Wenn Sie ein automatisierbares Signal benötigen, verwenden Sie diese stattdessen, anstatt das Anschließen zu skripten.
+</Aside>
+
+## Was hier sichtbar ist, was die API nicht zeigen kann
+
+- **cloud-init** beim Ausführen, beim Fehlschlagen oder wenn es nie gestartet wurde – die übliche Ursache eines Knotens, der sich nie registriert.
+- **Registrierungsversuche** gegenüber `register.ves.volterra.io`, einschließlich Konfigurationsfehlern oder eines vom Mandanten abgelehnten Tokens.
+- **Kernel- und Boot-Meldungen** aus der Zeit, bevor ein Agent gestartet war.
+- Den Knoten, wenn er **keinen funktionierenden Netzwerkpfad** hat, was jeden anderen Zugangsweg ausschließt.
+
+Für einen Knoten, der `ONLINE` ist, wird die Debug-API bevorzugt: Sie ist skriptfähig, erzeugt Nachweise, die erneut ausgeführt werden können, und belegt nicht den einzelnen seriellen Port.

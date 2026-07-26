@@ -1,0 +1,41 @@
+---
+title: dig
+description: >-
+  Résolution DNS depuis le nœud, indiquant quel résolveur a répondu. Absent de
+  l'ancienne référence publiée de la CLI Site.
+sidebar:
+  order: 90
+  label: dig
+i18n:
+  sourceHash: 2ac6602c8699
+  translator: machine
+---
+
+## `dig`
+
+```bash
+{"command":["dig","volterra.azurecr.io"]}
+```
+
+```text file=../../../../_data/sitecli-dig.txt
+```
+
+Lisez d'abord `status:` dans l'en-tête — `NOERROR` avec un nombre `ANSWER` non nul indique une
+résolution réussie.
+
+`SERVER:` en bas identifie le résolveur qui a répondu, ce qui est l'élément essentiel à
+vérifier : sur un nœud Azure, il s'agit normalement du résolveur de la Plateforme à `168.63.129.16`,
+et toute autre valeur signifie que le nœud utilise un résolveur que vous n'aviez pas prévu.
+
+Les échecs d'enregistrement se réduisent souvent à des problèmes DNS. Si le nœud ne peut pas résoudre
+`register.ves.volterra.io` ou le registre de conteneurs, rien en aval ne fonctionnera,
+et c'est le moyen le plus rapide de le démontrer.
+
+La commande accepte les arguments habituels de `dig`, notamment `@resolver` pour interroger un
+serveur spécifique — utile pour montrer qu'un résolveur répond et qu'un autre ne répond pas.
+
+:::note
+`dig` n'apparaît pas du tout dans l'ancienne référence publiée de la CLI Site. Cette commande a été découverte
+en demandant au nœud son propre catalogue de commandes plutôt qu'en consultant la documentation,
+ce qui explique pourquoi chaque commande de ce site est découverte plutôt que transcrite.
+:::

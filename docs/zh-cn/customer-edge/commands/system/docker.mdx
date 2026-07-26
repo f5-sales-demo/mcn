@@ -1,0 +1,73 @@
+---
+title: docker
+description: Docker 运行时，用于运行 CE 平台服务。包含五个命令，也是查找 vpm 自身的地方。
+sidebar:
+  order: 40
+  label: docker
+i18n:
+  sourceHash: 9db8ec324ab5
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Docker 运行平台服务。Kubernetes 工作负载位于
+[CRI-O](../crictl/) 下。
+
+## `docker-ps`
+
+```bash
+{"command":["docker-ps"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps.txt
+```
+
+<Aside type="tip" title="三个容器是完整列表，而非节点故障">
+`vpm`、`argo_watch` 和 `site-console`。由于节点的大部分内容运行在 CRI-O 下，如果您期望在此处看到 Kubernetes 工作负载，简短的 `docker-ps` 输出看起来像是故障。但实际并非如此——这是健康 CE 上 Docker 容器的完整集合，`vpm` 存在且状态为 `Up` 是该页面上最重要的一行信息。
+</Aside>
+
+## `docker-ps-a`
+
+```bash
+{"command":["docker-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps-a.txt
+```
+
+包含已退出的容器，因此持续崩溃的 `vpm` 会在此处留下记录。
+
+## `docker-images`
+
+```bash
+{"command":["docker-images"]}
+```
+
+```text file=../../../../_data/sitecli-docker-images.txt
+```
+
+镜像标签标识了节点实际运行的平台版本，值得与 [`health`](../health/) 报告的软件构建版本进行比较。
+
+## `docker-inspect`
+
+```bash
+{"command":["docker-inspect","<container-id-or-name"]}
+```
+
+```text file=../../../../_data/sitecli-docker-inspect.txt
+```
+
+同时接受名称和 ID，因此 `docker-inspect vpm` 可以正常使用，且在重启后保持稳定。完整 JSON 输出包含：挂载点、环境变量、重启策略以及退出状态。
+
+## `docker-logs`
+
+```bash
+{"command":["docker-logs","<container-id-or-name>"]}
+```
+
+```text file=../../../../_data/sitecli-docker-logs.txt
+```
+
+`docker-logs vpm` 是排查注册错误的最快途径。如需查看带时间戳且跨重启的相同信息，请改用
+[`journalctl`](../journalctl/)。

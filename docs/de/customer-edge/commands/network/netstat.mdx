@@ -1,0 +1,33 @@
+---
+title: netstat
+description: >-
+  Sockets, Listener und Verbindungsstatus auf dem Knoten. Bestätigt, was lauscht
+  und mit wem der Knoten Verbindungen aufgebaut hat.
+sidebar:
+  order: 70
+  label: netstat
+i18n:
+  sourceHash: 5373b4edd88a
+  translator: machine
+---
+
+## `netstat`
+
+```bash
+{"command":["netstat"]}
+```
+
+```text file=../../../../_data/sitecli-netstat.txt
+```
+
+Zwei Fragen beantwortet dieser Befehl zuverlässig: ob der erwartete Prozess auf dem
+erwarteten Port lauscht, und ob der Knoten eine bestehende Verbindung zur
+Steuerungsebene hat. Ein CE ohne bestehende ausgehende Verbindungen zur
+F5-Infrastruktur ist ein Knoten, der sich nicht registriert – unabhängig davon, wie
+gesund alles andere aussieht.
+
+Die Ausgabe ist lang – die obige Aufzeichnung ist gekürzt – daher sollten Argumente
+übergeben werden, um sie einzugrenzen, anstatt sie vollständig zu lesen. Beachten
+Sie, dass die Hostname-Spalte abgeschnitten wird, um die Darstellung zu ermöglichen,
+was relevant ist, wenn Sie nach einem vollständigen Knotennamen suchen und nichts
+finden.

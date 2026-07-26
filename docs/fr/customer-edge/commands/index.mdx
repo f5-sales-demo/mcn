@@ -1,0 +1,94 @@
+---
+title: Référence des commandes
+description: >-
+  Toutes les commandes Site CLI accessibles via l'API de débogage, avec leur
+  catégorie, niveau de privilège et transport. Consultez la page d'une commande
+  spécifique pour la syntaxe et la sortie capturée.
+sidebar:
+  order: 20
+  label: Commandes
+i18n:
+  sourceHash: 44781a8d910a
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Capturé depuis un nœud actif exécutant la version logicielle `crt-20250613-3382`, qui expose
+**34 commandes**. Chaque page ci-dessous affiche la sortie réelle de ce nœud plutôt que
+des exemples retranscrits.
+
+La colonne `Tier` n'est pas indicative. Elle sélectionne le point de terminaison vers lequel une commande doit être envoyée,
+et l'envoi d'une commande vers le mauvais point de terminaison renvoie `command not supported` — ce qui
+donne l'impression que la commande n'existe pas. Consultez
+[l'API de débogage](../access/debug-api/) avant d'utiliser ce tableau.
+
+| Commande | Catégorie | Tier | Transport | Exemple d'argument |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`crictl-images`](./system/crictl/) | Système | `ExecUser` | `exec-user` | aucun |
+| [`crictl-inspect`](./system/crictl/) | Système | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | Système | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | Système | `ExecUser` | `exec-user` | aucun |
+| [`crictl-ps-a`](./system/crictl/) | Système | `ExecUser` | `exec-user` | aucun |
+| [`curl-host`](./network/curl/) | Réseau | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | Réseau | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | Système | `ExecUser` | `global` GET | aucun |
+| [`dig`](./network/dig/) | Réseau | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | Système | `ExecUser` | `exec-user` | aucun |
+| [`docker-inspect`](./system/docker/) | Système | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | Système | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | Système | `ExecUser` | `exec-user` | aucun |
+| [`docker-ps-a`](./system/docker/) | Système | `ExecUser` | `exec-user` | aucun |
+| [`dropstats`](./network/dataplane-drops/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`flow-l`](./network/dataplane-flows/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`flow-l-match`](./network/dataplane-flows/) | Réseau | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | Système | `ExecUser` | `global` GET | aucun |
+| [`ip`](./network/ip/) | Réseau | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | Réseau | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`ipsec-status`](./network/ipsec/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`ipsec-statusall`](./network/ipsec/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`journalctl`](./system/journalctl/) | Système | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`nh`](./network/dataplane-forwarding/) | Réseau | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | Réseau | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`show-ip-bgp-summary`](./network/bgp/) | Réseau | `ExecUser` | `exec-user` | aucun |
+| [`vif`](./network/dataplane-forwarding/) | Réseau | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="Une commande ici modifie le nœud">
+`ip-link-set` est de niveau `Exec` et active ou désactive une interface. Elle est documentée par
+souci d'exhaustivité, ne dispose d'aucune sortie capturée, et n'est jamais exécutée par le système de capture.
+</Aside>
+
+## Disponible uniquement sur les versions plus récentes
+
+Une version actuelle (`crt-20260201-0179`) expose **43** commandes — un sur-ensemble strict,
+sans suppression ni modification de métadonnées. Les neuf commandes absentes de ce locataire :
+
+| Commande | Catégorie | Tier |
+| --- | --- | --- |
+| `collect-database-stats` | Système | `ExecUser` |
+| `iptables-lv` | Réseau | `ExecUser` |
+| `marker-exists-NetworkManager` | Système | `Exec` |
+| `marker-exists-crio` | Système | `Exec` |
+| `marker-exists-kubelet` | Système | `Exec` |
+| `systemctl-restart-NetworkManager` | Système | `Exec` |
+| `systemctl-restart-crio` | Système | `Exec` |
+| `systemctl-restart-kubelet` | Système | `Exec` |
+| `systemctl-start-crio-prune` | Système | `Exec` |
+
+Elles sont répertoriées par nom et niveau uniquement, à partir d'une découverte de catalogue sur un nœud de cette
+version. Il n'existe aucune sortie capturée pour elles ici, car ce locataire ne peut pas les
+exécuter. Notez que quatre des neuf redémarrent des services sous un plan de données actif.
+
+<Aside type="note" title="Détection de l'évolution de la surface">
+Étant donné que la surface s'élargit avec la version logicielle, le catalogue enregistre la version dont elle
+provient, et `scripts/capture-sitecli.sh --check` signale un changement de version
+séparément des commandes ajoutées ou supprimées. Lorsque ces nœuds sont mis à niveau, c'est cette vérification
+qui indique l'arrivée de ces neuf commandes.
+</Aside>

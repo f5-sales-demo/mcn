@@ -1,0 +1,54 @@
+---
+title: Le trafic arrive mais ne passe pas
+description: >-
+  Séquence ordonnée pour un site qui s'appaire correctement et semble sain, mais
+  perd quand même du trafic. Permet d'identifier la cause d'un rejet.
+sidebar:
+  order: 30
+  label: Plan de données
+i18n:
+  sourceHash: df00d76ad275
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+Pour un site dont l'état est `ONLINE` avec BGP établi. Si les routes sont en cause, commencez
+par [BGP](../bgp-diagnostics/).
+
+<Steps>
+
+1. **Y a-t-il des rejets, et pour quelle raison ?**
+   [`dropstats-non-zero`](../../commands/network/dataplane-drops/). Exécutez-la deux fois
+   en reproduisant le problème : ces valeurs sont des totaux cumulés depuis le démarrage, donc un compteur non nul
+   ne signifie rien en soi, tandis qu'un compteur *en hausse* signifie tout.
+
+2. **Trouvez la connexion spécifique.**
+   [`flow-l-match`](../../commands/network/dataplane-flows/) avec l'adresse, ou
+   l'adresse et le port. L'action sur le flux est la réponse : `F` pour transmettre, `D` pour rejeter, `N`
+   pour NAT. Un flux présent avec l'action `D` est une décision de politique délibérée et vous oriente
+   vers la politique plutôt que vers la connectivité.
+
+3. **Aucun flux ?** Le trafic n'atteint pas le plan de données. Confirmez que le plan de
+   données a bien réclamé l'interface attendue avec
+   [`vif`](../../commands/network/dataplane-forwarding/), et comparez ses compteurs
+   avec ceux rapportés par [`ip`](../../commands/network/ip/).
+
+   Les deux vues diffèrent légitimement, car le trafic traité par le plan de données n'atteint jamais
+   le noyau. En revanche, un RX à zéro sur l'interface attendue n'est pas normal.
+
+4. **Flux présent et en cours de transmission, mais toujours pas à destination ?** Vérifiez où il est envoyé :
+   `rt` pour la route, puis `nh` pour résoudre le prochain saut. Un prochain saut de type `Drop`
+   est un trou noir, et un prochain saut de type `Tunnel` place le tunnel lui-même dans le périmètre d'analyse.
+
+5. **Si le chemin passe par un tunnel**, confirmez qu'il est à la fois actif et transporte des octets avec
+   [`ipsec-statusall`](../../commands/network/ipsec/). Un tunnel établi depuis des heures
+   avec des compteurs quasi nuls est actif mais inutilisé, ce qui renvoie vers le routage.
+
+</Steps>
+
+<Aside type="tip" title="Argo et Linux maintiennent des états séparés">
+La plupart des symptômes déroutants du plan de données proviennent de la lecture de la vue du noyau en supposant
+qu'elle fait autorité. `ip` affiche ce que Linux croit ; `rt`, `nh` et `vif` affichent ce qui
+transfère réellement le trafic. En cas de désaccord entre eux, c'est le plan de données qui déplace les paquets.
+</Aside>

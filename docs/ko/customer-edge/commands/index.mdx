@@ -1,0 +1,82 @@
+---
+title: 명령어 참조
+description: >-
+  디버그 API를 통해 접근 가능한 모든 Site CLI 명령어로, 카테고리, 권한 등급 및 전송 방식을 포함합니다. 구문 및 캡처된 출력은
+  특정 명령어 페이지를 참조하십시오.
+sidebar:
+  order: 20
+  label: 명령어
+i18n:
+  sourceHash: 44781a8d910a
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+소프트웨어 빌드 `crt-20250613-3382`를 실행 중인 라이브 노드에서 캡처되었으며,
+**34개의 명령어**가 노출됩니다. 아래의 각 페이지는 필사된 예시가 아닌 해당 노드에서의 실제 출력을 보여줍니다.
+
+`Tier` 열은 권고 사항이 아닙니다. 명령어를 전송해야 하는 엔드포인트를 선택하며, 잘못된 엔드포인트로 명령어를 전송하면 `command not supported`가 반환됩니다 — 이는 마치 명령어가 존재하지 않는 것처럼 보입니다. 이 표를 사용하기 전에 [디버그 API](../access/debug-api/)를 참조하십시오.
+
+| 명령어 | 카테고리 | 등급 | 전송 방식 | 예시 인수 |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`crictl-images`](./system/crictl/) | 시스템 | `ExecUser` | `exec-user` | 없음 |
+| [`crictl-inspect`](./system/crictl/) | 시스템 | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | 시스템 | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | 시스템 | `ExecUser` | `exec-user` | 없음 |
+| [`crictl-ps-a`](./system/crictl/) | 시스템 | `ExecUser` | `exec-user` | 없음 |
+| [`curl-host`](./network/curl/) | 네트워크 | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | 네트워크 | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | 시스템 | `ExecUser` | `global` GET | 없음 |
+| [`dig`](./network/dig/) | 네트워크 | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | 시스템 | `ExecUser` | `exec-user` | 없음 |
+| [`docker-inspect`](./system/docker/) | 시스템 | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | 시스템 | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | 시스템 | `ExecUser` | `exec-user` | 없음 |
+| [`docker-ps-a`](./system/docker/) | 시스템 | `ExecUser` | `exec-user` | 없음 |
+| [`dropstats`](./network/dataplane-drops/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`flow-l`](./network/dataplane-flows/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`flow-l-match`](./network/dataplane-flows/) | 네트워크 | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | 시스템 | `ExecUser` | `global` GET | 없음 |
+| [`ip`](./network/ip/) | 네트워크 | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | 네트워크 | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`ipsec-status`](./network/ipsec/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`ipsec-statusall`](./network/ipsec/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`journalctl`](./system/journalctl/) | 시스템 | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`nh`](./network/dataplane-forwarding/) | 네트워크 | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | 네트워크 | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`show-ip-bgp-summary`](./network/bgp/) | 네트워크 | `ExecUser` | `exec-user` | 없음 |
+| [`vif`](./network/dataplane-forwarding/) | 네트워크 | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="이 명령어 중 하나는 노드를 변경합니다">
+`ip-link-set`은 `Exec` 등급으로 인터페이스를 활성화하거나 비활성화합니다. 완전성을 위해 문서화되었으며, 캡처된 출력이 없고, 캡처 하네스에 의해 실행되지 않습니다.
+</Aside>
+
+## 최신 빌드에서만 사용 가능
+
+현재 빌드(`crt-20260201-0179`)는 **43개**의 명령어를 노출합니다 — 제거된 항목 없이, 변경된 메타데이터 없이 엄격한 상위 집합입니다. 이 테넌트에 없는 9개의 명령어:
+
+| 명령어 | 카테고리 | 등급 |
+| --- | --- | --- |
+| `collect-database-stats` | 시스템 | `ExecUser` |
+| `iptables-lv` | 네트워크 | `ExecUser` |
+| `marker-exists-NetworkManager` | 시스템 | `Exec` |
+| `marker-exists-crio` | 시스템 | `Exec` |
+| `marker-exists-kubelet` | 시스템 | `Exec` |
+| `systemctl-restart-NetworkManager` | 시스템 | `Exec` |
+| `systemctl-restart-crio` | 시스템 | `Exec` |
+| `systemctl-restart-kubelet` | 시스템 | `Exec` |
+| `systemctl-start-crio-prune` | 시스템 | `Exec` |
+
+해당 빌드의 노드에 대한 카탈로그 검색을 통해 이름과 등급만으로 나열됩니다. 이 테넌트가 실행할 수 없기 때문에 여기에는 캡처된 출력이 없습니다. 9개 중 4개는 라이브 데이터 플레인에서 서비스를 재시작합니다.
+
+<Aside type="note" title="변화하는 범위 감지">
+소프트웨어 빌드에 따라 범위가 증가하기 때문에, 카탈로그는 빌드 출처를 기록하며 `scripts/capture-sitecli.sh --check`는 추가되거나 제거된 명령어와 별도로 빌드 변경 사항을 보고합니다. 이 노드들이 업그레이드되면, 해당 검사를 통해 이 9개가 추가되었음을 알 수 있습니다.
+</Aside>

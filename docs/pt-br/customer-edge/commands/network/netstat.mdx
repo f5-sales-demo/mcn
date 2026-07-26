@@ -1,0 +1,25 @@
+---
+title: netstat
+description: >-
+  Sockets, listeners e estado de conexão no nó. Confirma o que está ouvindo e
+  com quem o nó estabeleceu conexões.
+sidebar:
+  order: 70
+  label: netstat
+i18n:
+  sourceHash: 5373b4edd88a
+  translator: machine
+---
+
+## `netstat`
+
+```bash
+{"command":["netstat"]}
+```
+
+```text file=../../../../_data/sitecli-netstat.txt
+```
+
+Duas perguntas que este comando responde bem: se o processo que você espera está ouvindo na porta esperada, e se o nó possui uma conexão estabelecida com o plano de controle. Um CE sem conexões de saída estabelecidas para a infraestrutura da F5 é um nó que não irá se registrar, independentemente do que mais pareça saudável.
+
+A saída é longa — a captura acima está truncada — portanto, passe argumentos para restringi-la em vez de lê-la por completo. Observe que a coluna de hostname é truncada para caber, o que importa se você estiver usando grep para um nome de nó completo e não encontrar nada.

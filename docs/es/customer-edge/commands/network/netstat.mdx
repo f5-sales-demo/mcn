@@ -1,0 +1,31 @@
+---
+title: netstat
+description: >-
+  Sockets, listeners y estado de conexión en el nodo. Confirma qué está
+  escuchando y con quién el nodo ha establecido conexiones.
+sidebar:
+  order: 70
+  label: netstat
+i18n:
+  sourceHash: 5373b4edd88a
+  translator: machine
+---
+
+## `netstat`
+
+```bash
+{"command":["netstat"]}
+```
+
+```text file=../../../../_data/sitecli-netstat.txt
+```
+
+Dos preguntas que responde bien: si el proceso que espera está escuchando en el
+puerto que espera, y si el nodo tiene una conexión establecida con el plano de
+control. Un CE sin conexiones salientes establecidas hacia la infraestructura de F5
+es un nodo que no se registrará, independientemente de lo que parezca sano.
+
+La salida es larga — la captura anterior está recortada — por lo que conviene pasar
+argumentos para reducirla en lugar de leerla completa. Tenga en cuenta que la
+columna de nombre de host está truncada para ajustarse, lo cual importa si está
+usando grep con un nombre de nodo completo y no encuentra nada.

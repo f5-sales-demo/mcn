@@ -1,0 +1,72 @@
+---
+title: A site that never came online
+description: Ordered sequence for a CE that failed to register, where the debug API cannot help because it depends on the registration that failed.
+sidebar:
+  order: 10
+  label: Registration
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="The API cannot debug this">
+The debug API reaches the node through the F5 Distributed Cloud control plane, over
+the tunnel that registration establishes. If registration failed there is no tunnel,
+so every command on this site is unavailable for this exact failure. Work from
+[serial console](../../access/serial-console/).
+</Aside>
+
+<Steps>
+
+1. **Confirm what the tenant thinks.** Absent from the site list is a different
+   problem from present but not `ONLINE`.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   If the site exists and reports `ONLINE`, registration succeeded and you are in the
+   wrong workflow.
+
+2. **Check for a pending registration.** A node can register and then wait for
+   approval, which looks identical to a failure from the outside.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **Confirm the VM is actually running**, before assuming a software fault.
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **Attach the serial console.** This needs a terminal — it cannot be scripted.
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   If it refuses, check boot diagnostics is enabled on the VM before concluding the
+   node is unreachable; that prerequisite and its failure modes are covered on the
+   [serial console](../../access/serial-console/) page.
+
+5. **Read what the console shows, in this order.** cloud-init first — a node whose
+   cloud-init never completed has no configuration to register with. Then the
+   registration attempts themselves, then DNS: if the node cannot resolve
+   `register.ves.volterra.io`, nothing downstream can work.
+
+6. **Once the node is `ONLINE`**, verify with [`health`](../../commands/system/health/)
+   and expect `state: PROVISIONED`.
+
+</Steps>
+
+## The usual causes
+
+- cloud-init did not complete, so `/etc/vpm/config.yaml` is absent or wrong.
+- The registration token is expired, already consumed, or from another tenant.
+- No egress route to `register.ves.volterra.io`.
+- Clock skew large enough to invalidate certificates — quick to rule out later with
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), but not reachable
+  until the node is online.

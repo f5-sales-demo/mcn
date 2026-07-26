@@ -1,0 +1,74 @@
+---
+title: Rotas e próximos saltos
+description: >-
+  O que o plano de dados do Argo efetivamente encaminha, que não é
+  necessariamente o que o Linux acredita. Aborda a tabela de rotas do vRouter, a
+  tabela de próximos saltos e as interfaces virtuais.
+sidebar:
+  order: 50
+  label: Rotas e próximos saltos
+i18n:
+  sourceHash: 79de27e2024e
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+O Argo mantém o estado de encaminhamento separado do kernel Linux. Quando
+[`ip`](../ip/) e estes comandos discordam, são estes comandos que movem o tráfego.
+
+## `rt`
+
+A tabela de rotas do vRouter, por VRF.
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="O ID de VRF não é o que o BGP reporta">
+`show-ip-bgp-summary` exibe `vrf-id 3`. Essa é a numeração do FRR e pertence a um
+namespace diferente do ID de tabela do vRouter. Passá-lo aqui falha de uma forma que
+parece um nó com defeito:
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+A mesma resposta é retornada para `--dump 0`. Nesta topologia, a **VRF 2** é a
+tabela inet4 preenchida, com a VRF 1 contendo duas rotas. Se você não souber o ID,
+sonde a partir de 1 em ordem crescente em vez de confiar na saída do BGP.
+</Aside>
+
+## `nh`
+
+A tabela de próximos saltos. Cada rota aponta para um ID de próximo salto, e esta tabela os resolve.
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+Cada entrada possui um `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — e a VRF à qual
+pertence. Uma rota que resolve para um próximo salto `Drop` é um blackhole, e essa
+combinação vale a pena verificar sempre que um prefixo estiver presente em `rt` mas o tráfego ainda desaparecer.
+
+## `vif`
+
+A tabela de interfaces virtuais: o que o plano de dados associa, e contadores por interface.
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+A legenda de flags no topo vale a pena ser lida uma vez — `Vp` marca a interface
+física do vhost, `Dpdk` uma gerenciada pelo DPDK. Use isto para confirmar que o plano de dados reivindicou
+a interface esperada e para visualizar os contadores de RX e TX que o Linux não exibe
+porque o tráfego nunca chega ao kernel.

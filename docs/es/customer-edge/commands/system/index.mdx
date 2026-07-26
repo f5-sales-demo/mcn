@@ -1,0 +1,37 @@
+---
+title: Comandos del sistema
+description: >-
+  Consulte este nivel para verificar el estado de los nodos, los tiempos de
+  ejecución de contenedores y los registros de servicios. Trece comandos,
+  incluidos los dos resúmenes a nivel de sitio que utilizan un transporte
+  diferente.
+sidebar:
+  order: 20
+  label: Sistema
+i18n:
+  sourceHash: 712397cd2e30
+  translator: machine
+---
+
+Trece de los treinta y cuatro comandos.
+
+| Si desea | Use |
+| --- | --- |
+| Una respuesta sobre si el nodo está en buen estado | [health](./health/) |
+| Sondeos de conectividad y DNS ejecutados por el propio nodo | [diagnosis](./diagnosis/) |
+| Contenedores de cargas de trabajo de Kubernetes | [crictl](./crictl/) |
+| Los contenedores de la plataforma: vpm, argo, site-console | [docker](./docker/) |
+| Registros de servicios, incluido el registro de alta | [journalctl](./journalctl/) |
+
+## El nodo ejecuta dos tiempos de ejecución de contenedores
+
+Esto suele sorprender a las personas, y determina qué comando responde a su pregunta.
+
+- **Docker** ejecuta los contenedores de la plataforma: `vpm`, `argo_watch`, `site-console`.
+- **CRI-O** ejecuta las cargas de trabajo de Kubernetes, a las que se accede mediante `crictl`.
+
+Ambos están activos simultáneamente, ambos devuelven resultados reales y ninguno sustituye al otro. Que `docker-ps` muestre tres contenedores no es una vista parcial de un nodo defectuoso; es la lista completa de lo que ejecuta Docker. Si busca `vpm`, es un contenedor de Docker. Si busca un pod, está en CRI-O.
+
+## Dos comandos utilizan un transporte diferente
+
+`health` y `diagnosis` tienen alcance `GLOBAL`: son solicitudes `GET` a una ruta `global`, devuelven JSON en lugar de texto de terminal y **no son accesibles mediante `exec-user`** — enviarlos a través de ese método devuelve `command not supported`, lo que puede interpretarse como si el comando no existiera. Consulte [la API de depuración](../../access/debug-api/).

@@ -1,0 +1,47 @@
+---
+title: health
+description: >-
+  Il miglior primo comando in assoluto. Stato di registrazione, OS, risorse e
+  stato dei servizi per l'intero sito in un'unica risposta strutturata.
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="Ambito GLOBALE — un trasporto diverso">
+Una `GET` al percorso `global`, non un array `command`. L'invio di `health` a `exec-user`
+restituisce `command not supported`.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+Inizia da qui. È economico, è strutturato e risponde alla prima domanda su
+qualsiasi CE: `state`. `PROVISIONED` significa che il nodo si è registrato ed è configurato.
+
+Qualsiasi altra cosa — `WAITING_FOR_CONFIG`, o nessuna risposta — indica di smettere
+di eseguire il debug del piano dati e di analizzare invece la [registrazione](../../../workflows/registration/).
+
+La risposta contiene anche la versione dell'OS e del kernel, il prodotto e il fornitore della
+VM sottostante e la build del software. Quella stringa di build è ciò che determina quali
+comandi esistono sul nodo, quindi vale la pena annotarla prima di assumere che un comando sia
+mancante.
+
+Poiché la risposta è JSON, è possibile interrogarla in modo efficace:
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

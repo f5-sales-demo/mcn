@@ -1,0 +1,40 @@
+---
+title: health
+description: 最佳的第一道指令。在單一結構化回應中呈現整個站點的註冊狀態、作業系統、資源及服務狀態。
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="GLOBAL 範圍 — 不同的傳輸方式">
+向 `global` 路徑發送 `GET` 請求，而非 `command` 陣列。將 `health` 發送至 `exec-user`
+會回傳 `command not supported`。
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+從這裡開始。此指令執行成本低、回應結構化，並能回答關於任何 CE 的第一個問題：`state`。`PROVISIONED` 表示節點已完成註冊並完成設定。
+
+其他任何狀態——`WAITING_FOR_CONFIG`，或完全沒有回應——代表您應停止對資料平面進行除錯，並改為查看[註冊](../../../workflows/registration/)流程。
+
+回應中也包含作業系統與核心版本、底層虛擬機器的產品與廠商資訊，以及軟體建置版本。該建置版本字串決定了節點上存在哪些指令，因此在假設某指令不存在之前，值得先確認此資訊。
+
+由於回應為 JSON 格式，可以進行簡潔的查詢：
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

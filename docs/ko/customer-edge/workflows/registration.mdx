@@ -1,0 +1,61 @@
+---
+title: 온라인 상태가 되지 않은 사이트
+description: '등록에 실패한 CE에 대한 순서 절차로, 등록 실패에 의존하는 디버그 API를 사용할 수 없는 경우를 다룹니다.'
+sidebar:
+  order: 10
+  label: 등록
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="API로는 이 문제를 디버그할 수 없습니다">
+디버그 API는 등록 과정에서 설정된 터널을 통해 F5 Distributed Cloud 제어 플레인을 거쳐 노드에 도달합니다. 등록이 실패하면 터널이 존재하지 않으므로, 이 사이트의 모든 명령은 정확히 이 실패 상황에서 사용할 수 없습니다. [시리얼 콘솔](../../access/serial-console/)을 통해 작업하십시오.
+</Aside>
+
+<Steps>
+
+1. **테넌트가 인식하는 상태를 확인합니다.** 사이트 목록에 없는 경우는 목록에 있지만 `ONLINE` 상태가 아닌 경우와는 다른 문제입니다.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   사이트가 존재하고 `ONLINE`을 보고하는 경우, 등록은 성공한 것이므로 잘못된 워크플로우를 따르고 있는 것입니다.
+
+2. **보류 중인 등록을 확인합니다.** 노드가 등록된 후 승인을 기다리는 상태는 외부에서 보면 실패와 동일하게 보일 수 있습니다.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **소프트웨어 결함을 가정하기 전에 VM이 실제로 실행 중인지 확인합니다.**
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **시리얼 콘솔을 연결합니다.** 이 작업은 터미널이 필요하며 스크립트로 실행할 수 없습니다.
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   연결이 거부되면, 노드에 연결할 수 없다고 결론 짓기 전에 VM에 부트 진단이 활성화되어 있는지 확인하십시오. 해당 전제 조건과 실패 모드는 [시리얼 콘솔](../../access/serial-console/) 페이지에서 다루고 있습니다.
+
+5. **다음 순서로 콘솔에 표시되는 내용을 확인합니다.** 먼저 cloud-init을 확인합니다. cloud-init이 완료되지 않은 노드는 등록에 사용할 구성이 없습니다. 그 다음 등록 시도 자체를 확인하고, 이후 DNS를 확인합니다. 노드가 `register.ves.volterra.io`를 확인할 수 없으면 이후의 어떤 작업도 동작하지 않습니다.
+
+6. **노드가 `ONLINE` 상태가 되면**, [`health`](../../commands/system/health/)로 검증하고 `state: PROVISIONED`를 예상합니다.
+
+</Steps>
+
+## 일반적인 원인
+
+- cloud-init이 완료되지 않아 `/etc/vpm/config.yaml`이 없거나 잘못된 경우.
+- 등록 토큰이 만료되었거나, 이미 사용되었거나, 다른 테넌트의 토큰인 경우.
+- `register.ves.volterra.io`로의 이그레스 경로가 없는 경우.
+- 인증서를 무효화할 만큼 충분히 큰 클럭 스큐 — 나중에 [`chronyc-sources`](../../commands/network/chronyc-sources/)로 빠르게 배제할 수 있지만, 노드가 온라인 상태가 되기 전까지는 접근할 수 없습니다.

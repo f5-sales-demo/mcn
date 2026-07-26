@@ -1,0 +1,50 @@
+---
+title: curl
+description: >-
+  Tests d'accessibilité depuis deux contextes réseau différents sur le nœud.
+  Celui que vous utilisez détermine ce qu'un échec prouve réellement.
+sidebar:
+  order: 80
+  label: curl
+i18n:
+  sourceHash: 6ab13d8c3593
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Deux commandes, et la distinction entre elles constitue l'intégralité de la valeur.
+
+## `curl-host`
+
+S'exécute dans l'espace de noms réseau de l'hôte — la connectivité propre du nœud, avant
+que le plan de données ne soit impliqué.
+
+```bash
+{"command":["curl-host","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-host.txt
+```
+
+## `curl-vega`
+
+S'exécute dans le contexte du cluster Kubernetes, il traverse donc le DNS du cluster et
+le chemin réseau.
+
+```bash
+{"command":["curl-vega","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-vega.txt
+```
+
+<Aside type="tip" title="La paire constitue une bisection">
+Exécutez les deux. Si `curl-host` réussit et que `curl-vega` échoue, le nœud dispose d'une connectivité
+et le réseau du cluster ou son DNS est défaillant. Si les deux échouent, le problème se situe en amont
+du nœud — routage, pare-feu ou chemin de sortie. Si seul `curl-host` échoue, vous
+avez trouvé quelque chose d'inhabituel et devriez vérifier la table de routage de l'hôte en premier.
+</Aside>
+
+Les deux acceptent les arguments `curl` standard sous forme d'éléments de tableau séparés. `-v` vaut la peine d'être conservé
+car les lignes de connexion et de négociation TLS sont généralement là où l'échec se manifeste.

@@ -1,0 +1,40 @@
+---
+title: IPsec
+description: 通往 F5 区域边缘节点的隧道是否已建立，以及证明其承载数据的流量计数器。两条命令，一条摘要，一条详细。
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+CE 会向 F5 区域边缘节点建立 IPsec 隧道。如果隧道断开，无论本地状态看起来多么健康，该站点都将与全球网络隔离。
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+第一行即为答案：`Security Associations (2 up, 0 connecting)`。出现在 `connecting` 中的任何条目均表示隧道正在尝试建立但未能成功。
+
+每个 SA 均标注了其所终止的区域边缘节点名称——`ny8-nyc`、`dc12-ash` 均为 F5 POP 代码——因此也可由此得知该站点归属的边缘节点。
+
+`ESTABLISHED` 后跟一个存活时间，再跟 `INSTALLED, TUNNEL`，表示这是一个健康的组合：前者为 IKE 会话，后者为实际承载流量的子 SA。IKE 会话已建立但无已安装子 SA，是一种值得关注的故障状态。
+
+## `ipsec-statusall`
+
+在相同信息的基础上，额外提供每个 SA 的字节数与数据包计数器、重新协商计时器以及已协商的算法。
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+使用此命令可区分"隧道已建立"与"隧道正在承载流量"这两种状态。一条已建立数小时但字节数接近零的隧道处于已建立但未使用的状态，这通常意味着问题出在路由层面，而非隧道本身。

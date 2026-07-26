@@ -1,0 +1,35 @@
+---
+title: diagnosis
+description: ノードが自身に対して実行する接続性および DNS プローブを JSON 形式で返します。ノードが自身の到達可能性についてどのように認識しているかを示します。
+sidebar:
+  order: 20
+  label: diagnosis
+i18n:
+  sourceHash: 2c9fe6fab17a
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="GLOBAL スコープ — 異なるトランスポート">
+`health` と同様に、`global` パスへの `GET` リクエストであり、`exec-user` 経由では到達できません。
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+ノードは自身のゲートウェイをプローブし、ノードごとに結果を報告します。そのため、マルチノードのサイトでは各ノードに対して 1 つずつブロックが返されます。`gateway_connectivity` にはピングのサマリーが含まれており、`sent`、`received`、`lost` およびラウンドトリップ時間が記録されています。
+
+<Aside type="note" title="ゲートウェイへの 100% ロスは必ずしも障害を意味しない">
+このトポロジーでは、ゲートウェイは ICMP に応答しません。そのため、サイトが `ONLINE` 状態でフォワーディングを行っている間、`lost: 100` は定常状態となります。このフィールドは、他に問題の証拠がある場合、またはその値が変化した場合にのみシグナルとして扱ってください。
+</Aside>
+
+`resolv_conf` はより一貫して有用なフィールドです。ノードが実際に使用するリゾルバーを表示するため、[`dig`](../../network/dig/) で時間を費やす前に、期待している設定と比較する価値があります。

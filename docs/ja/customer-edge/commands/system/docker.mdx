@@ -1,0 +1,72 @@
+---
+title: docker
+description: CEプラットフォームサービスを実行するDockerランタイム。5つのコマンドと、vpm自体の確認場所。
+sidebar:
+  order: 40
+  label: docker
+i18n:
+  sourceHash: 9db8ec324ab5
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+DockerはプラットフォームサービスをDockerは実行します。KubernetesワークロードはDockerは
+[CRI-O](../crictl/)配下にあります。
+
+## `docker-ps`
+
+```bash
+{"command":["docker-ps"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps.txt
+```
+
+<Aside type="tip" title="コンテナが3つというのは完全なリストであり、ノードが壊れているわけではありません">
+`vpm`、`argo_watch`、`site-console`。ノードの大部分はCRI-O配下で動作しているため、Kubernetesワークロードが存在すると期待している場合、`docker-ps`の出力が短いと障害のように見えることがあります。しかしそうではありません。これが正常なCEにおけるDockerコンテナの完全なセットであり、`vpm`が存在し`Up`状態であることがこのページで最も重要な確認事項です。
+</Aside>
+
+## `docker-ps-a`
+
+```bash
+{"command":["docker-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps-a.txt
+```
+
+終了したコンテナも含まれるため、`vpm`が繰り返しクラッシュしている場合にその証跡がここに残ります。
+
+## `docker-images`
+
+```bash
+{"command":["docker-images"]}
+```
+
+```text file=../../../../_data/sitecli-docker-images.txt
+```
+
+イメージタグにより、ノードが実際に実行しているプラットフォームバージョンを特定できます。[`health`](../health/)が報告するソフトウェアビルドと比較する価値があります。
+
+## `docker-inspect`
+
+```bash
+{"command":["docker-inspect","<container-id-or-name"]}
+```
+
+```text file=../../../../_data/sitecli-docker-inspect.txt
+```
+
+名前とIDの両方を受け付けるため、`docker-inspect vpm`は有効であり、再起動をまたいでも安定して使用できます。完全なJSON形式で、マウント、環境変数、再起動ポリシー、終了状態が確認できます。
+
+## `docker-logs`
+
+```bash
+{"command":["docker-logs","<container-id-or-name>"]}
+```
+
+```text file=../../../../_data/sitecli-docker-logs.txt
+```
+
+`docker-logs vpm`は登録エラーを確認する最も手軽な方法です。タイムスタンプ付きで再起動をまたいだ同一情報を確認するには、代わりに[`journalctl`](../journalctl/)を使用してください。

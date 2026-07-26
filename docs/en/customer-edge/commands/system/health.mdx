@@ -1,0 +1,43 @@
+---
+title: health
+description: The single best first command. Registration state, OS, resources and service status for the whole site in one structured response.
+sidebar:
+  order: 10
+  label: health
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="GLOBAL scope — a different transport">
+A `GET` to the `global` path, not a `command` array. Sending `health` to `exec-user`
+returns `command not supported`.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+Start here. It is cheap, it is structured, and it answers the first question about
+any CE: `state`. `PROVISIONED` means the node registered and is configured.
+
+Anything else — `WAITING_FOR_CONFIG`, or no answer at all — tells you to stop
+debugging the data plane and look at [registration](../../../workflows/registration/)
+instead.
+
+The response also carries the OS and kernel version, the product and vendor of the
+underlying VM, and the software build. That build string is what determines which
+commands exist on the node, so it is worth noting before assuming a command is
+missing.
+
+Because the response is JSON, it queries cleanly:
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

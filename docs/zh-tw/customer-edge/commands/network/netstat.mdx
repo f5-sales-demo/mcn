@@ -1,0 +1,23 @@
+---
+title: netstat
+description: 節點上的 Socket、監聽器與連線狀態。確認哪些服務正在監聽，以及節點已建立哪些連線。
+sidebar:
+  order: 70
+  label: netstat
+i18n:
+  sourceHash: 5373b4edd88a
+  translator: machine
+---
+
+## `netstat`
+
+```bash
+{"command":["netstat"]}
+```
+
+```text file=../../../../_data/sitecli-netstat.txt
+```
+
+此命令可以很好地回答兩個問題：您預期的程序是否正在您預期的連接埠上監聽，以及節點是否已建立與控制平面的連線。若 CE 沒有任何已建立的對外連線連至 F5 基礎架構，則該節點將無法完成註冊，無論其他部分看起來多麼正常。
+
+輸出內容較長（上方的擷取結果已經過精簡），因此請傳入參數來縮小範圍，而非完整閱讀。請注意，主機名稱欄位會因版面限制而被截斷，若您正在使用 grep 搜尋完整節點名稱卻找不到結果，這點尤其需要留意。

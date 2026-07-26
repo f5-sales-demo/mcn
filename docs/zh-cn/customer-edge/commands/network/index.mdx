@@ -1,0 +1,27 @@
+---
+title: 网络命令
+description: 阅读本层级内容，了解客户边缘设备上的连接性、路由、隧道和数据平面转发。共二十一条命令，涵盖 BGP、IPsec、Argo 数据平面及基本可达性。
+sidebar:
+  order: 10
+  label: 网络
+i18n:
+  sourceHash: f285c14aa71c
+  translator: machine
+---
+
+三十四条命令中的二十一条。按您所怀疑的层级进行划分。
+
+| 如果您怀疑 | 从此处开始 |
+| --- | --- |
+| 站点未通告或未学习路由 | [BGP](./bgp/) |
+| 至区域边缘的隧道已断开 | [IPsec](./ipsec/) |
+| 流量已到达但被丢弃 | [丢包统计](./dataplane-drops/) |
+| 某个特定连接行为异常 | [流表](./dataplane-flows/) |
+| 整个前缀的转发有误 | [路由与下一跳](./dataplane-forwarding/) |
+| 接口已断开或配置错误 | [接口](./ip/) |
+| 名称解析 | [dig](./dig/) |
+| 节点外的可达性 | [curl](./curl/) |
+| 套接字与监听器 | [netstat](./netstat/) |
+| 时钟偏差导致证书或认证失败 | [chronyc-sources](./chronyc-sources/) |
+
+数据平面为 Argo，其维护独立于 Linux 内核的转发状态。`ip` 显示的是 Linux 所认为的状态；`rt`、`nh` 和 `vif` 显示的是实际转发流量所依据的状态。当两者不一致时，数据平面优先。

@@ -1,0 +1,44 @@
+---
+title: journalctl
+description: >-
+  Journal systemd pour toute unité sur le nœud. La source principale pour les
+  échecs d'enregistrement et le comportement de vpm dans le temps.
+sidebar:
+  order: 50
+  label: journalctl
+i18n:
+  sourceHash: 38a11be4d7d8
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+Arguments `journalctl` standard, chacun étant un élément de tableau distinct. `-u vpm` est celui
+dont vous aurez le plus souvent besoin : `vpm` est l'agent qui enregistre le nœud et gère
+tout le reste sur celui-ci, ainsi son journal est l'endroit où les échecs d'enregistrement apparaissent avec
+des horodatages et entre les redémarrages.
+
+Variantes utiles :
+
+| Arguments | Réponses |
+| --- | --- |
+| `-u vpm -n 200` | Ce que vpm a fait récemment |
+| `-u vpm --since "10 min ago"` | Ce qui s'est passé pendant la reproduction du problème |
+| `-p err -n 100` | Erreurs de toutes les unités |
+| `-u kubelet -n 200` | Pourquoi la pile Kubernetes est défaillante |
+
+Préférez cette commande à [`docker-logs vpm`](../docker/) lorsque vous avez besoin d'horodatages, souhaitez
+couvrir un redémarrage, ou souhaitez corréler vpm avec une autre unité.
+
+<Aside type="note" title="Aucune sortie capturée sur cette page pour l'instant">
+Cette capture ne peut pas être validée tant que `f5-sales-demo/docs-control#795` n'est pas intégré. Le
+journal répercute une ligne de FRR contenant une faute d'orthographe, et `codespell` rejette le
+fichier. Modifier le texte capturé rendrait cette page descriptive d'une sortie qui ne s'est
+jamais produite, c'est pourquoi la correction est effectuée en amont dans la configuration gérée.
+</Aside>

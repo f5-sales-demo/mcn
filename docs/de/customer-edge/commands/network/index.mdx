@@ -1,0 +1,32 @@
+---
+title: Netzwerkbefehle
+description: >-
+  Lesen Sie diese Ebene für Konnektivität, Routing, Tunnel und
+  Datenebenen-Weiterleitung auf einem Customer Edge. Einundzwanzig Befehle zu
+  BGP, IPsec, der Argo-Datenebene und grundlegender Erreichbarkeit.
+sidebar:
+  order: 10
+  label: Netzwerk
+i18n:
+  sourceHash: f285c14aa71c
+  translator: machine
+---
+
+Einundzwanzig der vierunddreißig Befehle. Sie gliedern sich nach der Schicht, auf der Sie einen Fehler vermuten.
+
+| Wenn Sie vermuten | Beginnen Sie bei |
+| --- | --- |
+| Die Site bewirbt oder lernt keine Routen | [BGP](./bgp/) |
+| Der Tunnel zum regionalen Edge ist unterbrochen | [IPsec](./ipsec/) |
+| Datenverkehr kommt an, wird aber verworfen | [Drop-Statistiken](./dataplane-drops/) |
+| Eine bestimmte Verbindung verhält sich seltsam | [Flow-Tabelle](./dataplane-flows/) |
+| Die Weiterleitung ist für ein gesamtes Präfix fehlerhaft | [Routen und Next-Hops](./dataplane-forwarding/) |
+| Eine Schnittstelle ist ausgefallen oder falsch konfiguriert | [Schnittstellen](./ip/) |
+| Namensauflösung | [dig](./dig/) |
+| Erreichbarkeit vom Knoten aus | [curl](./curl/) |
+| Sockets und Listener | [netstat](./netstat/) |
+| Zeitabweichung, die Zertifikate oder Authentifizierung beeinträchtigt | [chronyc-sources](./chronyc-sources/) |
+
+Die Datenebene ist Argo und führt einen eigenen Weiterleitungszustand, der vom
+Linux-Kernel getrennt ist. `ip` zeigt Ihnen, was Linux glaubt; `rt`, `nh` und `vif` zeigen Ihnen,
+was den Datenverkehr tatsächlich weiterleitet. Wenn diese beiden nicht übereinstimmen, gewinnt die Datenebene.

@@ -1,0 +1,64 @@
+---
+title: ไซต์ที่ไม่เคยออนไลน์
+description: >-
+  ลำดับขั้นตอนสำหรับ CE ที่ลงทะเบียนไม่สำเร็จ ซึ่ง debug API
+  ไม่สามารถช่วยได้เนื่องจากขึ้นอยู่กับการลงทะเบียนที่ล้มเหลว
+sidebar:
+  order: 10
+  label: การลงทะเบียน
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="API ไม่สามารถดีบักสิ่งนี้ได้">
+debug API เข้าถึงโหนดผ่านระนาบควบคุม F5 Distributed Cloud ผ่านอุโมงค์ที่การลงทะเบียนสร้างขึ้น หากการลงทะเบียนล้มเหลวจะไม่มีอุโมงค์ ดังนั้นทุกคำสั่งในไซต์นี้จะไม่สามารถใช้งานได้สำหรับความล้มเหลวนี้โดยเฉพาะ ให้ทำงานจาก
+[serial console](../../access/serial-console/)
+</Aside>
+
+<Steps>
+
+1. **ยืนยันสิ่งที่ผู้เช่าคิด** การไม่ปรากฏในรายการไซต์เป็นปัญหาที่แตกต่างจากการปรากฏอยู่แต่ไม่อยู่ในสถานะ `ONLINE`
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   หากไซต์มีอยู่และรายงาน `ONLINE` แสดงว่าการลงทะเบียนสำเร็จแล้ว และคุณอยู่ในขั้นตอนการทำงานที่ผิด
+
+2. **ตรวจสอบการลงทะเบียนที่รอดำเนินการ** โหนดสามารถลงทะเบียนแล้วรอการอนุมัติ ซึ่งดูเหมือนกับความล้มเหลวจากภายนอก
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **ยืนยันว่า VM กำลังทำงานจริง** ก่อนสรุปว่าเป็นความผิดพลาดของซอฟต์แวร์
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **เชื่อมต่อ serial console** สิ่งนี้ต้องการเทอร์มินัล — ไม่สามารถเขียนสคริปต์ได้
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   หากปฏิเสธการเชื่อมต่อ ให้ตรวจสอบว่าเปิดใช้งาน boot diagnostics บน VM ก่อนสรุปว่าโหนดไม่สามารถเข้าถึงได้ ข้อกำหนดเบื้องต้นดังกล่าวและโหมดความล้มเหลวครอบคลุมอยู่ในหน้า [serial console](../../access/serial-console/)
+
+5. **อ่านสิ่งที่คอนโซลแสดง ตามลำดับนี้** cloud-init ก่อน — โหนดที่ cloud-init ไม่เคยเสร็จสมบูรณ์จะไม่มีการกำหนดค่าสำหรับลงทะเบียนด้วย จากนั้นตรวจสอบความพยายามลงทะเบียนเอง แล้วจึง DNS: หากโหนดไม่สามารถแก้ไข `register.ves.volterra.io` ได้ ทุกอย่างที่ขึ้นอยู่กับมันจะไม่สามารถทำงานได้
+
+6. **เมื่อโหนดอยู่ในสถานะ `ONLINE`** ให้ยืนยันด้วย [`health`](../../commands/system/health/) และคาดหวัง `state: PROVISIONED`
+
+</Steps>
+
+## สาเหตุที่พบบ่อย
+
+- cloud-init ไม่เสร็จสมบูรณ์ ดังนั้น `/etc/vpm/config.yaml` จึงไม่มีอยู่หรือไม่ถูกต้อง
+- โทเค็นการลงทะเบียนหมดอายุ ถูกใช้งานไปแล้ว หรือมาจากผู้เช่ารายอื่น
+- ไม่มีเส้นทาง egress ไปยัง `register.ves.volterra.io`
+- การเบี่ยงเบนของนาฬิกามากพอที่จะทำให้ใบรับรองไม่ถูกต้อง — ตรวจสอบได้รวดเร็วในภายหลังด้วย [`chronyc-sources`](../../commands/network/chronyc-sources/) แต่ไม่สามารถเข้าถึงได้จนกว่าโหนดจะออนไลน์

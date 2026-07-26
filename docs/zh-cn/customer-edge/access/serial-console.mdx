@@ -1,0 +1,116 @@
+---
+title: 串行控制台
+description: >-
+  通过串行控制台访问从未完成注册的客户边缘节点——调试 API
+  无法到达的紧急入口。涵盖启动诊断的前置条件、如何通过脚本检查可用性，以及两种看似故障但实际并非故障的情形。
+sidebar:
+  order: 30
+  label: 串行控制台
+i18n:
+  sourceHash: 872d359be18d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Azure 串行控制台通过 Azure 平台连接到节点的模拟串行端口。它不经过 F5 Distributed Cloud 控制平面、节点的数据平面，也不经过节点控制的任何网络路径——这正是它在其他一切手段均失效时仍然有效的原因。
+
+当 CE **从未启动**时，请使用此方式：注册失败、站点不在租户中，或者节点已启动但没有出站路由。在所有这些情况下，[调试 API](../debug-api/) 没有可用的隧道进行中继，且 SSH 在节点出厂时是关闭的。
+
+## 前置条件：启动诊断
+
+Azure 要求在虚拟机上启用启动诊断，才能连接串行控制台。这由 `terraform/modules/ce-node` 启用：
+
+```hcl
+boot_diagnostics {}
+```
+
+空块会选择 Azure 托管存储，因此无需自行管理诊断存储账户、生命周期策略或访问密钥。在节点上确认此配置：
+
+```bash
+az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
+```
+
+```json
+{ "bootDiagnostics": { "enabled": true } }
+```
+
+<Aside type="caution" title="启用操作不具有追溯效力">
+启动诊断在**启动时**捕获串行日志。对已在运行的虚拟机启用此功能，不会为已发生的启动生成日志，因此 `az vm boot-diagnostics get-boot-log` 会返回：
+
+```
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+```
+
+这是预期行为，并非故障。节点下次重启后才会存在启动日志。但是，实时控制台连接可立即生效——它不依赖于启动日志。
+</Aside>
+
+## 在无终端环境下检查可用性
+
+连接需要交互式会话，但是否*能够*连接只需两次 API 调用即可判断。两者都适用于健康检查。
+
+该服务必须在订阅中处于启用状态——管理员可以在租户范围内将其禁用：
+
+```bash
+az rest --method get --url \
+  "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.SerialConsole/consoleServices/default?api-version=2018-05-01"
+```
+
+```json
+{ "properties": { "disabled": false } }
+```
+
+然后请求连接到特定节点的串行端口：
+
+```bash
+az rest --method post \
+  --headers "Content-Type=application/json" --body '{}' --url \
+  "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
+```
+
+以 `wss://` 开头的 `connectionString`——在此部署中为 `eastus.gateway.serialconsole.azure.com`——表示控制台当前可连接。在启用启动诊断之前，此调用没有可连接的目标。
+
+<Aside type="danger" title="该连接字符串是一种凭据">
+它是嵌入在 URL 中的短期持有者令牌。请勿记录、粘贴到工单中或提交到代码仓库。在演示调用成功时，仅打印主机名即可。
+</Aside>
+
+## 连接操作
+
+<Steps>
+
+1. 安装扩展（仅需一次）：
+
+   ```bash
+   az extension add --name serial-console
+   ```
+
+2. 建立连接：
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+3. 进入后显示的是节点自身的登录提示符，而非 Shell。这是站点 CLI，需要在节点上设置的凭据——来自预配过程的管理员密码，或通过修改密码端点设置的密码。串行控制台证明*通道*可用，但不绕过身份验证。
+
+</Steps>
+
+<Aside type="caution" title="需要真实终端">
+`az serial-console connect` 会将终端设置为原始模式，因此无法在脚本、管道或任何没有 TTY 的上下文中运行。它会在联系 Azure 之前在客户端失败：
+
+```
+ERROR: (19, 'Operation not supported by device')
+  File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
+    GV.serial_console_instance.launch_console()
+```
+
+该堆栈跟踪是终端处理问题，而非串行控制台故障——上述两次 API 调用仍会报告控制台为可用状态。如果需要可自动化的信号，请使用那些 API 调用，而不是尝试为连接操作编写脚本。
+</Aside>
+
+## 此处可见而 API 无法显示的信息
+
+- **cloud-init** 正在运行、失败或从未启动——这是节点从未注册的常见原因。
+- 针对 `register.ves.volterra.io` 的**注册尝试**，包括配置错误或被租户拒绝的令牌。
+- 任何代理运行之前的**内核及启动消息**。
+- 节点处于**无可用网络路径**状态时的情况——此时所有其他访问方式均失效。
+
+对于状态为 `ONLINE` 的节点，建议优先使用调试 API：它可编写脚本、生成可重复执行的诊断证据，且不会占用唯一的串行端口。

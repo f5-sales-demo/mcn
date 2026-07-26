@@ -1,0 +1,40 @@
+---
+title: health
+description: 最初に実行すべき最良のコマンド。登録状態、OS、リソース、およびサイト全体のサービスステータスを1つの構造化レスポンスで確認できます。
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="GLOBAL スコープ — 異なるトランスポート">
+`command` 配列ではなく、`global` パスへの `GET` リクエストです。`exec-user` に `health` を送信すると
+`command not supported` が返されます。
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+まずここから始めてください。負荷が低く、構造化されており、あらゆる CE に関する最初の疑問である `state` に答えます。`PROVISIONED` は、ノードが登録済みかつ設定済みであることを意味します。
+
+それ以外の値 — `WAITING_FOR_CONFIG`、またはまったく応答がない場合 — は、データプレーンのデバッグを中断し、代わりに[登録](../../../workflows/registration/)を確認すべきことを示しています。
+
+レスポンスには、OS およびカーネルバージョン、基盤となる VM の製品およびベンダー情報、ソフトウェアビルドも含まれています。このビルド文字列によってノード上に存在するコマンドが決まるため、コマンドが存在しないと判断する前に確認する価値があります。
+
+レスポンスは JSON 形式であるため、クリーンにクエリを実行できます。
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

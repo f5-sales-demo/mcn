@@ -1,0 +1,76 @@
+---
+title: Rutas y saltos siguientes
+description: >-
+  Lo que el plano de datos Argo realmente reenvía, que no es necesariamente lo
+  que Linux considera. Cubre la tabla de rutas del vRouter, la tabla de saltos
+  siguientes e interfaces virtuales.
+sidebar:
+  order: 50
+  label: Rutas y saltos siguientes
+i18n:
+  sourceHash: 79de27e2024e
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo mantiene el estado de reenvío separado del kernel de Linux. Cuando
+[`ip`](../ip/) y estos comandos no coinciden, son estos comandos los que mueven el tráfico.
+
+## `rt`
+
+La tabla de rutas del vRouter, por VRF.
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="El id de VRF no es el que reporta BGP">
+`show-ip-bgp-summary` imprime `vrf-id 3`. Ese es el número de FRR y pertenece a un
+espacio de nombres diferente al id de tabla del vRouter. Pasarlo aquí falla de una manera que
+se interpreta como un nodo roto:
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+La misma respuesta se obtiene para `--dump 0`. En esta topología **VRF 2** es la
+tabla inet4 poblada, con VRF 1 conteniendo dos rutas. Si no conoce el id,
+pruebe hacia arriba desde 1 en lugar de confiar en la salida de BGP.
+</Aside>
+
+## `nh`
+
+La tabla de saltos siguientes. Cada ruta apunta a un id de salto siguiente, y esto los resuelve.
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+Cada entrada lleva un `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — y el VRF al que
+pertenece. Una ruta que resuelve a un salto siguiente `Drop` es un agujero negro, y esa
+combinación vale la pena verificar siempre que un prefijo esté presente en `rt` pero el tráfico siga
+desapareciendo.
+
+## `vif`
+
+La tabla de interfaces virtuales: a qué se vincula el plano de datos y los contadores
+por interfaz.
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+La leyenda de indicadores en la parte superior vale la pena leerla una vez — `Vp` marca la interfaz
+física del vhost, `Dpdk` una administrada por DPDK. Utilice esto para confirmar que el plano de datos
+ha tomado control de la interfaz esperada, y para ver los contadores RX y TX que Linux no muestra
+porque el tráfico nunca llega al kernel.

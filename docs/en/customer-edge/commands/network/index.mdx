@@ -1,0 +1,26 @@
+---
+title: Network commands
+description: Read this tier for connectivity, routing, tunnels and data-plane forwarding on a Customer Edge. Twenty-one commands covering BGP, IPsec, the Argo data plane and basic reachability.
+sidebar:
+  order: 10
+  label: Network
+---
+
+Twenty-one of the thirty-four commands. They divide by the layer you are suspicious of.
+
+| If you suspect | Start at |
+| --- | --- |
+| The site is not advertising or learning routes | [BGP](./bgp/) |
+| The tunnel to the regional edge is down | [IPsec](./ipsec/) |
+| Traffic arrives but is discarded | [Drop statistics](./dataplane-drops/) |
+| A specific connection behaves oddly | [Flow table](./dataplane-flows/) |
+| Forwarding is wrong for a whole prefix | [Routes and next hops](./dataplane-forwarding/) |
+| An interface is down or misconfigured | [Interfaces](./ip/) |
+| Name resolution | [dig](./dig/) |
+| Reachability off the node | [curl](./curl/) |
+| Sockets and listeners | [netstat](./netstat/) |
+| Clock skew breaking certificates or auth | [chronyc-sources](./chronyc-sources/) |
+
+The data plane is Argo, and it keeps its own forwarding state separate from the
+Linux kernel's. `ip` shows you what Linux believes; `rt`, `nh` and `vif` show you
+what actually forwards traffic. When those two disagree, the data plane wins.

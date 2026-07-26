@@ -1,0 +1,82 @@
+---
+title: Un sito che non è mai andato online
+description: >-
+  Sequenza ordinata per un CE che non è riuscito a registrarsi, dove l'API di
+  debug non può essere d'aiuto perché dipende dalla registrazione fallita.
+sidebar:
+  order: 10
+  label: Registrazione
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="L'API non può eseguire il debug di questo">
+L'API di debug raggiunge il nodo attraverso il piano di controllo F5 Distributed Cloud, tramite
+il tunnel stabilito dalla registrazione. Se la registrazione è fallita non esiste alcun tunnel,
+quindi ogni comando su questo sito non è disponibile per questo specifico errore. Operare dalla
+[console seriale](../../access/serial-console/).
+</Aside>
+
+<Steps>
+
+1. **Confermare cosa pensa il tenant.** Assente dall'elenco dei siti è un problema
+   diverso rispetto a presente ma non `ONLINE`.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   Se il sito esiste e riporta `ONLINE`, la registrazione è avvenuta con successo e ci
+   si trova nel flusso di lavoro errato.
+
+2. **Verificare la presenza di una registrazione in sospeso.** Un nodo può registrarsi
+   e poi attendere l'approvazione, il che appare identico a un errore dall'esterno.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **Confermare che la VM sia effettivamente in esecuzione**, prima di ipotizzare un
+   guasto software.
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **Collegare la console seriale.** Questa operazione richiede un terminale — non può
+   essere automatizzata tramite script.
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   In caso di rifiuto, verificare che la diagnostica di avvio sia abilitata sulla VM
+   prima di concludere che il nodo non è raggiungibile; tale prerequisito e le relative
+   modalità di errore sono trattati nella pagina della
+   [console seriale](../../access/serial-console/).
+
+5. **Leggere ciò che mostra la console, in questo ordine.** Prima cloud-init — un nodo
+   il cui cloud-init non è mai stato completato non dispone di alcuna configurazione con
+   cui registrarsi. Poi i tentativi di registrazione stessi, poi il DNS: se il nodo non
+   riesce a risolvere `register.ves.volterra.io`, nulla di ciò che dipende da esso può
+   funzionare.
+
+6. **Una volta che il nodo è `ONLINE`**, verificare con [`health`](../../commands/system/health/)
+   e aspettarsi `state: PROVISIONED`.
+
+</Steps>
+
+## Le cause più comuni
+
+- cloud-init non è stato completato, quindi `/etc/vpm/config.yaml` è assente o errato.
+- Il token di registrazione è scaduto, già utilizzato, o appartiene a un altro tenant.
+- Nessuna route di uscita verso `register.ves.volterra.io`.
+- Deriva dell'orologio sufficientemente grande da invalidare i certificati — da escludere
+  rapidamente in seguito con
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), ma non raggiungibile
+  finché il nodo non è online.
