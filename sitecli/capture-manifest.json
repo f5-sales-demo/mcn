@@ -1,0 +1,68 @@
+{
+  "_comment": [
+    "Runnable arguments for scripts/capture-sitecli.sh.",
+    "",
+    "The catalog's own 'example' field is illustrative, not runnable: it contains",
+    "placeholders such as ' container-id' and ' --get $ipv4 --vrf $vrf-id'. This",
+    "file supplies arguments that actually execute on the node.",
+    "",
+    "'args'      literal argv appended after the command name.",
+    "'args_from' a resolver that reads a real value off the node at capture time.",
+    "'skip'      documented, never executed, with the reason recorded here.",
+    "'max_lines' trim the capture to this many lines (0 = keep everything).",
+    "            Defaults to defaults.max_lines. Trimmed captures end with an",
+    "            explicit marker so no table is ever shown as if it were complete.",
+    "",
+    "Commands in the Exec tier are refused by the script itself from catalog",
+    "metadata and need no entry here."
+  ],
+  "defaults": {
+    "site": "ar-bgp-eastus01",
+    "node": "f5-xc-ce-vm-01",
+    "max_lines": 60
+  },
+  "commands": {
+    "chronyc-sources": { "args": [] },
+    "crictl-images": { "args": [] },
+    "crictl-inspect": { "args_from": "first-crio-container" },
+    "crictl-logs": { "args_from": "first-crio-container" },
+    "crictl-ps": { "args": [] },
+    "crictl-ps-a": { "args": [] },
+    "curl-host": { "args": ["-v", "cloud.f5.com"] },
+    "curl-vega": { "args": ["-v", "cloud.f5.com"] },
+    "diagnosis": {
+      "_note": "GLOBAL scope: captured with GET .../vpm/debug/global/diagnosis, which takes no arguments and returns JSON. Listed here so the manifest is a complete inventory of what gets captured.",
+      "args": []
+    },
+    "dig": { "args": ["volterra.azurecr.io"] },
+    "docker-images": { "args": [] },
+    "docker-inspect": { "args_from": "first-docker-container" },
+    "docker-logs": { "args_from": "first-docker-container", "max_lines": 40 },
+    "docker-ps": { "args": [] },
+    "docker-ps-a": { "args": [] },
+    "dropstats": { "args": [] },
+    "dropstats-non-zero": { "args": [] },
+    "flow-l": { "args": [] },
+    "flow-l-match": { "args": ["100.127.192.10:53"] },
+    "health": {
+      "_note": "GLOBAL scope: captured with GET .../vpm/debug/global/health, which takes no arguments and returns JSON.",
+      "args": []
+    },
+    "ip": { "args": ["addr"] },
+    "ip-link-show": { "args": [] },
+    "ipsec-status": { "args": [] },
+    "ipsec-statusall": { "args": [] },
+    "journalctl": { "args": ["-u", "vpm", "-n", "200"], "max_lines": 40 },
+    "netstat": { "args": [] },
+    "nh": { "args": ["--list"] },
+    "rt": {
+      "_note": "VRF 2 is the populated inet4 table on this topology. VRF 0 and 3 both answer 'No such file or directory'. Note that the vRouter table id is NOT the FRR vrf-id that show-ip-bgp-summary reports.",
+      "args": ["--dump", "2"]
+    },
+    "show-ip-bgp": { "args": [] },
+    "show-ip-bgp-neighbors": { "args": [] },
+    "show-ip-bgp-neighbors-advertised-route": { "args": [] },
+    "show-ip-bgp-summary": { "args": [] },
+    "vif": { "args": ["--list"] }
+  }
+}

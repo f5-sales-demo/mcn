@@ -1,0 +1,62 @@
+[
+    {
+        "Id": "587bb9434bcab7efe2312f3563ad711ce6feb15ea25a812a1abdf69e9a27c5f9",
+        "Created": "2026-07-23T23:02:54.153013822Z",
+        "Path": "/bin/bash",
+        "Args": [
+            "-c",
+            "source /functions.sh && watch_for_intf"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 15719,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-07-23T23:02:59.673606421Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:9735bc3ddfd6ae044e58e0511818b53a9a3fea22e0f20ead6cdeda484201a742",
+        "ResolvConfPath": "/var/lib/docker/containers/587bb9434bcab7efe2312f3563ad711ce6feb15ea25a812a1abdf69e9a27c5f9/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/587bb9434bcab7efe2312f3563ad711ce6feb15ea25a812a1abdf69e9a27c5f9/hostname",
+        "HostsPath": "/var/lib/docker/containers/587bb9434bcab7efe2312f3563ad711ce6feb15ea25a812a1abdf69e9a27c5f9/hosts",
+        "LogPath": "/var/lib/docker/containers/587bb9434bcab7efe2312f3563ad711ce6feb15ea25a812a1abdf69e9a27c5f9/587bb9434bcab7efe2312f3563ad711ce6feb15ea25a812a1abdf69e9a27c5f9-json.log",
+        "Name": "/argo_watch",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "/dev:/dev",
+                "/etc/systemd/:/etc/systemd/",
+                "/etc/vpm/:/etc/vpm/",
+                "/var/run/:/var/run/:rw"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-size": "50m"
+                }
+            },
+            "NetworkMode": "host",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": true,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+
+... [capture trimmed: first 60 of 249 lines]
