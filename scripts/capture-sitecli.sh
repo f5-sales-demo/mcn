@@ -49,7 +49,10 @@ SITE=""
 NODE=""
 MODE="capture"
 
-die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
 note() { printf '%s\n' "$*" >&2; }
 
 usage() {
@@ -59,17 +62,36 @@ usage() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --context) CONTEXT="${2:?--context needs a value}"; shift 2 ;;
-    --site)    SITE="${2:?--site needs a value}"; shift 2 ;;
-    --node)    NODE="${2:?--node needs a value}"; shift 2 ;;
-    --namespace) NAMESPACE="${2:?--namespace needs a value}"; shift 2 ;;
-    --check)   MODE="check"; shift ;;
-    --discover-only) MODE="discover"; shift ;;
-    -h|--help) usage ;;
-    --token|--api-token)
-      die "refusing a token on the command line: it lands in shell history and
-       process listings. Set XCSH_API_TOKEN, or use the xcsh context file." ;;
-    *) die "unknown argument: $1" ;;
+  --context)
+    CONTEXT="${2:?--context needs a value}"
+    shift 2
+    ;;
+  --site)
+    SITE="${2:?--site needs a value}"
+    shift 2
+    ;;
+  --node)
+    NODE="${2:?--node needs a value}"
+    shift 2
+    ;;
+  --namespace)
+    NAMESPACE="${2:?--namespace needs a value}"
+    shift 2
+    ;;
+  --check)
+    MODE="check"
+    shift
+    ;;
+  --discover-only)
+    MODE="discover"
+    shift
+    ;;
+  -h | --help) usage ;;
+  --token | --api-token)
+    die "refusing a token on the command line: it lands in shell history and
+       process listings. Set XCSH_API_TOKEN, or use the xcsh context file."
+    ;;
+  *) die "unknown argument: $1" ;;
   esac
 done
 
@@ -83,10 +105,10 @@ API_TOKEN="${XCSH_API_TOKEN:-}"
 if [ -z "$API_URL" ] || [ -z "$API_TOKEN" ]; then
   CTX_FILE="${HOME}/.config/xcsh/contexts/${CONTEXT}.json"
   [ -f "$CTX_FILE" ] || die "no XCSH_API_URL/XCSH_API_TOKEN in the environment and no context at $CTX_FILE"
-  [ -n "$API_URL" ]   || API_URL=$(jq -r '.apiUrl // empty' "$CTX_FILE")
+  [ -n "$API_URL" ] || API_URL=$(jq -r '.apiUrl // empty' "$CTX_FILE")
   [ -n "$API_TOKEN" ] || API_TOKEN=$(jq -r '.apiToken // empty' "$CTX_FILE")
 fi
-[ -n "$API_URL" ]   || die "could not resolve the API URL"
+[ -n "$API_URL" ] || die "could not resolve the API URL"
 [ -n "$API_TOKEN" ] || die "could not resolve the API token"
 
 # --- manifest defaults -------------------------------------------------------
@@ -109,16 +131,16 @@ api() {
 
 # --- software build ----------------------------------------------------------
 fetch_build() {
-  api GET "${API_URL}/api/config/namespaces/${NAMESPACE}/sites/${SITE}" \
-    | jq -r '.spec.volterra_software_version // .get_spec.volterra_software_version // empty'
+  api GET "${API_URL}/api/config/namespaces/${NAMESPACE}/sites/${SITE}" |
+    jq -r '.spec.volterra_software_version // .get_spec.volterra_software_version // empty'
 }
 
 # --- discovery: POST exec-user with no "command" key -------------------------
 fetch_catalog_raw() {
   api POST "${SITE_BASE}/vpm/debug/${NODE}/exec-user" \
     "$(jq -nc --arg ns "$NAMESPACE" --arg s "$SITE" --arg n "$NODE" \
-        '{namespace:$ns, site:$s, node:$n}')" \
-    | jq -r '.output // empty'
+      '{namespace:$ns, site:$s, node:$n}')" |
+    jq -r '.output // empty'
 }
 
 # Normalise the raw catalog into a stable, reviewable shape. No timestamps: the
@@ -143,8 +165,8 @@ build_catalog_json() {
 
 RAW=$(fetch_catalog_raw)
 [ -n "$RAW" ] || die "discovery returned nothing — check the site/node names and the token"
-printf '%s' "$RAW" | jq -e 'type == "object"' >/dev/null 2>&1 \
-  || die "discovery did not return a catalog object; got: $(printf '%s' "$RAW" | head -c 200)"
+printf '%s' "$RAW" | jq -e 'type == "object"' >/dev/null 2>&1 ||
+  die "discovery did not return a catalog object; got: $(printf '%s' "$RAW" | head -c 200)"
 
 BUILD=$(fetch_build)
 [ -n "$BUILD" ] || die "could not read volterra_software_version for site $SITE"
@@ -166,14 +188,22 @@ if [ "$MODE" = "check" ]; then
 
   added=$(comm -13 <(printf '%s\n' "$old_cmds") <(printf '%s\n' "$new_cmds") | sed '/^$/d')
   removed=$(comm -23 <(printf '%s\n' "$old_cmds") <(printf '%s\n' "$new_cmds") | sed '/^$/d')
-  if [ -n "$added" ];   then note "DRIFT: commands added on the CE:";   printf '  + %s\n' $added >&2; status=1; fi
-  if [ -n "$removed" ]; then note "DRIFT: commands no longer on the CE:"; printf '  - %s\n' $removed >&2; status=1; fi
+  if [ -n "$added" ]; then
+    note "DRIFT: commands added on the CE:"
+    printf '  + %s\n' $added >&2
+    status=1
+  fi
+  if [ -n "$removed" ]; then
+    note "DRIFT: commands no longer on the CE:"
+    printf '  - %s\n' $removed >&2
+    status=1
+  fi
 
   if ! diff <(jq -S '.commands' "$CATALOG") \
-            <(printf '%s' "$NEW_CATALOG" | jq -S '.commands') >/dev/null; then
+    <(printf '%s' "$NEW_CATALOG" | jq -S '.commands') >/dev/null; then
     note "DRIFT: command metadata (category/tier/example/scope) changed:"
     diff <(jq -S '.commands' "$CATALOG") \
-         <(printf '%s' "$NEW_CATALOG" | jq -S '.commands') >&2 || true
+      <(printf '%s' "$NEW_CATALOG" | jq -S '.commands') >&2 || true
     status=1
   fi
 
@@ -200,21 +230,21 @@ resolve_args() {
   local cmd="$1" resolver id
   resolver=$(jq -r --arg c "$cmd" '.commands[$c].args_from // empty' "$MANIFEST")
   case "$resolver" in
-    "") jq -r --arg c "$cmd" '(.commands[$c].args // []) | @json' "$MANIFEST" ;;
-    first-crio-container)
-      id=$(exec_user_raw crictl-ps '[]' | awk 'NR==2 {print $1}')
-      [ -n "$id" ] || return 1
-      jq -nc --arg id "$id" '[$id]'
-      ;;
-    first-docker-container)
-      # The CE runs Docker AND CRI-O side by side: vpm, argo_watch and
-      # site-console are Docker containers while the Kubernetes workloads are
-      # CRI-O. Both families of command therefore return real output.
-      id=$(exec_user_raw docker-ps '[]' | awk 'NR==2 {print $1}')
-      [ -n "$id" ] || return 1
-      jq -nc --arg id "$id" '[$id]'
-      ;;
-    *) die "unknown args_from resolver for ${cmd}: ${resolver}" ;;
+  "") jq -r --arg c "$cmd" '(.commands[$c].args // []) | @json' "$MANIFEST" ;;
+  first-crio-container)
+    id=$(exec_user_raw crictl-ps '[]' | awk 'NR==2 {print $1}')
+    [ -n "$id" ] || return 1
+    jq -nc --arg id "$id" '[$id]'
+    ;;
+  first-docker-container)
+    # The CE runs Docker AND CRI-O side by side: vpm, argo_watch and
+    # site-console are Docker containers while the Kubernetes workloads are
+    # CRI-O. Both families of command therefore return real output.
+    id=$(exec_user_raw docker-ps '[]' | awk 'NR==2 {print $1}')
+    [ -n "$id" ] || return 1
+    jq -nc --arg id "$id" '[$id]'
+    ;;
+  *) die "unknown args_from resolver for ${cmd}: ${resolver}" ;;
   esac
 }
 
@@ -226,7 +256,10 @@ trim_capture() {
   local cmd="$1" limit total
   limit=$(jq -r --arg c "$cmd" '.commands[$c].max_lines // empty' "$MANIFEST")
   [ -n "$limit" ] || limit=$(jq -r '.defaults.max_lines // 60' "$MANIFEST")
-  if [ "$limit" = "0" ]; then cat; return; fi
+  if [ "$limit" = "0" ]; then
+    cat
+    return
+  fi
   local body
   body=$(cat)
   total=$(printf '%s\n' "$body" | wc -l | tr -d ' ')
@@ -245,18 +278,18 @@ exec_user_raw() {
   argv=$(jq -nc --arg c "$cmd" --argjson e "$extra" '[$c] + $e')
   api POST "${SITE_BASE}/vpm/debug/${NODE}/exec-user" \
     "$(jq -nc --arg ns "$NAMESPACE" --arg s "$SITE" --arg n "$NODE" --argjson cmd "$argv" \
-        '{namespace:$ns, site:$s, node:$n, command:$cmd}')" \
-    | jq -r 'if .output then .output else "ERROR: " + (.message // "no output") end'
+      '{namespace:$ns, site:$s, node:$n, command:$cmd}')" |
+    jq -r 'if .output then .output else "ERROR: " + (.message // "no output") end'
 }
 
 captured=0 skipped=0 failed=0
 while IFS=$'\t' read -r cmd tier scope; do
   case "$tier" in
-    Exec)
-      note "skip  ${cmd} (Exec tier — privileged or mutating, never executed)"
-      skipped=$((skipped + 1))
-      continue
-      ;;
+  Exec)
+    note "skip  ${cmd} (Exec tier — privileged or mutating, never executed)"
+    skipped=$((skipped + 1))
+    continue
+    ;;
   esac
 
   if [ "$(jq -r --arg c "$cmd" '.commands[$c].skip // empty' "$MANIFEST")" != "" ]; then
@@ -293,11 +326,11 @@ while IFS=$'\t' read -r cmd tier scope; do
   dest="${CAPTURE_DIR}/sitecli-${cmd}.txt"
   out=$(exec_user_raw "$cmd" "$extra")
   case "$out" in
-    ERROR:*)
-      note "FAIL  ${cmd}: ${out}"
-      failed=$((failed + 1))
-      continue
-      ;;
+  ERROR:*)
+    note "FAIL  ${cmd}: ${out}"
+    failed=$((failed + 1))
+    continue
+    ;;
   esac
   printf '%s\n' "$out" | bash "$SCRUB" | trim_capture "$cmd" >"$dest"
   note "ok    ${cmd} -> ${dest#"${REPO_ROOT}/"}"

@@ -31,9 +31,25 @@ staged() {
 }
 
 if staged | grep -qE '^(sitecli/|scripts/(capture-sitecli|check-sitecli-docs|sitecli-scrub|pre-commit-local)\.sh|tests/test-(sitecli-scrub|check-sitecli-docs)\.sh|docs/(_imports|en/customer-edge/))'; then
-  run "CE scrub filter tests"           bash tests/test-sitecli-scrub.sh
-  run "CE docs consistency gate tests"  bash tests/test-check-sitecli-docs.sh
-  run "CE catalog vs documentation"     bash scripts/check-sitecli-docs.sh
+  run "CE scrub filter tests" bash tests/test-sitecli-scrub.sh
+  run "CE docs consistency gate tests" bash tests/test-check-sitecli-docs.sh
+  run "CE catalog vs documentation" bash scripts/check-sitecli-docs.sh
 else
   printf 'CE Site CLI checks skipped (no related paths staged)\n'
+fi
+
+# shfmt is enforced by the Lint Code Base gate (super-linter SHELL_SHFMT) but is
+# absent from .pre-commit-config.yaml, which is governance-managed. Without this,
+# a formatting-only failure is only discoverable after pushing — which is exactly
+# how it was found. Runs on every staged shell script, not just the CE ones.
+if command -v shfmt >/dev/null 2>&1; then
+  # No mapfile: macOS ships bash 3.2, where it does not exist. Anything that runs
+  # in a git hook on this fleet has to work there.
+  sh_files=$(staged | grep -E '\.sh$' || true)
+  if [ -n "$sh_files" ]; then
+    printf '\n== shfmt (mirrors the CI Lint Code Base gate)\n'
+    printf '%s\n' "$sh_files" | tr '\n' '\0' | xargs -0 shfmt -d
+  fi
+else
+  printf '\nshfmt not installed — the CI Lint Code Base gate will still enforce it\n'
 fi

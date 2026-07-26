@@ -159,8 +159,11 @@ for probe in 'no trailing newline' 'has trailing newline
 '; do
   out=$(printf '%s' "$probe" | bash "$SCRIPT" | od -c | tail -2 | head -1)
   case "$out" in
-    *'\n'*) : ;;
-    *) echo "[FAIL] no final newline for input: ${probe%%$'\n'*}"; FAIL=1 ;;
+  *'\n'*) : ;;
+  *)
+    echo "[FAIL] no final newline for input: ${probe%%$'\n'*}"
+    FAIL=1
+    ;;
   esac
 done
 echo "[OK] final newline present"

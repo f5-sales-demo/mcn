@@ -23,9 +23,18 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --root) ROOT=$(cd "${2:?--root needs a value}" && pwd); shift 2 ;;
-    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) printf 'error: unknown argument: %s\n' "$1" >&2; exit 2 ;;
+  --root)
+    ROOT=$(cd "${2:?--root needs a value}" && pwd)
+    shift 2
+    ;;
+  -h | --help)
+    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *)
+    printf 'error: unknown argument: %s\n' "$1" >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -37,17 +46,29 @@ CMD_DOCS="${DOCS}/commands"
 IMPORTS="${ROOT}/docs/_imports"
 
 VIOLATIONS=0
-violation() { printf '  %s\n' "$*" >&2; VIOLATIONS=$((VIOLATIONS + 1)); }
+violation() {
+  printf '  %s\n' "$*" >&2
+  VIOLATIONS=$((VIOLATIONS + 1))
+}
 section() { printf '%s\n' "$*" >&2; }
 
-command -v jq >/dev/null 2>&1 || { printf 'error: jq is required\n' >&2; exit 2; }
+command -v jq >/dev/null 2>&1 || {
+  printf 'error: jq is required\n' >&2
+  exit 2
+}
 
-[ -f "$CATALOG" ] || { printf 'error: no catalog at %s\n' "$CATALOG" >&2; exit 1; }
+[ -f "$CATALOG" ] || {
+  printf 'error: no catalog at %s\n' "$CATALOG" >&2
+  exit 1
+}
 if ! jq -e '.build and (.commands | type == "object")' "$CATALOG" >/dev/null 2>&1; then
   printf 'error: %s is not a valid catalog (needs .build and .commands)\n' "$CATALOG" >&2
   exit 1
 fi
-[ -f "$MANIFEST" ] || { printf 'error: no manifest at %s\n' "$MANIFEST" >&2; exit 1; }
+[ -f "$MANIFEST" ] || {
+  printf 'error: no manifest at %s\n' "$MANIFEST" >&2
+  exit 1
+}
 if ! jq -e '.commands | type == "object"' "$MANIFEST" >/dev/null 2>&1; then
   printf 'error: %s is not a valid manifest\n' "$MANIFEST" >&2
   exit 1
@@ -118,16 +139,16 @@ else
 
   while IFS= read -r cmd; do
     [ -n "$cmd" ] || continue
-    is_in "$cmd" "$DOCUMENTED" \
-      || violation "command '${cmd}' is on the CE but no page documents it (expected a '## \`${cmd}\`' heading)"
+    is_in "$cmd" "$DOCUMENTED" ||
+      violation "command '${cmd}' is on the CE but no page documents it (expected a '## \`${cmd}\`' heading)"
   done <<EOF
 $ALL_CMDS
 EOF
 
   while IFS= read -r cmd; do
     [ -n "$cmd" ] || continue
-    is_in "$cmd" "$ALL_CMDS" \
-      || violation "a page documents '${cmd}', which is not a command in the catalog"
+    is_in "$cmd" "$ALL_CMDS" ||
+      violation "a page documents '${cmd}', which is not a command in the catalog"
   done <<EOF
 $DOCUMENTED
 EOF
@@ -140,8 +161,8 @@ EOF
     fi
     while IFS= read -r found; do
       [ -n "$found" ] || continue
-      [ "$found" = "$BUILD" ] \
-        || violation "commands/index.mdx mentions build '${found}' but the catalog is '${BUILD}'"
+      [ "$found" = "$BUILD" ] ||
+        violation "commands/index.mdx mentions build '${found}' but the catalog is '${BUILD}'"
     done < <(grep -ohE 'crt-[0-9]{8}-[0-9]+' "$INDEX" | sort -u)
   else
     violation "missing ${CMD_DOCS#"${ROOT}/"}/index.mdx"
@@ -152,23 +173,23 @@ EOF
   # flat, so a reference with no import silently renders an empty block.
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
-    [ -f "${CAPTURE_DIR}/${ref}" ] \
-      || violation "a page embeds '_data/${ref}' but sitecli/captures/${ref} does not exist"
+    [ -f "${CAPTURE_DIR}/${ref}" ] ||
+      violation "a page embeds '_data/${ref}' but sitecli/captures/${ref} does not exist"
     if [ -f "$IMPORTS" ]; then
-      grep -qxF "sitecli/captures/${ref}" "$IMPORTS" \
-        || violation "'sitecli/captures/${ref}' is embedded by a page but missing from docs/_imports"
+      grep -qxF "sitecli/captures/${ref}" "$IMPORTS" ||
+        violation "'sitecli/captures/${ref}' is embedded by a page but missing from docs/_imports"
     else
       violation "pages embed _data files but there is no docs/_imports"
     fi
   done < <(printf '%s\n' "$PAGES" | while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      # `|| true` is load-bearing: a page with no embedded capture makes grep exit
-      # 1, `pipefail` propagates that through sed, and `set -e` would then kill
-      # this subshell mid-scan. index.mdx sorts first and has no reference, so
-      # without this the scan silently stopped before reaching any real page.
-      grep -ohE 'file=[^[:space:]]*_data/(sitecli-[^[:space:]]+)' "$p" 2>/dev/null \
-        | sed 's|.*_data/||' || true
-    done | sort -u)
+    [ -n "$p" ] || continue
+    # `|| true` is load-bearing: a page with no embedded capture makes grep exit
+    # 1, `pipefail` propagates that through sed, and `set -e` would then kill
+    # this subshell mid-scan. index.mdx sorts first and has no reference, so
+    # without this the scan silently stopped before reaching any real page.
+    grep -ohE 'file=[^[:space:]]*_data/(sitecli-[^[:space:]]+)' "$p" 2>/dev/null |
+      sed 's|.*_data/||' || true
+  done | sort -u)
 fi
 
 printf '\n' >&2

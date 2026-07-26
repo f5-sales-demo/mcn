@@ -20,8 +20,8 @@ trap cleanup EXIT
 new_tree() {
   local root="${WORK}/$1"
   mkdir -p "${root}/sitecli/captures" \
-           "${root}/docs/en/customer-edge/commands/network" \
-           "${root}/docs/en/customer-edge/commands/system"
+    "${root}/docs/en/customer-edge/commands/network" \
+    "${root}/docs/en/customer-edge/commands/system"
 
   cat >"${root}/sitecli/catalog.json" <<'JSON'
 {
