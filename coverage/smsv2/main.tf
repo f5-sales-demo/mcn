@@ -163,13 +163,31 @@ resource "xcsh_securemesh_site_v2" "probe" {
     content {}
   }
 
+  # S7 blocked_service service_choice {dns | ssh | web_user_interface}, keyed on
+  # var.blocked_service_arm so exactly ONE marker renders. F5's runtime keeps a single member: an
+  # earlier probe that sent ssh{} AND web_user_interface{} together read back with only `ssh`, and the
+  # provider's absent-marker suppression hid the drop behind a 0-change plan. One marker per apply is
+  # the only wiring whose read-back matches the config.
   dynamic "blocked_services" {
     for_each = var.services_arm == "blocked_services" ? [1] : []
     content {
       blocked_service {
         network_type = var.blocked_network_type
-        ssh {}
-        web_user_interface {}
+
+        dynamic "dns" {
+          for_each = var.blocked_service_arm == "dns" ? [1] : []
+          content {}
+        }
+
+        dynamic "ssh" {
+          for_each = var.blocked_service_arm == "ssh" ? [1] : []
+          content {}
+        }
+
+        dynamic "web_user_interface" {
+          for_each = var.blocked_service_arm == "web_user_interface" ? [1] : []
+          content {}
+        }
       }
     }
   }
@@ -417,12 +435,25 @@ resource "xcsh_securemesh_site_v2" "probe" {
   }
 
   # S5 performance_enhancement_mode oneof {perf_mode_l7_enhanced | perf_mode_l3_enhanced}, keyed on
-  # var.perf_arm. perf_mode_l7_enhanced (default) is the base empty arm; perf_mode_l3_enhanced renders
-  # its no_jumbo{} sub-oneof member (jumbo|no_jumbo). Both are S5a live.
+  # var.perf_arm. perf_mode_l7_enhanced (default) carries its own jumbo sub-oneof
+  # {jumbo_disabled | jumbo_enabled}, new in provider v3.80.0 (specs v2.1.194) and keyed on
+  # var.l7_jumbo_arm; the server materializes jumbo_disabled, so the default declares it and the
+  # object stays import-clean. perf_mode_l3_enhanced renders its no_jumbo{} sub-oneof member
+  # (jumbo|no_jumbo). Both are S5a live.
   performance_enhancement_mode {
     dynamic "perf_mode_l7_enhanced" {
       for_each = var.perf_arm == "perf_mode_l7_enhanced" ? [1] : []
-      content {}
+      content {
+        dynamic "jumbo_disabled" {
+          for_each = var.l7_jumbo_arm == "jumbo_disabled" ? [1] : []
+          content {}
+        }
+
+        dynamic "jumbo_enabled" {
+          for_each = var.l7_jumbo_arm == "jumbo_enabled" ? [1] : []
+          content {}
+        }
+      }
     }
 
     dynamic "perf_mode_l3_enhanced" {
@@ -510,8 +541,9 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # S5 admin_user_credentials (UNSET in the pre-S5 base) — rendered only when var.admin_creds is true so
   # a bare plan omits it. The admin_password SecretType uses clear_secret_info (the only dependency-free
   # backend; blindfold/vault/wingman need external providers) with a DUMMY base64 password — never a
-  # real secret. ssh_key is LengthAtMost(8192); secret_encoding_type is OneOf(EncodingNone,
-  # EncodingBase64). Attempted S5a live.
+  # real secret. ssh_key is LengthAtMost(8192). Attempted S5a live. The SecretType
+  # `secret_encoding_type` leaf that S5 also covered no longer exists: the upstream F5 spec dropped it
+  # from SecretType, so provider v3.80.0 (specs v2.1.194) has no such attribute.
   dynamic "admin_user_credentials" {
     for_each = var.admin_creds ? [1] : []
     content {
@@ -520,7 +552,6 @@ resource "xcsh_securemesh_site_v2" "probe" {
         clear_secret_info {
           url = "string:///${base64encode(var.admin_password_b64_source)}"
         }
-        secret_encoding_type = var.secret_encoding_type
       }
     }
   }

@@ -57,8 +57,9 @@ jobs:
   # xcsh provider, so the provider's own schema validators fire at plan with no XC API call.
   # NOTE: unlike the `validate` job (which pins the provider via terraform/.terraform-version
   # and vendored config), this job resolves f5-sales-demo/xcsh from the public registry, so it
-  # only turns green once provider v3.75.0 (which ships the SMSv2 numeric validators) is
-  # published there. Locally the same tests run against the dev_overrides build via verify.sh.
+  # only turns green once the provider version `coverage/smsv2/versions.tf` pins (>= 3.80.0, the
+  # release carrying the `x-f5xc-wire-name` contract) is published there. Locally the same tests run
+  # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2
     runs-on: ubuntu-latest
