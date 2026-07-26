@@ -1,0 +1,44 @@
+---
+title: health
+description: >-
+  คำสั่งแรกที่ดีที่สุด สถานะการลงทะเบียน ระบบปฏิบัติการ ทรัพยากร
+  และสถานะบริการของไซต์ทั้งหมดในการตอบสนองที่มีโครงสร้างเดียว
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="ขอบเขต GLOBAL — การขนส่งที่แตกต่างออกไป">
+ใช้ `GET` ไปยังพาธ `global` ไม่ใช่อาร์เรย์ `command` การส่ง `health` ไปยัง `exec-user`
+จะได้รับการตอบกลับว่า `command not supported`
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+เริ่มต้นที่นี่ คำสั่งนี้มีต้นทุนต่ำ มีโครงสร้างชัดเจน และตอบคำถามแรกเกี่ยวกับ
+CE ใดๆ ก็คือ: `state` ค่า `PROVISIONED` หมายความว่าโหนดได้ลงทะเบียนแล้วและได้รับการกำหนดค่าแล้ว
+
+ค่าอื่นใด เช่น `WAITING_FOR_CONFIG` หรือไม่มีการตอบสนองเลย — บอกให้คุณหยุดแก้ไขปัญหาระนาบข้อมูลและหันไปดูที่ [การลงทะเบียน](../../../workflows/registration/)
+แทน
+
+การตอบสนองยังมีเวอร์ชัน OS และเคอร์เนล ผลิตภัณฑ์และผู้จัดจำหน่ายของ VM ที่อยู่เบื้องหลัง และบิลด์ซอฟต์แวร์ด้วย สตริงบิลด์นั้นเป็นตัวกำหนดว่ามีคำสั่งใดบ้างในโหนด ดังนั้นจึงควรบันทึกไว้ก่อนที่จะสรุปว่าคำสั่งหายไป
+
+เนื่องจากการตอบสนองเป็น JSON จึงสามารถสืบค้นได้อย่างสะดวก:
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

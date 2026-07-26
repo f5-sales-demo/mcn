@@ -1,0 +1,65 @@
+---
+title: Acessando uma Edge de Cliente
+description: >-
+  Leia este nível antes de executar qualquer comando. Aborda autenticação, a
+  regra de nível para endpoint que decide para onde um comando é enviado e o
+  caminho de acesso emergencial para um nó não registrado.
+sidebar:
+  order: 10
+  label: Acesso
+i18n:
+  sourceHash: 188808639df6
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Existem duas rotas, e qual delas se aplica é determinado pelo estado do nó, e não
+por preferência.
+
+| Estado do nó | Rota | Automatizável | Abrange |
+| --- | --- | --- | --- |
+| `ONLINE` | [API de Debug](./debug-api/) | Sim | 34 comandos, somente leitura e privilegiados |
+| Não registrado ou inacessível | [Console serial](./serial-console/) | Não — requer um terminal | O Site CLI completo na caixa |
+
+## Por que a divisão não é uma preferência
+
+A API de debug é servida pelo plano de controle do F5 Distributed Cloud, que
+repassa as requisições ao nó pelo túnel que o `vpm` estabelece durante o
+registro. Sem registro não há túnel, o que significa que a API não tem para onde
+repassar as requisições.
+
+A falha ocorre de forma pouco esclarecedora, e não de maneira óbvia, portanto um
+nó que nunca subiu parece um problema na API.
+
+O console serial funciona de forma completamente diferente — por meio da plataforma
+Azure até a porta serial emulada do nó. Não importa se o nó foi registrado, se
+possui alcançabilidade de rede ou se o plano de dados está funcionando. Essa
+independência é justamente o objetivo, e é por isso que o diagnóstico de boot
+precisa permanecer habilitado nas VMs de CE.
+
+<Aside type="note" title="O que utilizar">
+Se você está escrevendo automação ou coletando evidências que deseja executar
+novamente mais tarde, utilize a API de debug. Se o registro é o que está
+quebrado, o console serial não é um plano alternativo — é a única opção.
+</Aside>
+
+## Credenciais
+
+As duas rotas utilizam credenciais diferentes, e nenhuma delas deve ser passada
+em uma linha de comando.
+
+- **API de debug** — um token de API do F5 Distributed Cloud, como `XCSH_API_TOKEN`,
+  com a URL do tenant como `XCSH_API_URL`. O arquivo de contexto do `xcsh` em
+  `~/.config/xcsh/contexts/<tenant>.json` armazena ambos, e é o que o
+  `scripts/capture-sitecli.sh` lê quando o ambiente não os fornece.
+- **Console serial** — seu login interativo no Azure. Não há um service principal
+  para isso: o tenant corporativo F5 Entra não permite provisionar um, o que
+  também explica por que nenhuma parte disso é executada em CI.
+
+<Aside type="danger" title="Nunca passe um token como argumento">
+Um token em uma linha de comando fica registrado no histórico do shell e na lista
+de processos, onde qualquer outro usuário da máquina pode lê-lo. O
+`capture-sitecli.sh` rejeita `--token` explicitamente por esse motivo e fornece
+o cabeçalho ao `curl` via stdin.
+</Aside>

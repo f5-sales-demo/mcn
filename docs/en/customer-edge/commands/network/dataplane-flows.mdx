@@ -1,0 +1,45 @@
+---
+title: Flow table
+description: Per-connection state in the Argo data plane. Use the match form to find one connection; the full dump is enormous.
+sidebar:
+  order: 40
+  label: Flow table
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo tracks every connection. The table on this node has 629,760 entries, so how you
+query it matters more than what it contains.
+
+## `flow-l-match`
+
+Almost always the one you want. Takes an address, or an address and port.
+
+```bash
+{"command":["flow-l-match","100.127.192.10:53"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l-match.txt
+```
+
+The action on each flow is the point: `F` forward, `D` drop, `N` NAT. A flow present
+with action `D` means the data plane made a deliberate decision, which redirects you
+to policy rather than to connectivity.
+
+## `flow-l`
+
+The full dump.
+
+```bash
+{"command":["flow-l"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l.txt
+```
+
+<Aside type="caution" title="Trimmed, and enormous">
+The capture above is trimmed to the first 60 lines of 1057, and 1057 was itself the
+API's own limit rather than the whole table. Use `flow-l-match` unless you genuinely
+need to survey the whole table, and expect the header counts — table size and entry
+count — to be the only parts worth reading when you do.
+</Aside>

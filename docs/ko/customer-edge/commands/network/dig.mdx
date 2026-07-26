@@ -1,0 +1,31 @@
+---
+title: dig
+description: 어떤 리졸버가 응답했는지를 포함하여 노드에서의 DNS 확인. 이전에 게시된 Site CLI 참조에는 완전히 누락되어 있음.
+sidebar:
+  order: 90
+  label: dig
+i18n:
+  sourceHash: 2ac6602c8699
+  translator: machine
+---
+
+## `dig`
+
+```bash
+{"command":["dig","volterra.azurecr.io"]}
+```
+
+```text file=../../../../_data/sitecli-dig.txt
+```
+
+먼저 헤더의 `status:`를 확인하십시오 — 0이 아닌 `ANSWER` 카운트와 함께 `NOERROR`가 표시되면 조회가 성공한 것입니다.
+
+하단의 `SERVER:`는 응답한 리졸버를 나타내며, 이것이 확인할 가치가 있는 부분입니다. Azure 노드에서는 일반적으로 `168.63.129.16`의 플랫폼 리졸버이며, 다른 값이 표시되면 노드가 의도하지 않은 리졸버를 사용하고 있다는 의미입니다.
+
+등록 실패는 종종 DNS로 귀결됩니다. 노드가 `register.ves.volterra.io` 또는 컨테이너 레지스트리를 확인할 수 없으면 하위의 어떤 것도 작동하지 않으며, 이것이 이를 증명하는 가장 빠른 방법입니다.
+
+이 명령은 특정 서버를 쿼리하기 위한 `@resolver`를 포함한 일반적인 `dig` 인수를 허용합니다 — 하나의 리졸버는 응답하고 다른 리졸버는 응답하지 않음을 보여줄 때 유용합니다.
+
+:::note
+`dig`는 이전에 게시된 Site CLI 참조에 전혀 나타나지 않습니다. 문서를 읽는 것이 아니라 노드 자체의 명령 카탈로그를 요청하여 발견되었으며, 이것이 이 사이트의 모든 명령이 전사(transcribed)된 것이 아니라 발견(discovered)된 이유입니다.
+:::

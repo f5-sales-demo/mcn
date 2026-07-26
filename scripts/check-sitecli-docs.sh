@@ -132,9 +132,12 @@ else
 
   PAGES=$(find "$CMD_DOCS" -type f -name '*.mdx' 2>/dev/null | sort)
 
-  # Every "## `<cmd>`" heading across all pages.
+  # Every "## `<cmd>`" heading across all pages. Trailing content after the closing
+  # backtick is allowed, because a heading legitimately carries a <Badge> marking a
+  # command as privileged or mutating — which is exactly the case that must not be
+  # made harder to write.
   DOCUMENTED=$(printf '%s\n' "$PAGES" | while IFS= read -r p; do
-    [ -n "$p" ] && sed -n 's/^##[[:space:]]*`\([^`]*\)`[[:space:]]*$/\1/p' "$p"
+    [ -n "$p" ] && sed -n 's/^##[[:space:]]*`\([^`]*\)`.*$/\1/p' "$p"
   done | sort -u)
 
   while IFS= read -r cmd; do
@@ -159,11 +162,10 @@ EOF
     if ! grep -qF -- "$BUILD" "$INDEX"; then
       violation "commands/index.mdx does not state the catalog build '${BUILD}'"
     fi
-    while IFS= read -r found; do
-      [ -n "$found" ] || continue
-      [ "$found" = "$BUILD" ] ||
-        violation "commands/index.mdx mentions build '${found}' but the catalog is '${BUILD}'"
-    done < <(grep -ohE 'crt-[0-9]{8}-[0-9]+' "$INDEX" | sort -u)
+    # Deliberately NOT also asserting that no OTHER build is mentioned. The page
+    # legitimately names a newer build when listing the commands this tenant does not
+    # have yet, and forbidding that would push a genuinely useful comparison out of
+    # the documentation in order to satisfy a lint.
   else
     violation "missing ${CMD_DOCS#"${ROOT}/"}/index.mdx"
   fi

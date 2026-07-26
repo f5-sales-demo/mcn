@@ -1,0 +1,81 @@
+---
+title: docker
+description: >-
+  وقت تشغيل Docker، الذي يشغّل خدمات منصة CE. خمسة أوامر، والمكان المناسب للبحث
+  عن vpm نفسه.
+sidebar:
+  order: 40
+  label: docker
+i18n:
+  sourceHash: 9db8ec324ab5
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+يشغّل Docker خدمات المنصة. أعباء عمل Kubernetes موجودة تحت
+[CRI-O](../crictl/).
+
+## `docker-ps`
+
+```bash
+{"command":["docker-ps"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps.txt
+```
+
+<Aside type="tip" title="ثلاثة حاويات هي القائمة الكاملة، وليست عقدة معطوبة">
+`vpm` و`argo_watch` و`site-console`. نظرًا لأن معظم العقدة تعمل تحت CRI-O، فإن
+نتيجة `docker-ps` القصيرة قد تبدو وكأنها فشل إذا كنت تتوقع وجود أعباء عمل Kubernetes
+هنا. لكنها ليست كذلك — هذه هي المجموعة الكاملة من حاويات Docker على CE سليمة، و
+وجود `vpm` وحالته `Up` هو السطر الأهم في الصفحة.
+</Aside>
+
+## `docker-ps-a`
+
+```bash
+{"command":["docker-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps-a.txt
+```
+
+يتضمن الحاويات المتوقفة، لذا فإن `vpm` الذي يظل يتعطل يترك آثارًا هنا.
+
+## `docker-images`
+
+```bash
+{"command":["docker-images"]}
+```
+
+```text file=../../../../_data/sitecli-docker-images.txt
+```
+
+تحدد وسوم الصور إصدار المنصة الذي تعمل به العقدة فعليًا، وهو أمر يستحق
+المقارنة مع إصدار البرنامج المُبلَّغ عنه بواسطة [`health`](../health/).
+
+## `docker-inspect`
+
+```bash
+{"command":["docker-inspect","<container-id-or-name"]}
+```
+
+```text file=../../../../_data/sitecli-docker-inspect.txt
+```
+
+يقبل الاسم إلى جانب المعرّف، لذا يعمل `docker-inspect vpm` ويظل ثابتًا عبر
+عمليات إعادة التشغيل. JSON كاملة: نقاط التحميل، والبيئة، وسياسة إعادة التشغيل وحالة الخروج.
+
+## `docker-logs`
+
+```bash
+{"command":["docker-logs","<container-id-or-name>"]}
+```
+
+```text file=../../../../_data/sitecli-docker-logs.txt
+```
+
+`docker-logs vpm` هو أسرع طريق للوصول إلى أخطاء التسجيل. للحصول على نفس
+المعلومات مع الطوابع الزمنية وعبر عمليات إعادة التشغيل، استخدم
+[`journalctl`](../journalctl/) بدلًا من ذلك.

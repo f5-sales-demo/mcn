@@ -1,0 +1,55 @@
+---
+title: 接口
+description: 节点上 Linux 侧的接口与链路状态，以及唯一可更改它的特权命令。Linux 所认为的状态，可能与数据平面的实际情况不一致。
+sidebar:
+  order: 60
+  label: 接口
+i18n:
+  sourceHash: 7ad734b3a357
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+以下内容反映的是内核的视图。Argo 数据平面维护自己的视图，可通过
+[`vif`](../dataplane-forwarding/) 查看，两者可能存在差异。
+
+## `ip`
+
+接受一个 `ip` 子命令。`addr` 是最常用的；`route`、`link` 和 `neigh` 同样适用。
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+CE 在设计上有三块网卡，且顺序至关重要：`eth0` 是管理与 SLO 接口，承载站点的 BGP 本地地址，其后依次为外部接口和内部接口。注意输出中的 `a-i-eth0`——数据平面已接管该物理接口并呈现其自身的视图。
+
+## `ip-link-show`
+
+仅显示链路层信息：状态、MTU、队列规则、MAC 地址。
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+当问题是"链路是否正常，MTU 是多少"时，此命令比 `ip addr` 更快捷。MTU 不匹配是隧道能够建立但无法传递流量的常见原因。
+
+## `ip-link-set` <Badge text="Exec 级别——变更操作" variant="danger" />
+
+将一个接口或接口组设置为启用或禁用状态。
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="此处不可运行，且无法通过常规方式访问">
+这是本构建版本中唯一处于 `Exec` 级别的命令。它发送至 `exec` 端点而非 `exec-user`，并会对节点产生实际变更：在远程 CE 上将 `eth0` 设为禁用状态会断开您用于管理它的路径，包括调试 API 本身。
+
+本页面有意未提供任何捕获输出。捕获工具拒绝处理整个 `Exec` 级别，且从实时目录而非硬编码列表中读取级别信息，因此即使未来的构建版本将其他命令提升至该级别，此行为也将保持一致。
+</Aside>

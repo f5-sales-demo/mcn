@@ -1,0 +1,45 @@
+---
+title: diagnosis
+description: >-
+  Konnektivitäts- und DNS-Prüfungen, die der Knoten gegen sich selbst ausführt,
+  werden als JSON zurückgegeben. Zeigt an, was der Knoten über seine eigene
+  Erreichbarkeit glaubt.
+sidebar:
+  order: 20
+  label: diagnosis
+i18n:
+  sourceHash: 2c9fe6fab17a
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="GLOBAL-Geltungsbereich — ein anderer Transport">
+Wie `health` ein `GET`-Aufruf auf den `global`-Pfad, der nicht über `exec-user` erreichbar ist.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+Der Knoten überprüft sein eigenes Gateway und meldet das Ergebnis pro Knoten — auf einem
+Multi-Knoten-Standort erhält man daher jeweils einen Block. `gateway_connectivity` enthält
+eine Ping-Zusammenfassung mit `sent`, `received`, `lost` sowie Roundtrip-Zeiten.
+
+<Aside type="note" title="100 % Verlust zum Gateway ist nicht zwangsläufig ein Fehler">
+In dieser Topologie antwortet das Gateway nicht auf ICMP-Anfragen, sodass `lost: 100` der
+Normalzustand ist, während der Standort `ONLINE` ist und Datenverkehr weiterleitet. Dieses
+Feld sollte nur dann als Signal gewertet werden, wenn bereits andere Hinweise auf ein Problem
+vorliegen oder sich der Wert ändert.
+</Aside>
+
+`resolv_conf` ist das konsistentere und nützlichere Feld: Es zeigt den Resolver an, den der
+Knoten tatsächlich verwenden wird. Es lohnt sich, diesen Wert mit den Erwartungen abzugleichen,
+bevor Zeit in [`dig`](../../network/dig/) investiert wird.

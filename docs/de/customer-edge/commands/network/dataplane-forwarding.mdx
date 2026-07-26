@@ -1,0 +1,65 @@
+---
+title: Routen und Next-Hops
+description: >-
+  Was die Argo-Datenebene tatsächlich weiterleitet, was nicht unbedingt dem
+  entspricht, was Linux annimmt. Behandelt die vRouter-Routentabelle, die
+  Next-Hop-Tabelle und virtuelle Schnittstellen.
+sidebar:
+  order: 50
+  label: Routen und Next-Hops
+i18n:
+  sourceHash: 79de27e2024e
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo hält den Weiterleitungszustand getrennt vom Linux-Kernel. Wenn
+[`ip`](../ip/) und diese Befehle nicht übereinstimmen, sind diese Befehle maßgeblich für den Datenverkehr.
+
+## `rt`
+
+Die vRouter-Routentabelle, pro VRF.
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="Die VRF-ID ist nicht die, die BGP meldet">
+`show-ip-bgp-summary` gibt `vrf-id 3` aus. Das ist die Nummerierung von FRR und gehört einem anderen Namensraum als die vRouter-Tabellen-ID an. Die Angabe dieser ID führt hier zu einem Fehler, der wie ein defekter Knoten aussieht:
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+Dieselbe Antwort wird auch für `--dump 0` zurückgegeben. In dieser Topologie ist **VRF 2** die befüllte inet4-Tabelle, wobei VRF 1 zwei Routen enthält. Falls die ID nicht bekannt ist, tasten Sie sich von 1 aufwärts vor, anstatt der BGP-Ausgabe zu vertrauen.
+</Aside>
+
+## `nh`
+
+Die Next-Hop-Tabelle. Jede Route verweist auf eine Next-Hop-ID, und diese löst sie auf.
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+Jeder Eintrag enthält einen `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — sowie das VRF, zu dem er gehört. Eine Route, die zu einem `Drop`-Next-Hop aufgelöst wird, ist ein Blackhole. Diese Kombination sollte immer geprüft werden, wenn ein Präfix in `rt` vorhanden ist, der Datenverkehr aber dennoch verschwindet.
+
+## `vif`
+
+Die virtuelle Schnittstellentabelle: woran die Datenebene gebunden ist und Zähler pro Schnittstelle.
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+Die Flaggen-Legende am Anfang ist es wert, einmal gelesen zu werden — `Vp` kennzeichnet die physische vhost-Schnittstelle, `Dpdk` eine DPDK-verwaltete. Verwenden Sie dies, um zu bestätigen, dass die Datenebene die erwartete Schnittstelle übernommen hat, und um RX- und TX-Zähler einzusehen, die Linux nicht anzeigt, da der Datenverkehr den Kernel nie erreicht.

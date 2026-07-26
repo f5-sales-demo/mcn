@@ -1,0 +1,39 @@
+---
+title: ルートがアドバタイズまたは学習されない
+description: サイトがオンラインだが VIP に到達できない、または学習すべきプレフィックスを学習していない場合の対処手順。
+sidebar:
+  order: 20
+  label: BGP
+i18n:
+  sourceHash: eff4d5527048
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+サイトが `ONLINE` 状態であることを前提とします。そうでない場合は、
+[登録](../registration/) から始めてください。
+
+<Steps>
+
+1. **ピアリングは確立されていますか？**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/) を実行し、`State/PfxRcd` を確認してください。数値が表示されている場合はセッションが確立されており、`Up/Down` はその安定性を示します。数日間稼働しているサイトで値が小さい場合は、セッションがフラッピングしています。
+
+2. **セッションがダウンしている場合**、原因は通常 BGP より下位のレイヤーにあります。
+   [`ip-link-show`](../../commands/network/ip/) でピアリングを担うインターフェイスが起動していることを確認し、次にピアアドレスへの到達性を確認してください。このトポロジーでは、ピアは Azure Route Server インスタンスです。
+
+3. **セッションは確立されているが VIP に到達できない場合**、
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/) でノードが実際にアドバタイズしている内容を確認してください。VIP がそこに存在しない場合、問題はこのノードにあり、ピアを確認しても解決しません。
+
+4. **ノードが正しくアドバタイズしているにもかかわらずトラフィックが到着しない場合**、コントロールプレーンとデータプレーンが不一致になっています。
+   [`rt`](../../commands/network/dataplane-forwarding/) でデータプレーンが実際に使用しているフォワーディングテーブルを確認してください。その VRF id は BGP が報告するものとは異なる点に注意してください。
+
+   次に、`nh` でネクストホップを解決してください。`rt` に存在するプレフィックスのネクストホップが `Drop` になっている場合はブラックホールです。
+
+5. **セッションがフラッピングしている場合**、[`show-ip-bgp-neighbors`](../../commands/network/bgp/) に最後のリセット理由とネゴシエートされたタイマーが記録されています。
+
+</Steps>
+
+<Aside type="caution" title="2 種類の VRF 番号付けスキーム">
+`show-ip-bgp-summary` は FRR の `vrf-id` を報告します。Argo データプレーンはテーブルに独自の番号を付けており、FRR の番号を `rt --dump` に渡すと `No such file or directory` が返されます。これはノードの障害ではなく、引数が誤っているためです。このトポロジーでは、VRF 2 が使用される inet4 テーブルです。
+</Aside>

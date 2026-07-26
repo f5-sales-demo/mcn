@@ -1,0 +1,45 @@
+---
+title: journalctl
+description: >-
+  Systemd-Journal für beliebige Units auf dem Knoten. Die primäre Quelle für
+  Registrierungsfehler und das vpm-Verhalten über die Zeit.
+sidebar:
+  order: 50
+  label: journalctl
+i18n:
+  sourceHash: 38a11be4d7d8
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+Standard-`journalctl`-Argumente, jeweils als separates Array-Element. `-u vpm` ist
+das, was Sie am häufigsten benötigen: `vpm` ist der Agent, der den Knoten registriert
+und alles andere auf ihm verwaltet. Daher enthält sein Journal die Registrierungsfehler
+mit Zeitstempeln und über Neustarts hinweg.
+
+Nützliche Varianten:
+
+| Argumente | Antworten |
+| --- | --- |
+| `-u vpm -n 200` | Was hat vpm zuletzt getan |
+| `-u vpm --since "10 min ago"` | Was ist passiert, während ich es reproduziert habe |
+| `-p err -n 100` | Fehler aus jeder Unit |
+| `-u kubelet -n 200` | Warum der Kubernetes-Stack nicht funktioniert |
+
+Bevorzugen Sie dies gegenüber [`docker-logs vpm`](../docker/), wenn Sie Zeitstempel
+benötigen, einen Neustart überbrücken möchten oder vpm mit einer anderen Unit
+korrelieren wollen.
+
+<Aside type="note" title="Noch keine erfasste Ausgabe auf dieser Seite">
+Diese Erfassung kann erst übertragen werden, wenn `f5-sales-demo/docs-control#795` eingespielt wurde. Das
+Journal gibt eine Zeile aus FRR aus, die einen Rechtschreibfehler enthält, und `codespell` lehnt die
+Datei ab. Den erfassten Text zu bearbeiten würde bedeuten, dass diese Seite eine Ausgabe beschreibt, die nie
+aufgetreten ist. Daher wird die Korrektur stattdessen im verwalteten Upstream-Konfiguration vorgenommen.
+</Aside>

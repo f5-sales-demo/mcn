@@ -1,0 +1,53 @@
+---
+title: 'Datenverkehr kommt an, aber kommt nicht durch'
+description: >-
+  Geordnete Abfolge für eine Site, die korrekt peert und gesund aussieht,
+  dennoch Datenverkehr verliert. Grenzt einen Verwurf auf eine Ursache ein.
+sidebar:
+  order: 30
+  label: Datenebene
+i18n:
+  sourceHash: df00d76ad275
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+Für eine Site, die `ONLINE` ist und BGP etabliert hat. Wenn Routen das Problem sind, beginnen Sie
+mit [BGP](../bgp-diagnostics/).
+
+<Steps>
+
+1. **Wird irgendetwas verworfen, und warum?**
+   [`dropstats-non-zero`](../../commands/network/dataplane-drops/). Führen Sie es zweimal aus,
+   während Sie das Problem reproduzieren: Dies sind Gesamtwerte seit dem Start, daher bedeutet ein Nicht-Null-Wert für sich genommen nichts, ein *ansteigender* hingegen alles.
+
+2. **Finden Sie die spezifische Verbindung.**
+   [`flow-l-match`](../../commands/network/dataplane-flows/) mit der Adresse oder
+   Adresse und Port. Die Aktion des Flows ist die Antwort: `F` weiterleiten, `D` verwerfen, `N`
+   NAT. Ein vorhandener Flow mit der Aktion `D` ist eine bewusste Richtlinienentscheidung und verweist Sie
+   auf die Richtlinie statt auf die Konnektivität.
+
+3. **Kein Flow vorhanden?** Der Datenverkehr erreicht die Datenebene nicht. Bestätigen Sie, dass die
+   Datenebene die erwartete Schnittstelle beansprucht hat, mit
+   [`vif`](../../commands/network/dataplane-forwarding/), und vergleichen Sie deren Zähler
+   mit dem, was [`ip`](../../commands/network/ip/) meldet.
+
+   Die beiden Ansichten unterscheiden sich legitimerweise, weil Datenverkehr, den die Datenebene verarbeitet, den
+   Kernel nie erreicht. Zero RX auf der erwarteten Schnittstelle hingegen nicht.
+
+4. **Flow vorhanden und wird weitergeleitet, kommt aber immer noch nicht an?** Prüfen Sie, wohin er gesendet wird:
+   `rt` für die Route, dann `nh` zum Auflösen des nächsten Hops. Ein nächster Hop vom Typ `Drop`
+   ist ein Blackhole, und ein `Tunnel`-Next-Hop stellt den Tunnel selbst in den Fokus.
+
+5. **Wenn der Pfad durch einen Tunnel führt**, bestätigen Sie, dass er sowohl aktiv ist als auch Bytes überträgt, mit
+   [`ipsec-statusall`](../../commands/network/ipsec/). Ein seit Stunden etablierter Tunnel
+   mit nahezu null Zählern ist aktiv und ungenutzt, was auf Routing zurückverweist.
+
+</Steps>
+
+<Aside type="tip" title="Argo und Linux führen getrennten Zustand">
+Die meisten verwirrenden Symptome auf Datenebene entstehen dadurch, dass man die Kernel-Ansicht liest und
+davon ausgeht, sie sei maßgeblich. `ip` zeigt, was Linux glaubt; `rt`, `nh` und `vif` zeigen, was
+den Datenverkehr weiterleitet. Wenn sie nicht übereinstimmen, ist die Datenebene das, was Pakete bewegt.
+</Aside>

@@ -1,0 +1,83 @@
+---
+title: crictl
+description: >-
+  O runtime CRI-O, que executa as cargas de trabalho do Kubernetes. Cinco
+  comandos cobrindo containers, imagens, inspeção e logs.
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+O CRI-O executa as cargas de trabalho do Kubernetes. Os serviços da plataforma — `vpm`, `argo_watch`,
+`site-console` — são containers [Docker](../docker/) e não aparecerão aqui.
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+Containers em execução com seu pod, imagem e contagem de reinicializações. `ATTEMPT` é o que deve ser
+observado: uma contagem crescente de reinicializações indica um crash loop, e o id do container desta
+saída alimenta os dois comandos abaixo.
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+Inclui containers encerrados. Use quando algo *estava* em execução e não está mais —
+a entrada encerrada e seu id de container são o que permitem ler os logs da execução que
+falhou.
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+Confirma que uma imagem está de fato presente no nó, o que distingue uma falha de pull
+de uma falha de agendamento.
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+JSON completo: montagens, variáveis de ambiente, limites de recursos, a linha de comando e o estado
+de saída. Extenso, portanto consulte-o em vez de lê-lo diretamente.
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="Ids de container são por execução">
+Os ids nestas capturas vieram de uma execução de amostra e não existirão no seu nó.
+Obtenha um atual a partir de `crictl-ps` primeiro. O harness de captura faz exatamente isso —
+seu manifesto resolve o primeiro id de container no momento da captura em vez de codificá-lo
+diretamente.
+</Aside>

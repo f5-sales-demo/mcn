@@ -1,0 +1,34 @@
+# Captured Customer Edge command output, staged into docs/_data/ at build time
+# by the docs-control deploy workflow, for remark-code-import in the command pages.
+# Produced by scripts/capture-sitecli.sh; never hand-edited. See sitecli/README.md.
+sitecli/captures/sitecli-chronyc-sources.txt
+sitecli/captures/sitecli-crictl-images.txt
+sitecli/captures/sitecli-crictl-inspect.txt
+sitecli/captures/sitecli-crictl-logs.txt
+sitecli/captures/sitecli-crictl-ps-a.txt
+sitecli/captures/sitecli-crictl-ps.txt
+sitecli/captures/sitecli-curl-host.txt
+sitecli/captures/sitecli-curl-vega.txt
+sitecli/captures/sitecli-diagnosis.txt
+sitecli/captures/sitecli-dig.txt
+sitecli/captures/sitecli-docker-images.txt
+sitecli/captures/sitecli-docker-inspect.txt
+sitecli/captures/sitecli-docker-logs.txt
+sitecli/captures/sitecli-docker-ps-a.txt
+sitecli/captures/sitecli-docker-ps.txt
+sitecli/captures/sitecli-dropstats-non-zero.txt
+sitecli/captures/sitecli-dropstats.txt
+sitecli/captures/sitecli-flow-l-match.txt
+sitecli/captures/sitecli-flow-l.txt
+sitecli/captures/sitecli-health.txt
+sitecli/captures/sitecli-ip-link-show.txt
+sitecli/captures/sitecli-ip.txt
+sitecli/captures/sitecli-ipsec-status.txt
+sitecli/captures/sitecli-ipsec-statusall.txt
+sitecli/captures/sitecli-netstat.txt
+sitecli/captures/sitecli-nh.txt
+sitecli/captures/sitecli-rt.txt
+sitecli/captures/sitecli-show-ip-bgp-neighbors-advertised-route.txt
+sitecli/captures/sitecli-show-ip-bgp-summary.txt
+sitecli/captures/sitecli-show-ip-bgp.txt
+sitecli/captures/sitecli-vif.txt

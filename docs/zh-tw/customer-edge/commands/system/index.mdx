@@ -1,0 +1,33 @@
+---
+title: 系統命令
+description: 閱讀此層級以了解節點健康狀態、容器執行環境與服務日誌。共十三個命令，其中兩個全站摘要命令使用不同的傳輸方式。
+sidebar:
+  order: 20
+  label: 系統
+i18n:
+  sourceHash: 712397cd2e30
+  translator: machine
+---
+
+三十四個命令中的十三個。
+
+| 如果您想要 | 使用 |
+| --- | --- |
+| 一個關於節點是否正常的答案 | [health](./health/) |
+| 由節點本身執行的連線與 DNS 探測 | [diagnosis](./diagnosis/) |
+| Kubernetes 工作負載容器 | [crictl](./crictl/) |
+| 平台容器：vpm、argo、site-console | [docker](./docker/) |
+| 服務日誌，包括註冊記錄 | [journalctl](./journalctl/) |
+
+## 節點執行兩個容器執行環境
+
+這常讓人感到意外，而這也決定了哪個命令能回答您的問題。
+
+- **Docker** 執行平台容器 — `vpm`、`argo_watch`、`site-console`。
+- **CRI-O** 執行 Kubernetes 工作負載，透過 `crictl` 存取。
+
+兩者同時運作，皆會回傳真實輸出，且互不替代。`docker-ps` 顯示三個容器並非損壞節點的部分視圖；而是 Docker 所執行內容的完整清單。如果您在尋找 `vpm`，它是一個 Docker 容器。如果您在尋找 Pod，則它屬於 CRI-O。
+
+## 兩個命令使用不同的傳輸方式
+
+`health` 與 `diagnosis` 屬於 `GLOBAL` 範圍：它們是對 `global` 路徑發出的 `GET` 請求，回傳 JSON 而非終端機文字，且**無法透過 `exec-user` 存取** — 將它們傳送至該處只會得到 `command not supported` 的回應，看起來像是該命令不存在。請參閱[除錯 API](../../access/debug-api/)。

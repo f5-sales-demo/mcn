@@ -1,0 +1,61 @@
+---
+title: Raggiungere un Customer Edge
+description: >-
+  Leggere questo livello prima di eseguire qualsiasi comando. Copre
+  l'autenticazione, la regola livello-endpoint che determina dove viene inviato
+  un comando e il percorso break-glass per un nodo non registrato.
+sidebar:
+  order: 10
+  label: Accesso
+i18n:
+  sourceHash: 188808639df6
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Esistono due percorsi, e quale si applica è determinato dallo stato del nodo piuttosto
+che dalla preferenza.
+
+| Stato del nodo | Percorso | Automatizzabile | Copre |
+| --- | --- | --- | --- |
+| `ONLINE` | [Debug API](./debug-api/) | Sì | 34 comandi, di sola lettura e privilegiati |
+| Non registrato o non raggiungibile | [Console seriale](./serial-console/) | No — richiede un terminale | La Site CLI completa on-box |
+
+## Perché la divisione non è una preferenza
+
+La debug API è servita dal piano di controllo di F5 Distributed Cloud, che fa da relay verso
+il nodo attraverso il tunnel che `vpm` stabilisce durante la registrazione. Nessuna registrazione significa
+nessun tunnel, il che significa che l'API non ha nulla verso cui fare relay.
+
+Si interrompe in modo non utile anziché in modo evidente, quindi un nodo che non si è mai avviato
+sembra un problema dell'API.
+
+La console seriale funziona in modo completamente diverso — attraverso la Piattaforma Azure verso
+la porta seriale emulata del nodo. Non ha importanza se il nodo si è registrato, ha
+raggiungibilità di rete o ha un piano dati funzionante. Tale indipendenza è il punto
+centrale, ed è per questo che boot diagnostics deve rimanere abilitato sulle VM CE.
+
+<Aside type="note" title="A cosa ricorrere">
+Se si sta scrivendo un'Automazione, o si stanno raccogliendo prove da rieseguire in seguito, utilizzare
+la debug API. Se la registrazione è il problema, la console seriale non è un'alternativa —
+è l'unica opzione.
+</Aside>
+
+## Credenziali
+
+Entrambi i percorsi utilizzano credenziali diverse, e nessuna delle due deve comparire su una riga di comando.
+
+- **Debug API** — un token API di F5 Distributed Cloud, come `XCSH_API_TOKEN`, con
+  l'URL del tenant come `XCSH_API_URL`. Il file di contesto `xcsh` in
+  `~/.config/xcsh/contexts/<tenant>.json` contiene entrambi, ed è ciò che
+  `scripts/capture-sitecli.sh` legge quando l'ambiente non li fornisce.
+- **Console seriale** — il proprio login interattivo ad Azure. Non esiste un service principal
+  per questo: il tenant Entra aziendale di F5 non consente il provisioning di uno, il che
+  è anche il motivo per cui nessuna parte di questo viene eseguita in CI.
+
+<Aside type="danger" title="Non passare mai un token come argomento">
+Un token su una riga di comando finisce nella cronologia della shell e nell'elenco dei processi, dove
+ogni altro utente del computer può leggerlo. `capture-sitecli.sh` rifiuta
+`--token` categoricamente per questo motivo e fornisce invece l'intestazione a `curl` tramite stdin.
+</Aside>

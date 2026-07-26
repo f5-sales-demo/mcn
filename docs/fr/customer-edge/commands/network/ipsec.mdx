@@ -1,0 +1,55 @@
+---
+title: IPsec
+description: >-
+  Indique si les tunnels vers les points de présence régionaux F5 sont établis,
+  et les compteurs de trafic prouvant qu'ils transportent des données. Deux
+  commandes, l'une récapitulative et l'autre détaillée.
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+Le CE établit des tunnels IPsec vers les points de présence régionaux F5. S'ils sont
+hors service, le site est isolé du réseau mondial, quelle que soit son apparente
+bonne santé locale.
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+La première ligne donne la réponse : `Security Associations (2 up, 0 connecting)`. Tout
+élément dans `connecting` correspond à un tunnel qui tente de s'établir sans y parvenir.
+
+Chaque SA indique le point de présence régional sur lequel il se termine — `ny8-nyc`,
+`dc12-ash` sont des codes de POP F5 — ce qui permet également de savoir *quels* points
+de présence desservent le site.
+
+`ESTABLISHED` accompagné d'une durée, suivi de `INSTALLED, TUNNEL`, représente une paire
+saine : le premier correspond à la session IKE, le second à la SA enfant qui transporte
+réellement le trafic. Une session IKE établie sans SA enfant installée constitue le cas
+de défaillance notable.
+
+## `ipsec-statusall`
+
+Les mêmes informations, complétées par les compteurs d'octets et de paquets par SA, les
+minuteries de renouvellement de clé et les algorithmes négociés.
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+Utilisez cette commande pour distinguer « le tunnel est actif » de « le tunnel transporte
+du trafic ». Un tunnel établi depuis plusieurs heures avec un nombre d'octets quasi nul
+est actif mais inutilisé, ce qui signifie généralement que le problème est lié au routage
+plutôt qu'au tunnel lui-même.

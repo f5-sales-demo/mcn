@@ -1,0 +1,49 @@
+---
+title: health
+description: >-
+  La meilleure commande de départ. État d'enregistrement, système
+  d'exploitation, ressources et état des services pour l'ensemble du site en une
+  seule réponse structurée.
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="Portée GLOBALE — un transport différent">
+Un `GET` vers le chemin `global`, pas un tableau `command`. Envoyer `health` à `exec-user`
+retourne `command not supported`.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+Commencez ici. Cette commande est légère, structurée, et répond à la première question
+concernant tout CE : `state`. `PROVISIONED` signifie que le nœud est enregistré et configuré.
+
+Tout autre résultat — `WAITING_FOR_CONFIG`, ou absence de réponse — indique qu'il faut
+arrêter le débogage du plan de données et examiner l'[enregistrement](../../../workflows/registration/)
+à la place.
+
+La réponse contient également la version du système d'exploitation et du noyau, le produit et le fournisseur
+de la machine virtuelle sous-jacente, ainsi que la version du logiciel. Cette chaîne de version détermine
+quelles commandes sont disponibles sur le nœud, il convient donc de la noter avant de supposer qu'une commande
+est absente.
+
+La réponse étant au format JSON, elle peut être interrogée facilement :
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

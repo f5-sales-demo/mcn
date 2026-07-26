@@ -1,0 +1,36 @@
+---
+title: System commands
+description: Read this tier for node health, container runtimes and service logs. Thirteen commands, including the two site-wide summaries that use a different transport.
+sidebar:
+  order: 20
+  label: System
+---
+
+Thirteen of the thirty-four commands.
+
+| If you want | Use |
+| --- | --- |
+| One answer on whether the node is well | [health](./health/) |
+| Connectivity and DNS probes run by the node itself | [diagnosis](./diagnosis/) |
+| Kubernetes workload containers | [crictl](./crictl/) |
+| The platform containers: vpm, argo, site-console | [docker](./docker/) |
+| Service logs, including registration | [journalctl](./journalctl/) |
+
+## The node runs two container runtimes
+
+This surprises people, and it changes which command answers your question.
+
+- **Docker** runs the platform containers — `vpm`, `argo_watch`, `site-console`.
+- **CRI-O** runs the Kubernetes workloads, reached through `crictl`.
+
+Both are live simultaneously, both return real output, and neither substitutes for
+the other. `docker-ps` showing three containers is not a partial view of a broken
+node; it is the complete list of what Docker runs. If you are looking for `vpm`, it
+is a Docker container. If you are looking for a pod, it is CRI-O.
+
+## Two commands use a different transport
+
+`health` and `diagnosis` are `GLOBAL` scope: they are `GET` requests to a `global`
+path, return JSON rather than terminal text, and are **not reachable through
+`exec-user`** — sending them there answers `command not supported`, which reads as
+though the command does not exist. See [the debug API](../../access/debug-api/).

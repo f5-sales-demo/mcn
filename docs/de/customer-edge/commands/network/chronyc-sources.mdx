@@ -1,0 +1,28 @@
+---
+title: chronyc-sources
+description: >-
+  NTP-Synchronisierungsstatus. Taktverschiebung bricht die
+  Zertifikatsvalidierung und Token-Authentifizierung, bevor offensichtlichere
+  Probleme auftreten.
+sidebar:
+  order: 100
+  label: chronyc-sources
+i18n:
+  sourceHash: 37ac33fac843
+  translator: machine
+---
+
+## `chronyc-sources`
+
+```bash
+{"command":["chronyc-sources"]}
+```
+
+```text file=../../../../_data/sitecli-chronyc-sources.txt
+```
+
+Das führende Zeichen in jeder Zeile gibt den Zustand an: `*` ist die aktuell ausgewählte Quelle, `+` eine akzeptable Alternative, `-` eine durch den Auswahlalgorithmus ausgeschlossene Quelle und `?` eine nicht erreichbare Quelle. Genau ein `*` entspricht dem Normalzustand.
+
+`Reach` ist ein Oktalregister der letzten acht Abfragen, daher bedeutet `377`, dass alle acht erfolgreich waren. Ein Wert, der nicht `377` entspricht, bedeutet, dass Abfragen verloren gehen. `LastRx` zeigt an, wie lange die Quelle zuletzt geantwortet hat.
+
+Es empfiehlt sich, frühzeitig zu prüfen, wenn Authentifizierung oder TLS ohne erkennbaren Grund fehlschlägt: Ein Knoten, dessen Uhr weit genug abgewichen ist, weist gültige Zertifikate zurück und seine Token werden abgelehnt – die resultierenden Fehler erwähnen selten die Zeit.

@@ -1,0 +1,61 @@
+---
+title: Interfaces
+description: Linux-side interface and link state on the node, plus the one privileged command that changes it. What Linux believes, which the data plane may contradict.
+sidebar:
+  order: 60
+  label: Interfaces
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+These report the kernel's view. The Argo data plane keeps its own, visible through
+[`vif`](../dataplane-forwarding/), and the two can disagree.
+
+## `ip`
+
+Takes an `ip` subcommand. `addr` is the common one; `route`, `link` and `neigh` also
+work.
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+The CE has three NICs by design, and the order matters: `eth0` is the management and
+SLO interface carrying the site's BGP local address, with external and internal
+following. Note `a-i-eth0` in the output — the data plane has taken over the physical
+interface and presents its own.
+
+## `ip-link-show`
+
+Link-layer only: state, MTU, queueing discipline, MAC.
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+Quicker than `ip addr` when the question is "is the link up and what is its MTU".
+MTU mismatches are a recurring cause of tunnels that establish but pass no traffic.
+
+## `ip-link-set` <Badge text="Exec tier — mutating" variant="danger" />
+
+Takes an interface or group up or down.
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="Not run here, and not reachable the usual way">
+This is the only `Exec`-tier command on this build. It goes to the `exec` endpoint
+rather than `exec-user`, and it changes the node: taking `eth0` down on a remote CE
+removes the path you are managing it through, including the debug API itself.
+
+There is deliberately no captured output on this page. The capture harness refuses
+the entire `Exec` tier, and reads the tier from the live catalog rather than a
+hardcoded list, so this stays true if a future build promotes other commands into it.
+</Aside>

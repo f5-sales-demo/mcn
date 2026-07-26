@@ -1,0 +1,55 @@
+---
+title: 介面
+description: 節點上的 Linux 端介面與連結狀態，以及唯一可變更它的特權指令。Linux 所認知的狀態，可能與資料平面相矛盾。
+sidebar:
+  order: 60
+  label: 介面
+i18n:
+  sourceHash: 7ad734b3a357
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+以下內容回報的是核心的視角。Argo 資料平面維護自身的狀態，可透過
+[`vif`](../dataplane-forwarding/) 查看，兩者可能存在差異。
+
+## `ip`
+
+接受一個 `ip` 子指令。`addr` 是最常用的；`route`、`link` 和 `neigh` 也同樣適用。
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+CE 依設計具備三個網路介面卡，且順序至關重要：`eth0` 為管理與 SLO 介面，承載站台的 BGP 本地位址，其後依序為外部與內部介面。請注意輸出中的 `a-i-eth0` — 資料平面已接管實體介面並呈現其自身的介面。
+
+## `ip-link-show`
+
+僅顯示鏈路層資訊：狀態、MTU、佇列規則、MAC 位址。
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+當問題是「連結是否正常運作以及其 MTU 為何」時，比 `ip addr` 更為快速。MTU 不一致是隧道建立後卻無法傳遞流量的常見原因。
+
+## `ip-link-set` <Badge text="執行層級 — 可變更操作" variant="danger" />
+
+將介面或群組設為啟用或停用狀態。
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="不在此處執行，且無法透過一般方式存取">
+這是此版本中唯一屬於 `Exec` 層級的指令。它會送往 `exec` 端點而非 `exec-user`，並且會變更節點狀態：在遠端 CE 上將 `eth0` 設為停用，將會移除您用於管理該節點的路徑，包括除錯 API 本身。
+
+本頁面刻意不提供擷取的輸出範例。擷取工具會拒絕整個 `Exec` 層級的指令，並從即時目錄而非硬編碼清單中讀取層級資訊，因此即使未來版本將其他指令提升至該層級，此行為仍然成立。
+</Aside>

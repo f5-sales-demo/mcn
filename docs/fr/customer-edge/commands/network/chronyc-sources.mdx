@@ -1,0 +1,34 @@
+---
+title: chronyc-sources
+description: >-
+  État de synchronisation NTP. Le décalage d'horloge compromet la validation des
+  certificats et l'authentification par jeton avant de provoquer tout autre
+  problème visible.
+sidebar:
+  order: 100
+  label: chronyc-sources
+i18n:
+  sourceHash: 37ac33fac843
+  translator: machine
+---
+
+## `chronyc-sources`
+
+```bash
+{"command":["chronyc-sources"]}
+```
+
+```text file=../../../../_data/sitecli-chronyc-sources.txt
+```
+
+Le caractère en tête de chaque ligne indique l'état : `*` désigne la source actuellement
+sélectionnée, `+` une alternative acceptable, `-` une source exclue par l'algorithme de sélection,
+et `?` une source inaccessible. La présence d'exactement un `*` correspond au cas sain.
+
+`Reach` est un registre octal des huit dernières interrogations ; la valeur `377` signifie que les huit
+ont abouti. Une valeur différente de `377` indique que des interrogations sont perdues. `LastRx` indique
+depuis combien de temps la source a répondu pour la dernière fois.
+
+À vérifier en priorité lorsque l'authentification ou TLS échoue sans raison apparente : un
+nœud dont l'horloge a suffisamment dérivé rejettera des certificats valides et verra ses
+jetons refusés, et les erreurs qui en résultent mentionnent rarement la notion de temps.

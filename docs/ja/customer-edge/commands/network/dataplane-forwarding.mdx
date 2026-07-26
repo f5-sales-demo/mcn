@@ -1,0 +1,63 @@
+---
+title: ルートとネクストホップ
+description: >-
+  Argo データプレーンが実際に転送する情報（Linux が認識している内容とは異なる場合があります）。vRouter
+  ルートテーブル、ネクストホップテーブル、および仮想インターフェースについて説明します。
+sidebar:
+  order: 50
+  label: ルートとネクストホップ
+i18n:
+  sourceHash: 79de27e2024e
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo は転送状態を Linux カーネルとは別に管理しています。[`ip`](../ip/) とこれらのコマンドの内容が異なる場合、トラフィックを実際に制御するのはこれらのコマンドです。
+
+## `rt`
+
+VRF ごとの vRouter ルートテーブルです。
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="VRF id は BGP が報告するものとは異なります">
+`show-ip-bgp-summary` は `vrf-id 3` を表示します。これは FRR の採番であり、vRouter テーブル id とは異なる名前空間です。ここでその値を渡すと、ノードが壊れているように見えるエラーが発生します。
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+`--dump 0` を指定した場合も同じ結果が返ります。このトポロジでは **VRF 2** が有効な inet4 テーブルであり、VRF 1 は 2 つのルートを保持しています。id が不明な場合は、BGP の出力を信頼するのではなく、1 から順に上へ向かって探索してください。
+</Aside>
+
+## `nh`
+
+ネクストホップテーブルです。すべてのルートはネクストホップ id を指し示しており、このコマンドでそれを解決します。
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+各エントリには `Type`（`Drop`、`Encap`、`Tunnel`、`Composite`）と所属する VRF が含まれます。`Drop` ネクストホップに解決されるルートはブラックホールであり、プレフィックスが `rt` に存在しているにもかかわらずトラフィックが消える場合は、この組み合わせを確認する価値があります。
+
+## `vif`
+
+仮想インターフェーステーブルです。データプレーンがバインドする対象と、インターフェースごとのカウンターを確認できます。
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+先頭のフラグ凡例は一度読んでおく価値があります。`Vp` は vhost 物理インターフェースを、`Dpdk` は DPDK 管理のインターフェースを示します。データプレーンが期待するインターフェースを取得しているかどうかを確認し、トラフィックがカーネルに到達しないために Linux では表示されない RX および TX カウンターを確認するために使用します。

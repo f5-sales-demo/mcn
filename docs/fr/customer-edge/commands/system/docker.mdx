@@ -1,0 +1,81 @@
+---
+title: docker
+description: >-
+  Le runtime Docker, qui exécute les services de la plateforme CE. Cinq
+  commandes, et l'endroit où chercher vpm lui-même.
+sidebar:
+  order: 40
+  label: docker
+i18n:
+  sourceHash: 9db8ec324ab5
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Docker exécute les services de la Plateforme. Les charges de travail Kubernetes sont gérées par
+[CRI-O](../crictl/).
+
+## `docker-ps`
+
+```bash
+{"command":["docker-ps"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps.txt
+```
+
+<Aside type="tip" title="Trois conteneurs constituent la liste complète, et non un nœud défaillant">
+`vpm`, `argo_watch` et `site-console`. Étant donné que la majeure partie du nœud s'exécute sous CRI-O, un
+`docker-ps` court peut ressembler à une défaillance si vous attendez des charges de travail Kubernetes
+ici. Ce n'est pas le cas — il s'agit de l'ensemble complet des conteneurs Docker sur un CE sain, et
+la présence de `vpm` avec le statut `Up` est la ligne la plus importante de la page.
+</Aside>
+
+## `docker-ps-a`
+
+```bash
+{"command":["docker-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps-a.txt
+```
+
+Inclut les conteneurs arrêtés, de sorte qu'un `vpm` qui continue de planter laisse des traces ici.
+
+## `docker-images`
+
+```bash
+{"command":["docker-images"]}
+```
+
+```text file=../../../../_data/sitecli-docker-images.txt
+```
+
+Les tags d'image identifient la version de la Plateforme que le nœud exécute réellement, ce qui mérite
+d'être comparé à la version du logiciel indiquée par [`health`](../health/).
+
+## `docker-inspect`
+
+```bash
+{"command":["docker-inspect","<container-id-or-name"]}
+```
+
+```text file=../../../../_data/sitecli-docker-inspect.txt
+```
+
+Accepte un nom ainsi qu'un identifiant, de sorte que `docker-inspect vpm` fonctionne et reste stable entre les
+redémarrages. JSON complet : montages, environnement, politique de redémarrage et état de sortie.
+
+## `docker-logs`
+
+```bash
+{"command":["docker-logs","<container-id-or-name>"]}
+```
+
+```text file=../../../../_data/sitecli-docker-logs.txt
+```
+
+`docker-logs vpm` est le moyen le plus rapide d'accéder aux erreurs d'enregistrement. Pour obtenir les mêmes
+informations avec horodatages et sur plusieurs redémarrages, utilisez
+[`journalctl`](../journalctl/) à la place.

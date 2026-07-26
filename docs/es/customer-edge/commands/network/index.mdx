@@ -1,0 +1,32 @@
+---
+title: Comandos de red
+description: >-
+  Lea este nivel para conectividad, enrutamiento, túneles y reenvío del plano de
+  datos en un Customer Edge. Veintiún comandos que cubren BGP, IPsec, el plano
+  de datos Argo y la accesibilidad básica.
+sidebar:
+  order: 10
+  label: Red
+i18n:
+  sourceHash: f285c14aa71c
+  translator: machine
+---
+
+Veintiuno de los treinta y cuatro comandos. Se dividen según la capa que se sospecha problemática.
+
+| Si sospecha de | Comience en |
+| --- | --- |
+| El sitio no anuncia ni aprende rutas | [BGP](./bgp/) |
+| El túnel hacia el regional edge está caído | [IPsec](./ipsec/) |
+| El tráfico llega pero se descarta | [Estadísticas de descarte](./dataplane-drops/) |
+| Una conexión específica se comporta de forma extraña | [Tabla de flujos](./dataplane-flows/) |
+| El reenvío es incorrecto para un prefijo completo | [Rutas y próximos saltos](./dataplane-forwarding/) |
+| Una interfaz está caída o mal configurada | [Interfaces](./ip/) |
+| Resolución de nombres | [dig](./dig/) |
+| Accesibilidad desde el nodo | [curl](./curl/) |
+| Sockets y oyentes | [netstat](./netstat/) |
+| Desviación de reloj que afecta certificados o autenticación | [chronyc-sources](./chronyc-sources/) |
+
+El plano de datos es Argo, y mantiene su propio estado de reenvío separado del
+kernel de Linux. `ip` le muestra lo que Linux cree; `rt`, `nh` y `vif` le muestran
+lo que realmente reenvía el tráfico. Cuando ambos discrepan, el plano de datos tiene prioridad.

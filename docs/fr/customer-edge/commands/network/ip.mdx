@@ -1,0 +1,68 @@
+---
+title: Interfaces
+description: >-
+  Vue côté Linux de l'interface et de l'état du lien sur le nœud, ainsi que la
+  seule commande privilégiée permettant de le modifier. Ce que Linux perçoit,
+  que le plan de données peut contredire.
+sidebar:
+  order: 60
+  label: Interfaces
+i18n:
+  sourceHash: 7ad734b3a357
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Ces informations reflètent la vue du noyau. Le plan de données Argo maintient la sienne, visible via
+[`vif`](../dataplane-forwarding/), et les deux peuvent diverger.
+
+## `ip`
+
+Prend une sous-commande `ip`. `addr` est la plus courante ; `route`, `link` et `neigh` fonctionnent
+également.
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+Le CE dispose de trois cartes réseau par conception, et l'ordre est important : `eth0` est l'interface
+de gestion et SLO portant l'adresse BGP locale du site, suivie des interfaces externe et interne.
+Notez `a-i-eth0` dans la sortie — le plan de données a pris le contrôle de l'interface physique et
+présente la sienne.
+
+## `ip-link-show`
+
+Couche liaison uniquement : état, MTU, discipline de mise en file d'attente, MAC.
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+Plus rapide que `ip addr` lorsque la question est « le lien est-il actif et quel est son MTU ».
+Les incompatibilités de MTU sont une cause récurrente de tunnels qui s'établissent mais ne transmettent
+aucun trafic.
+
+## `ip-link-set` <Badge text="Niveau Exec — mutation" variant="danger" />
+
+Active ou désactive une interface ou un groupe.
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="Non exécuté ici, et non accessible par la voie habituelle">
+Il s'agit de la seule commande de niveau `Exec` dans cette version. Elle est adressée au point de
+terminaison `exec` plutôt qu'à `exec-user`, et elle modifie le nœud : désactiver `eth0` sur un CE
+distant supprime le chemin par lequel vous le gérez, y compris l'API de débogage elle-même.
+
+Il n'y a délibérément aucune sortie capturée sur cette page. Le dispositif de capture refuse
+l'intégralité du niveau `Exec`, et lit le niveau depuis le catalogue en direct plutôt qu'une liste
+codée en dur, ce qui restera vrai si une future version promeut d'autres commandes dans ce niveau.
+</Aside>

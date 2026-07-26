@@ -1,0 +1,94 @@
+---
+title: Referencia de comandos
+description: >-
+  Cada comando del Site CLI accesible a través de la API de depuración, con su
+  categoría, nivel de privilegio y transporte. Consulte la página de un comando
+  específico para ver la sintaxis y la salida capturada.
+sidebar:
+  order: 20
+  label: Comandos
+i18n:
+  sourceHash: 44781a8d910a
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Capturado desde un nodo activo que ejecuta la compilación de software `crt-20250613-3382`, que expone
+**34 comandos**. Cada página a continuación muestra la salida real de ese nodo en lugar de
+ejemplos transcritos.
+
+La columna `Tier` no es orientativa. Selecciona el endpoint al que debe enviarse un comando,
+y enviar un comando al incorrecto devuelve `command not supported` — lo que
+da la impresión de que el comando no existe. Consulte
+[la API de depuración](../access/debug-api/) antes de utilizar esta tabla.
+
+| Comando | Categoría | Nivel | Transporte | Argumento de ejemplo |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`crictl-images`](./system/crictl/) | Sistema | `ExecUser` | `exec-user` | ninguno |
+| [`crictl-inspect`](./system/crictl/) | Sistema | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | Sistema | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | Sistema | `ExecUser` | `exec-user` | ninguno |
+| [`crictl-ps-a`](./system/crictl/) | Sistema | `ExecUser` | `exec-user` | ninguno |
+| [`curl-host`](./network/curl/) | Red | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | Red | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | Sistema | `ExecUser` | GET `global` | ninguno |
+| [`dig`](./network/dig/) | Red | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | Sistema | `ExecUser` | `exec-user` | ninguno |
+| [`docker-inspect`](./system/docker/) | Sistema | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | Sistema | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | Sistema | `ExecUser` | `exec-user` | ninguno |
+| [`docker-ps-a`](./system/docker/) | Sistema | `ExecUser` | `exec-user` | ninguno |
+| [`dropstats`](./network/dataplane-drops/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`flow-l`](./network/dataplane-flows/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`flow-l-match`](./network/dataplane-flows/) | Red | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | Sistema | `ExecUser` | GET `global` | ninguno |
+| [`ip`](./network/ip/) | Red | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | Red | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`ipsec-status`](./network/ipsec/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`ipsec-statusall`](./network/ipsec/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`journalctl`](./system/journalctl/) | Sistema | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`nh`](./network/dataplane-forwarding/) | Red | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | Red | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`show-ip-bgp-summary`](./network/bgp/) | Red | `ExecUser` | `exec-user` | ninguno |
+| [`vif`](./network/dataplane-forwarding/) | Red | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="Un comando aquí modifica el nodo">
+`ip-link-set` es de nivel `Exec` y activa o desactiva una interfaz. Está documentado por
+completitud, no tiene salida capturada y nunca es ejecutado por el arnés de captura.
+</Aside>
+
+## Disponibles solo en compilaciones más recientes
+
+Una compilación actual (`crt-20260201-0179`) expone **43** comandos — un superconjunto estricto,
+sin eliminaciones ni cambios de metadatos. Los nueve que este tenant no tiene:
+
+| Comando | Categoría | Nivel |
+| --- | --- | --- |
+| `collect-database-stats` | Sistema | `ExecUser` |
+| `iptables-lv` | Red | `ExecUser` |
+| `marker-exists-NetworkManager` | Sistema | `Exec` |
+| `marker-exists-crio` | Sistema | `Exec` |
+| `marker-exists-kubelet` | Sistema | `Exec` |
+| `systemctl-restart-NetworkManager` | Sistema | `Exec` |
+| `systemctl-restart-crio` | Sistema | `Exec` |
+| `systemctl-restart-kubelet` | Sistema | `Exec` |
+| `systemctl-start-crio-prune` | Sistema | `Exec` |
+
+Se enumeran solo por nombre y nivel, a partir del descubrimiento del catálogo contra un nodo en esa
+compilación. No hay salida capturada para ellos aquí, porque este tenant no puede ejecutarlos.
+Tenga en cuenta que cuatro de los nueve reinician servicios bajo un plano de datos activo.
+
+<Aside type="note" title="Detección de cambios en la superficie">
+Dado que la superficie crece con la compilación de software, el catálogo registra la compilación de la que
+proviene, y `scripts/capture-sitecli.sh --check` reporta un cambio de compilación
+de forma separada a los comandos añadidos o eliminados. Cuando estos nodos sean actualizados, esa verificación
+es lo que indica que estos nueve han llegado.
+</Aside>

@@ -1,0 +1,115 @@
+---
+title: シリアルコンソール
+description: >-
+  登録に失敗したカスタマーエッジへのブレークグラスルートであり、デバッグAPIが到達できない場合に使用します。ブート診断の前提条件、スクリプトからの可用性確認方法、および障害のように見えるが実際にはそうではない2つの失敗について説明します。
+sidebar:
+  order: 30
+  label: シリアルコンソール
+i18n:
+  sourceHash: 872d359be18d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Azure シリアルコンソールは、Azure プラットフォームを通じてノードのエミュレートされたシリアルポートに接続します。F5 Distributed Cloud コントロールプレーン、ノードのデータプレーン、またはノードが制御するいかなるネットワークパスも経由しません。これが、他の手段がすべて機能しない場合でも動作する理由です。
+
+CE が**起動しなかった**場合に使用してください。登録が失敗した、サイトがテナントに存在しない、またはノードが起動しているが外部へのルートがない場合がこれに該当します。いずれの場合も、[デバッグAPI](../debug-api/) にはリレーするためのトンネルがなく、出荷時のノードでは SSH は閉じられています。
+
+## 前提条件: ブート診断
+
+Azure では、シリアルコンソールを接続する前に、VMでブート診断を有効にする必要があります。これは `terraform/modules/ce-node` によって有効化されます:
+
+```hcl
+boot_diagnostics {}
+```
+
+空のブロックを指定すると Azure マネージドストレージが選択されるため、診断用ストレージアカウント、ライフサイクルポリシー、またはアクセスキーを管理する必要はありません。ノードで確認するには:
+
+```bash
+az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
+```
+
+```json
+{ "bootDiagnostics": { "enabled": true } }
+```
+
+<Aside type="caution" title="有効化は遡及されません">
+ブート診断は**ブート時**にシリアルログをキャプチャします。すでに実行中の VM に対して有効化しても、既に完了したブートのログは生成されないため、`az vm boot-diagnostics get-boot-log` は次のように応答します:
+
+```
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+```
+
+これは想定された動作であり、障害ではありません。ブートログは次回のノード再起動後に生成されます。一方、ライブコンソールへの接続はすぐに機能します。ログには依存しません。
+</Aside>
+
+## ターミナルなしで可用性を確認する
+
+接続にはインタラクティブなセッションが必要ですが、接続が*可能かどうか*は2回のAPI呼び出しで確認できます。どちらもヘルスチェックに有用です。
+
+サービスがサブスクリプションに対して有効化されている必要があります。管理者はテナント全体でサービスを無効化できます:
+
+```bash
+az rest --method get --url \
+  "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.SerialConsole/consoleServices/default?api-version=2018-05-01"
+```
+
+```json
+{ "properties": { "disabled": false } }
+```
+
+次に、特定のノードのシリアルポートへの接続をリクエストします:
+
+```bash
+az rest --method post \
+  --headers "Content-Type=application/json" --body '{}' --url \
+  "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
+```
+
+`wss://` で始まる `connectionString`（このデプロイメントでは `eastus.gateway.serialconsole.azure.com`）が返された場合、コンソールは現時点で接続可能です。ブート診断が有効化される前は、この呼び出しには接続先がありませんでした。
+
+<Aside type="danger" title="この接続文字列はクレデンシャルです">
+URLに埋め込まれた短期間有効なベアラートークンです。ログに記録したり、チケットに貼り付けたり、コミットしたりしないでください。呼び出しが成功したことを示す際は、ホスト名のみを表示してください。
+</Aside>
+
+## 接続手順
+
+<Steps>
+
+1. 拡張機能を一度インストールします:
+
+   ```bash
+   az extension add --name serial-console
+   ```
+
+2. 接続します:
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+3. ノード自体のログインプロンプトが表示されます。シェルではありません。これはサイト CLI であり、ノードに設定されたクレデンシャル（プロビジョニング時の管理者パスワード、またはパスワード変更エンドポイントで設定したもの）が必要です。シリアルコンソールは*チャンネル*が機能することを証明しますが、認証をバイパスするものではありません。
+
+</Steps>
+
+<Aside type="caution" title="実際のターミナルが必要です">
+`az serial-console connect` はターミナルをrawモードに切り替えるため、スクリプト、パイプライン、またはTTYのないコンテキストからは実行できません。Azure に接続する前にクライアント側で失敗します:
+
+```
+ERROR: (19, 'Operation not supported by device')
+  File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
+    GV.serial_console_instance.launch_console()
+```
+
+このトレースバックはターミナル処理の問題であり、シリアルコンソールの障害ではありません。上記の2回のAPI呼び出しは引き続きコンソールが利用可能であると報告します。自動化可能なシグナルが必要な場合は、接続をスクリプト化しようとするのではなく、これらのAPI呼び出しを使用してください。
+</Aside>
+
+## APIでは確認できないがここで確認できること
+
+- **cloud-init** の実行状況、失敗、または未起動——ノードが登録されない通常の原因です。
+- `register.ves.volterra.io` に対する**登録試行**（設定エラーやテナントが拒否したトークンを含む）。
+- エージェントが起動する前の**カーネルおよびブートメッセージ**。
+- **動作するネットワークパスが存在しない**状態のノード（他のすべてのルートが無効になります）。
+
+ノードが `ONLINE` 状態にある場合は、デバッグAPIの使用を推奨します。スクリプト化が可能で、再実行可能な証跡を生成でき、単一のシリアルポートを占有しません。

@@ -1,0 +1,62 @@
+---
+title: 从未上线的站点
+description: CE 注册失败时的有序排查流程，调试 API 在此场景中无法使用，因为它依赖于失败的注册过程。
+sidebar:
+  order: 10
+  label: 注册
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="API 无法调试此问题">
+调试 API 通过 F5 Distributed Cloud 控制平面，经由注册建立的隧道与节点通信。如果注册失败，则隧道不存在，因此本站所有命令对于此类故障均不可用。请通过
+[串行控制台](../../access/serial-console/) 进行操作。
+</Aside>
+
+<Steps>
+
+1. **确认租户所见的情况。** 站点不在列表中与站点存在但状态非 `ONLINE` 是两个不同的问题。
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   如果站点已存在且报告为 `ONLINE`，说明注册已成功，当前排查流程不适用。
+
+2. **检查是否存在待审批的注册请求。** 节点可能已完成注册但正等待审批，从外部看与注册失败完全相同。
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **确认虚拟机确实在运行**，再假设是软件故障。
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **连接串行控制台。** 此操作需要终端，无法通过脚本完成。
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   如果连接被拒绝，请在判定节点不可达之前，先确认虚拟机已启用启动诊断；该前提条件及其故障模式详见 [串行控制台](../../access/serial-console/) 页面。
+
+5. **按以下顺序读取控制台输出。** 首先查看 cloud-init——若 cloud-init 从未完成，节点则没有可用于注册的配置。然后查看注册尝试记录，再查看 DNS 信息：若节点无法解析 `register.ves.volterra.io`，则所有后续步骤均无法正常工作。
+
+6. **节点进入 `ONLINE` 状态后**，使用 [`health`](../../commands/system/health/) 进行验证，预期状态为 `state: PROVISIONED`。
+
+</Steps>
+
+## 常见原因
+
+- cloud-init 未完成，导致 `/etc/vpm/config.yaml` 缺失或配置错误。
+- 注册令牌已过期、已被使用，或属于其他租户。
+- 无法访问 `register.ves.volterra.io` 的出口路由。
+- 时钟偏差过大导致证书失效——之后可通过 [`chronyc-sources`](../../commands/network/chronyc-sources/) 快速排除，但在节点上线之前无法访问该命令。

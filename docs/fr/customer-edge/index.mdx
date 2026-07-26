@@ -1,0 +1,112 @@
+---
+title: Diagnostics Customer Edge
+description: >-
+  Lisez ce niveau en premier lorsqu'un Customer Edge se comporte de manière
+  inattendue. Détermine laquelle des deux voies d'accès s'applique, car la
+  mauvaise renvoie silencieusement rien.
+sidebar:
+  order: 10
+  label: Customer Edge
+i18n:
+  sourceHash: 6fd834c949c2
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Un Customer Edge (CE) est le nœud F5 Distributed Cloud que ce dépôt provisionne dans
+Azure — `terraform/modules/ce-node`, construit à partir de l'image marketplace
+`volterraedgeservices/volterra-node`.
+
+Il exécute le plan de données (Argo), le plan de contrôle (Vega), un proxy Envoy, une
+pile Kubernetes, et `vpm`, l'agent qui enregistre le nœud et gère tout le reste.
+
+Lorsqu'un CE se comporte de manière inattendue, le Site CLI est l'instrument à utiliser. La première décision est de déterminer quelle voie d'accès s'applique — se tromper fait perdre du temps d'une façon qui ressemble à un nœud défaillant.
+
+## Deux voies d'accès, non interchangeables
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    href="./access/debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered. The only route when the API cannot answer."
+    href="./access/serial-console/"
+  />
+</CardGrid>
+
+L'API de débogage atteint le nœud **via le plan de contrôle F5 Distributed Cloud**.
+C'est précisément la raison pour laquelle cette distinction est importante : l'API ne
+peut répondre qu'une fois que le nœud s'est enregistré et signale l'état `ONLINE`.
+
+Un nœud qui n'a pas réussi à s'enregistrer — mauvais cloud-init, jeton expiré, pas
+de route vers `register.ves.volterra.io` — est exactement le cas où vous avez besoin
+de diagnostics, et exactement le cas que l'API ne peut pas traiter.
+
+Le nœud refuse également SSH tel que livré. Le port 22 est fermé sur le CE lui-même,
+et non par un groupe de sécurité réseau :
+
+```console
+$ ssh -o ConnectTimeout=10 admin@<ce-public-ip>
+ssh: connect to host <ce-public-ip> port 22: Connection refused
+```
+
+Vérifié depuis l'intérieur du VNet également, depuis un hôte de rebond sur le même
+sous-réseau, donc l'ouverture d'une règle de groupe de sécurité ne change rien.
+
+Ainsi : si le site est `ONLINE`, utilisez l'API de débogage. Sinon, la console série
+est le seul moyen d'accès.
+
+<Aside type="caution" title="Vérifiez d'abord l'état du site">
+Une seule requête vous indique quelle voie utiliser :
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/config/namespaces/system/sites/<site>" \
+  | jq -r '.spec.site_state'
+```
+
+`ONLINE` signifie que l'API de débogage fonctionnera. Tout autre état — ou un site
+qui n'existe pas — implique le recours à la console série.
+</Aside>
+
+## Règles de sécurité
+
+Ces règles s'appliquent à chaque commande sur toutes les pages ci-dessous.
+
+- **Lecture seule sauf si vous êtes certain.** La surface de commande est divisée en
+  deux niveaux de privilège, et le niveau `Exec` soit modifie le nœud, soit lit un
+  marqueur d'état. Aucune page de cette documentation n'exécute de commande `Exec`,
+  et le dispositif de capture non plus.
+- **Ne supposez jamais qu'une commande est sans danger d'après son nom.** `ip-link-set`
+  ressemble à une requête et désactive une interface. `systemctl-restart-crio` redémarre
+  le moteur de conteneurs sous un plan de données actif.
+- **Préférez la commande la plus ciblée qui répond à la question.** `health` et
+  `diagnosis` synthétisent l'état du nœud à faible coût ; `flow-l` vide une table de
+  flux de 629 760 entrées.
+- **Un CE sert du trafic en production.** Ce sont des environnements de démonstration
+  partagés. Supposez que quelqu'un effectue une présentation depuis le site que vous
+  déboguez.
+
+## Ce qui est documenté ici
+
+Chaque commande accessible via l'API de débogage sur la version logicielle exécutée
+par ce tenant, chacune avec la sortie capturée depuis un nœud actif plutôt que
+retranscrite d'ailleurs.
+
+La [référence des commandes](./commands/) les liste toutes avec leur catégorie, leur
+niveau de privilège et leur transport ; les [workflows](./workflows/) les enchaînent
+dans les séquences réellement utilisées lorsqu'un problème survient.
+
+Les parties du Site CLI accessibles uniquement depuis le nœud — `configure`,
+`configure-network`, `factory-reset`, `upgrade` et une soixantaine de commandes
+`ExecCLI` supplémentaires — ne sont pas couvertes.
+
+Elles ne sont accessibles que depuis une session de console série ; leur syntaxe de
+commande ne peut donc pas être vérifiée de manière programmatique, et la syntaxe de
+commande non vérifiée est précisément le défaut que cette documentation existe pour
+éviter de reproduire.

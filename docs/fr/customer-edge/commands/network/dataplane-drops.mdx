@@ -1,0 +1,46 @@
+---
+title: Statistiques de rejet
+description: >-
+  Pourquoi le plan de données Argo rejette des paquets, par raison. Commencez
+  ici lorsque le trafic atteint le nœud mais n'arrive pas à destination.
+sidebar:
+  order: 30
+  label: Statistiques de rejet
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo comptabilise chaque rejet par raison. C'est le moyen le plus rapide de distinguer « le paquet n'est jamais arrivé » de « le paquet est arrivé et a été rejeté délibérément ».
+
+## `dropstats-non-zero`
+
+Privilégiez celle-ci. Elle n'affiche que les compteurs qui ont été déclenchés, soit une poignée de lignes au lieu de soixante-cinq.
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="Non-zéro ne signifie pas défaillant">
+Il s'agit de totaux cumulés depuis le démarrage du plan de données, et non d'un taux. `Flow Action
+Drop` comptabilise les actions normales de la politique. Ce qui importe, c'est de savoir si un compteur *augmente*
+pendant que vous reproduisez le problème. Exécutez donc la commande deux fois et comparez.
+</Aside>
+
+## `dropstats`
+
+Tous les compteurs, y compris les zéros.
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+Il vaut la peine de le lire en entier une fois, pour connaître les raisons existantes. Ensuite, la variante non-zéro est celle à utiliser.

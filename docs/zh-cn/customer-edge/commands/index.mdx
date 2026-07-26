@@ -1,0 +1,80 @@
+---
+title: 命令参考
+description: 可通过调试 API 访问的所有 Site CLI 命令，包含其类别、权限层级和传输方式。请阅读具体命令页面以获取语法和捕获输出。
+sidebar:
+  order: 20
+  label: 命令
+i18n:
+  sourceHash: 44781a8d910a
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+从运行软件构建版本 `crt-20250613-3382` 的线上节点捕获，该版本共暴露
+**34 个命令**。以下每个页面均展示来自该节点的真实输出，而非人工转录的示例。
+
+`Tier` 列并非建议性说明，它决定了命令必须发送至哪个端点。将命令发送至错误的端点会返回 `command not supported`——该错误看起来像是命令不存在。在使用此表格之前，请先参阅[调试 API](../access/debug-api/)。
+
+| 命令 | 类别 | 层级 | 传输方式 | 示例参数 |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`crictl-images`](./system/crictl/) | 系统 | `ExecUser` | `exec-user` | 无 |
+| [`crictl-inspect`](./system/crictl/) | 系统 | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | 系统 | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | 系统 | `ExecUser` | `exec-user` | 无 |
+| [`crictl-ps-a`](./system/crictl/) | 系统 | `ExecUser` | `exec-user` | 无 |
+| [`curl-host`](./network/curl/) | 网络 | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | 网络 | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | 系统 | `ExecUser` | `global` GET | 无 |
+| [`dig`](./network/dig/) | 网络 | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | 系统 | `ExecUser` | `exec-user` | 无 |
+| [`docker-inspect`](./system/docker/) | 系统 | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | 系统 | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | 系统 | `ExecUser` | `exec-user` | 无 |
+| [`docker-ps-a`](./system/docker/) | 系统 | `ExecUser` | `exec-user` | 无 |
+| [`dropstats`](./network/dataplane-drops/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`flow-l`](./network/dataplane-flows/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`flow-l-match`](./network/dataplane-flows/) | 网络 | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | 系统 | `ExecUser` | `global` GET | 无 |
+| [`ip`](./network/ip/) | 网络 | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | 网络 | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`ipsec-status`](./network/ipsec/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`ipsec-statusall`](./network/ipsec/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`journalctl`](./system/journalctl/) | 系统 | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`nh`](./network/dataplane-forwarding/) | 网络 | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | 网络 | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`show-ip-bgp-summary`](./network/bgp/) | 网络 | `ExecUser` | `exec-user` | 无 |
+| [`vif`](./network/dataplane-forwarding/) | 网络 | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="此处有一条命令会更改节点状态">
+`ip-link-set` 属于 `Exec` 层级，可将某个接口设置为启用或禁用状态。此命令仅出于完整性而收录文档，不含捕获输出，且不会被捕获工具执行。
+</Aside>
+
+## 仅在较新版本中可用
+
+当前构建版本（`crt-20260201-0179`）暴露了 **43** 个命令——严格来说是超集，无任何删除，也无元数据变更。以下九个命令在此租户中不可用：
+
+| 命令 | 类别 | 层级 |
+| --- | --- | --- |
+| `collect-database-stats` | 系统 | `ExecUser` |
+| `iptables-lv` | 网络 | `ExecUser` |
+| `marker-exists-NetworkManager` | 系统 | `Exec` |
+| `marker-exists-crio` | 系统 | `Exec` |
+| `marker-exists-kubelet` | 系统 | `Exec` |
+| `systemctl-restart-NetworkManager` | 系统 | `Exec` |
+| `systemctl-restart-crio` | 系统 | `Exec` |
+| `systemctl-restart-kubelet` | 系统 | `Exec` |
+| `systemctl-start-crio-prune` | 系统 | `Exec` |
+
+以上命令仅列出名称和层级，来源于针对该构建版本节点的目录发现。由于此租户无法运行这些命令，因此这里没有对应的捕获输出。请注意，九个命令中有四个会在线上数据平面下重启服务。
+
+<Aside type="note" title="检测接口变化">
+由于接口会随软件构建版本增长，目录会记录其来源的构建版本，而 `scripts/capture-sitecli.sh --check` 会将构建版本变更与命令的新增或删除分别报告。当这些节点升级后，正是通过该检查才能得知上述九个命令已到位。
+</Aside>

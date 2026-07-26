@@ -1,0 +1,42 @@
+---
+title: journalctl
+description: 노드의 모든 유닛에 대한 Systemd 저널. 등록 실패 및 시간 경과에 따른 vpm 동작의 주요 소스.
+sidebar:
+  order: 50
+  label: journalctl
+i18n:
+  sourceHash: 38a11be4d7d8
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+표준 `journalctl` 인수이며, 각각 별도의 배열 요소입니다. `-u vpm`은 가장 자주
+사용하게 될 옵션입니다. `vpm`은 노드를 등록하고 그 위의 모든 것을 관리하는
+에이전트이므로, 등록 실패가 타임스탬프와 함께 재시작 전반에 걸쳐 해당 저널에
+기록됩니다.
+
+유용한 변형:
+
+| 인수 | 확인 내용 |
+| --- | --- |
+| `-u vpm -n 200` | vpm이 최근에 수행한 작업 |
+| `-u vpm --since "10 min ago"` | 재현 중 발생한 내용 |
+| `-p err -n 100` | 모든 유닛의 오류 |
+| `-u kubelet -n 200` | Kubernetes 스택이 비정상인 이유 |
+
+타임스탬프가 필요하거나, 재시작 구간을 포괄하거나, vpm을 다른 유닛과 연관지어
+분석해야 할 때는 [`docker-logs vpm`](../docker/) 대신 이 명령을 사용하십시오.
+
+<Aside type="note" title="이 페이지에는 아직 캡처된 출력이 없습니다">
+`f5-sales-demo/docs-control#795`가 반영될 때까지 이 캡처는 커밋할 수 없습니다.
+저널에서 FRR의 오타가 포함된 줄이 출력되며, `codespell`이 해당 파일을 거부합니다.
+캡처된 텍스트를 편집하면 실제로 발생하지 않은 출력을 설명하는 페이지가 되므로,
+관리형 구성의 업스트림에서 수정이 이루어지고 있습니다.
+</Aside>

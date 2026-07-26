@@ -1,0 +1,47 @@
+---
+title: Drop-Statistiken
+description: >-
+  Warum die Argo-Datenebene Pakete verwirft, nach Grund aufgeschlüsselt.
+  Beginnen Sie hier, wenn der Datenverkehr den Knoten erreicht, aber nicht
+  ankommt.
+sidebar:
+  order: 30
+  label: Drop-Statistiken
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo zählt jeden Verwurf nach Grund. Dies ist der schnellste Weg, um „das Paket ist nie angekommen" von „das Paket ist angekommen und wurde absichtlich verworfen" zu unterscheiden.
+
+## `dropstats-non-zero`
+
+Bevorzugen Sie diese Option. Sie zeigt nur Zähler an, die ausgelöst haben, was einige wenige Zeilen statt fünfundsechzig ergibt.
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="Nicht null bedeutet nicht fehlerhaft">
+Dies sind kumulative Gesamtwerte seit dem Start der Datenebene, keine Rate. `Flow Action
+Drop` zählt Richtlinien, die ihre Aufgabe erfüllen. Entscheidend ist, ob ein Zähler *steigt*,
+während Sie das Problem reproduzieren – führen Sie den Befehl daher zweimal aus und vergleichen Sie.
+</Aside>
+
+## `dropstats`
+
+Alle Zähler einschließlich der Nullwerte.
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+Es lohnt sich, diese einmal vollständig zu lesen, um zu erfahren, welche Gründe es gibt. Danach ist die Nicht-null-Variante die zu verwendende.

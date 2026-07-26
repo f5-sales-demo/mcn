@@ -1,0 +1,25 @@
+---
+title: netstat
+description: >-
+  Sockets, listeners et état des connexions sur le nœud. Confirme ce qui écoute
+  et avec qui le nœud a établi des connexions.
+sidebar:
+  order: 70
+  label: netstat
+i18n:
+  sourceHash: 5373b4edd88a
+  translator: machine
+---
+
+## `netstat`
+
+```bash
+{"command":["netstat"]}
+```
+
+```text file=../../../../_data/sitecli-netstat.txt
+```
+
+Deux questions auxquelles cette commande répond bien : si le processus attendu écoute sur le port attendu, et si le nœud a une connexion établie vers le plan de contrôle. Un CE sans connexion sortante établie vers l'infrastructure F5 est un nœud qui ne s'enregistrera pas, quelle que soit la santé apparente des autres éléments.
+
+La sortie est longue — la capture ci-dessus est tronquée — il est donc préférable de passer des arguments pour la restreindre plutôt que de la lire en intégralité. Notez que la colonne du nom d'hôte est tronquée pour s'adapter à l'affichage, ce qui peut poser problème si vous recherchez un nom de nœud complet avec grep et ne trouvez rien.

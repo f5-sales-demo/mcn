@@ -1,0 +1,81 @@
+---
+title: docker
+description: >-
+  Il runtime Docker, che esegue i servizi della piattaforma CE. Cinque comandi e
+  il luogo in cui cercare vpm stesso.
+sidebar:
+  order: 40
+  label: docker
+i18n:
+  sourceHash: 9db8ec324ab5
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Docker esegue i servizi della piattaforma. I carichi di lavoro Kubernetes sono gestiti da
+[CRI-O](../crictl/).
+
+## `docker-ps`
+
+```bash
+{"command":["docker-ps"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps.txt
+```
+
+<Aside type="tip" title="Tre container rappresentano l'elenco completo, non un nodo non funzionante">
+`vpm`, `argo_watch` e `site-console`. Poiché la maggior parte del nodo viene eseguita sotto CRI-O, un
+output breve di `docker-ps` può sembrare un errore se ci si aspetta carichi di lavoro Kubernetes
+qui. Non è così — questo è l'insieme completo dei container Docker su un CE integro, e
+la presenza di `vpm` con stato `Up` è la riga più importante della pagina.
+</Aside>
+
+## `docker-ps-a`
+
+```bash
+{"command":["docker-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps-a.txt
+```
+
+Include i container terminati, quindi un `vpm` che continua a bloccarsi lascia traccia qui.
+
+## `docker-images`
+
+```bash
+{"command":["docker-images"]}
+```
+
+```text file=../../../../_data/sitecli-docker-images.txt
+```
+
+I tag delle immagini identificano la versione della piattaforma che il nodo sta effettivamente eseguendo, il che
+vale la pena confrontare con la build software riportata da [`health`](../health/).
+
+## `docker-inspect`
+
+```bash
+{"command":["docker-inspect","<container-id-or-name"]}
+```
+
+```text file=../../../../_data/sitecli-docker-inspect.txt
+```
+
+Accetta sia un nome che un id, quindi `docker-inspect vpm` funziona ed è stabile tra
+i riavvii. JSON completo: mount, variabili d'ambiente, policy di riavvio e stato di uscita.
+
+## `docker-logs`
+
+```bash
+{"command":["docker-logs","<container-id-or-name>"]}
+```
+
+```text file=../../../../_data/sitecli-docker-logs.txt
+```
+
+`docker-logs vpm` è il percorso più rapido per individuare gli errori di registrazione. Per le stesse
+informazioni con timestamp e tra i riavvii, utilizzare
+[`journalctl`](../journalctl/) invece.

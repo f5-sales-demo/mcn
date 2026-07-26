@@ -1,0 +1,77 @@
+---
+title: موقع لم يتصل بالإنترنت قط
+description: >-
+  تسلسل مرتب لـ CE فشل في التسجيل، حيث لا تستطيع واجهة برمجة تطبيقات التصحيح
+  المساعدة لأنها تعتمد على التسجيل الذي فشل.
+sidebar:
+  order: 10
+  label: التسجيل
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="لا تستطيع واجهة برمجة التطبيقات تصحيح هذا">
+تصل واجهة برمجة تطبيقات التصحيح إلى العقدة عبر مستوى التحكم في F5 Distributed Cloud، من خلال
+النفق الذي يُنشئه التسجيل. إذا فشل التسجيل فلا يوجد نفق،
+لذا فإن كل أمر في هذا الموقع غير متاح لهذا الخطأ تحديداً. اعمل من
+[وحدة التحكم التسلسلية](../../access/serial-console/).
+</Aside>
+
+<Steps>
+
+1. **تأكد مما يعتقده المستأجر.** الغياب عن قائمة المواقع مشكلة مختلفة
+   عن الموجود لكن غير `ONLINE`.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   إذا كان الموقع موجوداً ويُبلغ عن `ONLINE`، فإن التسجيل نجح وأنت في
+   سير عمل خاطئ.
+
+2. **تحقق من وجود تسجيل معلّق.** يمكن للعقدة أن تُسجّل ثم تنتظر
+   الموافقة، وهو ما يبدو مطابقاً للفشل من الخارج.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **تأكد من أن الجهاز الافتراضي يعمل فعلاً**، قبل افتراض وجود خطأ برمجي.
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **قم بتوصيل وحدة التحكم التسلسلية.** يتطلب هذا طرفية — لا يمكن برمجته تلقائياً.
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   إذا رفض الأمر، تحقق من تفعيل تشخيصات الإقلاع على الجهاز الافتراضي قبل استنتاج أن
+   العقدة غير قابلة للوصول؛ هذا الشرط المسبق وأوضاع فشله مغطاة في صفحة
+   [وحدة التحكم التسلسلية](../../access/serial-console/).
+
+5. **اقرأ ما تعرضه وحدة التحكم، بهذا الترتيب.** cloud-init أولاً — العقدة التي
+   لم يكتمل cloud-init فيها لا تملك أي تهيئة للتسجيل بها. ثم محاولات
+   التسجيل نفسها، ثم DNS: إذا كانت العقدة لا تستطيع تحليل
+   `register.ves.volterra.io`، فلن يعمل أي شيء في المراحل اللاحقة.
+
+6. **بمجرد أن تصبح العقدة `ONLINE`**، تحقق باستخدام [`health`](../../commands/system/health/)
+   وتوقع `state: PROVISIONED`.
+
+</Steps>
+
+## الأسباب الشائعة
+
+- لم يكتمل cloud-init، لذا يكون `/etc/vpm/config.yaml` غائباً أو خاطئاً.
+- رمز التسجيل منتهي الصلاحية، أو مستهلك بالفعل، أو من مستأجر آخر.
+- لا يوجد مسار خروج إلى `register.ves.volterra.io`.
+- انحراف الساعة كبير بما يكفي لإبطال الشهادات — سهل الاستبعاد لاحقاً باستخدام
+  [`chronyc-sources`](../../commands/network/chronyc-sources/)، لكن غير قابل للوصول
+  حتى تكون العقدة متصلة.
