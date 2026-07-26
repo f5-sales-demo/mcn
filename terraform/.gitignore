@@ -1,0 +1,33 @@
+# Local Terraform inputs and artifacts that must never be committed.
+#
+# The repository root .gitignore is governance-managed and covers neither *.tfvars
+# nor backend.hcl, so both sat untracked-but-committable: a single `git add -A`
+# would have published the shared state container name and per-engineer values.
+# The sibling webapp-api-protection/terraform/.gitignore already guards these;
+# mcn had no equivalent. Mirrors that file.
+#
+# The matching entries in ../.worktreeinclude copy these into a new worktree, so
+# ignoring them here does not leave a fresh worktree unable to plan.
+
+# Variable files carry environment-specific values
+*.tfvars
+!*.tfvars.example
+
+# Partial backend config; the example is committed
+backend.hcl
+!backend.hcl.example
+
+# Saved plan artifacts (terraform plan -out)
+tfplan
+*.tfplan
+
+# CLI config and credential material
+.terraformrc
+terraform.rc
+*.tfrc
+*.pem
+*.p12
+
+# Local overrides for iteration; the authoritative backend is azurerm
+*_override.tf
+*_override.tf.json
