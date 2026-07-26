@@ -1,4 +1,4 @@
 {
-  "promote": ["index*", "customer-edge/index*", "customer-edge/access*"],
-  "demote": ["customer-edge/commands*"]
+  "promote": ["**/index", "**/customer-edge/access/**"],
+  "demote": ["**/customer-edge/commands/**"]
 }
