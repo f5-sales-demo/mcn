@@ -1,0 +1,55 @@
+---
+title: Rotas não estão sendo anunciadas ou aprendidas
+description: >-
+  Sequência ordenada para um site que está online, mas cujo VIP é inacessível ou
+  que não está aprendendo os prefixos que deveria.
+sidebar:
+  order: 20
+  label: BGP
+i18n:
+  sourceHash: eff4d5527048
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+Para um site com status `ONLINE` — se não estiver, comece pelo
+[registro](../registration/).
+
+<Steps>
+
+1. **O peering está estabelecido?**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/). Leia `State/PfxRcd`: um
+   número indica sessão estabelecida, e `Up/Down` mostra se ela tem sido estável. Um valor
+   pequeno em um site que está ativo há dias indica que a sessão está oscilando (flapping).
+
+2. **Se a sessão estiver inativa**, a causa geralmente está abaixo do BGP. Confirme se a interface
+   que transporta o peering está ativa com
+   [`ip-link-show`](../../commands/network/ip/), depois confirme a acessibilidade ao
+   endereço do peer. Nessa topologia, os peers são as instâncias do Azure Route Server.
+
+3. **Se a sessão estiver ativa, mas o VIP estiver inacessível**, verifique o que o nó está
+   realmente anunciando com
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/). Se o
+   VIP estiver ausente ali, o problema está neste nó e verificar o peer não irá
+   ajudar.
+
+4. **Se o nó anuncia corretamente, mas o tráfego ainda não chega**, o
+   plano de controle e o plano de dados estão em desacordo. Verifique a tabela de encaminhamento que o plano
+   de dados realmente utiliza com [`rt`](../../commands/network/dataplane-forwarding/),
+   lembrando que seu VRF id não é o que o BGP reporta.
+
+   Em seguida, resolva o próximo salto com `nh`. Um prefixo presente em `rt` cujo próximo salto é
+   `Drop` é um blackhole.
+
+5. **Se a sessão oscilar (flapping)**, [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
+   contém o último motivo de reinicialização e os temporizadores negociados.
+
+</Steps>
+
+<Aside type="caution" title="Dois esquemas diferentes de numeração de VRF">
+`show-ip-bgp-summary` reporta o `vrf-id` do FRR. O plano de dados Argo numera suas tabelas
+separadamente, e passar o número do FRR para `rt --dump` retorna `No such file or
+directory` — o que parece um nó com defeito em vez de um argumento incorreto. Nessa
+topologia, o VRF 2 é a tabela inet4 populada.
+</Aside>

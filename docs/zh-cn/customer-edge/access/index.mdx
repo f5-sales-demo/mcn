@@ -1,0 +1,44 @@
+---
+title: 访问客户边缘节点
+description: 在执行任何命令之前请先阅读本节。内容涵盖身份验证、决定命令发送目标的层级到端点规则，以及针对未注册节点的紧急访问路径。
+sidebar:
+  order: 10
+  label: 访问
+i18n:
+  sourceHash: 188808639df6
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+存在两条访问路由，具体适用哪条由节点状态决定，而非由用户偏好决定。
+
+| 节点状态 | 路由 | 可脚本化 | 覆盖范围 |
+| --- | --- | --- | --- |
+| `ONLINE` | [Debug API](./debug-api/) | 是 | 34 个命令，包含只读和特权操作 |
+| 未注册或不可达 | [串行控制台](./serial-console/) | 否 — 需要终端 | 完整的节点内 Site CLI |
+
+## 为何此分路不是偏好选择
+
+Debug API 由 F5 Distributed Cloud 控制平面提供服务，通过 `vpm` 在注册过程中建立的隧道将请求转发至节点。未完成注册则无隧道，API 便没有可转发的目标。
+
+这种失败方式并不直观，不会给出明显的错误提示，因此从未成功上线的节点看起来像是 API 问题。
+
+串行控制台则走完全不同的路径——通过 Azure 平台连接到节点的模拟串行端口。它不关心节点是否已注册、是否具备网络可达性，或数据平面是否正常工作。这种独立性正是其核心价值所在，也是为什么必须在 CE 虚拟机上保持启用启动诊断功能。
+
+<Aside type="note" title="如何选择访问方式">
+如果您正在编写自动化脚本，或收集希望后续可重复执行的操作记录，请使用
+Debug API。如果注册本身出现了问题，串行控制台并非备用方案——它是唯一选择。
+</Aside>
+
+## 凭据
+
+两条路由使用不同的凭据，且均不应出现在命令行中。
+
+- **Debug API** — F5 Distributed Cloud API 令牌，以 `XCSH_API_TOKEN` 形式提供，租户 URL 以 `XCSH_API_URL` 形式提供。位于
+  `~/.config/xcsh/contexts/<tenant>.json` 的 `xcsh` 上下文文件存储了这两项配置，当环境变量未提供时，`scripts/capture-sitecli.sh` 会从该文件读取。
+- **串行控制台** — 您的交互式 Azure 登录凭据。此处不使用服务主体：F5 企业 Entra 租户不允许创建服务主体，这也是本流程不在 CI 中运行的原因。
+
+<Aside type="danger" title="切勿将令牌作为参数传递">
+命令行中的令牌会记录在 shell 历史记录和进程列表中，机器上的其他任何用户均可读取。出于这一原因，`capture-sitecli.sh` 明确拒绝 `--token` 参数，转而通过 stdin 将请求头传递给 `curl`。
+</Aside>

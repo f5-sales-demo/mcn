@@ -31,9 +31,11 @@ For a site that is `ONLINE` — if it is not, start with
 
 4. **If the node advertises correctly but traffic still does not arrive**, the
    control plane and the data plane disagree. Check the forwarding table the data
-   plane actually uses with [`rt`](../../commands/network/dataplane-forwarding/) —
-   remembering that its VRF id is not the one BGP reports — and resolve the next hop
-   with `nh`. A prefix present in `rt` whose next hop is `Drop` is a blackhole.
+   plane actually uses with [`rt`](../../commands/network/dataplane-forwarding/),
+   remembering that its VRF id is not the one BGP reports.
+
+   Then resolve the next hop with `nh`. A prefix present in `rt` whose next hop is
+   `Drop` is a blackhole.
 
 5. **If the session flaps**, [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
    carries the last reset reason and the negotiated timers.

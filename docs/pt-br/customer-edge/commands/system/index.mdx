@@ -1,0 +1,36 @@
+---
+title: Comandos do sistema
+description: >-
+  Leia este nível para verificar a integridade do nó, runtimes de contêineres e
+  logs de serviço. Treze comandos, incluindo os dois resumos gerais do site que
+  utilizam um transporte diferente.
+sidebar:
+  order: 20
+  label: Sistema
+i18n:
+  sourceHash: 712397cd2e30
+  translator: machine
+---
+
+Treze dos trinta e quatro comandos.
+
+| Se você deseja | Use |
+| --- | --- |
+| Uma resposta sobre se o nó está saudável | [health](./health/) |
+| Sondagens de conectividade e DNS executadas pelo próprio nó | [diagnosis](./diagnosis/) |
+| Contêineres de carga de trabalho do Kubernetes | [crictl](./crictl/) |
+| Os contêineres da plataforma: vpm, argo, site-console | [docker](./docker/) |
+| Logs de serviço, incluindo registro | [journalctl](./journalctl/) |
+
+## O nó executa dois runtimes de contêineres
+
+Isso surpreende as pessoas, e muda qual comando responde à sua pergunta.
+
+- **Docker** executa os contêineres da plataforma — `vpm`, `argo_watch`, `site-console`.
+- **CRI-O** executa as cargas de trabalho do Kubernetes, acessadas por meio do `crictl`.
+
+Ambos estão ativos simultaneamente, ambos retornam saídas reais e nenhum substitui o outro. `docker-ps` exibindo três contêineres não é uma visão parcial de um nó com falha; é a lista completa do que o Docker executa. Se você está procurando por `vpm`, ele é um contêiner Docker. Se você está procurando por um pod, ele está no CRI-O.
+
+## Dois comandos utilizam um transporte diferente
+
+`health` e `diagnosis` são de escopo `GLOBAL`: são requisições `GET` para um caminho `global`, retornam JSON em vez de texto de terminal e **não são acessíveis por meio de `exec-user`** — enviá-los por essa via retorna `command not supported`, o que parece indicar que o comando não existe. Consulte [a API de depuração](../../access/debug-api/).

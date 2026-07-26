@@ -1,0 +1,38 @@
+---
+title: 流量到达但未能通过
+description: 针对对等连接正常且看似健康但仍丢失流量的站点的有序排查步骤，用于将丢弃行为缩小至具体原因。
+sidebar:
+  order: 30
+  label: 数据平面
+i18n:
+  sourceHash: df00d76ad275
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+适用于状态为 `ONLINE` 且 BGP 已建立的站点。如果路由是问题所在，请从
+[BGP](../bgp-diagnostics/) 开始排查。
+
+<Steps>
+
+1. **是否有任何丢弃，原因是什么？**
+   运行 [`dropstats-non-zero`](../../commands/network/dataplane-drops/)，在复现问题时运行两次：这些是生命周期累计值，单次非零计数本身说明不了什么，而*持续上升*的计数则意味着一切。
+
+2. **找到具体连接。**
+   使用地址，或地址加端口运行 [`flow-l-match`](../../commands/network/dataplane-flows/)。流量上的动作即为答案：`F` 表示转发，`D` 表示丢弃，`N` 表示 NAT。若流量存在且动作为 `D`，则属于主动策略决策，应转向策略排查而非连通性排查。
+
+3. **完全没有流量记录？** 流量未到达数据平面。使用
+   [`vif`](../../commands/network/dataplane-forwarding/) 确认数据平面已接管您预期的接口，并将其计数器与 [`ip`](../../commands/network/ip/) 报告的结果进行对比。
+
+   两者存在合理差异，因为数据平面处理的流量永远不会到达内核。但预期接口上的 RX 为零则不正常。
+
+4. **流量存在且正在转发，但仍未到达？** 检查流量被发送至何处：用 `rt` 查询路由，再用 `nh` 解析下一跳。类型为 `Drop` 的下一跳表示黑洞路由，而 `Tunnel` 类型的下一跳则将隧道本身纳入排查范围。
+
+5. **如果路径经过隧道**，使用 [`ipsec-statusall`](../../commands/network/ipsec/) 确认隧道处于启用状态且正在传输字节。一个已建立数小时但计数器接近零的隧道，说明隧道已启用但未被使用，这指向路由问题。
+
+</Steps>
+
+<Aside type="tip" title="Argo 与 Linux 维护各自独立的状态">
+最令人困惑的数据平面症状，往往源于读取内核视图并将其视为权威依据。`ip` 显示的是 Linux 所认为的状态；`rt`、`nh` 和 `vif` 显示的是实际转发流量的状态。当两者不一致时，数据平面才是真正移动数据包的依据。
+</Aside>

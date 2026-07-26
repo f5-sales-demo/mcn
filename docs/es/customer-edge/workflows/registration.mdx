@@ -1,0 +1,77 @@
+---
+title: Un sitio que nunca se conectó
+description: >-
+  Secuencia ordenada para un CE que no pudo registrarse, donde la API de
+  depuración no puede ayudar porque depende del registro que falló.
+sidebar:
+  order: 10
+  label: Registro
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="La API no puede depurar esto">
+La API de depuración alcanza el nodo a través del plano de control de F5 Distributed Cloud, por
+el túnel que establece el registro. Si el registro falló, no hay túnel,
+por lo que cada comando en este sitio no está disponible para este fallo exacto. Trabaje desde
+la [consola serie](../../access/serial-console/).
+</Aside>
+
+<Steps>
+
+1. **Confirme lo que el tenant observa.** Ausente de la lista de sitios es un problema
+   diferente de presente pero no `ONLINE`.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   Si el sitio existe e informa `ONLINE`, el registro fue exitoso y está en el
+   flujo de trabajo incorrecto.
+
+2. **Verifique si hay un registro pendiente.** Un nodo puede registrarse y luego esperar
+   aprobación, lo que se ve idéntico a un fallo desde el exterior.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **Confirme que la VM está realmente en ejecución**, antes de asumir un fallo de software.
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **Conecte la consola serie.** Esto requiere una terminal — no puede ejecutarse como script.
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   Si la conexión es rechazada, verifique que los diagnósticos de arranque estén habilitados en la VM antes de concluir que
+   el nodo es inalcanzable; ese prerequisito y sus modos de fallo se tratan en la página de
+   [consola serie](../../access/serial-console/).
+
+5. **Lea lo que muestra la consola, en este orden.** Primero cloud-init — un nodo cuyo
+   cloud-init nunca se completó no tiene configuración con la que registrarse. Luego los
+   intentos de registro en sí mismos, y después el DNS: si el nodo no puede resolver
+   `register.ves.volterra.io`, nada en la cadena posterior puede funcionar.
+
+6. **Una vez que el nodo esté `ONLINE`**, verifique con [`health`](../../commands/system/health/)
+   y espere `state: PROVISIONED`.
+
+</Steps>
+
+## Las causas habituales
+
+- cloud-init no se completó, por lo que `/etc/vpm/config.yaml` está ausente o es incorrecto.
+- El token de registro está expirado, ya fue consumido, o pertenece a otro tenant.
+- No hay ruta de salida hacia `register.ves.volterra.io`.
+- Desfase de reloj suficientemente grande para invalidar certificados — fácil de descartar más tarde con
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), pero no es accesible
+  hasta que el nodo esté en línea.

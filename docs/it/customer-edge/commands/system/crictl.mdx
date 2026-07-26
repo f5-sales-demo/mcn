@@ -1,0 +1,82 @@
+---
+title: crictl
+description: >-
+  Il runtime CRI-O, che esegue i carichi di lavoro Kubernetes. Cinque comandi
+  che coprono container, immagini, ispezione e log.
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O esegue i carichi di lavoro Kubernetes. I servizi della Piattaforma — `vpm`, `argo_watch`,
+`site-console` — sono container [Docker](../docker/) e non compariranno qui.
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+Container in esecuzione con il rispettivo pod, immagine e conteggio dei riavvii. `ATTEMPT` è il valore
+da osservare: un conteggio di riavvii in aumento indica un crash loop, e l'id del container presente in questo
+output alimenta i due comandi seguenti.
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+Include i container terminati. Utilizzarlo quando qualcosa *era* in esecuzione e non lo è più —
+la voce terminata e il suo id di container consentono di leggere i log dell'esecuzione che
+ha avuto esito negativo.
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+Conferma che un'immagine è effettivamente presente sul nodo, distinguendo così un errore
+di pull da uno di scheduling.
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+JSON completo: mount, variabili d'ambiente, limiti di risorse, la riga di comando e lo stato
+di uscita. È lungo, quindi è preferibile interrogarlo anziché leggerlo integralmente.
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="Gli id dei container sono specifici per ogni esecuzione">
+Gli id presenti in queste acquisizioni provengono da un'esecuzione di esempio e non esisteranno sul proprio nodo.
+Recuperare prima un id corrente da `crictl-ps`. Il sistema di acquisizione fa esattamente questo —
+il suo manifest risolve il primo id di container al momento dell'acquisizione anziché codificarlo manualmente.
+</Aside>

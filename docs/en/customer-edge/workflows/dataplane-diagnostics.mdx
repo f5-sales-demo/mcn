@@ -27,9 +27,10 @@ with [BGP](../bgp-diagnostics/).
 3. **No flow at all?** The traffic is not reaching the data plane. Confirm the data
    plane has claimed the interface you expect with
    [`vif`](../../commands/network/dataplane-forwarding/), and compare its counters
-   against what [`ip`](../../commands/network/ip/) reports. Traffic handled by the
-   data plane never reaches the kernel, so the two views legitimately differ — but
-   the data plane showing zero RX on the interface you expect does not.
+   against what [`ip`](../../commands/network/ip/) reports.
+
+   The two views legitimately differ, because traffic the data plane handles never
+   reaches the kernel. Zero RX on the interface you expect does not.
 
 4. **Flow present and forwarding, still not arriving?** Check where it is being sent:
    `rt` for the route, then `nh` to resolve the next hop. A next hop of type `Drop`

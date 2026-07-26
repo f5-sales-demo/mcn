@@ -1,0 +1,48 @@
+---
+title: health
+description: >-
+  Der beste erste Befehl. Registrierungsstatus, Betriebssystem, Ressourcen und
+  Dienststatus für die gesamte Site in einer strukturierten Antwort.
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="GLOBAL scope — a different transport">
+Ein `GET` an den `global`-Pfad, kein `command`-Array. Das Senden von `health` an `exec-user`
+gibt `command not supported` zurück.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+Beginnen Sie hier. Es ist kostengünstig, strukturiert und beantwortet die erste Frage zu
+jeder CE: `state`. `PROVISIONED` bedeutet, dass der Knoten registriert und konfiguriert ist.
+
+Alles andere — `WAITING_FOR_CONFIG` oder gar keine Antwort — signalisiert Ihnen, die
+Fehlersuche in der Datenebene zu unterbrechen und stattdessen die [Registrierung](../../../workflows/registration/)
+zu überprüfen.
+
+Die Antwort enthält außerdem die Betriebssystem- und Kernel-Version, das Produkt und den Hersteller der
+zugrunde liegenden VM sowie den Software-Build. Dieser Build-String bestimmt, welche
+Befehle auf dem Knoten verfügbar sind, daher ist es sinnvoll, ihn zu notieren, bevor Sie davon ausgehen, dass ein Befehl
+fehlt.
+
+Da die Antwort JSON ist, lässt sie sich sauber abfragen:
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

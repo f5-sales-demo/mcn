@@ -1,0 +1,77 @@
+---
+title: crictl
+description: 运行 Kubernetes 工作负载的 CRI-O 运行时。涵盖容器、镜像、检查和日志的五个命令。
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O 负责运行 Kubernetes 工作负载。平台服务 — `vpm`、`argo_watch`、
+`site-console` — 属于 [Docker](../docker/) 容器，不会在此处显示。
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+显示正在运行的容器及其所属 Pod、镜像和重启次数。重点关注 `ATTEMPT` 列：
+不断攀升的重启次数意味着崩溃循环，而此输出中的容器 ID 可用于下面两个命令。
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+包含已退出的容器。当某个服务*曾经*运行但现已停止时使用此命令 —
+已退出的条目及其容器 ID 可帮助您读取失败运行的日志。
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+确认镜像是否实际存在于节点上，从而区分是拉取失败还是调度失败。
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+完整 JSON 输出：包含挂载点、环境变量、资源限制、命令行以及退出状态。
+内容较长，建议通过查询方式使用，而非直接阅读。
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="容器 ID 仅对单次运行有效">
+这些采集示例中的 ID 来自某一次示例运行，在您的节点上并不存在。
+请先从 `crictl-ps` 获取当前有效的容器 ID。采集工具正是这样做的 —
+其清单在采集时动态解析第一个容器 ID，而非硬编码。
+</Aside>

@@ -1,0 +1,195 @@
+---
+title: واجهة API للتصحيح
+description: >-
+  كيفية تشغيل أمر Site CLI على عقدة ONLINE عبر HTTP، بما يشمل قاعدة
+  المستوى-إلى-النقطة التي تحدد نوع النقل المطلوب من بين ثلاثة خيارات، واستدعاء
+  الاكتشاف الذي يسردها.
+sidebar:
+  order: 20
+  label: واجهة API للتصحيح
+i18n:
+  sourceHash: 36ee4d6fe690
+  translator: machine
+---
+
+import { Aside, Steps, Badge } from "@astrojs/starlight/components";
+
+تُشغّل واجهة `vpm/debug` API أوامر Site CLI على عقدة مسجّلة وتُعيد مخرجاتها.
+كل ما يلي تم إنشاؤه مقابل عقدة حية؛ ولم يُنشر أي منه في المصدر الرسمي.
+
+## كتالوج الأوامر يصف نفسه بنفسه
+
+اسأل العقدة عمّا تدعمه بإرسال طلب POST إلى `exec-user` مع حذف المفتاح `command`:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>"}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user" \
+  | jq -r .output | jq .
+```
+
+الاستجابة عبارة عن كائن JSON مفهرس بأسماء الأوامر:
+
+```json
+{
+  "crictl-inspect": ["System Troubleshooting", "ExecUser", " container-id"],
+  "diagnosis":      ["System Troubleshooting", "ExecUser", "no argument needed", "GLOBAL"],
+  "ip-link-set":    ["Network Troubleshooting", "Exec", " (<device>||<group>) (up||down)"]
+}
+```
+
+كل مدخل على الشكل `[category, tier, exampleArgument?, scope?]`، وهذه الحقول ليست
+توثيقاً — بل تحدد كيفية استدعاء الأمر.
+
+<Aside type="caution" title="احذف المفتاح؛ لا ترسل قيمة خاطئة">
+يعمل الاكتشاف بحذف `command`. إرسال قيمة غير معروفة بدلاً من ذلك يُعيد
+خطأً، وليس الكتالوج:
+
+```json
+{"code":3,"details":[],"message":"exec command failed: command not supported"}
+```
+
+هذه الرسالة هي أيضاً ما تحصل عليه عند إرسال أمر *حقيقي* إلى النقطة الخاطئة،
+لذا يسهل قراءتها خطأً على أنها "هذا الأمر غير موجود".
+</Aside>
+
+## ثلاثة أنواع نقل، يحددها إدخال الكتالوج
+
+| الشرط | الطريقة والمسار | الجسم | تُعيد |
+| --- | --- | --- | --- |
+| `scope` هو `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | لا شيء | JSON |
+| `tier` هو `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | مصفوفة `command` | نص |
+| `tier` هو `Exec` | `POST .../vpm/debug/<node>/exec` | مصفوفة `command` | نص |
+
+### `ExecUser` — مستوى القراءة فقط <Badge text="31 أمراً" variant="note" />
+
+الحالة الشائعة. مرّر الأمر وسيطاته على شكل مصفوفة، اسم الأمر أولاً:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>","command":["crictl-ps"]}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user"
+```
+
+```json
+{ "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
+```
+
+الوسيطات عناصر مصفوفة منفصلة، وليست سلسلة واحدة:
+
+```json
+{ "command": ["journalctl", "-u", "vpm", "-n", "200"] }
+```
+
+### `GLOBAL` — على مستوى الموقع، ونوع نقل مختلف تماماً <Badge text="أمران فقط" variant="tip" />
+
+`health` و`diagnosis` هما الأمران الوحيدان. وهما طلبات `GET` إلى مسار `global`،
+لا تأخذ سيطات، وتُعيد JSON منظّماً بدلاً من نص طرفية.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
+```
+
+<Aside type="danger" title="أمر GLOBAL غير قابل للوصول عبر exec-user">
+هذا هو الفخ الذي يكلّف أكثر وقتاً. إرسال `health` أو `diagnosis` إلى
+`exec-user` يُعيد `command not supported`، مما يبدو كأن الأمر غير موجود على
+العقدة — بينما هو موجود في الواقع وأنت استخدمت نوع النقل الخاطئ.
+
+```bash
+# خاطئ. يُعيد: exec command failed: command not supported
+-d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
+
+# صحيح.
+GET .../vpm/debug/global/health
+```
+
+</Aside>
+
+### `Exec` — المستوى ذو الصلاحيات المرتفعة <Badge text="أمر واحد في هذا الإصدار" variant="danger" />
+
+نقطة نهاية منفصلة، والمستوى مُطبَّق وليس اختيارياً: يرفض `exec` أمراً من
+`ExecUser` بنفس رسالة `command not supported`. كل عضو إما يُعدّل العقدة أو
+يقرأ علامة حالة.
+
+في الإصدار الذي يعمل عليه هذا المستأجر، يحتوي المستوى على `ip-link-set` فقط.
+تضيف الإصدارات الأحدث `systemctl-restart-NetworkManager` و`systemctl-restart-crio`
+و`systemctl-restart-kubelet` و`systemctl-start-crio-prune` وثلاثة أوامر
+`marker-exists-*`.
+
+<Aside type="danger" title="لا شيء هنا يُشغّل أمر Exec">
+ترفض أداة الالتقاط هذا المستوى، وتقرأ المستوى من الكتالوج الحي بدلاً من
+قائمة مُضمَّنة في الكود — لذا فإن إصداراً مستقبلياً يُرقّي أمراً إلى `Exec`
+يُحترم دون الحاجة لأن يُعدّل أحد الكود. شغّل أحد هذه الأوامر فقط بشكل
+متعمد، على عقدة أنت مستعد لتعطيلها.
+</Aside>
+
+## إيجاد أسماء الموقع والعقدة
+
+اسم العقدة هو اسم الجهاز الافتراضي في Azure، و`list-service` طريقة رخيصة
+لتأكيده جنباً إلى جنب مع الخدمات التي تعمل عليه:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/list-service" \
+  | jq -r '[.service[].node] | unique'
+```
+
+## إعادة إنتاج التقاطات هذا المستودع
+
+كل صفحة أمر تضمّن مخرجات التُقطت بواسطة `scripts/capture-sitecli.sh`، الذي
+يُطبّق القواعد الثلاث أعلاه.
+
+<Steps>
+
+1. وجّهه نحو مستأجر. يقرأ `XCSH_API_URL` و`XCSH_API_TOKEN`، أو يرجع إلى
+   سياق `xcsh` النشط.
+
+2. حدّث الكتالوج وتأكد من أن العقدة لم تتغير أسفل التوثيق:
+
+   ```bash
+   bash scripts/capture-sitecli.sh --check
+   ```
+
+   يقارن هذا الكتالوج المُودَع وإصدار البرنامج فقط. يُبلّغ عن تغيير الإصدار
+   بشكل منفصل عن الأوامر المضافة أو المحذوفة.
+
+3. أعد الالتقاط عندما تريد أدلة جديدة:
+
+   ```bash
+   bash scripts/capture-sitecli.sh
+   ```
+
+</Steps>
+
+<Aside type="note" title="الالتقاطات هي أدلة، وليست مخرجات قابلة للإعادة">
+العدادات وأوقات التشغيل وأعمار الحاويات تتغير بين كل تشغيل، لذا فإن إعادة
+الالتقاط دائماً تُنتج فروقاً. الكتالوج هو العقد الثابت ويكون متطابقاً بايت
+بايت عبر التشغيلات عندما لا تكون العقدة قد تغيرت؛ وذلك ما يقارنه `--check`.
+المخرجات الطويلة يتم اقتطاعها وتنتهي بعلامة صريحة، بحيث لا تُعرض جدول
+مقتطع كما لو كان كاملاً.
+</Aside>
+
+<Aside type="danger" title="الالتقاط من عقدة عميل: تحقق من ملف تعريف إخفاء الهوية">
+تحمل مخرجات الأوامر هوية البنية التحتية — العناوين الداخلية، وعناوين MAC،
+وأرقام AS، وأسماء المضيفين — وبالنسبة للعميل فهذه معلومات تعريفية تخص
+المنظمة.
+
+لذلك يُعيَّن فلتر التنقية افتراضياً على ملف تعريف **صارم** يُزيل كل ذلك.
+يُعلن هذا المستودع عن `lab` في `sitecli/capture-manifest.json`، مما يُبقي
+تلك التفاصيل، وهو صحيح هنا فقط لأن هذه الالتقاطات مصدرها بنية تحتية عرض
+توضيحي مملوكة لـ F5.
+
+**لا تحمل هذا الإعداد إلى التقاط من عقدة عميل.** يُزال الرموز المميزة
+والمفاتيح الخاصة ومعرّف المستأجر وUUIDs الكائنات وعناوين البريد الإلكتروني
+ومسارات الدلائل الرئيسية ضمن كلا الملفَّين.
+
+ثمة قيد يستحق المعرفة: جدول جيران BGP يطبع رقم AS كعمود خام دون تسمية
+تُتيح الاستناد إلى نمط، لذا يتم مطابقة أرقام ASN بالقيمة مقابل النطاقات
+الخاصة. رقم ASN **عام** هناك ينجو من الملف الصارم، ويحتاج إلى مراجعة يدوية
+لمخرجات `show-ip-bgp*` قبل نشرها.
+</Aside>

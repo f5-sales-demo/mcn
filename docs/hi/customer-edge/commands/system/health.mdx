@@ -1,0 +1,42 @@
+---
+title: health
+description: >-
+  सबसे पहला और सर्वोत्तम कमांड। एक संरचित प्रतिक्रिया में पूरी साइट की पंजीकरण
+  स्थिति, OS, संसाधन और सेवा स्थिति।
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="GLOBAL स्कोप — एक अलग ट्रांसपोर्ट">
+यह `command` array नहीं, बल्कि `global` पथ पर एक `GET` अनुरोध है। `exec-user` को `health` भेजने पर
+`command not supported` वापस मिलता है।
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+यहीं से शुरुआत करें। यह सस्ता है, संरचित है, और किसी भी CE के बारे में पहले सवाल का जवाब देता है: `state`। `PROVISIONED` का अर्थ है कि नोड पंजीकृत हुआ और कॉन्फ़िगर है।
+
+कोई भी अन्य स्थिति — `WAITING_FOR_CONFIG`, या कोई उत्तर ही नहीं — यह संकेत देती है कि डेटा प्लेन को डीबग करना बंद करें और इसके बजाय [पंजीकरण](../../../workflows/registration/) देखें।
+
+प्रतिक्रिया में OS और कर्नेल संस्करण, अंतर्निहित VM का उत्पाद और विक्रेता, तथा सॉफ़्टवेयर बिल्ड भी शामिल होता है। वह बिल्ड स्ट्रिंग यह निर्धारित करती है कि नोड पर कौन-से कमांड उपलब्ध हैं, इसलिए यह मान लेने से पहले कि कोई कमांड अनुपस्थित है, इसे नोट करना उचित है।
+
+चूँकि प्रतिक्रिया JSON में होती है, इसे आसानी से क्वेरी किया जा सकता है:
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

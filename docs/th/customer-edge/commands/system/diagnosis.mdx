@@ -1,0 +1,37 @@
+---
+title: diagnosis
+description: >-
+  การตรวจสอบการเชื่อมต่อและ DNS ที่โหนดรันกับตัวเอง ส่งคืนเป็น JSON
+  บอกคุณว่าโหนดเชื่ออะไรเกี่ยวกับความสามารถในการเข้าถึงของตัวเอง
+sidebar:
+  order: 20
+  label: diagnosis
+i18n:
+  sourceHash: 2c9fe6fab17a
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="ขอบเขต GLOBAL — การขนส่งที่แตกต่างออกไป">
+เหมือนกับ `health` คือ `GET` ไปยังพาธ `global` และไม่สามารถเข้าถึงได้ผ่าน `exec-user`
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+โหนดตรวจสอบเกตเวย์ของตัวเองและรายงานผลลัพธ์ต่อโหนด ดังนั้นในไซต์ที่มีหลายโหนด คุณจะได้รับบล็อกหนึ่งบล็อกสำหรับแต่ละโหนด `gateway_connectivity` มีสรุปผลการ ping ได้แก่ `sent`, `received`, `lost` และเวลาในการตอบสนองแบบไปกลับ
+
+<Aside type="note" title="การสูญเสีย 100% ไปยังเกตเวย์ไม่จำเป็นต้องเป็นข้อผิดพลาด">
+บนโทโพโลยีนี้ เกตเวย์ไม่ตอบสนอง ICMP ดังนั้น `lost: 100` คือสถานะปกติในขณะที่ไซต์อยู่ในสถานะ `ONLINE` และกำลังส่งต่อข้อมูล ควรถือว่าฟิลด์นี้เป็นสัญญาณเฉพาะเมื่อคุณมีหลักฐานอื่นของปัญหาอยู่แล้ว หรือเมื่อค่าเปลี่ยนแปลง
+</Aside>
+
+`resolv_conf` คือฟิลด์ที่มีประโยชน์อย่างสม่ำเสมอมากกว่า: มันแสดง resolver ที่โหนดจะใช้จริง ซึ่งคุ้มค่าแก่การเปรียบเทียบกับสิ่งที่คุณคาดหวังก่อนที่จะเสียเวลาใน [`dig`](../../network/dig/)

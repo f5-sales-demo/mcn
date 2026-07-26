@@ -1,0 +1,27 @@
+---
+title: 網路指令
+description: 閱讀本層級以了解客戶邊緣設備的連線、路由、隧道及資料平面轉發。涵蓋 BGP、IPsec、Argo 資料平面及基本可達性的二十一個指令。
+sidebar:
+  order: 10
+  label: 網路
+i18n:
+  sourceHash: f285c14aa71c
+  translator: machine
+---
+
+三十四個指令中的二十一個，依您所懷疑的層級加以區分。
+
+| 若您懷疑 | 從此開始 |
+| --- | --- |
+| 站點未廣播或未學習路由 | [BGP](./bgp/) |
+| 至區域邊緣的隧道中斷 | [IPsec](./ipsec/) |
+| 流量抵達但遭到丟棄 | [丟棄統計資料](./dataplane-drops/) |
+| 特定連線行為異常 | [流量表](./dataplane-flows/) |
+| 整個前綴的轉發錯誤 | [路由與下一跳](./dataplane-forwarding/) |
+| 介面中斷或設定錯誤 | [介面](./ip/) |
+| 名稱解析 | [dig](./dig/) |
+| 節點外部可達性 | [curl](./curl/) |
+| 通訊端與監聽器 | [netstat](./netstat/) |
+| 時鐘偏差導致憑證或驗證失敗 | [chronyc-sources](./chronyc-sources/) |
+
+資料平面為 Argo，其維護獨立於 Linux 核心之外的轉發狀態。`ip` 顯示的是 Linux 所認知的內容；`rt`、`nh` 與 `vif` 顯示的才是實際轉發流量的狀態。當兩者不一致時，以資料平面為準。

@@ -1,0 +1,54 @@
+---
+title: IPsec
+description: >-
+  Ob die Tunnel zu den regionalen F5-Edges aufgebaut sind und die
+  Datenverkehrszähler belegen, dass diese Daten übertragen. Zwei Befehle – einer
+  zur Zusammenfassung und einer mit Details.
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+Der CE baut IPsec-Tunnel zu den regionalen F5-Edges auf. Sind diese ausgefallen, ist
+der Standort vom globalen Netzwerk isoliert, unabhängig davon, wie gesund er lokal
+erscheint.
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+Die erste Zeile ist die Antwort: `Security Associations (2 up, 0 connecting)`. Alles
+unter `connecting` ist ein Tunnel, der versucht aufzubauen, aber scheitert.
+
+Jede SA benennt den regionalen Edge, an dem sie endet — `ny8-nyc`, `dc12-ash` sind
+F5-POP-Codes — so ist auch erkennbar, mit welchen Edges der Standort verbunden ist.
+
+`ESTABLISHED` mit einer Laufzeit, gefolgt von `INSTALLED, TUNNEL`, ist ein gesundes
+Paar: Ersteres ist die IKE-Sitzung, Letzteres die untergeordnete SA, die tatsächlich
+den Datenverkehr überträgt. Eine aufgebaute IKE-Sitzung ohne installierte untergeordnete
+SA ist der interessante Fehlerfall.
+
+## `ipsec-statusall`
+
+Dieselben Informationen zuzüglich SA-bezogener Byte- und Paketzähler, Erneuerungstimer
+und der ausgehandelten Algorithmen.
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+Damit lässt sich unterscheiden, ob „der Tunnel aktiv ist" und ob „der Tunnel tatsächlich
+Datenverkehr überträgt". Ein seit Stunden aufgebauter Tunnel mit nahezu null Bytes ist
+aktiv, aber ungenutzt – was in der Regel bedeutet, dass das Problem im Routing liegt
+und nicht im Tunnel selbst.

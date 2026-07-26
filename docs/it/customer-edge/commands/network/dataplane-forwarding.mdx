@@ -1,0 +1,76 @@
+---
+title: Route e next hop
+description: >-
+  Cosa il piano dati Argo effettivamente inoltra, che non è necessariamente ciò
+  che Linux ritiene. Tratta la tabella delle route del vRouter, la tabella dei
+  next hop e le interfacce virtuali.
+sidebar:
+  order: 50
+  label: Route e next hop
+i18n:
+  sourceHash: 79de27e2024e
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo mantiene lo stato di inoltro separato dal kernel Linux. Quando
+[`ip`](../ip/) e questi comandi non concordano, sono questi comandi a spostare il traffico.
+
+## `rt`
+
+La tabella delle route del vRouter, per VRF.
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="L'ID VRF non è quello riportato da BGP">
+`show-ip-bgp-summary` mostra `vrf-id 3`. Questa è la numerazione di FRR e appartiene
+a uno spazio dei nomi diverso dall'ID della tabella del vRouter. Passarlo qui fallisce in un modo che
+appare come un nodo non funzionante:
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+La stessa risposta viene restituita per `--dump 0`. In questa topologia **VRF 2** è la
+tabella inet4 popolata, con VRF 1 che contiene due route. Se non si conosce l'ID,
+effettuare la ricerca a partire da 1 verso l'alto anziché affidarsi all'output BGP.
+</Aside>
+
+## `nh`
+
+La tabella dei next hop. Ogni route punta a un ID next hop, e questo li risolve.
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+Ogni voce contiene un `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — e il VRF a cui
+appartiene. Una route che risolve a un next hop `Drop` è un blackhole, e tale
+combinazione vale la pena verificare ogni volta che un prefisso è presente in `rt` ma il traffico continua
+a scomparire.
+
+## `vif`
+
+La tabella delle interfacce virtuali: a cosa si collega il piano dati e i contatori
+per interfaccia.
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+La legenda dei flag in cima vale la pena essere letta almeno una volta — `Vp` contrassegna l'interfaccia
+fisica vhost, `Dpdk` una gestita da DPDK. Utilizzare questo comando per confermare che il piano dati abbia
+acquisito l'interfaccia attesa e per visualizzare i contatori RX e TX che Linux non mostra
+perché il traffico non raggiunge mai il kernel.

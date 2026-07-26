@@ -26,9 +26,10 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 Start here. It is cheap, it is structured, and it answers the first question about
 any CE: `state`. `PROVISIONED` means the node registered and is configured.
+
 Anything else — `WAITING_FOR_CONFIG`, or no answer at all — tells you to stop
-debugging the data plane and look at
-[registration](../../../workflows/registration/) instead.
+debugging the data plane and look at [registration](../../../workflows/registration/)
+instead.
 
 The response also carries the OS and kernel version, the product and vendor of the
 underlying VM, and the software build. That build string is what determines which

@@ -1,0 +1,44 @@
+---
+title: curl
+description: >-
+  Pruebas de alcanzabilidad desde dos contextos de red distintos en el nodo.
+  Cuál se utilice determina qué prueba un fallo en realidad.
+sidebar:
+  order: 80
+  label: curl
+i18n:
+  sourceHash: 6ab13d8c3593
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Dos comandos, y la distinción entre ellos es todo el valor.
+
+## `curl-host`
+
+Se ejecuta en el espacio de nombres de red del host — la conectividad propia del nodo, antes de que el plano de datos esté involucrado.
+
+```bash
+{"command":["curl-host","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-host.txt
+```
+
+## `curl-vega`
+
+Se ejecuta dentro del contexto del clúster de Kubernetes, por lo que atraviesa el DNS y la ruta de red del clúster.
+
+```bash
+{"command":["curl-vega","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-vega.txt
+```
+
+<Aside type="tip" title="El par es una bisección">
+Ejecute ambos. Si `curl-host` tiene éxito y `curl-vega` falla, el nodo tiene conectividad y la red del clúster o su DNS está roto. Si ambos fallan, el problema es anterior al nodo — enrutamiento, un firewall, o la ruta de salida. Si solo `curl-host` falla, ha encontrado algo inusual y debe verificar primero la tabla de enrutamiento del host.
+</Aside>
+
+Ambos aceptan argumentos normales de `curl` como elementos de arreglo separados. `-v` vale la pena mantenerlo porque las líneas de conexión y del protocolo de enlace TLS son usualmente donde se muestra el fallo.

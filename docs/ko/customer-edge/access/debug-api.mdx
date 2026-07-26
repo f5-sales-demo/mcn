@@ -1,0 +1,166 @@
+---
+title: Debug API
+description: >-
+  HTTP를 통해 온라인 노드에서 사이트 CLI 명령을 실행하는 방법 — 명령에 필요한 세 가지 전송 방식을 결정하는 계층-엔드포인트 규칙 및
+  해당 방식을 나열하는 검색 호출 포함.
+sidebar:
+  order: 20
+  label: Debug API
+i18n:
+  sourceHash: 36ee4d6fe690
+  translator: machine
+---
+
+import { Aside, Steps, Badge } from "@astrojs/starlight/components";
+
+`vpm/debug` API는 등록된 노드에서 사이트 CLI 명령을 실행하고 그 출력을 반환합니다.
+아래의 모든 내용은 실제 노드를 대상으로 확인된 것이며, 공식적으로 공개된 문서는 아닙니다.
+
+## 명령 카탈로그는 자기 서술적입니다
+
+`command` 키를 **생략**한 채로 `exec-user`에 POST 요청을 보내면 노드가 지원하는 명령을 확인할 수 있습니다:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>"}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user" \
+  | jq -r .output | jq .
+```
+
+응답은 명령 이름을 키로 하는 JSON 객체입니다:
+
+```json
+{
+  "crictl-inspect": ["System Troubleshooting", "ExecUser", " container-id"],
+  "diagnosis":      ["System Troubleshooting", "ExecUser", "no argument needed", "GLOBAL"],
+  "ip-link-set":    ["Network Troubleshooting", "Exec", " (<device>||<group>) (up||down)"]
+}
+```
+
+각 항목은 `[category, tier, exampleArgument?, scope?]` 형식이며, 이 필드들은 단순한 문서가 아니라 명령 호출 방식을 결정합니다.
+
+<Aside type="caution" title="키를 생략하세요; 잘못된 값을 전송하지 마세요">
+검색은 `command`를 생략함으로써 동작합니다. 알 수 없는 값을 전송하면 카탈로그가 아닌 오류가 반환됩니다:
+
+```json
+{"code":3,"details":[],"message":"exec command failed: command not supported"}
+```
+
+이 메시지는 실제 명령을 잘못된 엔드포인트로 전송했을 때도 동일하게 반환되므로, "이 명령이 존재하지 않는다"고 잘못 해석하기 쉽습니다.
+</Aside>
+
+## 카탈로그 항목으로 결정되는 세 가지 전송 방식
+
+| 조건 | 메서드 및 경로 | 본문 | 반환값 |
+| --- | --- | --- | --- |
+| `scope`가 `GLOBAL`인 경우 | `GET .../vpm/debug/global/<cmd>` | 없음 | JSON |
+| `tier`가 `ExecUser`인 경우 | `POST .../vpm/debug/<node>/exec-user` | `command` 배열 | 텍스트 |
+| `tier`가 `Exec`인 경우 | `POST .../vpm/debug/<node>/exec` | `command` 배열 | 텍스트 |
+
+### `ExecUser` — 읽기 전용 계층 <Badge text="31 commands" variant="note" />
+
+일반적인 경우입니다. 명령과 인수를 배열로 전달하며, 명령 이름이 첫 번째 요소가 됩니다:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>","command":["crictl-ps"]}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user"
+```
+
+```json
+{ "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
+```
+
+인수는 단일 문자열이 아닌 별도의 배열 요소로 전달합니다:
+
+```json
+{ "command": ["journalctl", "-u", "vpm", "-n", "200"] }
+```
+
+### `GLOBAL` — 사이트 전체 적용, 완전히 다른 전송 방식 <Badge text="2 commands" variant="tip" />
+
+`health`와 `diagnosis` 두 가지만 해당됩니다. 이 명령들은 `global` 경로에 대한 `GET` 요청으로, 인수를 취하지 않으며 터미널 텍스트가 아닌 구조화된 JSON을 반환합니다.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
+```
+
+<Aside type="danger" title="GLOBAL 명령은 exec-user로 접근할 수 없습니다">
+이것이 가장 많은 시간을 낭비하게 만드는 함정입니다. `health` 또는 `diagnosis`를
+`exec-user`에 전송하면 `command not supported`가 반환되는데, 이는 마치 해당 명령이
+노드에 존재하지 않는 것처럼 보이지만, 실제로는 명령이 존재하고 잘못된 전송 방식을 사용한 것입니다.
+
+```bash
+# 잘못된 방법. 반환값: exec command failed: command not supported
+-d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
+
+# 올바른 방법.
+GET .../vpm/debug/global/health
+```
+
+</Aside>
+
+### `Exec` — 권한 있는 계층 <Badge text="1 command on this build" variant="danger" />
+
+별도의 엔드포인트이며, 계층은 권고가 아닌 강제 사항입니다: `exec`는 `ExecUser` 명령을 동일한 `command not supported` 메시지로 거부합니다. 이 계층의 모든 명령은 노드를 변경하거나 상태 마커를 읽습니다.
+
+이 테넌트가 실행 중인 빌드에서 계층에는 `ip-link-set`만 포함되어 있습니다. 최신 빌드에는 `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
+`systemctl-restart-kubelet`, `systemctl-start-crio-prune` 및 세 가지
+`marker-exists-*` 명령이 추가됩니다.
+
+<Aside type="danger" title="이 문서에서는 Exec 명령을 실행하지 않습니다">
+캡처 하니스는 이 계층을 거부하며, 하드코딩된 목록 대신 실제 카탈로그에서 계층을 읽습니다 — 따라서 향후 빌드에서 명령이 `Exec`로 승격되더라도 코드를 수정하지 않고도 반영됩니다. 중단을 감수할 수 있는 노드에서만 의도적으로 실행하십시오.
+</Aside>
+
+## 사이트 및 노드 이름 확인
+
+노드 이름은 Azure VM 이름이며, `list-service`를 사용하면 해당 노드에서 실행 중인 서비스와 함께 이름을 빠르게 확인할 수 있습니다:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/list-service" \
+  | jq -r '[.service[].node] | unique'
+```
+
+## 이 저장소의 캡처 재현
+
+모든 명령 페이지에는 `scripts/capture-sitecli.sh`로 캡처한 출력이 포함되어 있으며, 이 스크립트는 위의 세 가지 규칙을 모두 구현합니다.
+
+<Steps>
+
+1. 테넌트를 지정합니다. `XCSH_API_URL`과 `XCSH_API_TOKEN`을 읽거나, 활성화된 `xcsh` 컨텍스트로 대체됩니다.
+
+2. 카탈로그를 새로 고치고 문서 하위의 노드가 변경되지 않았는지 확인합니다:
+
+   ```bash
+   bash scripts/capture-sitecli.sh --check
+   ```
+
+   이는 커밋된 카탈로그와 소프트웨어 빌드만 비교합니다. 빌드 변경은 추가되거나 제거된 명령과 별도로 보고됩니다.
+
+3. 최신 데이터가 필요할 때 다시 캡처합니다:
+
+   ```bash
+   bash scripts/capture-sitecli.sh
+   ```
+
+</Steps>
+
+<Aside type="note" title="캡처는 증거이지 재현 가능한 결과물이 아닙니다">
+카운터, 가동 시간, 컨테이너 수명은 실행마다 달라지므로 다시 캡처할 때마다 항상 차이가 발생합니다. 카탈로그는 안정적인 계약이며 노드가 변경되지 않은 경우 실행 간에 바이트 단위로 동일합니다; `--check`가 비교하는 것이 바로 이것입니다. 긴 출력은 잘리며 명시적인 마커로 끝나므로, 잘린 테이블이 완전한 것처럼 표시되지 않습니다.
+</Aside>
+
+<Aside type="danger" title="고객 노드에서 캡처 시: 편집 프로파일을 확인하십시오">
+명령 출력에는 인프라 식별 정보 — 내부 주소, MAC 주소, AS 번호, 호스트 이름 — 가 포함되며, 고객의 경우 이는 조직에 대한 식별 정보입니다.
+
+따라서 스크럽 필터는 기본적으로 이 모든 정보를 제거하는 **엄격한** 프로파일을 사용합니다. 이 저장소는 `sitecli/capture-manifest.json`에 `lab`을 선언하며, 이는 해당 세부 정보를 유지합니다 — 이 캡처들이 F5 소유의 데모 인프라에서 가져온 것이기 때문에 여기서만 올바른 설정입니다.
+
+**고객 캡처에는 해당 설정을 사용하지 마십시오.** 토큰, 개인 키, 테넌트 식별자, 객체 UUID, 이메일 주소, 홈 디렉토리 경로는 두 프로파일 모두에서 제거됩니다.
+
+알아두어야 할 한 가지 제한 사항이 있습니다: BGP 이웃 테이블은 AS를 패턴을 고정할 레이블 없이 일반 컬럼으로 출력하므로, ASN은 사설 범위에 대한 값으로 매칭됩니다. **공개** ASN이 있는 경우 엄격한 프로파일에서도 살아남으므로, 게시하기 전에 `show-ip-bgp*` 출력을 수동으로 검토해야 합니다.
+</Aside>

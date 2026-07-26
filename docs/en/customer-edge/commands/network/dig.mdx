@@ -16,10 +16,11 @@ sidebar:
 ```
 
 Read `status:` in the header first — `NOERROR` with a non-zero `ANSWER` count is a
-successful lookup. `SERVER:` at the bottom names the resolver that answered, which is
-the part worth checking: on an Azure node this is normally the platform resolver at
-`168.63.129.16`, and something else there means the node is using a resolver you did
-not intend.
+successful lookup.
+
+`SERVER:` at the bottom names the resolver that answered, which is the part worth
+checking: on an Azure node this is normally the platform resolver at `168.63.129.16`,
+and something else there means the node is using a resolver you did not intend.
 
 Registration failures often reduce to DNS. If the node cannot resolve
 `register.ves.volterra.io` or the container registry, nothing downstream will work,

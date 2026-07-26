@@ -1,0 +1,55 @@
+---
+title: Routen werden nicht annonciert oder gelernt
+description: >-
+  Geordnete Abfolge für eine Site, die online ist, aber deren VIP nicht
+  erreichbar ist oder die die erwarteten Präfixe nicht lernt.
+sidebar:
+  order: 20
+  label: BGP
+i18n:
+  sourceHash: eff4d5527048
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+Für eine Site, die `ONLINE` ist — falls nicht, beginnen Sie mit
+[Registrierung](../registration/).
+
+<Steps>
+
+1. **Ist das Peering überhaupt aktiv?**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/). Lesen Sie `State/PfxRcd`: eine
+   Zahl bedeutet „established", und `Up/Down` zeigt an, ob die Verbindung stabil war. Ein kleiner
+   Wert bei einer Site, die seit Tagen läuft, bedeutet, dass die Sitzung flattert.
+
+2. **Wenn die Sitzung nicht aktiv ist**, liegt die Ursache meist unterhalb von BGP. Bestätigen Sie, dass die Schnittstelle,
+   die das Peering trägt, aktiv ist, mit
+   [`ip-link-show`](../../commands/network/ip/), und bestätigen Sie dann die Erreichbarkeit der
+   Peer-Adresse. In dieser Topologie sind die Peers die Azure Route Server-Instanzen.
+
+3. **Wenn die Sitzung aktiv ist, die VIP aber nicht erreichbar ist**, prüfen Sie, was der Knoten
+   tatsächlich annonciert, mit
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/). Wenn die
+   VIP dort fehlt, liegt das Problem auf diesem Knoten, und ein Blick auf den Peer wird nicht
+   helfen.
+
+4. **Wenn der Knoten korrekt annonciert, der Datenverkehr aber trotzdem nicht ankommt**, sind
+   Kontrollebene und Datenebene nicht synchron. Prüfen Sie die Weiterleitungstabelle, die die Datenebene
+   tatsächlich verwendet, mit [`rt`](../../commands/network/dataplane-forwarding/),
+   und beachten Sie dabei, dass deren VRF-ID nicht die ist, die BGP meldet.
+
+   Lösen Sie dann den nächsten Hop mit `nh` auf. Ein Präfix, das in `rt` vorhanden ist, dessen nächster Hop aber
+   `Drop` ist, stellt ein Blackhole dar.
+
+5. **Wenn die Sitzung flattert**, enthält [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
+   den letzten Reset-Grund sowie die ausgehandelten Timer.
+
+</Steps>
+
+<Aside type="caution" title="Zwei verschiedene VRF-Nummerierungsschemata">
+`show-ip-bgp-summary` meldet die `vrf-id` von FRR. Die Argo-Datenebene nummeriert ihre Tabellen
+separat, und die Übergabe der FRR-Nummer an `rt --dump` gibt `No such file or
+directory` zurück — was wie ein defekter Knoten aussieht und nicht wie ein falsches Argument. In dieser
+Topologie ist VRF 2 die befüllte inet4-Tabelle.
+</Aside>

@@ -1,0 +1,76 @@
+---
+title: BGP
+description: 站點是否正在對等、它所通告的內容，以及它所學習的內容。四個指令涵蓋摘要、完整表格、鄰居詳細資訊及通告路由。
+sidebar:
+  order: 10
+  label: BGP
+i18n:
+  sourceHash: 4b36c57cee22
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CE 使用 FRR 執行 BGP。在此拓撲中，它與兩個 Azure Route Server
+實例進行對等，通告 VIP，並學習 VNet 前綴。
+
+## `show-ip-bgp-summary`
+
+從這裡開始。一個畫面告訴您對等是否正常運作，以及它已穩定運行多長時間。
+
+```bash
+{"command":["show-ip-bgp-summary"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
+```
+
+首先閱讀 `State/PfxRcd`。數字表示已接收的前綴數量，代表工作階段已建立；其他任何值——`Active`、`Connect`、`Idle`——表示工作階段尚未建立。`Up/Down` 顯示目前狀態持續的時間，因此持續重置的工作階段會顯示異常小的值。
+
+<Aside type="caution" title="此處的 vrf id 並非 rt 所需的那個">
+此輸出回報 `vrf-id 3`。這是 FRR 的編號。Argo 資料平面使用獨立的表格 id，將 FRR 的編號傳遞給
+[`rt --dump`](../dataplane-forwarding/) 會回傳 `No such file or directory`，這看起來像是節點損壞，而非錯誤的參數。
+</Aside>
+
+## `show-ip-bgp`
+
+完整表格，並顯示最佳路徑選擇。
+
+```bash
+{"command":["show-ip-bgp"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp.txt
+```
+
+`*` 表示有效路由，`>` 表示已選擇的最佳路徑，`=` 表示多路徑成員。同一前綴的兩個條目均標記為 `*=` 表示 ECMP 生效，這是此拓撲的預期狀態。
+
+## `show-ip-bgp-neighbors`
+
+每個鄰居的詳細資訊：已協商的能力、計時器、訊息計數器，以及上次重置的原因。
+
+```bash
+{"command":["show-ip-bgp-neighbors"]}
+```
+
+當摘要顯示工作階段不穩定且您需要了解原因時，請使用此指令。`Last reset` 及其原因是有用的資訊行。
+
+<Aside type="note" title="此頁面尚無擷取的輸出">
+在 `f5-sales-demo/docs-control#795` 合併之前，無法提交此擷取。FRR
+在其 Graceful Restart 行中拼錯了一個單字，導致 `codespell` 拒絕該檔案。
+
+修正擷取的文字將使本文件描述從未發生的輸出，因此改為在上游修正。在此期間，請對您自己的節點執行該指令。
+</Aside>
+
+## `show-ip-bgp-neighbors-advertised-route`
+
+此節點正在告知其對等的內容，而非它所知道的內容。
+
+```bash
+{"command":["show-ip-bgp-neighbors-advertised-route"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
+```
+
+這是用於「VIP 無法從 VNet 存取」問題的指令。如果 VIP 在此處不存在，則問題出在此節點上，無論如何查看對等都無濟於事。

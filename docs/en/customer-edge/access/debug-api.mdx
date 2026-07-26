@@ -180,9 +180,11 @@ organisation.
 The scrub filter therefore defaults to a **strict** profile that removes all of it.
 This repository declares `lab` in `sitecli/capture-manifest.json`, which keeps that
 detail, and it is only correct here because these captures come from F5-owned demo
-infrastructure. **Do not carry that setting to a customer capture.** Tokens, private
-keys, the tenant identifier, object UUIDs, email addresses and home directory paths
-are removed under both profiles.
+infrastructure.
+
+**Do not carry that setting to a customer capture.** Tokens, private keys, the tenant
+identifier, object UUIDs, email addresses and home directory paths are removed under
+both profiles.
 
 One limitation is worth knowing: a BGP neighbour table prints the AS as a bare column
 with no label to anchor a pattern on, so ASNs are matched by value against the

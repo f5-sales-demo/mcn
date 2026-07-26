@@ -1,0 +1,68 @@
+---
+title: Zugang zu einem Customer Edge
+description: >-
+  Lesen Sie diese Ebene, bevor Sie einen Befehl ausführen. Behandelt
+  Authentifizierung, die Tier-zu-Endpunkt-Regel, die entscheidet, wohin ein
+  Befehl gesendet wird, und den Break-Glass-Pfad für einen nicht registrierten
+  Knoten.
+sidebar:
+  order: 10
+  label: Zugang
+i18n:
+  sourceHash: 188808639df6
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Es gibt zwei Routen, und welche davon gilt, wird durch den Zustand des Knotens
+entschieden, nicht durch Präferenz.
+
+| Knotenzustand | Route | Skriptfähig | Umfang |
+| --- | --- | --- | --- |
+| `ONLINE` | [Debug API](./debug-api/) | Ja | 34 Befehle, schreibgeschützt und privilegiert |
+| Nicht registriert oder nicht erreichbar | [Serielle Konsole](./serial-console/) | Nein — benötigt ein Terminal | Die vollständige On-Box Site CLI |
+
+## Warum die Aufteilung keine Präferenz ist
+
+Die Debug-API wird von der F5 Distributed Cloud Control Plane bereitgestellt, die
+über den Tunnel weiterleitet, den `vpm` während der Registrierung aufbaut. Keine
+Registrierung bedeutet keinen Tunnel, was bedeutet, dass die API nichts hat, an das
+sie weiterleiten kann.
+
+Sie schlägt auf eine wenig hilfreiche statt auf eine offensichtliche Weise fehl,
+sodass ein Knoten, der nie hochgefahren ist, wie ein API-Problem aussieht.
+
+Die serielle Konsole geht in die entgegengesetzte Richtung — über die Azure-Plattform
+zum emulierten seriellen Port des Knotens. Es spielt keine Rolle, ob der Knoten
+registriert ist, Netzwerkerreichbarkeit hat oder über eine funktionierende Datenebene
+verfügt. Diese Unabhängigkeit ist der eigentliche Zweck, und deshalb müssen
+Boot-Diagnosen auf den CE-VMs aktiviert bleiben.
+
+<Aside type="note" title="Was zu verwenden ist">
+Wenn Sie Automatisierung schreiben oder Nachweise sammeln, die Sie später erneut
+ausführen möchten, verwenden Sie die Debug-API. Wenn die Registrierung das ist, was
+defekt ist, ist die serielle Konsole keine Ausweichmöglichkeit — sie ist die einzige
+Option.
+</Aside>
+
+## Zugangsdaten
+
+Beide Routen verwenden unterschiedliche Zugangsdaten, und keine davon gehört auf
+eine Befehlszeile.
+
+- **Debug-API** — ein F5 Distributed Cloud API-Token als `XCSH_API_TOKEN`, mit der
+  Mandanten-URL als `XCSH_API_URL`. Die `xcsh`-Kontextdatei unter
+  `~/.config/xcsh/contexts/<tenant>.json` enthält beides, was
+  `scripts/capture-sitecli.sh` liest, wenn die Umgebung diese nicht bereitstellt.
+- **Serielle Konsole** — Ihre interaktive Azure-Anmeldung. Es gibt keinen
+  Dienstprinzipal dafür: Der F5-Unternehmens-Entra-Mandant gestattet die
+  Bereitstellung eines solchen nicht, weshalb auch kein Teil davon in CI ausgeführt
+  wird.
+
+<Aside type="danger" title="Übergeben Sie ein Token niemals als Argument">
+Ein Token auf einer Befehlszeile landet im Shell-Verlauf und in der Prozessliste,
+wo jeder andere Benutzer auf dem Rechner es lesen kann. `capture-sitecli.sh` lehnt
+`--token` aus diesem Grund grundsätzlich ab und übergibt den Header stattdessen
+über stdin an `curl`.
+</Aside>

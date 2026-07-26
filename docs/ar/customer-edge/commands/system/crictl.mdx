@@ -1,0 +1,73 @@
+---
+title: crictl
+description: >-
+  بيئة تشغيل CRI-O التي تشغّل أحمال عمل Kubernetes. خمسة أوامر تغطي الحاويات
+  والصور والفحص والسجلات.
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+تشغّل CRI-O أحمال عمل Kubernetes. خدمات المنصة — `vpm` و`argo_watch` و`site-console` — هي حاويات [Docker](../docker/) ولن تظهر هنا.
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+الحاويات قيد التشغيل مع الـ pod والصورة وعدد إعادة التشغيل. `ATTEMPT` هو العمود الأهم للقراءة: فارتفاع عدد إعادة التشغيل يدل على حلقة تعطل (crash loop)، ومعرّف الحاوية من هذا المخرج يُغذّي الأمرين التاليين.
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+يشمل الحاويات المنتهية. استخدمه عندما كان شيء ما *يعمل* وتوقّف الآن — إدخال الحاوية المنتهية ومعرّفها هما ما يتيحان لك قراءة سجلات التشغيل الذي فشل.
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+يؤكد أن الصورة موجودة فعلاً على العقدة، مما يميّز بين فشل السحب وفشل الجدولة.
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+JSON كامل: نقاط التوصيل، والبيئة، وحدود الموارد، وسطر الأوامر، وحالة الخروج. طويل، لذا استعلم عنه بدلاً من قراءته بالكامل.
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="معرّفات الحاويات خاصة بكل تشغيل">
+المعرّفات في هذه اللقطات مأخوذة من تشغيل عيّنة واحد ولن تكون موجودة على عقدتك. خذ معرّفاً حالياً من `crictl-ps` أولاً. تفعل أداة التقاط اللقطات ذلك تماماً — يحلّ مانيفستها أول معرّف حاوية عند وقت الالتقاط بدلاً من تضمينه بشكل ثابت.
+</Aside>

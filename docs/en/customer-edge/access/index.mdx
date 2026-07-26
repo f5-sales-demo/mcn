@@ -19,10 +19,11 @@ than by preference.
 ## Why the split is not a preference
 
 The debug API is served by the F5 Distributed Cloud control plane, which relays to
-the node over the tunnel `vpm` establishes during registration. No registration
-means no tunnel, which means the API has nothing to relay to. It fails in an
-unhelpful way rather than an obvious one, so a node that never came up looks like
-an API problem.
+the node over the tunnel `vpm` establishes during registration. No registration means
+no tunnel, which means the API has nothing to relay to.
+
+It fails in an unhelpful way rather than an obvious one, so a node that never came up
+looks like an API problem.
 
 Serial console goes the other way entirely — through the Azure platform to the
 node's emulated serial port. It does not care whether the node has registered, has

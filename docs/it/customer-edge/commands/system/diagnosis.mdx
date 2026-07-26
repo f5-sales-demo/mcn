@@ -1,0 +1,44 @@
+---
+title: diagnosis
+description: >-
+  Sonde di connettività e DNS che il nodo esegue su se stesso, restituite in
+  formato JSON. Indica ciò che il nodo ritiene della propria raggiungibilità.
+sidebar:
+  order: 20
+  label: diagnosis
+i18n:
+  sourceHash: 2c9fe6fab17a
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="Ambito GLOBAL — un trasporto diverso">
+Come `health`, una richiesta `GET` al percorso `global` non è raggiungibile tramite `exec-user`.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+Il nodo verifica il proprio gateway e riporta il risultato per nodo, quindi su un sito
+multi-nodo si ottiene un blocco per ciascuno. `gateway_connectivity` contiene un riepilogo
+del ping — `sent`, `received`, `lost` e i tempi di andata e ritorno.
+
+<Aside type="note" title="Una perdita del 100% verso il gateway non è necessariamente un guasto">
+In questa topologia il gateway non risponde all'ICMP, quindi `lost: 100` è la condizione
+stabile mentre il sito è `ONLINE` e sta effettuando l'inoltro. Considerare questo campo
+come un segnale solo quando si dispone già di altre evidenze di un problema, oppure quando
+cambia.
+</Aside>
+
+`resolv_conf` è il campo più costantemente utile: mostra il resolver che il nodo
+utilizzerà effettivamente, ed è opportuno confrontarlo con quanto atteso prima di
+dedicare tempo a [`dig`](../../network/dig/).

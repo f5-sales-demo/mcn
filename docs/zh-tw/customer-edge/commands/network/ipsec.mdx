@@ -1,0 +1,40 @@
+---
+title: IPsec
+description: 通往 F5 區域邊緣節點的隧道是否已建立，以及證明其承載流量的流量計數器。兩個指令，一個摘要，一個詳細。
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+CE 會向 F5 區域邊緣節點建立 IPsec 隧道。若隧道中斷，無論本地狀態看起來多健康，該站台都將與全球網路隔離。
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+第一行即為答案：`Security Associations (2 up, 0 connecting)`。任何處於 `connecting` 狀態的項目，代表該隧道正在嘗試連線但持續失敗。
+
+每個 SA 都會標示其終止的區域邊緣節點名稱——`ny8-nyc`、`dc12-ash` 為 F5 POP 代碼——因此這也告訴您該站台歸屬於*哪些*邊緣節點。
+
+`ESTABLISHED` 後帶有存活時間，接著顯示 `INSTALLED, TUNNEL`，代表一個健康的配對：前者為 IKE 會話，後者為實際承載流量的子 SA。IKE 會話已建立但無對應子 SA 安裝的情況，才是值得關注的故障。
+
+## `ipsec-statusall`
+
+相同資訊，另加每個 SA 的位元組與封包計數器、重新協商計時器，以及協商後的演算法。
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+使用此指令可區分「隧道已上線」與「隧道正在承載流量」的差異。一條建立數小時但位元組數接近零的隧道，代表其已上線但未使用，這通常意味著問題出在路由而非隧道本身。

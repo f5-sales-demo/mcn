@@ -9,11 +9,13 @@ sidebar:
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-A Customer Edge (CE) is the F5 Distributed Cloud node this repository provisions
-into Azure — `terraform/modules/ce-node`, built from the
-`volterraedgeservices/volterra-node` marketplace image. It runs the data plane
-(Argo), the control plane (Vega), an Envoy proxy, a Kubernetes stack, and `vpm`,
-the agent that registers the node and manages everything else on it.
+A Customer Edge (CE) is the F5 Distributed Cloud node this repository provisions into
+Azure — `terraform/modules/ce-node`, built from the
+`volterraedgeservices/volterra-node` marketplace image.
+
+It runs the data plane (Argo), the control plane (Vega), an Envoy proxy, a Kubernetes
+stack, and `vpm`, the agent that registers the node and manages everything else on
+it.
 
 When a CE misbehaves, the Site CLI is the instrument. The first decision is which
 access path applies, and getting it wrong wastes time in a way that looks like a
@@ -35,10 +37,12 @@ broken node.
 </CardGrid>
 
 The debug API reaches the node **through the F5 Distributed Cloud control plane**.
-That is the whole reason the split matters: the API can only answer once the node
-has registered and reports `ONLINE`. A node that failed to register — bad
-cloud-init, an expired token, no route to `register.ves.volterra.io` — is exactly
-the case where you need diagnostics, and exactly the case the API cannot serve.
+That is the whole reason the split matters: the API can only answer once the node has
+registered and reports `ONLINE`.
+
+A node that failed to register — bad cloud-init, an expired token, no route to
+`register.ves.volterra.io` — is exactly the case where you need diagnostics, and
+exactly the case the API cannot serve.
 
 The node also refuses SSH as shipped. Port 22 is closed on the CE itself, not by a
 network security group:
@@ -86,14 +90,17 @@ These hold for every command on every page below.
 
 ## What is documented here
 
-Every command reachable through the debug API on the software build this tenant
-runs, each with output captured from a live node rather than transcribed from
-elsewhere. The [command reference](./commands/) lists all of them with their
-category, privilege tier and transport; the [workflows](./workflows/) chain them
-into the sequences you actually use when something is wrong.
+Every command reachable through the debug API on the software build this tenant runs,
+each with output captured from a live node rather than transcribed from elsewhere.
+
+The [command reference](./commands/) lists all of them with their category, privilege
+tier and transport; the [workflows](./workflows/) chain them into the sequences you
+actually use when something is wrong.
 
 The on-box-only parts of the Site CLI — `configure`, `configure-network`,
 `factory-reset`, `upgrade` and roughly sixty further `ExecCLI` commands — are not
-covered. They are reachable only from a serial console session, so nothing about
-them can be verified programmatically, and unverified command syntax is the defect
-this documentation exists to avoid repeating.
+covered.
+
+They are reachable only from a serial console session, so nothing about them can be
+verified programmatically, and unverified command syntax is the defect this
+documentation exists to avoid repeating.

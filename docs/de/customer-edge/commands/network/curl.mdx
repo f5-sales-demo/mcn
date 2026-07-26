@@ -1,0 +1,44 @@
+---
+title: curl
+description: >-
+  Erreichbarkeitstests aus zwei verschiedenen Netzwerkkontexten auf dem Knoten.
+  Welchen Sie verwenden, bestimmt, was ein Fehler tatsächlich beweist.
+sidebar:
+  order: 80
+  label: curl
+i18n:
+  sourceHash: 6ab13d8c3593
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Zwei Befehle, und der Unterschied zwischen ihnen ist der gesamte Mehrwert.
+
+## `curl-host`
+
+Wird im Host-Netzwerk-Namespace ausgeführt — die eigene Konnektivität des Knotens, bevor die Datenebene beteiligt ist.
+
+```bash
+{"command":["curl-host","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-host.txt
+```
+
+## `curl-vega`
+
+Wird im Kubernetes-Cluster-Kontext ausgeführt und durchläuft daher den DNS und den Netzwerkpfad des Clusters.
+
+```bash
+{"command":["curl-vega","-v","cloud.f5.com"]}
+```
+
+```text file=../../../../_data/sitecli-curl-vega.txt
+```
+
+<Aside type="tip" title="Das Paar ist eine Bisektion">
+Führen Sie beide aus. Wenn `curl-host` erfolgreich ist und `curl-vega` fehlschlägt, hat der Knoten Konnektivität und das Cluster-Netzwerk oder dessen DNS ist fehlerhaft. Wenn beide fehlschlagen, liegt das Problem oberhalb des Knotens — Routing, eine Firewall oder der Egress-Pfad. Wenn nur `curl-host` fehlschlägt, haben Sie etwas Ungewöhnliches gefunden und sollten zuerst die Host-Routing-Tabelle überprüfen.
+</Aside>
+
+Beide akzeptieren normale `curl`-Argumente als separate Array-Elemente. `-v` lohnt sich beizubehalten, da die Verbindungs- und TLS-Handshake-Zeilen in der Regel dort zu finden sind, wo der Fehler auftritt.

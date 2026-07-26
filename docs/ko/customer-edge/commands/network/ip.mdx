@@ -1,0 +1,62 @@
+---
+title: 인터페이스
+description: >-
+  노드의 Linux 측 인터페이스 및 링크 상태와 이를 변경하는 유일한 권한 명령. 데이터 플레인이 이와 다를 수 있는 Linux의 인식
+  내용.
+sidebar:
+  order: 60
+  label: 인터페이스
+i18n:
+  sourceHash: 7ad734b3a357
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+이 항목은 커널의 관점을 보고합니다. Argo 데이터 플레인은 자체적인 정보를 유지하며, 이는
+[`vif`](../dataplane-forwarding/)를 통해 확인할 수 있고, 두 정보가 서로 다를 수 있습니다.
+
+## `ip`
+
+`ip` 서브명령을 받습니다. `addr`이 가장 일반적이며, `route`, `link`, `neigh`도
+사용할 수 있습니다.
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+CE는 설계상 세 개의 NIC를 가지며, 순서가 중요합니다: `eth0`은 사이트의 BGP 로컬 주소를 전달하는 관리 및
+SLO 인터페이스이고, 외부 및 내부 인터페이스가 그 뒤를 따릅니다. 출력에서 `a-i-eth0`을 확인할 수 있으며, 데이터 플레인이 물리적
+인터페이스를 인수하여 자체 인터페이스를 제공합니다.
+
+## `ip-link-show`
+
+링크 계층 전용: 상태, MTU, 큐잉 규율, MAC.
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+"링크가 활성화되어 있고 MTU가 무엇인가"라는 질문에는 `ip addr`보다 빠릅니다.
+MTU 불일치는 터널이 연결은 되지만 트래픽이 전달되지 않는 반복적인 원인입니다.
+
+## `ip-link-set` <Badge text="Exec 티어 — 변경 명령" variant="danger" />
+
+인터페이스 또는 그룹을 활성화 또는 비활성화합니다.
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="여기서는 실행하지 않으며, 일반적인 방법으로 접근할 수 없습니다">
+이것은 이 빌드에서 유일한 `Exec` 티어 명령입니다. `exec-user`가 아닌 `exec` 엔드포인트로
+전달되며, 노드를 변경합니다: 원격 CE에서 `eth0`을 비활성화하면 디버그 API 자체를 포함하여 관리 경로가 제거됩니다.
+
+이 페이지에는 의도적으로 캡처된 출력이 없습니다. 캡처 하네스는 전체 `Exec` 티어를 거부하며, 하드코딩된 목록이 아닌 라이브 카탈로그에서 티어를 읽으므로, 향후 빌드에서 다른 명령이 해당 티어로 승격되더라도 이 사실은 유지됩니다.
+</Aside>

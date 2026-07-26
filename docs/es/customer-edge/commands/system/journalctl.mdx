@@ -1,0 +1,44 @@
+---
+title: journalctl
+description: >-
+  Diario de Systemd para cualquier unidad del nodo. La fuente principal para
+  fallos de registro y el comportamiento de vpm a lo largo del tiempo.
+sidebar:
+  order: 50
+  label: journalctl
+i18n:
+  sourceHash: 38a11be4d7d8
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+Argumentos estándar de `journalctl`, cada uno como un elemento de array separado. `-u vpm` es el que
+necesitará con más frecuencia: `vpm` es el agente que registra el nodo y gestiona
+todo lo demás en él, por lo que su diario es donde aparecen los fallos de registro con
+marcas de tiempo y a través de reinicios.
+
+Variantes útiles:
+
+| Argumentos | Respuestas |
+| --- | --- |
+| `-u vpm -n 200` | Qué ha estado haciendo vpm recientemente |
+| `-u vpm --since "10 min ago"` | Qué ocurrió mientras lo reproducía |
+| `-p err -n 100` | Errores de todas las unidades |
+| `-u kubelet -n 200` | Por qué el stack de Kubernetes no está en buen estado |
+
+Prefiera este sobre [`docker-logs vpm`](../docker/) cuando necesite marcas de tiempo, desee
+abarcar un reinicio, o quiera correlacionar vpm con otra unidad.
+
+<Aside type="note" title="Aún no hay salida capturada en esta página">
+Esta captura no puede confirmarse hasta que `f5-sales-demo/docs-control#795` sea incorporado. El
+diario repite una línea de FRR que contiene un error ortográfico, y `codespell` rechaza el
+archivo. Editar el texto capturado haría que esta página describiera una salida que nunca
+ocurrió, por lo que la corrección se está realizando en sentido ascendente en la configuración gestionada.
+</Aside>

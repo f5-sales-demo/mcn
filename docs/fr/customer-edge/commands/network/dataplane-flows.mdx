@@ -1,0 +1,50 @@
+---
+title: Table de flux
+description: >-
+  État par connexion dans le plan de données Argo. Utilisez la forme de
+  correspondance pour trouver une connexion ; le dump complet est énorme.
+sidebar:
+  order: 40
+  label: Table de flux
+i18n:
+  sourceHash: c654c4d3ca8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo suit chaque connexion. La table sur ce nœud contient 629 760 entrées, donc la
+façon dont vous l'interrogez importe plus que ce qu'elle contient.
+
+## `flow-l-match`
+
+C'est presque toujours ce que vous souhaitez. Prend une adresse, ou une adresse et un port.
+
+```bash
+{"command":["flow-l-match","100.127.192.10:53"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l-match.txt
+```
+
+L'action sur chaque flux est l'essentiel : `F` pour transférer, `D` pour abandonner, `N` pour NAT. Un flux présent
+avec l'action `D` signifie que le plan de données a pris une décision délibérée, ce qui vous redirige
+vers la politique plutôt que vers la connectivité.
+
+## `flow-l`
+
+Le dump complet.
+
+```bash
+{"command":["flow-l"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l.txt
+```
+
+<Aside type="caution" title="Tronqué, et énorme">
+La capture ci-dessus est tronquée aux 60 premières lignes sur 1057, et 1057 était lui-même la
+limite propre de l'API plutôt que la table entière. Utilisez `flow-l-match` à moins que vous n'ayez réellement
+besoin d'explorer toute la table, et attendez-vous à ce que les compteurs d'en-tête — taille de la table et nombre
+d'entrées — soient les seules parties utiles à lire dans ce cas.
+</Aside>
