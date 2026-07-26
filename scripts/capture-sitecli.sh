@@ -111,6 +111,13 @@ fi
 [ -n "$API_URL" ] || die "could not resolve the API URL"
 [ -n "$API_TOKEN" ] || die "could not resolve the API token"
 
+# The tenant name, taken from the API host, is handed to the scrub filter. It shows
+# up inside the internal SA names that ipsec-status and health print — carrying a
+# unique suffix — which the console-hostname rule alone never caught. Derived rather
+# than hardcoded so this works against any tenant.
+SITECLI_TENANT=$(printf '%s' "$API_URL" | sed -E 's#^https?://##; s#/.*##; s#\..*##')
+export SITECLI_TENANT
+
 # --- manifest defaults -------------------------------------------------------
 if [ -f "$MANIFEST" ]; then
   [ -n "$SITE" ] || SITE=$(jq -r '.defaults.site // empty' "$MANIFEST")

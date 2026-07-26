@@ -1,5 +1,5 @@
 
-* Uses proxy env variable NO_PROXY == '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.127.0.0/18,100.127.192.0/18,169.254.0.0/16,int.ves.io,int.volterra.us,ar-bgp-eastus01.f5-sales-demo-rljyvvmw.tenant.local'
+* Uses proxy env variable NO_PROXY == '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.127.0.0/18,100.127.192.0/18,169.254.0.0/16,int.ves.io,int.volterra.us,ar-bgp-eastus01.<tenant>.tenant.local'
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying <public-ip>:80...
@@ -13,7 +13,7 @@
 < HTTP/1.1 301 Moved Permanently
 < location: https://cloud.f5.com/
 < server: volt-adc
-< date: Sun, 26 Jul 2026 03:37:24 GMT
+< date: Sun, 26 Jul 2026 04:27:11 GMT
 < connection: close
 < content-length: 0
 <

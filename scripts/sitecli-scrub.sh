@@ -28,7 +28,7 @@
 # itself match the pattern that produced it, so re-running capture is safe.
 set -euo pipefail
 
-awk '
+awk -v tenant="${SITECLI_TENANT:-}" '
 # --- IPv4 classification -----------------------------------------------------
 # Returns 1 when the dotted quad must be preserved.
 function ipv4_preserve(a, b, c, d) {
@@ -163,6 +163,23 @@ BEGIN {
   # placeholder-cannot-rematch property applies.
   gsub(/[a-z0-9]+\.bx\.internal\.cloudapp\.net/, \
        "<vnet-dns-label>.bx.internal.cloudapp.net", line)
+
+  # The tenant also appears inside the internal SA names that ipsec-status and
+  # health print, carrying a unique suffix: <tenant>-<suffix>. The console-hostname
+  # rule above never saw those, so real captures were publishing it. Passed in via
+  # SITECLI_TENANT rather than hardcoded, so this works for any tenant; with none
+  # set, nothing is substituted. Longest form first, so the suffixed label is
+  # consumed before the bare name can match its prefix.
+  if (tenant != "") {
+    gsub(tenant "-[A-Za-z0-9]+", "<tenant>", line)
+    gsub(tenant, "<tenant>", line)
+  }
+
+  # Internal object UUIDs identify tenant resources and carry no value in docs. The
+  # surrounding name is kept, so an SA line still shows which regional edge the
+  # tunnel terminates on.
+  gsub(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/, \
+       "<uuid>", line)
 
   line = scrub_ipv6(line)
   line = scrub_ipv4(line)

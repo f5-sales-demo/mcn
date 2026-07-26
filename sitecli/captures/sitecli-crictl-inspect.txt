@@ -21,7 +21,7 @@
       "io.kubernetes.container.name": "voucher",
       "io.kubernetes.pod.name": "voucher-jnpfr",
       "io.kubernetes.pod.namespace": "webhook",
-      "io.kubernetes.pod.uid": "d45fda1a-a4d5-4cba-aa66-eb2114ee48bf"
+      "io.kubernetes.pod.uid": "<uuid>"
     },
     "annotations": {
       "io.kubernetes.container.hash": "98586484",
@@ -34,14 +34,14 @@
     "mounts": [
       {
         "containerPath": "/dev/termination-log",
-        "hostPath": "/var/lib/kubelet/pods/d45fda1a-a4d5-4cba-aa66-eb2114ee48bf/containers/voucher/d2f51848",
+        "hostPath": "/var/lib/kubelet/pods/<uuid>/containers/voucher/d2f51848",
         "propagation": "PROPAGATION_PRIVATE",
         "readonly": false,
         "selinuxRelabel": false
       },
       {
         "containerPath": "/etc/hosts",
-        "hostPath": "/var/lib/kubelet/pods/d45fda1a-a4d5-4cba-aa66-eb2114ee48bf/etc-hosts",
+        "hostPath": "/var/lib/kubelet/pods/<uuid>/etc-hosts",
         "propagation": "PROPAGATION_PRIVATE",
         "readonly": false,
         "selinuxRelabel": false

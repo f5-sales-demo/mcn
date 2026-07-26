@@ -69,6 +69,39 @@ assert_removed "tenant console hostname" \
 assert_removed "second tenant console hostname" \
   'endpoint https://f5-amer-ent.console.ves.volterra.io/api' 'f5-amer-ent.console'
 
+# The tenant also appears, with a unique suffix, inside the internal IPsec SA names
+# that `ipsec-status` and `health` print. The console-hostname rule never saw these,
+# so real captures were publishing the tenant identifier. The tenant is passed in
+# rather than hardcoded, so this generalises to any tenant.
+SITECLI_TENANT=f5-sales-demo
+export SITECLI_TENANT
+assert_removed "tenant label with unique suffix in an IPsec SA name" \
+  'ver.ar-bgp-eastus01.f5-sales-demo-rljyvvmw.32809c43-6b26-4f07-a59b-b023ab1587f1.tenant.int.ves.io[47]' \
+  'f5-sales-demo-rljyvvmw'
+assert_removed "bare tenant name" \
+  'site belongs to tenant f5-sales-demo today' 'f5-sales-demo'
+assert_preserved "SA name keeps its shape" \
+  'ver.ar-bgp-eastus01.f5-sales-demo-rljyvvmw.32809c43-6b26-4f07-a59b-b023ab1587f1.tenant.int.ves.io[47]' \
+  'tenant.int.ves.io'
+assert_preserved "site name inside an SA name survives" \
+  'ver.ar-bgp-eastus01.f5-sales-demo-rljyvvmw.32809c43-6b26-4f07-a59b-b023ab1587f1.tenant.int.ves.io' \
+  'ar-bgp-eastus01'
+
+# Internal object UUIDs identify tenant resources and carry no documentation value.
+assert_removed "object UUID" \
+  'reqid ver.dc12-ash.ves-io.23f7c41e-4c3d-40fd-bdc9-66502f6b206c.tenant.int.ves.io' \
+  '23f7c41e-4c3d-40fd-bdc9-66502f6b206c'
+
+# F5 regional edge POP names are public infrastructure and are the useful part of
+# an SA line: they say which RE the tunnel terminates on.
+assert_preserved "regional edge POP name" \
+  'ver.ny8-nyc.ves-io.dea340b4-2c36-414b-ad3d-3da706accbda.tenant.int.ves.io' 'ny8-nyc'
+unset SITECLI_TENANT
+
+# With no tenant supplied the filter must still run, and must not invent a match.
+assert_preserved "no tenant configured leaves text alone" \
+  'ver.ar-bgp-eastus01.some-tenant-abcd1234.tenant.int.ves.io' 'some-tenant-abcd1234'
+
 # --- our public addresses ------------------------------------------------------
 assert_removed "CE public IPv4" 'inet 20.124.35.231/32 scope global' '20.124.35.231'
 assert_removed "second CE public IPv4" 'peer 168.62.59.17 up' '168.62.59.17'
