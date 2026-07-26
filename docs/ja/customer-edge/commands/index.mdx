@@ -1,0 +1,82 @@
+---
+title: コマンドリファレンス
+description: >-
+  デバッグ API を通じて利用できるすべての Site CLI
+  コマンドを、カテゴリ、権限ティア、トランスポートとともに掲載しています。構文とキャプチャされた出力については、各コマンドページをご参照ください。
+sidebar:
+  order: 20
+  label: コマンド
+i18n:
+  sourceHash: 44781a8d910a
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+ソフトウェアビルド `crt-20250613-3382` を実行中のライブノードからキャプチャされたもので、
+**34 個のコマンド**を公開しています。以下の各ページには、転記された例ではなく、そのノードからの実際の出力が表示されています。
+
+`Tier` 列は参考情報ではありません。コマンドを送信するエンドポイントを選択するものであり、誤ったエンドポイントにコマンドを送信すると `command not supported` が返されます。これはコマンドが存在しないかのように見えます。このテーブルを使用する前に、[デバッグ API](../access/debug-api/) を参照してください。
+
+| コマンド | カテゴリ | ティア | トランスポート | 引数の例 |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | Network | `ExecUser` | `exec-user` | none |
+| [`crictl-images`](./system/crictl/) | System | `ExecUser` | `exec-user` | none |
+| [`crictl-inspect`](./system/crictl/) | System | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | System | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | System | `ExecUser` | `exec-user` | none |
+| [`crictl-ps-a`](./system/crictl/) | System | `ExecUser` | `exec-user` | none |
+| [`curl-host`](./network/curl/) | Network | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | Network | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | System | `ExecUser` | `global` GET | none |
+| [`dig`](./network/dig/) | Network | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | System | `ExecUser` | `exec-user` | none |
+| [`docker-inspect`](./system/docker/) | System | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | System | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | System | `ExecUser` | `exec-user` | none |
+| [`docker-ps-a`](./system/docker/) | System | `ExecUser` | `exec-user` | none |
+| [`dropstats`](./network/dataplane-drops/) | Network | `ExecUser` | `exec-user` | none |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | Network | `ExecUser` | `exec-user` | none |
+| [`flow-l`](./network/dataplane-flows/) | Network | `ExecUser` | `exec-user` | none |
+| [`flow-l-match`](./network/dataplane-flows/) | Network | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | System | `ExecUser` | `global` GET | none |
+| [`ip`](./network/ip/) | Network | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | Network | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | Network | `ExecUser` | `exec-user` | none |
+| [`ipsec-status`](./network/ipsec/) | Network | `ExecUser` | `exec-user` | none |
+| [`ipsec-statusall`](./network/ipsec/) | Network | `ExecUser` | `exec-user` | none |
+| [`journalctl`](./system/journalctl/) | System | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | Network | `ExecUser` | `exec-user` | none |
+| [`nh`](./network/dataplane-forwarding/) | Network | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | Network | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-summary`](./network/bgp/) | Network | `ExecUser` | `exec-user` | none |
+| [`vif`](./network/dataplane-forwarding/) | Network | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="このコマンドの 1 つはノードを変更します">
+`ip-link-set` は `Exec` ティアであり、インターフェイスをアップまたはダウンさせます。網羅性のためにドキュメント化されていますが、キャプチャされた出力はなく、キャプチャハーネスによって実行されることもありません。
+</Aside>
+
+## 新しいビルドでのみ利用可能
+
+現在のビルド (`crt-20260201-0179`) は **43** 個のコマンドを公開しており、削除や変更されたメタデータはなく、完全な上位互換セットとなっています。このテナントが持っていない 9 つのコマンドは以下の通りです：
+
+| コマンド | カテゴリ | ティア |
+| --- | --- | --- |
+| `collect-database-stats` | System | `ExecUser` |
+| `iptables-lv` | Network | `ExecUser` |
+| `marker-exists-NetworkManager` | System | `Exec` |
+| `marker-exists-crio` | System | `Exec` |
+| `marker-exists-kubelet` | System | `Exec` |
+| `systemctl-restart-NetworkManager` | System | `Exec` |
+| `systemctl-restart-crio` | System | `Exec` |
+| `systemctl-restart-kubelet` | System | `Exec` |
+| `systemctl-start-crio-prune` | System | `Exec` |
+
+これらは、そのビルド上のノードに対するカタログ探索から、名前とティアのみで一覧表示されています。このテナントではこれらのコマンドを実行できないため、ここにはキャプチャされた出力がありません。なお、9 つのうち 4 つはライブデータプレーン上のサービスを再起動することに注意してください。
+
+<Aside type="note" title="サーフェスの変化を検出する">
+サーフェスはソフトウェアビルドとともに拡大するため、カタログはそのビルドを記録し、`scripts/capture-sitecli.sh --check` はビルドの変更を、追加または削除されたコマンドとは別にレポートします。これらのノードがアップグレードされると、このチェックによってこれらの 9 つのコマンドが追加されたことがわかります。
+</Aside>

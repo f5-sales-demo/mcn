@@ -1,0 +1,41 @@
+---
+title: 路由未被通告或学习
+description: 针对站点在线但 VIP 不可达，或未学习到预期前缀的有序排查步骤。
+sidebar:
+  order: 20
+  label: BGP
+i18n:
+  sourceHash: eff4d5527048
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+适用于状态为 `ONLINE` 的站点——若不是，请先从
+[注册](../registration/)开始排查。
+
+<Steps>
+
+1. **对等会话是否已建立？**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/)。查看 `State/PfxRcd`：
+   显示数字表示会话已建立，`Up/Down` 字段显示其是否保持稳定。若站点已运行数天但该值很小，说明会话正在抖动。
+
+2. **若会话断开**，原因通常在 BGP 层以下。使用
+   [`ip-link-show`](../../commands/network/ip/) 确认承载对等连接的接口已启用，然后确认到对端地址的可达性。在此拓扑中，对端为 Azure 路由服务器实例。
+
+3. **若会话已建立但 VIP 不可达**，使用
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/)
+   检查节点实际通告的内容。若 VIP 不在其中，则问题出在本节点，查看对端将无济于事。
+
+4. **若节点通告正确但流量仍未到达**，说明控制平面与数据平面存在不一致。使用 [`rt`](../../commands/network/dataplane-forwarding/) 检查数据平面实际使用的转发表，注意其 VRF ID 与 BGP 报告的不同。
+
+   然后使用 `nh` 解析下一跳。若 `rt` 中某个前缀的下一跳为 `Drop`，则该路由为黑洞路由。
+
+5. **若会话发生抖动**，[`show-ip-bgp-neighbors`](../../commands/network/bgp/)
+   中记录了最后一次重置原因及协商的定时器参数。
+
+</Steps>
+
+<Aside type="caution" title="两种不同的 VRF 编号方案">
+`show-ip-bgp-summary` 报告的是 FRR 的 `vrf-id`。Argo 数据平面对其转发表使用独立的编号，将 FRR 的编号传递给 `rt --dump` 会返回 `No such file or directory`——这看起来像是节点故障，而实际上只是参数错误。在此拓扑中，VRF 2 是已填充的 inet4 表。
+</Aside>

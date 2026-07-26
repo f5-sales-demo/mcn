@@ -1,0 +1,44 @@
+---
+title: ドロップ統計
+description: >-
+  理由別に Argo
+  データプレーンがパケットを破棄している原因を確認できます。トラフィックがノードに到達しているにもかかわらず届かない場合は、ここから調査を始めてください。
+sidebar:
+  order: 30
+  label: ドロップ統計
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo は、すべての破棄を理由別にカウントします。これは「パケットが到達しなかった」と「パケットが到達したが意図的にドロップされた」を区別する最も迅速な方法です。
+
+## `dropstats-non-zero`
+
+こちらを優先して使用してください。発火したカウンターのみを表示するため、65行ではなく数行で済みます。
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="非ゼロは異常を意味しない">
+これらはデータプレーンの起動からの通算合計であり、レートではありません。`Flow Action Drop` はポリシーが正常に機能していることをカウントしています。重要なのは、問題を再現している間にカウンターが*増加しているかどうか*です。そのため、コマンドを2回実行して比較してください。
+</Aside>
+
+## `dropstats`
+
+ゼロのカウンターも含むすべてのカウンターを表示します。
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+どのような理由が存在するかを把握するために、一度は全体を読むことをお勧めします。それ以降は、非ゼロのバリアントを使用してください。

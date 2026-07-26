@@ -1,0 +1,25 @@
+---
+title: chronyc-sources
+description: NTP 동기화 상태. 클럭 스큐는 명백한 문제가 나타나기 전에 인증서 검증과 토큰 인증을 손상시킵니다.
+sidebar:
+  order: 100
+  label: chronyc-sources
+i18n:
+  sourceHash: 37ac33fac843
+  translator: machine
+---
+
+## `chronyc-sources`
+
+```bash
+{"command":["chronyc-sources"]}
+```
+
+```text file=../../../../_data/sitecli-chronyc-sources.txt
+```
+
+각 줄의 첫 번째 문자는 상태를 나타냅니다: `*`는 현재 선택된 소스, `+`는 허용 가능한 대안, `-`는 선택 알고리즘에 의해 제외된 소스, `?`는 도달할 수 없는 소스입니다. 정상적인 경우에는 정확히 하나의 `*`가 있어야 합니다.
+
+`Reach`는 마지막 8번의 폴링에 대한 8진수 레지스터로, `377`은 8번 모두 성공했음을 의미합니다. `377`이 아닌 값은 폴링이 손실되고 있음을 나타냅니다. `LastRx`는 해당 소스가 마지막으로 응답한 이후 경과 시간을 표시합니다.
+
+인증 또는 TLS가 명확한 이유 없이 실패할 때 초기에 확인할 가치가 있습니다: 클럭이 충분히 많이 drift된 노드는 유효한 인증서를 거부하고 토큰도 거부당하게 되며, 이로 인해 발생하는 오류에서 시간이 언급되는 경우는 거의 없습니다.

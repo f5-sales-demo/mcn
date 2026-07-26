@@ -1,0 +1,49 @@
+---
+title: Traffic arrives but does not get through
+description: Ordered sequence for a site that peers correctly and looks healthy, yet still loses traffic. Narrows a discard to a reason.
+sidebar:
+  order: 30
+  label: Data plane
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+For a site that is `ONLINE` with BGP established. If routes are the problem, start
+with [BGP](../bgp-diagnostics/).
+
+<Steps>
+
+1. **Is anything being discarded, and why?**
+   [`dropstats-non-zero`](../../commands/network/dataplane-drops/). Run it twice
+   while reproducing the problem: these are lifetime totals, so a non-zero counter
+   means nothing on its own and a *rising* one means everything.
+
+2. **Find the specific connection.**
+   [`flow-l-match`](../../commands/network/dataplane-flows/) with the address, or
+   address and port. The action on the flow is the answer: `F` forward, `D` drop, `N`
+   NAT. A flow present with action `D` is a deliberate policy decision, and sends you
+   to policy rather than to connectivity.
+
+3. **No flow at all?** The traffic is not reaching the data plane. Confirm the data
+   plane has claimed the interface you expect with
+   [`vif`](../../commands/network/dataplane-forwarding/), and compare its counters
+   against what [`ip`](../../commands/network/ip/) reports.
+
+   The two views legitimately differ, because traffic the data plane handles never
+   reaches the kernel. Zero RX on the interface you expect does not.
+
+4. **Flow present and forwarding, still not arriving?** Check where it is being sent:
+   `rt` for the route, then `nh` to resolve the next hop. A next hop of type `Drop`
+   is a blackhole, and a `Tunnel` next hop puts the tunnel itself in scope.
+
+5. **If the path is through a tunnel**, confirm it is both up and carrying bytes with
+   [`ipsec-statusall`](../../commands/network/ipsec/). A tunnel established for hours
+   with near-zero counters is up and unused, which points back at routing.
+
+</Steps>
+
+<Aside type="tip" title="Argo and Linux keep separate state">
+Most confusing data-plane symptoms come from reading the kernel's view and assuming
+it is authoritative. `ip` shows what Linux believes; `rt`, `nh` and `vif` show what
+forwards traffic. When they disagree, the data plane is what moves packets.
+</Aside>

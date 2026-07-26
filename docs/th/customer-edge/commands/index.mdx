@@ -1,0 +1,83 @@
+---
+title: ข้อมูลอ้างอิงคำสั่ง
+description: >-
+  คำสั่ง Site CLI ทุกคำสั่งที่เข้าถึงได้ผ่าน debug API พร้อมหมวดหมู่ ระดับสิทธิ์
+  และการขนส่ง อ่านหน้าคำสั่งเฉพาะสำหรับไวยากรณ์และผลลัพธ์ที่บันทึกไว้
+sidebar:
+  order: 20
+  label: คำสั่ง
+i18n:
+  sourceHash: 44781a8d910a
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+บันทึกจากโหนดที่ใช้งานจริงซึ่งรันซอฟต์แวร์บิลด์ `crt-20250613-3382` ซึ่งเปิดเผย
+**34 คำสั่ง** แต่ละหน้าด้านล่างแสดงผลลัพธ์จริงจากโหนดนั้น แทนที่จะเป็นตัวอย่างที่ถอดความมา
+
+คอลัมน์ `Tier` ไม่ใช่คำแนะนำ แต่เป็นตัวเลือก endpoint ที่คำสั่งจะต้องถูกส่งไป และการส่งคำสั่งไปยัง endpoint ที่ไม่ถูกต้องจะได้รับการตอบกลับว่า `command not supported` ซึ่งอ่านแล้วเหมือนว่าคำสั่งนั้นไม่มีอยู่ ดู
+[debug API](../access/debug-api/) ก่อนใช้ตารางนี้
+
+| คำสั่ง | หมวดหมู่ | Tier | การขนส่ง | ตัวอย่างอาร์กิวเมนต์ |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`crictl-images`](./system/crictl/) | ระบบ | `ExecUser` | `exec-user` | none |
+| [`crictl-inspect`](./system/crictl/) | ระบบ | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | ระบบ | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | ระบบ | `ExecUser` | `exec-user` | none |
+| [`crictl-ps-a`](./system/crictl/) | ระบบ | `ExecUser` | `exec-user` | none |
+| [`curl-host`](./network/curl/) | เครือข่าย | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | เครือข่าย | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | ระบบ | `ExecUser` | `global` GET | none |
+| [`dig`](./network/dig/) | เครือข่าย | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | ระบบ | `ExecUser` | `exec-user` | none |
+| [`docker-inspect`](./system/docker/) | ระบบ | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | ระบบ | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | ระบบ | `ExecUser` | `exec-user` | none |
+| [`docker-ps-a`](./system/docker/) | ระบบ | `ExecUser` | `exec-user` | none |
+| [`dropstats`](./network/dataplane-drops/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`flow-l`](./network/dataplane-flows/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`flow-l-match`](./network/dataplane-flows/) | เครือข่าย | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | ระบบ | `ExecUser` | `global` GET | none |
+| [`ip`](./network/ip/) | เครือข่าย | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | เครือข่าย | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`ipsec-status`](./network/ipsec/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`ipsec-statusall`](./network/ipsec/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`journalctl`](./system/journalctl/) | ระบบ | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`nh`](./network/dataplane-forwarding/) | เครือข่าย | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | เครือข่าย | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`show-ip-bgp-summary`](./network/bgp/) | เครือข่าย | `ExecUser` | `exec-user` | none |
+| [`vif`](./network/dataplane-forwarding/) | เครือข่าย | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="มีหนึ่งคำสั่งที่เปลี่ยนแปลงโหนด">
+`ip-link-set` อยู่ในระดับ `Exec` และทำให้อินเทอร์เฟซขึ้นหรือลง คำสั่งนี้ถูกบันทึกไว้เพื่อความครบถ้วน ไม่มีผลลัพธ์ที่บันทึกไว้ และไม่เคยถูกเรียกใช้โดยชุดเครื่องมือบันทึก
+</Aside>
+
+## มีเฉพาะในบิลด์ใหม่กว่าเท่านั้น
+
+บิลด์ปัจจุบัน (`crt-20260201-0179`) เปิดเผย **43** คำสั่ง ซึ่งเป็น superset อย่างเคร่งครัด โดยไม่มีการลบและไม่มีการเปลี่ยนแปลงข้อมูล metadata เก้าคำสั่งที่ tenant นี้ไม่มี:
+
+| คำสั่ง | หมวดหมู่ | Tier |
+| --- | --- | --- |
+| `collect-database-stats` | ระบบ | `ExecUser` |
+| `iptables-lv` | เครือข่าย | `ExecUser` |
+| `marker-exists-NetworkManager` | ระบบ | `Exec` |
+| `marker-exists-crio` | ระบบ | `Exec` |
+| `marker-exists-kubelet` | ระบบ | `Exec` |
+| `systemctl-restart-NetworkManager` | ระบบ | `Exec` |
+| `systemctl-restart-crio` | ระบบ | `Exec` |
+| `systemctl-restart-kubelet` | ระบบ | `Exec` |
+| `systemctl-start-crio-prune` | ระบบ | `Exec` |
+
+คำสั่งเหล่านี้ถูกระบุด้วยชื่อและระดับเท่านั้น จากการค้นพบแคตตาล็อกกับโหนดบนบิลด์นั้น ไม่มีผลลัพธ์ที่บันทึกไว้สำหรับคำสั่งเหล่านี้ที่นี่ เนื่องจาก tenant นี้ไม่สามารถรันคำสั่งเหล่านั้นได้ โปรดทราบว่าสี่ในเก้าคำสั่งนั้นจะรีสตาร์ทบริการภายใต้ data plane ที่ใช้งานอยู่
+
+<Aside type="note" title="การตรวจจับพื้นผิวที่เปลี่ยนแปลง">
+เนื่องจากพื้นผิวเพิ่มขึ้นตามบิลด์ซอฟต์แวร์ แคตตาล็อกจึงบันทึกบิลด์ที่มาจาก และ `scripts/capture-sitecli.sh --check` รายงานการเปลี่ยนแปลงบิลด์แยกจากคำสั่งที่เพิ่มหรือลบออก เมื่อโหนดเหล่านี้ได้รับการอัปเกรด การตรวจสอบนั้นจะเป็นสิ่งที่บอกให้รู้ว่าเก้าคำสั่งนี้ได้มาถึงแล้ว
+</Aside>

@@ -1,0 +1,36 @@
+---
+title: 경로가 광고되거나 학습되지 않음
+description: 사이트가 온라인 상태이지만 VIP에 도달할 수 없거나 학습해야 할 프리픽스를 학습하지 못하는 경우의 순서별 처리 절차.
+sidebar:
+  order: 20
+  label: BGP
+i18n:
+  sourceHash: eff4d5527048
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+사이트가 `ONLINE` 상태인 경우를 전제로 합니다 — 그렇지 않은 경우
+[등록](../registration/)부터 시작하십시오.
+
+<Steps>
+
+1. **피어링이 전혀 활성화되어 있습니까?**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/)를 실행하십시오. `State/PfxRcd`를 확인하십시오: 숫자가 표시되면 세션이 확립된 것이며, `Up/Down`은 안정성 여부를 나타냅니다. 며칠째 가동 중인 사이트에서 값이 작다면 세션이 플래핑되고 있다는 의미입니다.
+
+2. **세션이 다운된 경우**, 원인은 보통 BGP 하위 계층에 있습니다. [`ip-link-show`](../../commands/network/ip/)를 사용하여 피어링을 담당하는 인터페이스가 활성 상태인지 확인한 후, 피어 주소에 대한 도달 가능성을 확인하십시오. 이 토폴로지에서 피어는 Azure Route Server 인스턴스입니다.
+
+3. **세션은 활성화되어 있지만 VIP에 도달할 수 없는 경우**, [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/)를 사용하여 노드가 실제로 광고하고 있는 내용을 확인하십시오. VIP가 목록에 없다면 문제는 이 노드에 있으며 피어를 확인해도 도움이 되지 않습니다.
+
+4. **노드가 올바르게 광고하고 있지만 트래픽이 여전히 도달하지 않는 경우**, 컨트롤 플레인과 데이터 플레인 간에 불일치가 발생한 것입니다. [`rt`](../../commands/network/dataplane-forwarding/)를 사용하여 데이터 플레인이 실제로 사용하는 포워딩 테이블을 확인하십시오. 이때 VRF id는 BGP가 보고하는 값과 다르다는 점에 유의하십시오.
+
+   그런 다음 `nh`를 사용하여 넥스트 홉을 확인하십시오. `rt`에 존재하는 프리픽스의 넥스트 홉이 `Drop`이면 블랙홀 상태입니다.
+
+5. **세션이 플래핑되는 경우**, [`show-ip-bgp-neighbors`](../../commands/network/bgp/)에서 마지막 재설정 원인과 협상된 타이머를 확인할 수 있습니다.
+
+</Steps>
+
+<Aside type="caution" title="두 가지 다른 VRF 번호 체계">
+`show-ip-bgp-summary`는 FRR의 `vrf-id`를 보고합니다. Argo 데이터 플레인은 자체적으로 테이블 번호를 부여하며, FRR의 번호를 `rt --dump`에 전달하면 `No such file or directory`가 반환됩니다 — 이는 잘못된 인수가 아니라 노드가 손상된 것처럼 보일 수 있습니다. 이 토폴로지에서 VRF 2는 채워진 inet4 테이블입니다.
+</Aside>

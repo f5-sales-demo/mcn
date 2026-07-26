@@ -1,0 +1,35 @@
+---
+title: diagnosis
+description: 節點對自身執行的連線性與 DNS 探測，以 JSON 格式回傳。告知您節點對自身可達性的判斷。
+sidebar:
+  order: 20
+  label: diagnosis
+i18n:
+  sourceHash: 2c9fe6fab17a
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `diagnosis`
+
+<Aside type="caution" title="GLOBAL 範圍 — 不同的傳輸方式">
+與 `health` 相同，對 `global` 路徑發送 `GET` 請求，無法透過 `exec-user` 存取。
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/diagnosis"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-diagnosis.txt
+```
+
+節點會探測自身的閘道器並按節點回報結果，因此在多節點站台上，每個節點各有一個區塊。`gateway_connectivity` 包含 ping 摘要 — `sent`（已送出）、`received`（已收到）、`lost`（已遺失）以及來回時間。
+
+<Aside type="note" title="對閘道器 100% 封包遺失不一定代表故障">
+在此拓撲中，閘道器不回應 ICMP，因此當站台處於 `ONLINE` 狀態且正常轉發時，`lost: 100` 是穩定的正常狀態。僅當您已有其他問題跡象，或此數值發生變化時，才將此欄位視為訊號。
+</Aside>
+
+`resolv_conf` 是更為一致實用的欄位：它顯示節點實際使用的解析器，在花時間使用 [`dig`](../../network/dig/) 進行排查之前，值得將其與您預期的設定進行比對。

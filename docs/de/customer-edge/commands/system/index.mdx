@@ -1,0 +1,36 @@
+---
+title: Systembefehle
+description: >-
+  Lesen Sie diese Ebene für Knotengesundheit, Container-Laufzeitumgebungen und
+  Dienstprotokolle. Dreizehn Befehle, einschließlich der zwei standortweiten
+  Zusammenfassungen, die einen anderen Transport verwenden.
+sidebar:
+  order: 20
+  label: System
+i18n:
+  sourceHash: 712397cd2e30
+  translator: machine
+---
+
+Dreizehn der vierunddreißig Befehle.
+
+| Wenn Sie möchten | Verwenden Sie |
+| --- | --- |
+| Eine Antwort darauf, ob der Knoten in Ordnung ist | [health](./health/) |
+| Konnektivitäts- und DNS-Prüfungen, die vom Knoten selbst ausgeführt werden | [diagnosis](./diagnosis/) |
+| Kubernetes-Workload-Container | [crictl](./crictl/) |
+| Die Plattform-Container: vpm, argo, site-console | [docker](./docker/) |
+| Dienstprotokolle, einschließlich Registrierung | [journalctl](./journalctl/) |
+
+## Der Knoten führt zwei Container-Laufzeitumgebungen aus
+
+Dies überrascht viele, und es bestimmt, welcher Befehl Ihre Frage beantwortet.
+
+- **Docker** führt die Plattform-Container aus — `vpm`, `argo_watch`, `site-console`.
+- **CRI-O** führt die Kubernetes-Workloads aus, erreichbar über `crictl`.
+
+Beide laufen gleichzeitig, beide liefern echte Ausgaben, und keine ersetzt die andere. `docker-ps` mit drei Containern ist keine unvollständige Ansicht eines defekten Knotens; es ist die vollständige Liste dessen, was Docker ausführt. Wenn Sie nach `vpm` suchen, handelt es sich um einen Docker-Container. Wenn Sie nach einem Pod suchen, liegt er in CRI-O.
+
+## Zwei Befehle verwenden einen anderen Transport
+
+`health` und `diagnosis` haben den Geltungsbereich `GLOBAL`: Sie sind `GET`-Anfragen an einen `global`-Pfad, geben JSON statt Terminal-Text zurück und sind **nicht über `exec-user` erreichbar** — wenn Sie sie dort senden, erhalten Sie die Antwort `command not supported`, was so klingt, als würde der Befehl nicht existieren. Siehe [die Debug-API](../../access/debug-api/).

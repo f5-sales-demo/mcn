@@ -1,0 +1,82 @@
+---
+title: crictl
+description: >-
+  El runtime CRI-O, que ejecuta las cargas de trabajo de Kubernetes. Cinco
+  comandos que cubren contenedores, imágenes, inspección y registros.
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O ejecuta las cargas de trabajo de Kubernetes. Los servicios de la Plataforma — `vpm`, `argo_watch`,
+`site-console` — son contenedores de [Docker](../docker/) y no aparecerán aquí.
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+Contenedores en ejecución con su pod, imagen y contador de reinicios. `ATTEMPT` es el que
+debe observarse: un contador de reinicios en aumento indica un bucle de fallos, y el id de contenedor de esta
+salida alimenta los dos comandos siguientes.
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+Incluye los contenedores que han finalizado. Úselo cuando algo *estaba* en ejecución y ya no lo está —
+la entrada finalizada y su id de contenedor son lo que permite leer los registros de la ejecución que
+falló.
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+Confirma que una imagen está realmente presente en el nodo, lo que permite distinguir un
+fallo de descarga de uno de programación.
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+JSON completo: montajes, entorno, límites de recursos, la línea de comandos y el estado
+de salida. Es extenso, por lo que conviene consultarlo en lugar de leerlo directamente.
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="Los ids de contenedor son por ejecución">
+Los ids en estas capturas provienen de una ejecución de muestra y no existirán en su nodo.
+Obtenga uno actual de `crictl-ps` primero. El arnés de captura hace exactamente eso —
+su manifiesto resuelve el primer id de contenedor en el momento de la captura en lugar de codificar uno fijo.
+</Aside>

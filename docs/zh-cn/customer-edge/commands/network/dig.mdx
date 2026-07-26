@@ -1,0 +1,31 @@
+---
+title: dig
+description: 来自节点的 DNS 解析，包括哪个解析器响应了请求。在较旧的已发布 Site CLI 参考文档中完全缺失。
+sidebar:
+  order: 90
+  label: dig
+i18n:
+  sourceHash: 2ac6602c8699
+  translator: machine
+---
+
+## `dig`
+
+```bash
+{"command":["dig","volterra.azurecr.io"]}
+```
+
+```text file=../../../../_data/sitecli-dig.txt
+```
+
+首先查看头部的 `status:`——`NOERROR` 且 `ANSWER` 计数不为零表示查询成功。
+
+底部的 `SERVER:` 标识了响应请求的解析器，这是值得重点检查的部分：在 Azure 节点上，通常是位于 `168.63.129.16` 的平台解析器，若显示其他地址，则说明该节点正在使用您未预期的解析器。
+
+注册失败往往归结为 DNS 问题。如果节点无法解析 `register.ves.volterra.io` 或容器镜像仓库，下游任何操作都将无法正常工作，而此命令是验证这一问题最快捷的方式。
+
+该命令接受常规的 `dig` 参数，包括 `@resolver` 以查询特定服务器——这对于证明某个解析器能够响应而另一个不能非常有用。
+
+:::note
+`dig` 在较旧的已发布 Site CLI 参考文档中完全没有出现。它是通过向节点请求其自身的命令目录而发现的，而非通过阅读文档获得——这也是本站所有命令均来自主动发现而非转录的原因。
+:::

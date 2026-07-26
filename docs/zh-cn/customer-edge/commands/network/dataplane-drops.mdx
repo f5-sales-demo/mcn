@@ -1,0 +1,42 @@
+---
+title: 丢弃统计
+description: Argo 数据平面按原因丢弃数据包的统计信息。当流量到达节点但未送达时，请从此处开始排查。
+sidebar:
+  order: 30
+  label: 丢弃统计
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo 按原因统计每次丢弃。这是区分"数据包从未到达"与"数据包已到达但被主动丢弃"的最快方式。
+
+## `dropstats-non-zero`
+
+优先使用此命令。它只显示已触发的计数器，输出寥寥数行，而非六十五行。
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="非零不代表异常">
+这些是数据平面启动以来的生命周期累计总量，而非速率。`Flow Action Drop` 统计的是策略正常执行的结果。真正需要关注的是，在复现问题的过程中某个计数器是否*持续增加*，因此请运行该命令两次并进行对比。
+</Aside>
+
+## `dropstats`
+
+包含所有计数器，包括值为零的项。
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+建议完整阅读一次，以了解存在哪些丢弃原因。此后，使用非零变体即可。

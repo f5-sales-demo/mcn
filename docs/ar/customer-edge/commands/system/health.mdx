@@ -1,0 +1,47 @@
+---
+title: health
+description: >-
+  أفضل أمر مبدئي واحد. حالة التسجيل ونظام التشغيل والموارد وحالة الخدمة للموقع
+  بأكمله في استجابة منظمة واحدة.
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="النطاق العالمي — وسيلة نقل مختلفة">
+طلب `GET` إلى المسار `global`، وليس مصفوفة `command`. إرسال `health` إلى `exec-user`
+يُعيد `command not supported`.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+ابدأ من هنا. إنه سريع وقليل التكلفة، ومنظم البنية، ويجيب على أول سؤال حول
+أي CE: `state`. يعني `PROVISIONED` أن العقدة قد سُجِّلت وتم تهيئتها.
+
+أي قيمة أخرى — `WAITING_FOR_CONFIG`، أو غياب الاستجابة كليًا — يخبرك بالتوقف عن
+تصحيح أخطاء مستوى البيانات والنظر في [التسجيل](../../../workflows/registration/)
+عوضًا عن ذلك.
+
+تحمل الاستجابة أيضًا إصدار نظام التشغيل والنواة، ونوع ومُورِّد الجهاز الافتراضي الأساسي،
+وإصدار البرنامج. تلك السلسلة الخاصة بالإصدار هي ما يحدد الأوامر المتاحة على العقدة،
+لذا يستحق تدوينها قبل افتراض أن أمرًا ما مفقود.
+
+نظرًا لأن الاستجابة بتنسيق JSON، يمكن الاستعلام عنها بسهولة:
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

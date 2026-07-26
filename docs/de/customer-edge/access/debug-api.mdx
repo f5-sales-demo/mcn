@@ -1,0 +1,197 @@
+---
+title: Debug API
+description: >-
+  So führen Sie einen Site-CLI-Befehl auf einem ONLINE-Knoten über HTTP aus,
+  einschließlich der Tier-zu-Endpunkt-Regel, die festlegt, welcher der drei
+  Transporte ein Befehl benötigt, sowie des Discovery-Aufrufs, der diese
+  auflistet.
+sidebar:
+  order: 20
+  label: Debug API
+i18n:
+  sourceHash: 36ee4d6fe690
+  translator: machine
+---
+
+import { Aside, Steps, Badge } from "@astrojs/starlight/components";
+
+Die `vpm/debug`-API führt Site-CLI-Befehle auf einem registrierten Knoten aus und gibt deren
+Ausgabe zurück. Alles Nachfolgende wurde gegen einen Live-Knoten ermittelt; nichts davon wird
+upstream veröffentlicht.
+
+## Der Befehlskatalog ist selbstbeschreibend
+
+Fragen Sie den Knoten, was er unterstützt, indem Sie per POST an `exec-user` senden und den Schlüssel `command`
+**weglassen**:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>"}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user" \
+  | jq -r .output | jq .
+```
+
+Die Antwort ist ein JSON-Objekt, das nach Befehlsnamen gegliedert ist:
+
+```json
+{
+  "crictl-inspect": ["System Troubleshooting", "ExecUser", " container-id"],
+  "diagnosis":      ["System Troubleshooting", "ExecUser", "no argument needed", "GLOBAL"],
+  "ip-link-set":    ["Network Troubleshooting", "Exec", " (<device>||<group>) (up||down)"]
+}
+```
+
+Jeder Eintrag hat das Format `[Kategorie, Tier, Beispielargument?, Bereich?]`, und diese Felder sind
+keine Dokumentation — sie bestimmen, wie der Befehl aufgerufen werden muss.
+
+<Aside type="caution" title="Schlüssel weglassen; keinen falschen Wert senden">
+Die Discovery funktioniert, indem `command` weggelassen wird. Das Senden eines unbekannten Werts gibt stattdessen
+einen Fehler zurück, nicht den Katalog:
+
+```json
+{"code":3,"details":[],"message":"exec command failed: command not supported"}
+```
+
+Diese Meldung erhalten Sie auch, wenn ein *echter* Befehl an den falschen Endpunkt gesendet wird,
+weshalb sie leicht als „dieser Befehl existiert nicht" missverstanden werden kann.
+</Aside>
+
+## Drei Transporte, ausgewählt anhand des Katalogeintrags
+
+| Bedingung | Methode und Pfad | Body | Rückgabe |
+| --- | --- | --- | --- |
+| `scope` ist `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | keiner | JSON |
+| `tier` ist `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | `command`-Array | Text |
+| `tier` ist `Exec` | `POST .../vpm/debug/<node>/exec` | `command`-Array | Text |
+
+### `ExecUser` — die Nur-Lese-Ebene <Badge text="31 Befehle" variant="note" />
+
+Der häufigste Fall. Befehl und Argumente werden als Array übergeben, Befehlsname
+zuerst:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>","command":["crictl-ps"]}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user"
+```
+
+```json
+{ "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
+```
+
+Argumente sind separate Array-Elemente, kein einzelner String:
+
+```json
+{ "command": ["journalctl", "-u", "vpm", "-n", "200"] }
+```
+
+### `GLOBAL` — systemweit und ein völlig anderer Transport <Badge text="2 Befehle" variant="tip" />
+
+`health` und `diagnosis` sind die einzigen beiden. Es handelt sich um `GET`-Anfragen an einen `global`-
+Pfad, sie akzeptieren keine Argumente und liefern strukturiertes JSON statt Terminaltext zurück.
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
+```
+
+<Aside type="danger" title="Ein GLOBAL-Befehl ist über exec-user nicht erreichbar">
+Dies ist die Falle, die am meisten Zeit kostet. Das Senden von `health` oder `diagnosis` an
+`exec-user` gibt `command not supported` zurück, was so klingt, als ob der Befehl nicht
+auf dem Knoten existiere — obwohl er tatsächlich existiert und der falsche Transport verwendet wurde.
+
+```bash
+# Falsch. Gibt zurück: exec command failed: command not supported
+-d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
+
+# Richtig.
+GET .../vpm/debug/global/health
+```
+
+</Aside>
+
+### `Exec` — die privilegierte Ebene <Badge text="1 Befehl in diesem Build" variant="danger" />
+
+Ein separater Endpunkt, und die Ebene wird erzwungen, nicht nur empfohlen: `exec` weist einen
+`ExecUser`-Befehl mit derselben Meldung `command not supported` ab. Jedes Mitglied
+verändert entweder den Knoten oder liest einen Statusmarker.
+
+In dem Build, auf dem dieser Mandant läuft, enthält die Ebene nur `ip-link-set`. Neuere Builds
+fügen `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
+`systemctl-restart-kubelet`, `systemctl-start-crio-prune` und drei
+`marker-exists-*`-Befehle hinzu.
+
+<Aside type="danger" title="Hier wird kein Exec-Befehl ausgeführt">
+Das Erfassungs-Framework verweigert diese Ebene und liest die Ebene aus dem Live-Katalog
+statt aus einer fest codierten Liste — sodass ein zukünftiger Build, der einen Befehl auf `Exec` hochstuft,
+berücksichtigt wird, ohne dass jemand Code bearbeiten muss. Führen Sie einen solchen Befehl nur bewusst
+aus, auf einem Knoten, dessen Unterbrechung Sie in Kauf nehmen.
+</Aside>
+
+## Site- und Knotennamen ermitteln
+
+Der Knotenname ist der Azure-VM-Name, und `list-service` ist eine einfache Möglichkeit, ihn zusammen
+mit den darauf laufenden Diensten zu bestätigen:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/list-service" \
+  | jq -r '[.service[].node] | unique'
+```
+
+## Erfassungen dieses Repositorys reproduzieren
+
+Jede Befehlsseite enthält Ausgaben, die von `scripts/capture-sitecli.sh` erfasst wurden, welches
+alle drei obigen Regeln implementiert.
+
+<Steps>
+
+1. Richten Sie es auf einen Mandanten aus. Es liest `XCSH_API_URL` und `XCSH_API_TOKEN` oder greift
+   auf den aktiven `xcsh`-Kontext zurück.
+
+2. Aktualisieren Sie den Katalog und bestätigen Sie, dass sich der Knoten nicht unter der
+   Dokumentation verändert hat:
+
+   ```bash
+   bash scripts/capture-sitecli.sh --check
+   ```
+
+   Dies vergleicht nur den übertragenen Katalog und den Software-Build. Änderungen am Build werden
+   getrennt von hinzugefügten oder entfernten Befehlen gemeldet.
+
+3. Erfassen Sie erneut, wenn Sie aktuelle Nachweise wünschen:
+
+   ```bash
+   bash scripts/capture-sitecli.sh
+   ```
+
+</Steps>
+
+<Aside type="note" title="Erfassungen sind Nachweise, keine reproduzierbaren Artefakte">
+Zähler, Laufzeiten und Container-Alter ändern sich zwischen Durchläufen, sodass eine erneute Erfassung
+immer einen Diff erzeugt. Der Katalog ist der stabile Vertrag und ist byteidentisch über
+Durchläufe hinweg, wenn sich der Knoten nicht verändert hat; das ist es, was `--check` vergleicht. Lange Ausgaben werden
+gekürzt und enden mit einem expliziten Marker, sodass eine abgeschnittene Tabelle niemals als vollständig dargestellt wird.
+</Aside>
+
+<Aside type="danger" title="Erfassung von einem Kundenknoten: Redaktionsprofil prüfen">
+Die Befehlsausgabe enthält Infrastrukturidentität — interne Adressierung, MAC-Adressen,
+AS-Nummern, Hostnamen — und für einen Kunden handelt es sich dabei um identifizierende Informationen über die
+Organisation.
+
+Der Bereinigungsfilter verwendet daher standardmäßig ein **striktes** Profil, das all dies entfernt.
+Dieses Repository deklariert `lab` in `sitecli/capture-manifest.json`, was diese Details beibehält,
+und das ist nur hier korrekt, weil diese Erfassungen von F5-eigener Demo-Infrastruktur stammen.
+
+**Übertragen Sie diese Einstellung nicht auf eine Kundenerfassung.** Token, private Schlüssel, die Mandantenkennung,
+Objekt-UUIDs, E-Mail-Adressen und Home-Verzeichnispfade werden unter beiden Profilen entfernt.
+
+Eine Einschränkung ist es wert, bekannt zu sein: Eine BGP-Nachbartabelle gibt die AS-Nummer als bloße Spalte
+ohne Bezeichnung aus, an der ein Muster verankert werden könnte, sodass ASNs anhand ihres Werts gegen die
+privaten Bereiche abgeglichen werden. Eine **öffentliche** ASN übersteht das strikte Profil und erfordert
+eine manuelle Überprüfung der `show-ip-bgp*`-Ausgabe vor der Veröffentlichung.
+</Aside>

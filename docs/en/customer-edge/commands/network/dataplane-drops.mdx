@@ -1,0 +1,44 @@
+---
+title: Drop statistics
+description: Why the Argo data plane is discarding packets, by reason. Start here when traffic reaches the node but does not arrive.
+sidebar:
+  order: 30
+  label: Drop statistics
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo counts every discard by reason. This is the fastest way to tell "the packet
+never arrived" from "the packet arrived and was dropped deliberately".
+
+## `dropstats-non-zero`
+
+Prefer this one. It shows only counters that have fired, which is a handful of lines
+instead of sixty-five.
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="Non-zero does not mean broken">
+These are lifetime totals since the data plane started, not a rate. `Flow Action
+Drop` counts policy doing its job. What matters is whether a counter is *increasing*
+while you reproduce the problem, so run the command twice and compare.
+</Aside>
+
+## `dropstats`
+
+Every counter including the zeroes.
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+Worth reading in full once, to learn which reasons exist. After that, the non-zero
+variant is the one to use.

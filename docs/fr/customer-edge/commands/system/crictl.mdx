@@ -1,0 +1,82 @@
+---
+title: crictl
+description: >-
+  Le runtime CRI-O, qui exécute les charges de travail Kubernetes. Cinq
+  commandes couvrant les conteneurs, les images, l'inspection et les journaux.
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O exécute les charges de travail Kubernetes. Les services de la Plateforme — `vpm`, `argo_watch`,
+`site-console` — sont des conteneurs [Docker](../docker/) et n'apparaîtront pas ici.
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+Conteneurs en cours d'exécution avec leur pod, leur image et leur nombre de redémarrages. `ATTEMPT` est la valeur à
+surveiller : un nombre de redémarrages croissant indique une boucle de plantage, et l'identifiant de conteneur issu de cette
+sortie alimente les deux commandes ci-dessous.
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+Inclut les conteneurs terminés. Utilisez cette commande lorsqu'un service *était* en cours d'exécution et ne l'est plus —
+l'entrée terminée et son identifiant de conteneur permettent de lire les journaux de l'exécution qui
+a échoué.
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+Confirme qu'une image est effectivement présente sur le nœud, ce qui permet de distinguer un
+échec de téléchargement d'un échec de planification.
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+JSON complet : points de montage, variables d'environnement, limites de ressources, la ligne de commande et l'état
+de sortie. Volumineux, il est donc préférable de l'interroger plutôt que de le lire intégralement.
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="Les identifiants de conteneur sont propres à chaque exécution">
+Les identifiants présents dans ces captures proviennent d'un exemple d'exécution et n'existeront pas sur votre nœud.
+Obtenez-en un à jour depuis `crictl-ps` en premier lieu. L'outil de capture fait exactement cela —
+son manifeste résout le premier identifiant de conteneur au moment de la capture plutôt que de le coder en dur.
+</Aside>

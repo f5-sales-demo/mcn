@@ -1,0 +1,78 @@
+---
+title: Un site qui n'est jamais venu en ligne
+description: >-
+  Séquence ordonnée pour un CE dont l'enregistrement a échoué, où l'API de
+  débogage ne peut pas aider car elle dépend de l'enregistrement qui a échoué.
+sidebar:
+  order: 10
+  label: Enregistrement
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="L'API ne peut pas déboguer ceci">
+L'API de débogage atteint le nœud via le plan de contrôle F5 Distributed Cloud, par le
+tunnel établi lors de l'enregistrement. Si l'enregistrement a échoué, il n'y a pas de tunnel,
+donc chaque commande de ce site est indisponible pour cette panne précise. Travaillez depuis
+la [console série](../../access/serial-console/).
+</Aside>
+
+<Steps>
+
+1. **Confirmez ce que le locataire observe.** Absent de la liste des sites est un problème
+   différent de présent mais non `ONLINE`.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   Si le site existe et indique `ONLINE`, l'enregistrement a réussi et vous vous trouvez
+   dans le mauvais flux de travail.
+
+2. **Vérifiez s'il y a un enregistrement en attente.** Un nœud peut s'enregistrer puis
+   attendre une approbation, ce qui ressemble de l'extérieur à un échec.
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **Confirmez que la VM est bien en cours d'exécution**, avant de supposer une
+   défaillance logicielle.
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **Attachez la console série.** Cela nécessite un terminal — cela ne peut pas être scripté.
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   En cas de refus, vérifiez que les diagnostics de démarrage sont activés sur la VM avant
+   de conclure que le nœud est inaccessible ; ce prérequis et ses modes de défaillance sont
+   couverts sur la page [console série](../../access/serial-console/).
+
+5. **Lisez ce qu'affiche la console, dans cet ordre.** cloud-init en premier — un nœud
+   dont cloud-init ne s'est jamais terminé ne dispose d'aucune configuration avec laquelle
+   s'enregistrer. Ensuite les tentatives d'enregistrement elles-mêmes, puis le DNS : si le
+   nœud ne peut pas résoudre `register.ves.volterra.io`, rien en aval ne peut fonctionner.
+
+6. **Une fois le nœud `ONLINE`**, vérifiez avec [`health`](../../commands/system/health/)
+   et attendez `state: PROVISIONED`.
+
+</Steps>
+
+## Les causes habituelles
+
+- cloud-init ne s'est pas terminé, donc `/etc/vpm/config.yaml` est absent ou incorrect.
+- Le jeton d'enregistrement est expiré, déjà consommé ou provient d'un autre locataire.
+- Aucune route de sortie vers `register.ves.volterra.io`.
+- Dérive d'horloge suffisamment importante pour invalider les certificats — facile à
+  exclure par la suite avec [`chronyc-sources`](../../commands/network/chronyc-sources/),
+  mais inaccessible tant que le nœud n'est pas en ligne.

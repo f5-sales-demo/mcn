@@ -1,0 +1,34 @@
+---
+title: chronyc-sources
+description: >-
+  Stato di sincronizzazione NTP. Lo scarto dell'orologio compromette la
+  validazione dei certificati e l'autenticazione dei token prima che si
+  manifesti qualsiasi problema evidente.
+sidebar:
+  order: 100
+  label: chronyc-sources
+i18n:
+  sourceHash: 37ac33fac843
+  translator: machine
+---
+
+## `chronyc-sources`
+
+```bash
+{"command":["chronyc-sources"]}
+```
+
+```text file=../../../../_data/sitecli-chronyc-sources.txt
+```
+
+Il carattere iniziale di ciascuna riga indica lo stato: `*` è la sorgente attualmente
+selezionata, `+` un'alternativa accettabile, `-` una esclusa dall'algoritmo di selezione,
+e `?` una non raggiungibile. La presenza di esattamente un `*` rappresenta la condizione ottimale.
+
+`Reach` è un registro ottale degli ultimi otto sondaggi, quindi `377` significa che tutti e otto
+sono andati a buon fine. Un valore diverso da `377` indica che i sondaggi vengono persi. `LastRx` mostra da
+quanto tempo la sorgente ha risposto per l'ultima volta.
+
+Vale la pena verificarlo tempestivamente quando l'autenticazione o TLS presenta errori senza una causa apparente: un
+nodo il cui orologio si è allontanato sufficientemente rifiuterà i certificati validi e vedrà i propri
+token rifiutati, e gli errori risultanti raramente menzionano il tempo.

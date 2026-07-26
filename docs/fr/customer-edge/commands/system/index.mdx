@@ -1,0 +1,39 @@
+---
+title: Commandes système
+description: >-
+  Consultez ce niveau pour la santé des nœuds, les environnements d'exécution de
+  conteneurs et les journaux de services. Treize commandes, dont les deux
+  résumés à l'échelle du site qui utilisent un transport différent.
+sidebar:
+  order: 20
+  label: Système
+i18n:
+  sourceHash: 712397cd2e30
+  translator: machine
+---
+
+Treize des trente-quatre commandes.
+
+| Si vous souhaitez | Utiliser |
+| --- | --- |
+| Une réponse unique sur l'état du nœud | [health](./health/) |
+| Sondes de connectivité et DNS exécutées par le nœud lui-même | [diagnosis](./diagnosis/) |
+| Conteneurs de charge de travail Kubernetes | [crictl](./crictl/) |
+| Les conteneurs de la Plateforme : vpm, argo, site-console | [docker](./docker/) |
+| Journaux de services, y compris l'enregistrement | [journalctl](./journalctl/) |
+
+## Le nœud exécute deux environnements d'exécution de conteneurs
+
+Cela surprend souvent, et cela détermine quelle commande répond à votre question.
+
+- **Docker** exécute les conteneurs de la Plateforme — `vpm`, `argo_watch`, `site-console`.
+- **CRI-O** exécute les charges de travail Kubernetes, accessibles via `crictl`.
+
+Les deux fonctionnent simultanément, les deux retournent une sortie réelle, et aucun ne remplace
+l'autre. `docker-ps` affichant trois conteneurs n'est pas une vue partielle d'un nœud défaillant ; il s'agit de la liste complète de ce que Docker exécute. Si vous recherchez `vpm`, c'est un conteneur Docker. Si vous recherchez un pod, c'est CRI-O.
+
+## Deux commandes utilisent un transport différent
+
+`health` et `diagnosis` sont de portée `GLOBAL` : ce sont des requêtes `GET` vers un chemin `global`,
+elles retournent du JSON plutôt que du texte terminal, et **ne sont pas accessibles via
+`exec-user`** — les y envoyer retourne `command not supported`, ce qui donne l'impression que la commande n'existe pas. Voir [l'API de débogage](../../access/debug-api/).

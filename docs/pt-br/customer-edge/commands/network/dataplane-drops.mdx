@@ -1,0 +1,46 @@
+---
+title: Estatísticas de descarte
+description: >-
+  Por que o plano de dados do Argo está descartando pacotes, por motivo. Comece
+  aqui quando o tráfego chega ao nó, mas não é entregue.
+sidebar:
+  order: 30
+  label: Estatísticas de descarte
+i18n:
+  sourceHash: 12c463806835
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+O Argo contabiliza cada descarte por motivo. Esta é a forma mais rápida de distinguir "o pacote nunca chegou" de "o pacote chegou e foi descartado deliberadamente".
+
+## `dropstats-non-zero`
+
+Prefira este. Ele exibe apenas os contadores que foram acionados, o que resulta em algumas linhas em vez de sessenta e cinco.
+
+```bash
+{"command":["dropstats-non-zero"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats-non-zero.txt
+```
+
+<Aside type="caution" title="Diferente de zero não significa com problema">
+Esses são totais acumulados desde que o plano de dados foi iniciado, não uma taxa. `Flow Action
+Drop` contabiliza a política fazendo seu trabalho. O que importa é se um contador está *aumentando*
+enquanto você reproduz o problema, portanto, execute o comando duas vezes e compare.
+</Aside>
+
+## `dropstats`
+
+Todos os contadores, incluindo os zerados.
+
+```bash
+{"command":["dropstats"]}
+```
+
+```text file=../../../../_data/sitecli-dropstats.txt
+```
+
+Vale a pena ler na íntegra uma vez, para conhecer quais motivos existem. Após isso, a variante não-zero é a que deve ser utilizada.

@@ -1,0 +1,185 @@
+---
+title: Debug API
+description: >-
+  किसी ONLINE नोड पर HTTP के माध्यम से Site CLI कमांड कैसे चलाएं, जिसमें वह
+  टियर-टू-एंडपॉइंट नियम शामिल है जो यह तय करता है कि एक कमांड को तीन में से किस
+  ट्रांसपोर्ट की आवश्यकता है और वह डिस्कवरी कॉल जो उन्हें सूचीबद्ध करती है।
+sidebar:
+  order: 20
+  label: Debug API
+i18n:
+  sourceHash: 36ee4d6fe690
+  translator: machine
+---
+
+import { Aside, Steps, Badge } from "@astrojs/starlight/components";
+
+`vpm/debug` API एक पंजीकृत नोड पर Site CLI कमांड चलाता है और उनका
+आउटपुट लौटाता है। नीचे दी गई सभी जानकारी एक लाइव नोड के विरुद्ध स्थापित की गई है; इसमें से कुछ भी अपस्ट्रीम प्रकाशित नहीं है।
+
+## कमांड कैटलॉग स्व-वर्णनात्मक है
+
+नोड से यह पूछें कि वह क्या समर्थन करता है, इसके लिए `exec-user` पर `command` की को
+**छोड़ते हुए** POST करें:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>"}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user" \
+  | jq -r .output | jq .
+```
+
+प्रतिक्रिया एक JSON ऑब्जेक्ट है जिसे कमांड नाम से की किया गया है:
+
+```json
+{
+  "crictl-inspect": ["System Troubleshooting", "ExecUser", " container-id"],
+  "diagnosis":      ["System Troubleshooting", "ExecUser", "no argument needed", "GLOBAL"],
+  "ip-link-set":    ["Network Troubleshooting", "Exec", " (<device>||<group>) (up||down)"]
+}
+```
+
+प्रत्येक प्रविष्टि `[category, tier, exampleArgument?, scope?]` है, और वे फ़ील्ड
+दस्तावेज़ीकरण नहीं हैं — वे यह तय करते हैं कि कमांड को किस प्रकार से कॉल किया जाना चाहिए।
+
+<Aside type="caution" title="की को छोड़ें; गलत मान न भेजें">
+डिस्कवरी `command` को छोड़कर काम करती है। इसके बजाय एक अज्ञात मान भेजने पर कैटलॉग नहीं, बल्कि एक त्रुटि मिलती है:
+
+```json
+{"code":3,"details":[],"message":"exec command failed: command not supported"}
+```
+
+यही संदेश तब भी मिलता है जब कोई *वास्तविक* कमांड गलत एंडपॉइंट पर भेजी जाती है,
+इसलिए इसे "यह कमांड मौजूद नहीं है" के रूप में गलत पढ़ना आसान है।
+</Aside>
+
+## तीन ट्रांसपोर्ट, कैटलॉग प्रविष्टि द्वारा चुने गए
+
+| शर्त | विधि और पथ | बॉडी | रिटर्न करता है |
+| --- | --- | --- | --- |
+| `scope` है `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | कोई नहीं | JSON |
+| `tier` है `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | `command` array | text |
+| `tier` है `Exec` | `POST .../vpm/debug/<node>/exec` | `command` array | text |
+
+### `ExecUser` — रीड-ओनली टियर <Badge text="31 commands" variant="note" />
+
+सामान्य मामला। कमांड और उसके तर्कों को एक array के रूप में पास करें, पहले कमांड का नाम:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"system","site":"<site>","node":"<node>","command":["crictl-ps"]}' \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/<node>/exec-user"
+```
+
+```json
+{ "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
+```
+
+तर्क अलग-अलग array तत्व हैं, एकल स्ट्रिंग नहीं:
+
+```json
+{ "command": ["journalctl", "-u", "vpm", "-n", "200"] }
+```
+
+### `GLOBAL` — साइट-व्यापी, और एक बिल्कुल अलग ट्रांसपोर्ट <Badge text="2 commands" variant="tip" />
+
+`health` और `diagnosis` केवल दो ही हैं। ये `global` पथ पर `GET` अनुरोध हैं,
+कोई तर्क नहीं लेते, और टर्मिनल टेक्स्ट के बजाय संरचित JSON लौटाते हैं।
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
+```
+
+<Aside type="danger" title="GLOBAL कमांड exec-user के माध्यम से पहुँचने योग्य नहीं है">
+यही वह जाल है जिसमें सबसे अधिक समय बर्बाद होता है। `health` या `diagnosis` को
+`exec-user` पर भेजने पर `command not supported` मिलता है, जो ऐसा लगता है जैसे कमांड
+नोड पर मौजूद नहीं है — जबकि वास्तव में यह मौजूद है और आपने गलत ट्रांसपोर्ट का उपयोग किया।
+
+```bash
+# गलत। रिटर्न करता है: exec command failed: command not supported
+-d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
+
+# सही।
+GET .../vpm/debug/global/health
+```
+
+</Aside>
+
+### `Exec` — प्रिविलेज्ड टियर <Badge text="1 command on this build" variant="danger" />
+
+एक अलग एंडपॉइंट, और टियर सलाहकारी नहीं बल्कि लागू किया जाता है: `exec` एक
+`ExecUser` कमांड को उसी `command not supported` संदेश के साथ अस्वीकार करता है। प्रत्येक सदस्य
+या तो नोड को बदलता है या एक स्थिति मार्कर पढ़ता है।
+
+इस टेनेंट के चलने वाले बिल्ड पर, टियर में केवल `ip-link-set` है। नए बिल्ड
+`systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
+`systemctl-restart-kubelet`, `systemctl-start-crio-prune` और तीन
+`marker-exists-*` कमांड जोड़ते हैं।
+
+<Aside type="danger" title="यहाँ कोई Exec कमांड नहीं चलाई जाती">
+कैप्चर हार्नेस इस टियर को अस्वीकार करता है, और टियर को हार्डकोडेड सूची के बजाय लाइव कैटलॉग से पढ़ता है — इसलिए भविष्य का कोई बिल्ड जो किसी कमांड को `Exec` पर प्रमोट करे, उसे बिना किसी के कोड संपादित किए सम्मानित किया जाता है। इसे केवल जानबूझकर चलाएं, ऐसे नोड पर जिसे आप बाधित करने के लिए तैयार हों।
+</Aside>
+
+## साइट और नोड नाम खोजना
+
+नोड का नाम Azure VM नाम है, और `list-service` उस पर चल रही सेवाओं के साथ इसे
+पुष्टि करने का एक सस्ता तरीका है:
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/list-service" \
+  | jq -r '[.service[].node] | unique'
+```
+
+## इस रिपॉज़िटरी के कैप्चर को पुनः उत्पन्न करना
+
+प्रत्येक कमांड पेज `scripts/capture-sitecli.sh` द्वारा कैप्चर किया गया आउटपुट एम्बेड करता है,
+जो ऊपर के तीनों नियमों को लागू करता है।
+
+<Steps>
+
+1. इसे किसी टेनेंट पर इंगित करें। यह `XCSH_API_URL` और `XCSH_API_TOKEN` पढ़ता है, या
+   सक्रिय `xcsh` संदर्भ पर वापस जाता है।
+
+2. कैटलॉग रीफ्रेश करें और पुष्टि करें कि नोड दस्तावेज़ीकरण के अंतर्गत बदला नहीं है:
+
+   ```bash
+   bash scripts/capture-sitecli.sh --check
+   ```
+
+   यह केवल प्रतिबद्ध कैटलॉग और सॉफ़्टवेयर बिल्ड की तुलना करता है। यह जोड़े या हटाए गए कमांड से अलग एक बिल्ड परिवर्तन की रिपोर्ट करता है।
+
+3. जब आप नए प्रमाण चाहते हों तो पुनः कैप्चर करें:
+
+   ```bash
+   bash scripts/capture-sitecli.sh
+   ```
+
+</Steps>
+
+<Aside type="note" title="कैप्चर साक्ष्य हैं, पुनरुत्पादनीय आर्टिफैक्ट नहीं">
+काउंटर, अपटाइम और कंटेनर की आयु रनों के बीच बदलती है, इसलिए पुनः कैप्चर करने से हमेशा एक diff उत्पन्न होता है। कैटलॉग स्थिर अनुबंध है और जब नोड नहीं बदला हो तो रनों के बीच बाइट-समान होता है; यही `--check` तुलना करता है। लंबे आउटपुट को ट्रिम किया जाता है और एक स्पष्ट मार्कर के साथ समाप्त होता है, इसलिए एक कटी हुई तालिका को कभी भी पूर्ण के रूप में नहीं दिखाया जाता।
+</Aside>
+
+<Aside type="danger" title="किसी ग्राहक नोड से कैप्चर करना: रिडक्शन प्रोफ़ाइल जांचें">
+कमांड आउटपुट में इंफ्रास्ट्रक्चर पहचान होती है — आंतरिक एड्रेसिंग, MAC पते,
+AS नंबर, होस्टनाम — और किसी ग्राहक के लिए यह संगठन के बारे में पहचान योग्य जानकारी है।
+
+इसलिए स्क्रब फ़िल्टर डिफ़ॉल्ट रूप से एक **strict** प्रोफ़ाइल का उपयोग करता है जो इन सभी को हटा देता है।
+यह रिपॉज़िटरी `sitecli/capture-manifest.json` में `lab` घोषित करती है, जो उस विवरण को
+रखती है, और यह यहाँ केवल इसलिए सही है क्योंकि ये कैप्चर F5-स्वामित्व वाले डेमो
+इंफ्रास्ट्रक्चर से आते हैं।
+
+**उस सेटिंग को किसी ग्राहक कैप्चर पर न ले जाएं।** टोकन, निजी कुंजियाँ, टेनेंट
+पहचानकर्ता, ऑब्जेक्ट UUID, ईमेल पते और होम डायरेक्टरी पथ दोनों प्रोफ़ाइल के अंतर्गत हटा दिए जाते हैं।
+
+एक सीमा जानने योग्य है: एक BGP नेबर तालिका AS को एक सादे कॉलम के रूप में प्रिंट करती है
+जिसमें पैटर्न को एंकर करने के लिए कोई लेबल नहीं होता, इसलिए ASN को निजी श्रेणियों के
+विरुद्ध मूल्य द्वारा मिलान किया जाता है। एक **सार्वजनिक** ASN वहाँ strict में बचा रहता है,
+और प्रकाशित करने से पहले `show-ip-bgp*` आउटपुट की मैन्युअल समीक्षा की आवश्यकता होती है।
+</Aside>

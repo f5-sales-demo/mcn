@@ -1,0 +1,148 @@
+---
+title: Console seriale
+description: >-
+  Il percorso di accesso di emergenza a un Customer Edge che non si è mai
+  registrato, dove l'API di debug non riesce a raggiungere. Copre il
+  prerequisito della diagnostica di avvio, come verificare la disponibilità da
+  uno script e due guasti che sembrano interruzioni ma non lo sono.
+sidebar:
+  order: 30
+  label: Console seriale
+i18n:
+  sourceHash: 872d359be18d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+La console seriale di Azure si collega alla porta seriale emulata del nodo attraverso la
+Piattaforma Azure. Non attraversa il piano di controllo di F5 Distributed Cloud, il piano dati
+del nodo, né alcun percorso di rete controllato dal nodo — ed è esattamente per questo che funziona
+quando nulla altro funziona.
+
+Ricorrervi quando un CE **non si è mai avviato**: la registrazione è fallita, il sito è assente
+dal tenant, oppure il nodo è attivo ma non ha un percorso di uscita. In tutti questi casi l'
+[API di debug](../debug-api/) non dispone di un tunnel attraverso cui instradare, e SSH è chiuso sul
+nodo come consegnato.
+
+## Prerequisito: diagnostica di avvio
+
+Azure richiede la diagnostica di avvio sulla VM prima di poter collegare una console seriale.
+Questa viene abilitata da `terraform/modules/ce-node`:
+
+```hcl
+boot_diagnostics {}
+```
+
+Un blocco vuoto seleziona lo storage gestito da Azure, quindi non è necessario gestire alcun account
+di storage per la diagnostica, criteri del ciclo di vita o chiavi di accesso. Verificarlo su un nodo:
+
+```bash
+az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
+```
+
+```json
+{ "bootDiagnostics": { "enabled": true } }
+```
+
+<Aside type="caution" title="L'abilitazione non è retroattiva">
+La diagnostica di avvio acquisisce il log seriale **all'avvio**. Abilitarla su una VM già in
+esecuzione non produce un log per l'avvio già avvenuto, pertanto
+`az vm boot-diagnostics get-boot-log` restituisce:
+
+```
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+```
+
+Questo è un comportamento atteso, non un guasto. Un log di avvio sarà disponibile dopo il
+prossimo riavvio del nodo. Il collegamento alla console live, tuttavia, funziona immediatamente
+— non dipende dal log.
+</Aside>
+
+## Verifica della disponibilità senza un terminale
+
+Il collegamento richiede una sessione interattiva, ma se sarebbe possibile collegarsi è
+verificabile con due chiamate API. Entrambe sono utili in un controllo dello stato di salute.
+
+Il servizio deve essere abilitato per la sottoscrizione — un amministratore può disabilitarlo
+a livello di tenant:
+
+```bash
+az rest --method get --url \
+  "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.SerialConsole/consoleServices/default?api-version=2018-05-01"
+```
+
+```json
+{ "properties": { "disabled": false } }
+```
+
+Quindi richiedere una connessione alla porta seriale di un nodo specifico:
+
+```bash
+az rest --method post \
+  --headers "Content-Type=application/json" --body '{}' --url \
+  "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
+```
+
+Un `connectionString` che inizia con `wss://` — in questa distribuzione
+`eastus.gateway.serialconsole.azure.com` — indica che la console è collegabile in questo
+momento. Prima che la diagnostica di avvio fosse abilitata, questa chiamata non aveva nulla a cui
+collegarsi.
+
+<Aside type="danger" title="Quella stringa di connessione è una credenziale">
+È un token bearer di breve durata incorporato in un URL. Non registrarla nei log, incollarla in
+un ticket o includerla in un commit. Stampare solo il nome host quando si dimostra che la chiamata
+ha avuto successo.
+</Aside>
+
+## Collegamento
+
+<Steps>
+
+1. Installare l'estensione una volta:
+
+   ```bash
+   az extension add --name serial-console
+   ```
+
+2. Collegarsi:
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+3. Si accede al prompt di accesso del nodo stesso, non a una shell. Questo è il Site CLI e
+   richiede le credenziali impostate sul nodo — la password amministratore dalla fase di
+   provisioning, o una impostata tramite l'endpoint di modifica password. La console seriale
+   dimostra che il *canale* funziona; non aggira l'autenticazione.
+
+</Steps>
+
+<Aside type="caution" title="Richiede un terminale reale">
+`az serial-console connect` mette il terminale in modalità raw, pertanto non può essere eseguito
+da uno script, una pipeline o qualsiasi contesto privo di TTY. Il comando fallisce lato client
+prima di contattare Azure:
+
+```
+ERROR: (19, 'Operation not supported by device')
+  File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
+    GV.serial_console_instance.launch_console()
+```
+
+Questo traceback riguarda la gestione del terminale, non un'interruzione della console seriale
+— le due chiamate API precedenti segnalerà comunque la console come disponibile. Se è necessario
+un segnale automatizzabile, utilizzare quelle invece di cercare di automatizzare il collegamento.
+</Aside>
+
+## Cosa è possibile vedere qui che l'API non può mostrare
+
+- **cloud-init** in esecuzione, in errore o mai avviato — la causa più comune di un nodo
+  che non si registra mai.
+- **Tentativi di registrazione** verso `register.ves.volterra.io`, inclusi errori di
+  configurazione o token rifiutati dal tenant.
+- **Messaggi del kernel e di avvio** precedenti all'esecuzione di qualsiasi agente.
+- Il nodo quando non dispone di **alcun percorso di rete funzionante**, il che vanifica ogni
+  altro percorso di accesso.
+
+Per un nodo che è `ONLINE`, preferire l'API di debug: è automatizzabile, produce
+prove ripetibili e non occupa la singola porta seriale.

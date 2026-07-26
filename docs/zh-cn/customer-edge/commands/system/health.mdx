@@ -1,0 +1,40 @@
+---
+title: health
+description: 最佳的首选命令。在一个结构化响应中提供整个站点的注册状态、操作系统、资源及服务状态。
+sidebar:
+  order: 10
+  label: health
+i18n:
+  sourceHash: 0d60c51c2755
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `health`
+
+<Aside type="caution" title="GLOBAL 作用域 — 使用不同的传输方式">
+向 `global` 路径发送 `GET` 请求，而非 `command` 数组。将 `health` 发送至 `exec-user`
+会返回 `command not supported`。
+
+```bash
+curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+  "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health"
+```
+
+</Aside>
+
+```json file=../../../../_data/sitecli-health.txt
+```
+
+从这里开始。该命令开销小、响应结构化，并能回答关于任何 CE 的首要问题：`state`。`PROVISIONED` 表示节点已注册并完成配置。
+
+其他任何状态——`WAITING_FOR_CONFIG`，或完全没有响应——都意味着应停止调试数据平面，转而排查[注册](../../../workflows/registration/)问题。
+
+响应中还包含操作系统及内核版本、底层虚拟机的产品与厂商信息，以及软件构建版本。该构建版本字符串决定了节点上存在哪些命令，因此在假设某命令缺失之前，值得先记录该信息。
+
+由于响应为 JSON 格式，可以方便地进行查询：
+
+```bash
+... /vpm/debug/global/health | jq -r '.state, .os_info.os.name'
+```

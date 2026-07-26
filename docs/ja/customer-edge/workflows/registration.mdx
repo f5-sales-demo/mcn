@@ -1,0 +1,61 @@
+---
+title: オンラインにならなかったサイト
+description: 登録に失敗した CE に関する順序立てた手順。デバッグ API は、失敗した登録に依存しているため使用できません。
+sidebar:
+  order: 10
+  label: 登録
+i18n:
+  sourceHash: 4b54a905730d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+<Aside type="danger" title="API はこの問題をデバッグできません">
+デバッグ API は、登録によって確立されたトンネルを通じて F5 Distributed Cloud コントロールプレーン経由でノードに到達します。登録に失敗した場合、トンネルが存在しないため、このサイト上のすべてのコマンドはこの障害に対して利用できません。[シリアルコンソール](../../access/serial-console/)から作業してください。
+</Aside>
+
+<Steps>
+
+1. **テナントの状態を確認します。** サイト一覧に存在しないことは、存在しているが `ONLINE` でない場合とは異なる問題です。
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
+   ```
+
+   サイトが存在し `ONLINE` と報告されている場合、登録は成功しており、このワークフローは対象外です。
+
+2. **保留中の登録を確認します。** ノードが登録後に承認待ちになる場合があり、外部からは障害と区別がつきません。
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+   ```
+
+3. **ソフトウェア障害を想定する前に、VM が実際に稼働していることを確認します。**
+
+   ```bash
+   az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
+   ```
+
+4. **シリアルコンソールに接続します。** これにはターミナルが必要であり、スクリプト化することはできません。
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+   接続を拒否された場合は、ノードに到達できないと判断する前に、VM でブート診断が有効になっているか確認してください。その前提条件と障害モードについては、[シリアルコンソール](../../access/serial-console/)のページで説明しています。
+
+5. **コンソールの表示を次の順序で確認します。** 最初に cloud-init を確認します。cloud-init が完了していないノードは、登録に必要な設定が存在しません。次に登録の試行状況を確認し、最後に DNS を確認します。ノードが `register.ves.volterra.io` を解決できない場合、後続の処理はすべて機能しません。
+
+6. **ノードが `ONLINE` になったら**、[`health`](../../commands/system/health/) で確認し、`state: PROVISIONED` であることを期待します。
+
+</Steps>
+
+## よくある原因
+
+- cloud-init が完了しなかったため、`/etc/vpm/config.yaml` が存在しないか不正な内容になっている。
+- 登録トークンが期限切れ、すでに使用済み、または別のテナントのものである。
+- `register.ves.volterra.io` へのエグレスルートが存在しない。
+- 証明書を無効にするほど大きなクロックスキューがある — 後で [`chronyc-sources`](../../commands/network/chronyc-sources/) で素早く確認できるが、ノードがオンラインになるまでは到達できない。

@@ -1,0 +1,72 @@
+---
+title: Schnittstellen
+description: >-
+  Linux-seitige Schnittstellen und Verbindungsstatus am Knoten sowie der einzige
+  privilegierte Befehl, der diese ändert. Was Linux erkennt, kann von der
+  Datenebene widersprochen werden.
+sidebar:
+  order: 60
+  label: Schnittstellen
+i18n:
+  sourceHash: 7ad734b3a357
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Diese Befehle geben die Sicht des Kernels wieder. Die Argo-Datenebene verwaltet eine
+eigene Sicht, die über [`vif`](../dataplane-forwarding/) einsehbar ist – beide können
+voneinander abweichen.
+
+## `ip`
+
+Erwartet einen `ip`-Unterbefehl. `addr` ist der gebräuchlichste; `route`, `link` und
+`neigh` funktionieren ebenfalls.
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+Der CE verfügt konstruktionsbedingt über drei NICs, und die Reihenfolge ist
+bedeutsam: `eth0` ist die Management- und SLO-Schnittstelle, die die lokale BGP-
+Adresse des Standorts trägt, gefolgt von externer und interner Schnittstelle. Zu
+beachten ist `a-i-eth0` in der Ausgabe – die Datenebene hat die physische Schnittstelle
+übernommen und präsentiert eine eigene.
+
+## `ip-link-show`
+
+Ausschließlich Verbindungsschicht: Zustand, MTU, Warteschlangendisziplin, MAC.
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+Schneller als `ip addr`, wenn die Frage lautet: „Ist die Verbindung aktiv und wie
+groß ist deren MTU?" MTU-Abweichungen sind eine wiederkehrende Ursache für Tunnel,
+die zwar aufgebaut werden, aber keinen Datenverkehr weiterleiten.
+
+## `ip-link-set` <Badge text="Exec-Ebene – verändernd" variant="danger" />
+
+Setzt eine Schnittstelle oder Gruppe auf aktiv oder inaktiv.
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="Wird hier nicht ausgeführt und ist auf dem üblichen Weg nicht erreichbar">
+Dies ist der einzige Befehl der `Exec`-Ebene in diesem Build. Er wird an den
+`exec`-Endpunkt anstelle von `exec-user` gesendet und verändert den Knoten: Das
+Deaktivieren von `eth0` an einem entfernten CE entfernt den Pfad, über den er
+verwaltet wird – einschließlich der Debug-API selbst.
+
+Auf dieser Seite wird absichtlich keine aufgezeichnete Ausgabe bereitgestellt. Der
+Aufzeichnungsrahmen verweigert die gesamte `Exec`-Ebene und liest die Ebene aus dem
+Live-Katalog anstatt aus einer fest codierten Liste, sodass dies auch dann zutrifft,
+wenn ein zukünftiger Build weitere Befehle in diese Ebene aufnimmt.
+</Aside>

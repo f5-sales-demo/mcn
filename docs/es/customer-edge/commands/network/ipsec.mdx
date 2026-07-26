@@ -1,0 +1,51 @@
+---
+title: IPsec
+description: >-
+  Si los túneles hacia los edges regionales de F5 están establecidos, y los
+  contadores de tráfico que prueban que transportan datos. Dos comandos, uno
+  resumido y uno detallado.
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+El CE construye túneles IPsec hacia los edges regionales de F5. Si están caídos, el sitio
+queda aislado de la red global independientemente de lo saludable que parezca localmente.
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+La primera línea es la respuesta: `Security Associations (2 up, 0 connecting)`. Cualquier valor
+en `connecting` indica un túnel que está intentando conectarse sin éxito.
+
+Cada SA nombra el edge regional en el que termina — `ny8-nyc`, `dc12-ash` son códigos
+de POP de F5 — por lo que esto también indica *a cuáles* edges está conectado el sitio.
+
+`ESTABLISHED` con una antigüedad, seguido de `INSTALLED, TUNNEL`, es un par saludable: el
+primero es la sesión IKE, el segundo el SA hijo que realmente transporta el tráfico. Una
+sesión IKE establecida sin ningún SA hijo instalado es el fallo interesante.
+
+## `ipsec-statusall`
+
+La misma información más contadores de bytes y paquetes por SA, temporizadores de renegociación y los
+algoritmos negociados.
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+Úselo para distinguir "el túnel está activo" de "el túnel está transportando tráfico". Un
+túnel establecido durante horas con bytes casi nulos está activo pero sin uso, lo que generalmente
+significa que el problema es de enrutamiento y no del túnel.

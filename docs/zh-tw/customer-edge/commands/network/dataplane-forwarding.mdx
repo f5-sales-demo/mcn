@@ -1,0 +1,62 @@
+---
+title: 路由與下一跳
+description: Argo 資料平面實際轉發所依據的內容（不一定與 Linux 的認知一致）。涵蓋 vRouter 路由表、下一跳表與虛擬介面。
+sidebar:
+  order: 50
+  label: 路由與下一跳
+i18n:
+  sourceHash: 79de27e2024e
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo 將轉發狀態與 Linux 核心分開維護。當
+[`ip`](../ip/) 與以下指令出現不一致時，以這些指令的結果為準來決定流量走向。
+
+## `rt`
+
+依 VRF 劃分的 vRouter 路由表。
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="VRF id 並非 BGP 所回報的數值">
+`show-ip-bgp-summary` 顯示的是 `vrf-id 3`，那是 FRR 的編號體系，與 vRouter 的表 id 屬於不同命名空間。將該數值傳入此處時，會以令人誤以為節點損壞的方式失敗：
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+對 `--dump 0` 也會回傳相同的錯誤。在本拓撲中，**VRF 2** 是已填充資料的 inet4 表，VRF 1 則持有兩條路由。若不確定 id，請從 1 開始向上逐一探測，而非輕信 BGP 的輸出結果。
+</Aside>
+
+## `nh`
+
+下一跳表。每條路由都指向一個下一跳 id，此表負責解析對應關係。
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+每筆記錄包含一個 `Type`——`Drop`、`Encap`、`Tunnel`、`Composite`——以及所屬的 VRF。解析至 `Drop` 下一跳的路由即為黑洞路由；當某個前綴已出現在 `rt` 中卻仍有流量消失時，這種組合值得優先排查。
+
+## `vif`
+
+虛擬介面表：資料平面所綁定的介面及各介面的計數器。
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+頂部的旗標說明值得仔細閱讀一次——`Vp` 標示 vhost 實體介面，`Dpdk` 標示由 DPDK 管理的介面。可藉此確認資料平面已接管預期中的介面，並查看 Linux 無法顯示的 RX 與 TX 計數器（因為這些流量從未抵達核心）。

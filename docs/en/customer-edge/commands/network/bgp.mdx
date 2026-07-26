@@ -1,0 +1,87 @@
+---
+title: BGP
+description: Whether the site is peering, what it advertises, and what it learns. Four commands covering the summary, the full table, neighbour detail and advertised routes.
+sidebar:
+  order: 10
+  label: BGP
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The CE runs FRR for BGP. On this topology it peers with the two Azure Route Server
+instances, advertises the VIP, and learns the VNet prefix.
+
+## `show-ip-bgp-summary`
+
+Start here. One screen tells you whether peering is up and how long it has been
+stable.
+
+```bash
+{"command":["show-ip-bgp-summary"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
+```
+
+Read `State/PfxRcd` first. A number is the count of prefixes received and means the
+session is established; anything else — `Active`, `Connect`, `Idle` — is a session
+that is not up. `Up/Down` shows how long the current state has lasted, so a session
+that keeps resetting shows a suspiciously small value.
+
+<Aside type="caution" title="The vrf id here is not the one rt wants">
+This output reports `vrf-id 3`. That is FRR's numbering. The Argo data plane uses a
+separate table id, and passing FRR's number to
+[`rt --dump`](../dataplane-forwarding/) returns `No such file or directory`, which
+looks like a broken node rather than the wrong argument.
+</Aside>
+
+## `show-ip-bgp`
+
+The full table, with best-path selection visible.
+
+```bash
+{"command":["show-ip-bgp"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp.txt
+```
+
+`*` is a valid route, `>` the selected best path, `=` a multipath member. Two
+entries for one prefix both marked `*=` means ECMP is in effect, which is the
+intended state on this topology.
+
+## `show-ip-bgp-neighbors`
+
+Per-neighbour detail: capabilities negotiated, timers, message counters and the
+reason for the last reset.
+
+```bash
+{"command":["show-ip-bgp-neighbors"]}
+```
+
+Reach for it when the summary shows a session flapping and you need to know why.
+`Last reset` and its reason are the useful lines.
+
+<Aside type="note" title="No captured output on this page yet">
+This capture cannot be committed until `f5-sales-demo/docs-control#795` lands. FRR
+misspells a word in its Graceful Restart line, and `codespell` rejects the file.
+
+Correcting captured text would make this documentation describe output that never
+occurred, so it is being fixed upstream instead. Run the command against your own
+node in the meantime.
+</Aside>
+
+## `show-ip-bgp-neighbors-advertised-route`
+
+What this node is telling its peers, as opposed to what it knows.
+
+```bash
+{"command":["show-ip-bgp-neighbors-advertised-route"]}
+```
+
+```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
+```
+
+This is the command for "the VIP is not reachable from the VNet". If the VIP is
+absent here, the problem is on this node and no amount of looking at the peer will
+help.

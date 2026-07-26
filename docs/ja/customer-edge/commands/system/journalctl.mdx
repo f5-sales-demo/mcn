@@ -1,0 +1,35 @@
+---
+title: journalctl
+description: ノード上の任意のユニットに対する Systemd ジャーナル。登録の失敗と時系列での vpm の動作を確認するための主要なソース。
+sidebar:
+  order: 50
+  label: journalctl
+i18n:
+  sourceHash: 38a11be4d7d8
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## `journalctl`
+
+```bash
+{"command":["journalctl","-u","vpm","-n","200"]}
+```
+
+標準的な `journalctl` の引数で、それぞれが個別の配列要素となっています。`-u vpm` は最もよく使用するオプションです。`vpm` はノードを登録し、ノード上のすべてを管理するエージェントであるため、タイムスタンプ付きの登録失敗や再起動をまたいだ情報がジャーナルに記録されます。
+
+よく使用するバリエーション:
+
+| 引数 | 確認できる内容 |
+| --- | --- |
+| `-u vpm -n 200` | vpm が最近何をしているか |
+| `-u vpm --since "10 min ago"` | 再現操作中に何が起きたか |
+| `-p err -n 100` | すべてのユニットからのエラー |
+| `-u kubelet -n 200` | Kubernetes スタックが正常でない理由 |
+
+タイムスタンプが必要な場合、再起動をまたいで確認したい場合、または vpm を別のユニットと相関させたい場合は、[`docker-logs vpm`](../docker/) よりこちらを優先してください。
+
+<Aside type="note" title="このページにはまだキャプチャされた出力がありません">
+このキャプチャは `f5-sales-demo/docs-control#795` がマージされるまでコミットできません。ジャーナルには FRR からのスペルミスを含む行が出力されており、`codespell` がそのファイルを拒否します。キャプチャされたテキストを編集すると、実際には発生していない出力を説明するページになってしまうため、修正はマネージド設定の上流で行われています。
+</Aside>

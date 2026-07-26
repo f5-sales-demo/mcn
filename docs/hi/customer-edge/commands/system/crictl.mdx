@@ -1,0 +1,83 @@
+---
+title: crictl
+description: >-
+  CRI-O रनटाइम, जो Kubernetes वर्कलोड चलाता है। कंटेनर, इमेज, निरीक्षण और लॉग्स
+  को कवर करने वाले पाँच कमांड।
+sidebar:
+  order: 30
+  label: crictl
+i18n:
+  sourceHash: a89c97f7982f
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+CRI-O Kubernetes वर्कलोड चलाता है। प्लेटफ़ॉर्म सेवाएँ — `vpm`, `argo_watch`,
+`site-console` — [Docker](../docker/) कंटेनर हैं और यहाँ दिखाई नहीं देंगी।
+
+## `crictl-ps`
+
+```bash
+{"command":["crictl-ps"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps.txt
+```
+
+चल रहे कंटेनर उनके पॉड, इमेज और रीस्टार्ट काउंट के साथ। `ATTEMPT` वह है जिसे
+पढ़ना चाहिए: बढ़ता हुआ रीस्टार्ट काउंट एक क्रैश लूप है, और इस आउटपुट से मिला
+कंटेनर id नीचे दिए गए दो कमांड को फ़ीड करता है।
+
+## `crictl-ps-a`
+
+```bash
+{"command":["crictl-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-ps-a.txt
+```
+
+बाहर निकले (exited) कंटेनर भी शामिल हैं। इसका उपयोग तब करें जब कुछ *चल रहा था*
+और अब नहीं चल रहा — बाहर निकली हुई एंट्री और उसका कंटेनर id ही वह साधन है जो
+विफल रन के लॉग पढ़ने देता है।
+
+## `crictl-images`
+
+```bash
+{"command":["crictl-images"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-images.txt
+```
+
+पुष्टि करता है कि इमेज वास्तव में नोड पर मौजूद है, जो पुल विफलता को शेड्यूलिंग
+विफलता से अलग करती है।
+
+## `crictl-inspect`
+
+```bash
+{"command":["crictl-inspect","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-inspect.txt
+```
+
+पूर्ण JSON: माउंट, एनवायरनमेंट, संसाधन सीमाएँ, कमांड लाइन और एग्जिट स्टेट।
+लंबा है, इसलिए इसे पढ़ने की बजाय क्वेरी करें।
+
+## `crictl-logs`
+
+```bash
+{"command":["crictl-logs","<container-id>"]}
+```
+
+```text file=../../../../_data/sitecli-crictl-logs.txt
+```
+
+<Aside type="note" title="कंटेनर ids प्रति-रन होते हैं">
+इन कैप्चर में मौजूद ids एक सैंपल रन से आए हैं और आपके नोड पर मौजूद नहीं होंगे।
+पहले `crictl-ps` से एक वर्तमान id लें। कैप्चर हार्नेस ठीक यही करता है —
+इसका मैनिफ़ेस्ट कैप्चर के समय पहला कंटेनर id रिज़ॉल्व करता है, न कि कोई
+हार्डकोड किया हुआ id उपयोग करता है।
+</Aside>

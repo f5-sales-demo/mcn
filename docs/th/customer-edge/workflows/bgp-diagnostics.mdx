@@ -1,0 +1,41 @@
+---
+title: เส้นทางไม่ถูกโฆษณาหรือเรียนรู้
+description: >-
+  ลำดับขั้นตอนสำหรับไซต์ที่ออนไลน์อยู่แต่ VIP ไม่สามารถเข้าถึงได้
+  หรือไม่ได้เรียนรู้ prefix ที่ควรจะได้รับ
+sidebar:
+  order: 20
+  label: BGP
+i18n:
+  sourceHash: eff4d5527048
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+สำหรับไซต์ที่มีสถานะ `ONLINE` — หากไม่ใช่ ให้เริ่มต้นที่
+[การลงทะเบียน](../registration/)
+
+<Steps>
+
+1. **การ peering ทำงานอยู่หรือไม่?**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/) อ่านค่า `State/PfxRcd`: หากเป็นตัวเลขหมายความว่าเชื่อมต่อแล้ว และ `Up/Down` แสดงให้เห็นว่าการเชื่อมต่อมีความเสถียรหรือไม่ ค่าที่น้อยในไซต์ที่ทำงานมาหลายวันหมายความว่า session กำลังขาดหายและเชื่อมต่อซ้ำ (flapping)
+
+2. **หาก session หยุดทำงาน** สาเหตุมักอยู่ต่ำกว่าระดับ BGP ให้ตรวจสอบว่า interface ที่รองรับ peering ทำงานอยู่ด้วย
+   [`ip-link-show`](../../commands/network/ip/) จากนั้นยืนยันการเข้าถึง peer address บนโทโพโลยีนี้ peer คือ Azure Route Server instances
+
+3. **หาก session ทำงานอยู่แต่ VIP ไม่สามารถเข้าถึงได้** ให้ตรวจสอบว่า node กำลังโฆษณาอะไรอยู่จริง ๆ ด้วย
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/) หาก VIP ไม่ปรากฏอยู่ที่นั่น ปัญหาอยู่ที่ node นี้ และการดูที่ peer จะไม่ช่วยแก้ปัญหาได้
+
+4. **หาก node โฆษณาได้อย่างถูกต้องแต่ทราฟฟิกยังไม่มาถึง** control plane และ data plane ขัดแย้งกัน ให้ตรวจสอบตาราง forwarding ที่ data plane ใช้งานจริงด้วย [`rt`](../../commands/network/dataplane-forwarding/) โดยจำไว้ว่า VRF id ของมันไม่ใช่ตัวที่ BGP รายงาน
+
+   จากนั้นแก้ไข next hop ด้วย `nh` prefix ที่ปรากฏใน `rt` ซึ่ง next hop เป็น `Drop` คือ blackhole
+
+5. **หาก session flapping** [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
+   จะมีสาเหตุการ reset ครั้งล่าสุดและ timer ที่ตกลงกันไว้
+
+</Steps>
+
+<Aside type="caution" title="รูปแบบการกำหนดหมายเลข VRF สองแบบที่แตกต่างกัน">
+`show-ip-bgp-summary` รายงาน `vrf-id` ของ FRR ส่วน Argo data plane กำหนดหมายเลขตารางแยกต่างหาก และการส่ง FRR's number ไปยัง `rt --dump` จะคืนค่า `No such file or directory` — ซึ่งดูเหมือน node เสียมากกว่าการส่ง argument ผิด บนโทโพโลยีนี้ VRF 2 คือตาราง inet4 ที่มีข้อมูล
+</Aside>

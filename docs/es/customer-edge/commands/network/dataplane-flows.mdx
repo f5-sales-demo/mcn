@@ -1,0 +1,44 @@
+---
+title: Tabla de flujos
+description: >-
+  Estado por conexión en el plano de datos de Argo. Use el formulario de
+  coincidencia para encontrar una conexión; el volcado completo es enorme.
+sidebar:
+  order: 40
+  label: Tabla de flujos
+i18n:
+  sourceHash: c654c4d3ca8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo realiza un seguimiento de cada conexión. La tabla en este nodo tiene 629.760 entradas, por lo que la forma en que se consulta importa más que su contenido.
+
+## `flow-l-match`
+
+Casi siempre es la opción que necesita. Acepta una dirección, o una dirección y puerto.
+
+```bash
+{"command":["flow-l-match","100.127.192.10:53"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l-match.txt
+```
+
+La acción en cada flujo es lo relevante: `F` reenviar, `D` descartar, `N` NAT. Un flujo presente con acción `D` significa que el plano de datos tomó una decisión deliberada, lo que redirige la atención hacia la política en lugar de hacia la conectividad.
+
+## `flow-l`
+
+El volcado completo.
+
+```bash
+{"command":["flow-l"]}
+```
+
+```text file=../../../../_data/sitecli-flow-l.txt
+```
+
+<Aside type="caution" title="Recortado y enorme">
+La captura anterior está recortada a las primeras 60 líneas de 1057, y 1057 era en sí misma el límite de la API y no la tabla completa. Use `flow-l-match` a menos que realmente necesite examinar la tabla completa, y tenga en cuenta que los conteos del encabezado —tamaño de la tabla y recuento de entradas— serán las únicas partes que valdrá la pena leer cuando lo haga.
+</Aside>

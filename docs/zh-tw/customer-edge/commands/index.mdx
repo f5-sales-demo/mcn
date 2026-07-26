@@ -1,0 +1,81 @@
+---
+title: 指令參考
+description: 可透過除錯 API 存取的所有 Site CLI 指令，包含其類別、權限層級與傳輸方式。請閱讀特定指令頁面以了解語法與擷取的輸出內容。
+sidebar:
+  order: 20
+  label: 指令
+i18n:
+  sourceHash: 44781a8d910a
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+擷取自執行軟體版本 `crt-20250613-3382` 的線上節點，該版本公開了
+**34 個指令**。以下每個頁面均顯示來自該節點的實際輸出，而非轉錄的範例。
+
+`Tier` 欄位並非建議性資訊。它決定指令必須傳送至哪個端點，若將指令傳送至錯誤的端點，將回傳 `command not supported`——這看起來像是該指令不存在。使用此表格前，請先參閱
+[除錯 API](../access/debug-api/)。
+
+| 指令 | 類別 | 層級 | 傳輸方式 | 範例參數 |
+| --- | --- | --- | --- | --- |
+| [`chronyc-sources`](./network/chronyc-sources/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`crictl-images`](./system/crictl/) | 系統 | `ExecUser` | `exec-user` | 無 |
+| [`crictl-inspect`](./system/crictl/) | 系統 | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-logs`](./system/crictl/) | 系統 | `ExecUser` | `exec-user` | `container-id` |
+| [`crictl-ps`](./system/crictl/) | 系統 | `ExecUser` | `exec-user` | 無 |
+| [`crictl-ps-a`](./system/crictl/) | 系統 | `ExecUser` | `exec-user` | 無 |
+| [`curl-host`](./network/curl/) | 網路 | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`curl-vega`](./network/curl/) | 網路 | `ExecUser` | `exec-user` | `-v cloud.f5.com` |
+| [`diagnosis`](./system/diagnosis/) | 系統 | `ExecUser` | `global` GET | 無 |
+| [`dig`](./network/dig/) | 網路 | `ExecUser` | `exec-user` | `@192.168.0.2 http://volterra.azurecr.io` |
+| [`docker-images`](./system/docker/) | 系統 | `ExecUser` | `exec-user` | 無 |
+| [`docker-inspect`](./system/docker/) | 系統 | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-logs`](./system/docker/) | 系統 | `ExecUser` | `exec-user` | `container-id OR name` |
+| [`docker-ps`](./system/docker/) | 系統 | `ExecUser` | `exec-user` | 無 |
+| [`docker-ps-a`](./system/docker/) | 系統 | `ExecUser` | `exec-user` | 無 |
+| [`dropstats`](./network/dataplane-drops/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`dropstats-non-zero`](./network/dataplane-drops/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`flow-l`](./network/dataplane-flows/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`flow-l-match`](./network/dataplane-flows/) | 網路 | `ExecUser` | `exec-user` | `100.127.192.10:53` |
+| [`health`](./system/health/) | 系統 | `ExecUser` | `global` GET | 無 |
+| [`ip`](./network/ip/) | 網路 | `ExecUser` | `exec-user` | `help OR addr` |
+| [`ip-link-set`](./network/ip/) | 網路 | `Exec` | `exec` | `(<device>\|\|<group>) (up\|\|down)` |
+| [`ip-link-show`](./network/ip/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`ipsec-status`](./network/ipsec/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`ipsec-statusall`](./network/ipsec/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`journalctl`](./system/journalctl/) | 系統 | `ExecUser` | `exec-user` | `-u vpm -n 200` |
+| [`netstat`](./network/netstat/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`nh`](./network/dataplane-forwarding/) | 網路 | `ExecUser` | `exec-user` | `--help OR --list` |
+| [`rt`](./network/dataplane-forwarding/) | 網路 | `ExecUser` | `exec-user` | `--help OR --dump $vrf-id OR --get $ipv4 --vrf $vrf-id` |
+| [`show-ip-bgp`](./network/bgp/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`show-ip-bgp-neighbors`](./network/bgp/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`show-ip-bgp-neighbors-advertised-route`](./network/bgp/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`show-ip-bgp-summary`](./network/bgp/) | 網路 | `ExecUser` | `exec-user` | 無 |
+| [`vif`](./network/dataplane-forwarding/) | 網路 | `ExecUser` | `exec-user` | `--list` |
+
+<Aside type="danger" title="此處有一個指令會變更節點狀態">
+`ip-link-set` 屬於 `Exec` 層級，可將介面設定為啟用或停用。此指令為求完整性而列入文件，不含擷取的輸出內容，且從不由擷取工具執行。
+</Aside>
+
+## 僅適用於較新版本
+
+當前版本（`crt-20260201-0179`）公開了 **43** 個指令——為嚴格的超集，未移除任何指令，且無任何中繼資料變更。以下九個指令為此租戶所缺少：
+
+| 指令 | 類別 | 層級 |
+| --- | --- | --- |
+| `collect-database-stats` | 系統 | `ExecUser` |
+| `iptables-lv` | 網路 | `ExecUser` |
+| `marker-exists-NetworkManager` | 系統 | `Exec` |
+| `marker-exists-crio` | 系統 | `Exec` |
+| `marker-exists-kubelet` | 系統 | `Exec` |
+| `systemctl-restart-NetworkManager` | 系統 | `Exec` |
+| `systemctl-restart-crio` | 系統 | `Exec` |
+| `systemctl-restart-kubelet` | 系統 | `Exec` |
+| `systemctl-start-crio-prune` | 系統 | `Exec` |
+
+這些指令僅列出名稱與層級，資料來源為針對該版本節點進行的目錄探索。此處無這些指令的擷取輸出，因為此租戶無法執行它們。請注意，九個指令中有四個會在線上資料平面下重新啟動服務。
+
+<Aside type="note" title="偵測介面異動">
+由於介面會隨軟體版本擴展，目錄會記錄其來源的版本，且 `scripts/capture-sitecli.sh --check` 會將版本變更與新增或移除的指令分開回報。當這些節點升級時，正是透過此檢查得知這九個指令已加入。
+</Aside>

@@ -1,0 +1,35 @@
+---
+title: chronyc-sources
+description: >-
+  Estado de sincronização NTP. O desvio de relógio quebra a validação de
+  certificados e a autenticação de tokens antes de causar qualquer problema
+  evidente.
+sidebar:
+  order: 100
+  label: chronyc-sources
+i18n:
+  sourceHash: 37ac33fac843
+  translator: machine
+---
+
+## `chronyc-sources`
+
+```bash
+{"command":["chronyc-sources"]}
+```
+
+```text file=../../../../_data/sitecli-chronyc-sources.txt
+```
+
+O caractere inicial em cada linha indica o estado: `*` é a fonte atualmente
+selecionada, `+` uma alternativa aceitável, `-` uma excluída pelo algoritmo de
+seleção, e `?` uma que está inacessível. Exatamente um `*` representa o caso
+saudável.
+
+`Reach` é um registrador octal das últimas oito consultas, portanto `377` significa que todas as oito
+foram bem-sucedidas. Um valor diferente de `377` indica que consultas estão sendo perdidas. `LastRx` mostra há
+quanto tempo a fonte respondeu pela última vez.
+
+Vale verificar logo de início quando a autenticação ou o TLS estiver falhando sem motivo aparente: um
+nó cujo relógio tenha desviado o suficiente rejeitará certificados válidos e terá seus
+tokens rejeitados, e os erros resultantes raramente mencionam o horário.

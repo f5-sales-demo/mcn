@@ -1,0 +1,151 @@
+---
+title: Console serial
+description: >-
+  A rota de emergência para um Customer Edge que nunca registrou, onde a API de
+  depuração não consegue alcançar. Abrange o pré-requisito de diagnóstico de
+  inicialização, como verificar a disponibilidade a partir de um script e duas
+  falhas que parecem interrupções, mas não são.
+sidebar:
+  order: 30
+  label: Console serial
+i18n:
+  sourceHash: 872d359be18d
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+O Console Serial do Azure conecta-se à porta serial emulada do nó por meio da
+plataforma Azure. Ele não atravessa o plano de controle do F5 Distributed Cloud, o
+plano de dados do nó nem qualquer caminho de rede controlado pelo nó — o que é
+exatamente o motivo pelo qual funciona quando mais nada funciona.
+
+Utilize-o quando um CE **nunca inicializou**: o registro falhou, o site está ausente
+do tenant, ou o nó está ativo mas sem rota de saída. Em todos esses casos, a
+[API de depuração](../debug-api/) não possui túnel para retransmitir, e o SSH está
+fechado no nó conforme entregue.
+
+## Pré-requisito: diagnóstico de inicialização
+
+O Azure exige diagnóstico de inicialização na VM antes de conectar um console serial.
+Isso é habilitado por `terraform/modules/ce-node`:
+
+```hcl
+boot_diagnostics {}
+```
+
+Um bloco vazio seleciona o armazenamento gerenciado pelo Azure, portanto não há
+conta de armazenamento de diagnóstico, política de ciclo de vida ou chave de acesso
+para gerenciar. Confirme em um nó:
+
+```bash
+az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
+```
+
+```json
+{ "bootDiagnostics": { "enabled": true } }
+```
+
+<Aside type="caution" title="Habilitá-lo não é retroativo">
+O diagnóstico de inicialização captura o log serial **na inicialização**. Ativá-lo
+em uma VM que já está em execução não produz um log para a inicialização que já
+ocorreu, portanto `az vm boot-diagnostics get-boot-log` retorna:
+
+```
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+```
+
+Isso é esperado, não é uma falha. Um log de inicialização existirá após a próxima
+reinicialização do nó. A conexão ao console ao vivo, no entanto, funciona
+imediatamente — ela não depende do log.
+</Aside>
+
+## Verificando a disponibilidade sem um terminal
+
+A conexão requer uma sessão interativa, mas saber se ela *seria* estabelecida
+resume-se a duas chamadas de API. Ambas são úteis em uma verificação de integridade.
+
+O serviço deve estar habilitado para a assinatura — um administrador pode desativá-lo
+em todo o tenant:
+
+```bash
+az rest --method get --url \
+  "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.SerialConsole/consoleServices/default?api-version=2018-05-01"
+```
+
+```json
+{ "properties": { "disabled": false } }
+```
+
+Em seguida, solicite uma conexão à porta serial de um nó específico:
+
+```bash
+az rest --method post \
+  --headers "Content-Type=application/json" --body '{}' --url \
+  "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
+```
+
+Um `connectionString` iniciado com `wss://` — neste deployment
+`eastus.gateway.serialconsole.azure.com` — significa que o console pode ser
+conectado agora. Antes de o diagnóstico de inicialização ser habilitado, essa
+chamada não tinha nada ao qual se conectar.
+
+<Aside type="danger" title="Essa string de conexão é uma credencial">
+É um token bearer de curta duração embutido em uma URL. Não registre em log, não
+cole em um chamado nem faça commit. Exiba apenas o host quando estiver demonstrando
+que a chamada funcionou.
+</Aside>
+
+## Conectando
+
+<Steps>
+
+1. Instale a extensão uma vez:
+
+   ```bash
+   az extension add --name serial-console
+   ```
+
+2. Conecte:
+
+   ```bash
+   az serial-console connect -g <resource-group> -n <vm-name>
+   ```
+
+3. Você chegará ao prompt de login do próprio nó, não a um shell. Este é o Site CLI,
+   e requer credenciais definidas no nó — a senha de administrador do provisionamento
+   ou uma definida por meio do endpoint de alteração de senha. O console serial prova
+   que o *canal* funciona; ele não ignora a autenticação.
+
+</Steps>
+
+<Aside type="caution" title="É necessário um terminal real">
+`az serial-console connect` coloca o terminal em modo raw, portanto não pode ser
+executado a partir de um script, de um pipeline ou de qualquer contexto sem TTY.
+Ele falha no lado do cliente antes de contatar o Azure:
+
+```
+ERROR: (19, 'Operation not supported by device')
+  File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
+    GV.serial_console_instance.launch_console()
+```
+
+Esse rastreamento de pilha é tratamento de terminal, não uma interrupção do console
+serial — as duas chamadas de API acima ainda reportarão o console como disponível.
+Se você precisar de um sinal automatizável, utilize-as em vez de tentar automatizar
+a conexão.
+</Aside>
+
+## O que você pode ver aqui que a API não consegue mostrar
+
+- **cloud-init** em execução, falhando ou nunca iniciando — a causa habitual de um
+  nó que nunca registra.
+- **Tentativas de registro** contra `register.ves.volterra.io`, incluindo um erro de
+  configuração ou um token rejeitado pelo tenant.
+- **Mensagens do kernel e de inicialização** de antes de qualquer agente estar em
+  execução.
+- O nó quando ele **não possui caminho de rede funcional**, o que invalida todas as
+  outras rotas.
+
+Para um nó que *está* `ONLINE`, prefira a API de depuração: ela é automatizável,
+produz evidências que podem ser reexecutadas e não ocupa a porta serial única.

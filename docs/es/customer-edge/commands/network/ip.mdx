@@ -1,0 +1,67 @@
+---
+title: Interfaces
+description: >-
+  Vista del kernel sobre el estado de interfaz y enlace en el nodo, más el único
+  comando privilegiado que lo modifica. Lo que Linux percibe, que el plano de
+  datos puede contradecir.
+sidebar:
+  order: 60
+  label: Interfaces
+i18n:
+  sourceHash: 7ad734b3a357
+  translator: machine
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Estos informan la vista del kernel. El plano de datos Argo mantiene la suya propia, visible a través de
+[`vif`](../dataplane-forwarding/), y ambas pueden diferir.
+
+## `ip`
+
+Acepta un subcomando `ip`. `addr` es el más común; `route`, `link` y `neigh` también
+funcionan.
+
+```bash
+{"command":["ip","addr"]}
+```
+
+```text file=../../../../_data/sitecli-ip.txt
+```
+
+El CE tiene tres NIC por diseño, y el orden importa: `eth0` es la interfaz de gestión y
+SLO que transporta la dirección BGP local del sitio, seguida de las interfaces externa e interna.
+Observe `a-i-eth0` en la salida — el plano de datos ha tomado el control de la interfaz
+física y presenta la suya propia.
+
+## `ip-link-show`
+
+Solo capa de enlace: estado, MTU, disciplina de cola, MAC.
+
+```bash
+{"command":["ip-link-show"]}
+```
+
+```text file=../../../../_data/sitecli-ip-link-show.txt
+```
+
+Más rápido que `ip addr` cuando la pregunta es "¿está el enlace activo y cuál es su MTU?".
+Los desajustes de MTU son una causa recurrente de túneles que se establecen pero no transmiten tráfico.
+
+## `ip-link-set` <Badge text="Nivel Exec — mutante" variant="danger" />
+
+Sube o baja una interfaz o grupo.
+
+```
+ip-link-set (<device>||<group>) (up||down)
+```
+
+<Aside type="danger" title="No se ejecuta aquí, ni es accesible de la manera habitual">
+Este es el único comando de nivel `Exec` en esta compilación. Se dirige al endpoint
+`exec` en lugar de `exec-user`, y modifica el nodo: bajar `eth0` en un CE remoto
+elimina la ruta a través de la cual se gestiona, incluida la propia API de depuración.
+
+Deliberadamente no hay salida capturada en esta página. El arnés de captura rechaza
+todo el nivel `Exec`, y lee el nivel desde el catálogo en vivo en lugar de una lista
+codificada, por lo que esto se mantiene así si una compilación futura promueve otros comandos a él.
+</Aside>

@@ -1,0 +1,28 @@
+---
+title: chronyc-sources
+description: NTP synchronisation state. Clock skew breaks certificate validation and token authentication before it breaks anything obvious.
+sidebar:
+  order: 100
+  label: chronyc-sources
+---
+
+## `chronyc-sources`
+
+```bash
+{"command":["chronyc-sources"]}
+```
+
+```text file=../../../../_data/sitecli-chronyc-sources.txt
+```
+
+The leading character on each line is the state: `*` is the source currently
+selected, `+` an acceptable alternative, `-` one excluded by the selection algorithm,
+and `?` one that is unreachable. Exactly one `*` is the healthy case.
+
+`Reach` is an octal register of the last eight polls, so `377` means all eight
+succeeded. A value that is not `377` means polls are being lost. `LastRx` shows how
+long ago the source last answered.
+
+Worth checking early when authentication or TLS is failing for no visible reason: a
+node whose clock has drifted far enough will reject valid certificates and have its
+tokens rejected, and the resulting errors rarely mention time.

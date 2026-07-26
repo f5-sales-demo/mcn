@@ -1,0 +1,52 @@
+---
+title: IPsec
+description: >-
+  Se i tunnel verso gli edge regionali F5 sono attivi e i contatori di traffico
+  che dimostrano che trasportano dati. Due comandi, uno di riepilogo e uno
+  dettagliato.
+sidebar:
+  order: 20
+  label: IPsec
+i18n:
+  sourceHash: 47ea8892f2e2
+  translator: machine
+---
+
+Il CE costruisce tunnel IPsec verso gli edge regionali F5. Se sono inattivi, il sito è
+isolato dalla rete globale indipendentemente da quanto appaia sano localmente.
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+La prima riga è la risposta: `Security Associations (2 up, 0 connecting)`. Qualsiasi
+valore in `connecting` indica un tunnel che sta tentando di connettersi senza riuscirci.
+
+Ogni SA nomina l'edge regionale su cui termina — `ny8-nyc`, `dc12-ash` sono codici
+POP F5 — quindi questo indica anche *quali* edge ospitano il sito.
+
+`ESTABLISHED` con un'età, seguito da `INSTALLED, TUNNEL`, è una coppia in stato sano:
+il primo è la sessione IKE, il secondo è il child SA che trasporta effettivamente il
+traffico. Una sessione IKE stabilita senza child SA installato rappresenta il caso di
+errore più significativo.
+
+## `ipsec-statusall`
+
+Le stesse informazioni più i contatori di byte e pacchetti per SA, i timer di rinegoziazione
+e gli algoritmi negoziati.
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+Utilizzarlo per distinguere "il tunnel è attivo" da "il tunnel sta trasportando traffico".
+Un tunnel attivo da ore con byte quasi nulli è attivo ma inutilizzato, il che di solito
+significa che il problema riguarda il routing piuttosto che il tunnel.

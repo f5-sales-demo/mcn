@@ -1,0 +1,58 @@
+---
+title: Il traffico arriva ma non passa
+description: >-
+  Sequenza ordinata per un sito che si connette correttamente e sembra sano, ma
+  perde comunque traffico. Identifica la causa di un scarto.
+sidebar:
+  order: 30
+  label: Piano dati
+i18n:
+  sourceHash: df00d76ad275
+  translator: machine
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components";
+
+Per un sito che è `ONLINE` con BGP stabilito. Se le route sono il problema, iniziare
+con [BGP](../bgp-diagnostics/).
+
+<Steps>
+
+1. **Viene scartato qualcosa, e perché?**
+   [`dropstats-non-zero`](../../commands/network/dataplane-drops/). Eseguirlo due volte
+   mentre si riproduce il problema: si tratta di totali cumulativi, quindi un contatore
+   diverso da zero non significa nulla di per sé, mentre uno *in aumento* significa tutto.
+
+2. **Trovare la connessione specifica.**
+   [`flow-l-match`](../../commands/network/dataplane-flows/) con l'indirizzo, oppure
+   indirizzo e porta. L'azione sul flusso è la risposta: `F` inoltro, `D` scarto, `N`
+   NAT. Un flusso presente con azione `D` è una decisione di policy deliberata e rimanda
+   alla policy anziché alla connettività.
+
+3. **Nessun flusso?** Il traffico non raggiunge il piano dati. Verificare che il piano
+   dati abbia acquisito l'interfaccia attesa con
+   [`vif`](../../commands/network/dataplane-forwarding/), e confrontare i suoi contatori
+   con quanto riportato da [`ip`](../../commands/network/ip/).
+
+   Le due viste differiscono legittimamente, perché il traffico gestito dal piano dati
+   non raggiunge mai il kernel. RX pari a zero sull'interfaccia attesa invece non è
+   normale.
+
+4. **Flusso presente e in inoltro, ma ancora non arriva?** Verificare dove viene
+   instradato: `rt` per la route, poi `nh` per risolvere il next hop. Un next hop di
+   tipo `Drop` è un blackhole, mentre un next hop `Tunnel` mette il tunnel stesso
+   nell'ambito di analisi.
+
+5. **Se il percorso passa attraverso un tunnel**, verificare che sia attivo e che
+   trasporti byte con
+   [`ipsec-statusall`](../../commands/network/ipsec/). Un tunnel stabilito da ore con
+   contatori quasi a zero è attivo ma inutilizzato, il che rimanda nuovamente al routing.
+
+</Steps>
+
+<Aside type="tip" title="Argo e Linux mantengono stati separati">
+La maggior parte dei sintomi confusi del piano dati deriva dalla lettura della vista
+del kernel e dal presupposto che sia autorevole. `ip` mostra ciò che Linux crede;
+`rt`, `nh` e `vif` mostrano ciò che inoltra il traffico. Quando non concordano,
+è il piano dati a muovere i pacchetti.
+</Aside>

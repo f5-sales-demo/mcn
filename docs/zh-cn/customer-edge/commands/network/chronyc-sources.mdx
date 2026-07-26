@@ -1,0 +1,25 @@
+---
+title: chronyc-sources
+description: NTP 同步状态。时钟偏差会破坏证书验证和令牌认证，且早于任何明显故障发生。
+sidebar:
+  order: 100
+  label: chronyc-sources
+i18n:
+  sourceHash: 37ac33fac843
+  translator: machine
+---
+
+## `chronyc-sources`
+
+```bash
+{"command":["chronyc-sources"]}
+```
+
+```text file=../../../../_data/sitecli-chronyc-sources.txt
+```
+
+每行开头的字符表示状态：`*` 表示当前选定的源，`+` 表示可接受的备选源，`-` 表示被选择算法排除的源，`?` 表示不可达的源。健康状态下应有且仅有一个 `*`。
+
+`Reach` 是最近八次轮询的八进制寄存器，`377` 表示八次全部成功。若该值不为 `377`，则表示存在轮询丢失。`LastRx` 显示该源上次响应距今的时长。
+
+当认证或 TLS 出现原因不明的失败时，应优先检查此项：节点时钟若偏差过大，将拒绝有效证书并导致令牌被拒，而相关报错信息几乎不会提及时间问题。
