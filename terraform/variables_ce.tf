@@ -32,7 +32,7 @@ variable "rs_asn" {
 }
 
 variable "enable_bgp" {
-  description = "Create the per-CE xcsh_bgp objects. Defaults true (this PR's whole point is BGP/ECMP). Currently BLOCKED at apply by a provider validator bug: object-ref names cap at 63 chars but the real XC SLO interface name is 71 (tracked under epic xcsh #1207). Set false to plan/deploy the rest of the topology until the provider validator is relaxed."
+  description = "Create the per-CE xcsh_bgp objects. Defaults true — BGP/ECMP is the point of this deployment — and nothing gates it: the object-ref name length blocker that once forced it false was removed in provider v3.74.0. Retained only as an escape hatch for planning or deploying the topology without BGP."
   type        = bool
   default     = true
 }

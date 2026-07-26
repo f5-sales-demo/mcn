@@ -1,9 +1,11 @@
-# S1 numeric- + S2 string-leaf input validation for xcsh_securemesh_site_v2 (provider >= 3.80.0).
+# S1 numeric- + S2 string-leaf input validation for xcsh_securemesh_site_v2.
 #
 # POSITIVE case: valid bounds AND valid mac/ip/CIDR/node-type plan cleanly through the REAL
 # provider schema. mock_provider means no XC credentials are needed — the schema (and its
-# numeric + string validators) come from the dev_overrides build locally / the registry v3.80.0
-# in CI, and fire during plan regardless of whether the API is contacted.
+# numeric + string validators) come from whichever release `terraform init` resolved against the
+# floor in versions.tf, and fire during plan regardless of whether the API is contacted.
+# versions.tf is the only tracked pin: do not restate a version in prose here or in
+# reject-tests/, or the copies drift (they did, across four releases, until S8).
 #
 # The out-of-range REJECT cases live in ./reject-tests/reject.tftest.hcl. They cannot be
 # asserted with `expect_failures` because Terraform only captures user-defined custom
@@ -59,7 +61,7 @@ run "accept_valid_bounds" {
 
 # S3 positive plan asserts — each interface oneof arm PLANS cleanly through the real provider
 # schema (schema-valid) even where it would 400 live on a single-node `azure` probe. This proves the
-# HCL wiring + provider v3.76.0 schema accept every arm; the live/plan split is in the matrix.
+# HCL wiring + provider schema accept every arm; the live/plan split is in the matrix.
 
 run "plan_address_no_ipv4" {
   command = plan
@@ -163,7 +165,7 @@ run "plan_s2s_enabled" {
 
 # S4 positive plan asserts — each networking/services oneof arm PLANS cleanly through the real
 # provider schema (schema-valid) whether it is live (S4a) or ref-dependent / single-node-400
-# (S4b/S4c). This proves the HCL wiring + provider v3.76.0 schema accept every arm; the live/plan
+# (S4b/S4c). This proves the HCL wiring + provider schema accept every arm; the live/plan
 # split is recorded in the matrix.
 
 run "plan_blocked_services" {
@@ -397,12 +399,12 @@ run "plan_segment_vrf" {
   }
   assert {
     condition     = xcsh_securemesh_site_v2.probe.segment_vrf[0].segment_config.nameserver == "10.0.3.53"
-    error_message = "segment_vrf_arm=inline must render segment_config.nameserver plan-clean through IPv4Validator (plan-only; specs #1053)."
+    error_message = "segment_vrf_arm=inline must render segment_config.nameserver plan-clean through IPv4Validator (plan-only; api-specs-enriched #1053)."
   }
 }
 
 # S5 positive plan asserts — each site-mode oneof alternative arm PLANS cleanly through the real
-# provider v3.76.0 schema (schema-valid) whether it is live (S5a) or single-node-400 (S5b). This proves
+# provider schema (schema-valid) whether it is live (S5a) or single-node-400 (S5b). This proves
 # the HCL wiring + schema accept every arm; the live/plan split is recorded in the matrix.
 
 run "plan_perf_l3_enhanced" {
@@ -412,8 +414,21 @@ run "plan_perf_l3_enhanced" {
     perf_arm   = "perf_mode_l3_enhanced"
   }
   assert {
-    condition     = xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l3_enhanced.no_jumbo != null
-    error_message = "perf_arm=perf_mode_l3_enhanced must render the no_jumbo sub-oneof member of perf_mode_l3_enhanced."
+    condition     = xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l3_enhanced.no_jumbo != null && xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l3_enhanced.jumbo == null
+    error_message = "perf_arm=perf_mode_l3_enhanced (l3_jumbo_arm default) must render only the no_jumbo member of the perf_mode_l3_enhanced jumbo sub-oneof."
+  }
+}
+
+run "plan_l3_jumbo_enabled" {
+  command = plan
+  variables {
+    probe_name   = "cov-probe-s8-l3-jumbo"
+    perf_arm     = "perf_mode_l3_enhanced"
+    l3_jumbo_arm = "jumbo"
+  }
+  assert {
+    condition     = xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l3_enhanced.jumbo != null && xcsh_securemesh_site_v2.probe.performance_enhancement_mode.perf_mode_l3_enhanced.no_jumbo == null
+    error_message = "l3_jumbo_arm=jumbo must render only the jumbo member of the perf_mode_l3_enhanced jumbo sub-oneof."
   }
 }
 

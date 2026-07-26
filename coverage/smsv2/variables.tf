@@ -430,7 +430,7 @@ variable "segment_vrf_arm" {
   description = <<-EOT
     segment_vrf selector. `unset` (default) omits `segment_vrf` (pre-S4 base never set it). `inline`
     renders one `segment_vrf { segment_config { nameserver ... } }` entry. Plan-only: a live
-    `segment_vrf` needs a Segment object reference the provider cannot yet inject (specs #1053).
+    `segment_vrf` needs a Segment object reference the provider cannot yet inject (api-specs-enriched #1053).
   EOT
   type        = string
   default     = "unset"
@@ -500,14 +500,28 @@ variable "ref_namespace" {
 variable "perf_arm" {
   description = <<-EOT
     performance_enhancement_mode oneof member. `perf_mode_l7_enhanced` (default, base) renders its own
-    jumbo sub-oneof via l7_jumbo_arm and is S5a live. `perf_mode_l3_enhanced` renders its `no_jumbo{}`
-    sub-oneof member (S5a live).
+    jumbo sub-oneof via l7_jumbo_arm and is S5a live. `perf_mode_l3_enhanced` renders its own
+    {jumbo | no_jumbo} sub-oneof via l3_jumbo_arm (S5a live).
   EOT
   type        = string
   default     = "perf_mode_l7_enhanced"
   validation {
     condition     = contains(["perf_mode_l7_enhanced", "perf_mode_l3_enhanced"], var.perf_arm)
     error_message = "perf_arm must be perf_mode_l7_enhanced | perf_mode_l3_enhanced."
+  }
+}
+
+variable "l3_jumbo_arm" {
+  description = <<-EOT
+    perf_mode_l3_enhanced jumbo sub-oneof member: `no_jumbo` (default) | `jumbo`. Distinct from the
+    l7 pair (`jumbo_disabled`/`jumbo_enabled`) — F5 spells the l3 members differently. Rendered only
+    when perf_arm=perf_mode_l3_enhanced.
+  EOT
+  type        = string
+  default     = "no_jumbo"
+  validation {
+    condition     = contains(["no_jumbo", "jumbo"], var.l3_jumbo_arm)
+    error_message = "l3_jumbo_arm must be no_jumbo | jumbo."
   }
 }
 

@@ -54,7 +54,7 @@ variable "labels" {
 }
 
 variable "enable_bgp" {
-  description = "Create the xcsh_bgp object. Defaults true (faithful intent). BLOCKED by a provider validator bug (object-ref name capped at 63 < the real 71-char XC interface name); set false to plan the rest of the graph until the provider is fixed. See main.tf."
+  description = "Create the xcsh_bgp object. Defaults true, and nothing gates it: the object-ref name length blocker that once forced it false was removed in provider v3.74.0. Retained only as an escape hatch for planning or deploying the graph without BGP. See main.tf."
   type        = bool
   default     = true
 }
