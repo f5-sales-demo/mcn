@@ -1,0 +1,35 @@
+---
+title: dig
+description: DNS resolution from the node, including which resolver answered. Absent from the older published Site CLI reference entirely.
+sidebar:
+  order: 90
+  label: dig
+---
+
+## `dig`
+
+```bash
+{"command":["dig","volterra.azurecr.io"]}
+```
+
+```text file=../../../../_data/sitecli-dig.txt
+```
+
+Read `status:` in the header first — `NOERROR` with a non-zero `ANSWER` count is a
+successful lookup. `SERVER:` at the bottom names the resolver that answered, which is
+the part worth checking: on an Azure node this is normally the platform resolver at
+`168.63.129.16`, and something else there means the node is using a resolver you did
+not intend.
+
+Registration failures often reduce to DNS. If the node cannot resolve
+`register.ves.volterra.io` or the container registry, nothing downstream will work,
+and this is the quickest way to prove it.
+
+The command accepts the usual `dig` arguments, including `@resolver` to query a
+specific server — useful for showing that one resolver answers and another does not.
+
+:::note
+`dig` does not appear in the older published Site CLI reference at all. It was found
+by asking the node for its own command catalog rather than by reading documentation,
+which is why every command on this site is discovered rather than transcribed.
+:::

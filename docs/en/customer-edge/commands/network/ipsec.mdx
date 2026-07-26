@@ -1,0 +1,44 @@
+---
+title: IPsec
+description: Whether the tunnels to the F5 regional edges are established, and the traffic counters proving they carry data. Two commands, one summary and one detailed.
+sidebar:
+  order: 20
+  label: IPsec
+---
+
+The CE builds IPsec tunnels to F5 regional edges. If they are down, the site is
+isolated from the global network regardless of how healthy it looks locally.
+
+## `ipsec-status`
+
+```bash
+{"command":["ipsec-status"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-status.txt
+```
+
+The first line is the answer: `Security Associations (2 up, 0 connecting)`. Anything
+in `connecting` is a tunnel that is trying and failing.
+
+Each SA names the regional edge it terminates on — `ny8-nyc`, `dc12-ash` are F5 POP
+codes — so this also tells you *which* edges the site is homed to. `ESTABLISHED`
+with an age, followed by `INSTALLED, TUNNEL`, is a healthy pair: the first is the
+IKE session, the second the child SA that actually carries traffic. An IKE session
+established with no installed child SA is the interesting failure.
+
+## `ipsec-statusall`
+
+The same information plus per-SA byte and packet counters, rekey timers and the
+negotiated algorithms.
+
+```bash
+{"command":["ipsec-statusall"]}
+```
+
+```text file=../../../../_data/sitecli-ipsec-statusall.txt
+```
+
+Use it to distinguish "the tunnel is up" from "the tunnel is carrying traffic". A
+tunnel established for hours with near-zero bytes is up and unused, which usually
+means the problem is routing rather than the tunnel.

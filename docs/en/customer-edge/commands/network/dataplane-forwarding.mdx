@@ -1,0 +1,70 @@
+---
+title: Routes and next hops
+description: What the Argo data plane actually forwards on, which is not necessarily what Linux believes. Covers the vRouter route table, next-hop table and virtual interfaces.
+sidebar:
+  order: 50
+  label: Routes and next hops
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Argo keeps forwarding state separate from the Linux kernel. When
+[`ip`](../ip/) and these commands disagree, these commands are what moves traffic.
+
+## `rt`
+
+The vRouter route table, per VRF.
+
+```bash
+{"command":["rt","--dump","2"]}
+```
+
+```text file=../../../../_data/sitecli-rt.txt
+```
+
+<Aside type="danger" title="The VRF id is not the one BGP reports">
+`show-ip-bgp-summary` prints `vrf-id 3`. That is FRR's numbering and it is a
+different namespace from the vRouter table id. Passing it here fails in a way that
+reads as a broken node:
+
+```
+vRouter(Response):  [No such file or directory (2)]
+```
+
+The same answer comes back for `--dump 0`. On this topology **VRF 2** is the
+populated inet4 table, with VRF 1 holding two routes. If you do not know the id,
+probe upward from 1 rather than trusting the BGP output.
+</Aside>
+
+## `nh`
+
+The next-hop table. Every route points at a next-hop id, and this resolves them.
+
+```bash
+{"command":["nh","--list"]}
+```
+
+```text file=../../../../_data/sitecli-nh.txt
+```
+
+Each entry carries a `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — and the VRF it
+belongs to. A route resolving to a `Drop` next hop is a blackhole, and that
+combination is worth checking whenever a prefix is present in `rt` yet traffic still
+disappears.
+
+## `vif`
+
+The virtual interface table: what the data plane binds to, and per-interface
+counters.
+
+```bash
+{"command":["vif","--list"]}
+```
+
+```text file=../../../../_data/sitecli-vif.txt
+```
+
+The flags legend at the top is worth reading once — `Vp` marks the vhost physical
+interface, `Dpdk` a DPDK-managed one. Use this to confirm the data plane has claimed
+the interface you expect, and to see RX and TX counters that Linux does not show
+because the traffic never reaches the kernel.

@@ -1,0 +1,25 @@
+---
+title: netstat
+description: Sockets, listeners and connection state on the node. Confirms what is listening and to whom the node has established connections.
+sidebar:
+  order: 70
+  label: netstat
+---
+
+## `netstat`
+
+```bash
+{"command":["netstat"]}
+```
+
+```text file=../../../../_data/sitecli-netstat.txt
+```
+
+Two questions this answers well: whether the process you expect is listening on the
+port you expect, and whether the node has an established connection to the control
+plane. A CE with no established outbound connections to F5 infrastructure is a node
+that will not register, whatever else looks healthy.
+
+The output is long — the capture above is trimmed — so pass arguments to narrow it
+rather than reading it whole. Note that the host name column is truncated to fit,
+which matters if you are grepping for a full node name and finding nothing.

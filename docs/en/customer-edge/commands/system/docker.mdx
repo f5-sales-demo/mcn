@@ -1,0 +1,76 @@
+---
+title: docker
+description: The Docker runtime, which runs the CE platform services. Five commands, and the place to look for vpm itself.
+sidebar:
+  order: 40
+  label: docker
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Docker runs the platform services. Kubernetes workloads are under
+[CRI-O](../crictl/).
+
+## `docker-ps`
+
+```bash
+{"command":["docker-ps"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps.txt
+```
+
+<Aside type="tip" title="Three containers is the whole list, not a broken node">
+`vpm`, `argo_watch` and `site-console`. Because most of the node runs under CRI-O, a
+short `docker-ps` looks like a failure if you are expecting Kubernetes workloads
+here. It is not — this is the complete set of Docker containers on a healthy CE, and
+`vpm` being present and `Up` is the single most important line on the page.
+</Aside>
+
+## `docker-ps-a`
+
+```bash
+{"command":["docker-ps-a"]}
+```
+
+```text file=../../../../_data/sitecli-docker-ps-a.txt
+```
+
+Includes exited containers, so a `vpm` that keeps dying leaves evidence here.
+
+## `docker-images`
+
+```bash
+{"command":["docker-images"]}
+```
+
+```text file=../../../../_data/sitecli-docker-images.txt
+```
+
+The image tags identify the platform version the node is actually running, which is
+worth comparing against the software build reported by [`health`](../health/).
+
+## `docker-inspect`
+
+```bash
+{"command":["docker-inspect","<container-id-or-name"]}
+```
+
+```text file=../../../../_data/sitecli-docker-inspect.txt
+```
+
+Accepts a name as well as an id, so `docker-inspect vpm` works and is stable across
+restarts. Full JSON: mounts, environment, restart policy and the exit state.
+
+## `docker-logs`
+
+```bash
+{"command":["docker-logs","<container-id-or-name>"]}
+```
+
+```text file=../../../../_data/sitecli-docker-logs.txt
+```
+
+`docker-logs vpm` is the fastest route to registration errors. For the same
+information with timestamps and across restarts, use
+[`journalctl`](../journalctl/) instead.
