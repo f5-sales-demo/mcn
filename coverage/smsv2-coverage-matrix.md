@@ -90,7 +90,7 @@ Columns:
 | dc_cluster_group_sli{} (ref, s2s_sli_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_sli_arm=dc_cluster_group_sli`; plan-only — ObjectRefType, ref-dependent; plans clean |
 | dc_cluster_group_slo{} (ref, s2s_slo_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_slo_arm=dc_cluster_group_slo`; plan-only — ObjectRefType, ref-dependent; plans clean |
 | site_mesh_group_on_slo{site_mesh_group ref} (s2s_slo_choice) | ✅ | ➖ | ⬜ | ➖ | ➖ | S4 `s2s_slo_arm=site_mesh_group_ref`; plan-only — `site_mesh_group` ObjectRefType, ref-dependent; plans clean |
-| segment_vrf.segment_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `segment_vrf_arm=inline`; plan-only — needs a Segment object ref the provider cannot yet inject (specs #1053); validator `IPv4Validator()` (reject `"300.2.2.2"`, reject-segment-nameserver) proven at plan |
+| segment_vrf.segment_config.nameserver (IPv4) | ✅ | ✅ | ⬜ | ➖ | ➖ | S4 `segment_vrf_arm=inline`; plan-only — needs a Segment object ref the provider cannot yet inject (api-specs-enriched #1053); validator `IPv4Validator()` (reject `"300.2.2.2"`, reject-segment-nameserver) proven at plan |
 <!-- S5: site-mode oneof arms (perf / os / sw / offline / re_select / upgrade / admin; enum selectors; live cycle uses -var extended_arms=false) -->
 | performance_enhancement_mode.perf_mode_l3_enhanced{} | ✅ | ➖ | ✅ | ✅ | ✅ | S5 `perf_arm=perf_mode_l3_enhanced`; carries its own jumbo sub-oneof, spelled DIFFERENTLY from the l7 pair (`jumbo`/`no_jumbo`, not `jumbo_enabled`/`jumbo_disabled`) — rows below; live apply→idempotent→import (0-change)→destroy |
 | perf_mode_l3_enhanced.no_jumbo{} (jumbo sub-oneof) | ✅ | ➖ | ✅ | ✅ | ✅ | S8 `l3_jumbo_arm=no_jumbo` (default). S5 rendered this marker unconditionally; S8 made it a selector and re-verified live on v3.81.1: read-back `{"perf_mode_l3_enhanced":{"no_jumbo":{}}}`, apply→0-change re-plan→`state rm`→import→0-change plan→destroy |
@@ -207,7 +207,7 @@ Columns:
 - **S4c plan-only (single-node 400)** — `enable_ha` and `enable_management_network` 400 on the
   single-node `azure` probe; proven at PLAN.
 - **`segment_vrf` plan-only** — a live `segment_vrf` needs a Segment object reference the provider
-  cannot yet inject (specs #1053); proven at PLAN, and its `segment_config.nameserver`
+  cannot yet inject (api-specs-enriched #1053); proven at PLAN, and its `segment_config.nameserver`
   `IPv4Validator()` reject at plan (reject-segment-nameserver, `"300.2.2.2"`).
 - **Stale `log_receiver` avoided** — logs are driven via `log_receiver_with_net`, never the stale
   top-level `log_receiver` field (provider #1256).
@@ -382,7 +382,7 @@ hits). That matches the S3 note's deferral to api-specs-enriched #1049: it needs
 a regeneration, so it is a provider gap, not a probe gap.
 
 Likewise `segment_vrf` has **no `segment` ObjectRef attribute at all** — the exclusion recorded in
-the S4 notes ("needs a Segment object ref the provider cannot yet inject", specs #1053) is
+the S4 notes ("needs a Segment object ref the provider cannot yet inject", api-specs-enriched #1053) is
 structurally accurate, not an excuse: there is nowhere to put the reference.
 
 ### Caveats this audit will not sign off

@@ -129,7 +129,7 @@ live):
 - `active_forward_proxy_policies`, `active_enhanced_firewall_policies`, `log_receiver_with_net`,
   `dc_cluster_group_sli`, `dc_cluster_group_slo`, `site_mesh_group_on_slo` (ref variant) — ObjectRefType
   arms whose referents must pre-exist.
-- `segment_vrf` — needs a Segment object ref the provider cannot yet inject (specs #1053).
+- `segment_vrf` — needs a Segment object ref the provider cannot yet inject (api-specs-enriched #1053).
 
 Logs are driven via `log_receiver_with_net`, never the stale top-level `log_receiver` field
 (provider #1256).

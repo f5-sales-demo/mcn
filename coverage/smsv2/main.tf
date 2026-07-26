@@ -281,7 +281,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
   }
 
   # S4 segment_vrf (plan-only — a live segment_vrf needs a Segment object ref the provider cannot yet
-  # inject, specs #1053). Renders one entry exposing the segment_config.nameserver IPv4Validator leaf.
+  # inject, api-specs-enriched #1053). Renders one entry exposing the segment_config.nameserver IPv4Validator leaf.
   dynamic "segment_vrf" {
     for_each = var.segment_vrf_arm == "inline" ? [1] : []
     content {

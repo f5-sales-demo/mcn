@@ -430,7 +430,7 @@ variable "segment_vrf_arm" {
   description = <<-EOT
     segment_vrf selector. `unset` (default) omits `segment_vrf` (pre-S4 base never set it). `inline`
     renders one `segment_vrf { segment_config { nameserver ... } }` entry. Plan-only: a live
-    `segment_vrf` needs a Segment object reference the provider cannot yet inject (specs #1053).
+    `segment_vrf` needs a Segment object reference the provider cannot yet inject (api-specs-enriched #1053).
   EOT
   type        = string
   default     = "unset"

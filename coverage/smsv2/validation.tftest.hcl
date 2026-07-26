@@ -399,7 +399,7 @@ run "plan_segment_vrf" {
   }
   assert {
     condition     = xcsh_securemesh_site_v2.probe.segment_vrf[0].segment_config.nameserver == "10.0.3.53"
-    error_message = "segment_vrf_arm=inline must render segment_config.nameserver plan-clean through IPv4Validator (plan-only; specs #1053)."
+    error_message = "segment_vrf_arm=inline must render segment_config.nameserver plan-clean through IPv4Validator (plan-only; api-specs-enriched #1053)."
   }
 }
 
