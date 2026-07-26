@@ -128,6 +128,29 @@ fi
 
 SITE_BASE="${API_URL}/api/operate/namespaces/${NAMESPACE}/sites/${SITE}"
 
+# Handed to the scrub filter so it can remove host names that no address rule would
+# see — a netstat host:port column, a journal line prefix.
+SITECLI_NODE="$NODE"
+SITECLI_SITE="$SITE"
+export SITECLI_NODE SITECLI_SITE
+
+# The redaction profile is declared by the manifest, not defaulted here, so the
+# choice is visible in a diff and has to be reviewed. Absent a declaration the
+# filter defaults to strict, which is the safe direction: for a company customer,
+# internal addressing, MAC addresses and AS numbers ARE identifying information.
+if [ -z "${SITECLI_SCRUB_PROFILE:-}" ] && [ -f "$MANIFEST" ]; then
+  SITECLI_SCRUB_PROFILE=$(jq -r '.defaults.scrub_profile // empty' "$MANIFEST")
+fi
+export SITECLI_SCRUB_PROFILE="${SITECLI_SCRUB_PROFILE:-strict}"
+case "$SITECLI_SCRUB_PROFILE" in
+strict) ;;
+lab)
+  note "scrub profile: lab — internal addressing, MAC addresses and AS numbers are"
+  note "                     PRESERVED. Correct only for F5-owned demo infrastructure."
+  ;;
+*) die "unknown scrub profile: ${SITECLI_SCRUB_PROFILE} (expected strict or lab)" ;;
+esac
+
 # curl with the token supplied on stdin, so it never appears in the process list.
 api() {
   local method="$1" url="$2" body="${3:-}"

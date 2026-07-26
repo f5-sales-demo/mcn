@@ -8,7 +8,7 @@ RIB entries 3, using 480 bytes of memory
 Peers 2, using 41 KiB of memory
 
 Neighbor        V         AS MsgRcvd MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd
-10.0.4.4        4      65515   43649   38278        0    0    0 2d05h08m            1
-10.0.4.5        4      65515   43639   38276        0    0    0 2d05h09m            1
+10.0.4.4        4      65515   43853   38457        0    0    0 2d05h23m            1
+10.0.4.5        4      65515   43841   38454        0    0    0 2d05h23m            1
 
 Total number of neighbors 2

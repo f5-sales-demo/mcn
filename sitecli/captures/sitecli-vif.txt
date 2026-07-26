@@ -15,43 +15,43 @@ evif0/1     Virtual: eth0 (Speed 10000, Duplex 1) Parent:vif0/-1
             CrossConnectIdx: 2 PartnerIdx: 14
             Vrf:0 Mcast Vrf:0 VN:0x0 Flags:L3L2Vp Ref:7
             MTU: 1500 EncMSS: 0 NH: 0
-            RX device packets:9132013  bytes:5409924388 errors:0
-            RX port   packets:9132013 errors:0
-            RX queue  packets:9121364 errors:0
+            RX device packets:9170694  bytes:5424726428 errors:0
+            RX port   packets:9170694 errors:0
+            RX queue  packets:9159996 errors:0
             RX queue errors to lcore 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-            RX packets:9132013  bytes:5409924388 errors:0
-            TX packets:7760226  bytes:4388389905 errors:0
+            RX packets:9170694  bytes:5424726428 errors:0
+            TX packets:7800416  bytes:4411551915 errors:0
             Drops:0
-            TX queue  packets:1059 errors:0
-            TX port   packets:7760226 errors:0
-            TX device packets:7760226  bytes:4388389905 errors:0
+            TX queue  packets:1064 errors:0
+            TX port   packets:7800416 errors:0
+            TX device packets:7800416  bytes:4411551915 errors:0
 
 evif0/2     Virtual: vhost0 Parent:vif0/-1
             Type:Host HWaddr:7c:1e:52:7f:f8:12  Driver: vr_dpdk_tap
             CrossConnectIdx: 1 PartnerIdx: 15
             Vrf:0 Mcast Vrf:0 VN:0x0 Flags:L3L2 Ref:6
             MTU: 1500 EncMSS: 0 NH: 0
-            RX device packets:7351842  bytes:4026174183 errors:0
-            RX queue  packets:7351842 errors:0
+            RX device packets:7390152  bytes:4047490118 errors:0
+            RX queue  packets:7390152 errors:0
             RX queue errors to lcore 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-            RX packets:7351842  bytes:3952655763 errors:0
-            TX packets:8719672  bytes:4964961153 errors:0
+            RX packets:7390152  bytes:3973588598 errors:0
+            TX packets:8756445  bytes:4977558530 errors:0
             Drops:0
-            TX queue  packets:8718220 errors:1452
-            TX device packets:8718210  bytes:5049975401 errors:10
+            TX queue  packets:8754993 errors:1452
+            TX device packets:8754983  bytes:5062940508 errors:10
 
 vif0/2      Ethernet: vethfrr0 Parent:vif0/-1
             Type:Virtual HWaddr:0:0:5e:0:1:0  Driver: net_af_packet
             Vrf:1 Mcast Vrf:1 VN:0x0 Flags:PL3Proxy Ref:10
             MTU: 1500 EncMSS: 130 NH: 4
-            RX port   packets:200760 errors:0
-            RX queue  packets:200758 errors:0
+            RX port   packets:201695 errors:0
+            RX queue  packets:201693 errors:0
             RX queue errors to lcore 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-            RX packets:36919  bytes:6276258 errors:0
+            RX packets:37090  bytes:6305328 errors:0
             TX packets:6  bytes:444 errors:0
-            Drops:36917
-            TX queue  packets:12878 errors:0
-            TX port   packets:163682 errors:0
+            Drops:37088
+            TX queue  packets:12929 errors:0
+            TX port   packets:164445 errors:0
             Ingress ACL: 65 67
             Egress ACL: 65 67
             Service ACL: 65 67

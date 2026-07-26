@@ -14,7 +14,7 @@ Flow Action Invalid           0
 Flow Invalid Protocol         0
 Flow Queue Limit Exceeded     0
 New Flow Drops                0
-Flow Unusable (Eviction)      4570
+Flow Unusable (Eviction)      4603
 Flow Resource Exhaustion      0
 
 Original Packet Trapped       0
@@ -36,7 +36,7 @@ Pull Fails                    0
 Duplicated                    14
 Head Alloc Fails              0
 PCOW Fails                    0
-Invalid Packets               36917
+Invalid Packets               37087
 
 Misc                          0
 Nowhere to go                 0
