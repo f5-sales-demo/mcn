@@ -65,3 +65,59 @@ run "site_and_interface_binding" {
     error_message = "perf_mode_l7_enhanced must NOT select jumbo_enabled: jumbo_disabled is the arm F5 materialises, and switching arms changes the CE data path."
   }
 }
+
+# CE SSH (admin_user_credentials.ssh_key) is opt-in and must be genuinely absent when
+# no key is supplied — a rendered-but-empty block would authorize nothing yet still
+# claim the appliance is configured. Two runs, because the discriminating evidence is
+# the difference between them: unlike the jumbo arms above, ssh_key carries a real
+# value rather than an empty marker, so the mocked provider does distinguish these.
+run "ce_ssh_key_authorized_when_supplied" {
+  command = plan
+
+  module {
+    source = "./modules/xc-site"
+  }
+
+  variables {
+    site_name      = "ar-bgp-eastus01"
+    hostname       = "f5-xc-ce-vm-01"
+    interface_name = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    mgmt_nic_mac   = "7c:1e:52:18:c1:77"
+    rs_peer_ips    = ["10.0.4.4", "10.0.4.5"]
+    ce_asn         = 64512
+    rs_asn         = 65515
+    ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAATESTKEYONLY test@example"
+  }
+
+  assert {
+    condition = (
+      xcsh_securemesh_site_v2.this.admin_user_credentials.ssh_key ==
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAATESTKEYONLY test@example"
+    )
+    error_message = "admin_user_credentials.ssh_key must carry the supplied key verbatim: the CE manages its own OS auth, so this block is the only thing that authorizes SSH login for execcli."
+  }
+}
+
+run "ce_ssh_block_absent_when_no_key" {
+  command = plan
+
+  module {
+    source = "./modules/xc-site"
+  }
+
+  variables {
+    site_name      = "ar-bgp-eastus01"
+    hostname       = "f5-xc-ce-vm-01"
+    interface_name = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    mgmt_nic_mac   = "7c:1e:52:18:c1:77"
+    rs_peer_ips    = ["10.0.4.4", "10.0.4.5"]
+    ce_asn         = 64512
+    rs_asn         = 65515
+    ssh_public_key = ""
+  }
+
+  assert {
+    condition     = xcsh_securemesh_site_v2.this.admin_user_credentials == null
+    error_message = "An empty ssh_public_key must render NO admin_user_credentials block, leaving the appliance default of no SSH listener."
+  }
+}

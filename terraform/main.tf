@@ -111,6 +111,9 @@ module "xc_site" {
   sw_version           = var.ce_sw_version
   enable_bgp           = var.enable_bgp
   approve_registration = var.approve_registration
+  # Same operator key the Azure VMs get, so CE SSH needs no extra input. Set
+  # ce_ssh_enabled = false to leave the appliance with no SSH listener.
+  ssh_public_key = var.ce_ssh_enabled ? local.ssh_public_key : ""
 }
 
 # The Azure side of each eBGP session (Route Server -> CE eth0/SLO IP).
