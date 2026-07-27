@@ -1,68 +1,74 @@
 ---
-title: Zugang zu einem Customer Edge
+title: Zugriff auf eine Customer Edge
 description: >-
-  Lesen Sie diese Ebene, bevor Sie einen Befehl ausführen. Behandelt
-  Authentifizierung, die Tier-zu-Endpunkt-Regel, die entscheidet, wohin ein
-  Befehl gesendet wird, und den Break-Glass-Pfad für einen nicht registrierten
-  Knoten.
+  Lesen Sie diese Ebene, bevor Sie einen Befehl ausführen. Sie behandelt die
+  Authentifizierung, die Regel zwischen Ebene und Endpunkt, die entscheidet,
+  wohin ein Befehl gesendet wird, und den Notfallpfad für einen nicht
+  registrierten Knoten.
 sidebar:
   order: 10
-  label: Zugang
+  label: Zugriff
 i18n:
-  sourceHash: 188808639df6
+  sourceHash: 479fed005588
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Es gibt zwei Routen, und welche davon gilt, wird durch den Zustand des Knotens
-entschieden, nicht durch Präferenz.
+Zwei Routen funktionieren, und welche davon zutrifft, entscheidet der Zustand des Knotens
+und nicht eine Vorliebe.
 
-| Knotenzustand | Route | Skriptfähig | Umfang |
-| --- | --- | --- | --- |
-| `ONLINE` | [Debug API](./debug-api/) | Ja | 34 Befehle, schreibgeschützt und privilegiert |
-| Nicht registriert oder nicht erreichbar | [Serielle Konsole](./serial-console/) | Nein — benötigt ein Terminal | Die vollständige On-Box Site CLI |
+| Route | Erfordert Knoten `ONLINE` | Erfordert Netzwerkerreichbarkeit | Grenzen | Umfang |
+| --- | --- | --- | --- | --- |
+| [Debug-API](./debug-api/) | **ja** | ja | etwa 25–30 Minuten Aufwärmzeit bei einem neuen Standort | 34 Befehle |
+| [Serielle Konsole](./serial-console/) | nein | nein | eine Sitzung pro VM; Einfügelimit von 2.048 Zeichen | Die vollständige Site-CLI auf dem Gerät |
 
-## Warum die Aufteilung keine Präferenz ist
+Die serielle Konsole ist das letzte Mittel und die einzige Route, die einen Knoten ohne
+funktionierenden Netzwerkpfad übersteht.
 
-Die Debug-API wird von der F5 Distributed Cloud Control Plane bereitgestellt, die
-über den Tunnel weiterleitet, den `vpm` während der Registrierung aufbaut. Keine
-Registrierung bedeutet keinen Tunnel, was bedeutet, dass die API nichts hat, an das
-sie weiterleiten kann.
+[**SSH ist keine dritte Route.**](./ssh/) Das Konto `admin` kann sich auf dem Build, den
+dieser Tenant ausführt, nicht authentifizieren, `vpm` wendet den Schlüssel nie an, und es
+gibt keine Standorteinstellung, die daran etwas ändert. Die Seite existiert, um die Belege
+zu dokumentieren, denn jeder Fehlerfall dort sieht wie ein Firewall- oder ein
+Anmeldedatenproblem aus.
 
-Sie schlägt auf eine wenig hilfreiche statt auf eine offensichtliche Weise fehl,
-sodass ein Knoten, der nie hochgefahren ist, wie ein API-Problem aussieht.
+## Warum die Aufteilung keine Vorliebe ist
 
-Die serielle Konsole geht in die entgegengesetzte Richtung — über die Azure-Plattform
-zum emulierten seriellen Port des Knotens. Es spielt keine Rolle, ob der Knoten
-registriert ist, Netzwerkerreichbarkeit hat oder über eine funktionierende Datenebene
-verfügt. Diese Unabhängigkeit ist der eigentliche Zweck, und deshalb müssen
-Boot-Diagnosen auf den CE-VMs aktiviert bleiben.
+Die Debug-API wird von der F5 Distributed Cloud Control Plane bereitgestellt, die über den
+Tunnel, den `vpm` während der Registrierung aufbaut, an den Knoten weiterleitet. Keine
+Registrierung bedeutet keinen Tunnel, was bedeutet, dass die API nichts hat, wohin sie
+weiterleiten könnte.
 
-<Aside type="note" title="Was zu verwenden ist">
-Wenn Sie Automatisierung schreiben oder Nachweise sammeln, die Sie später erneut
-ausführen möchten, verwenden Sie die Debug-API. Wenn die Registrierung das ist, was
-defekt ist, ist die serielle Konsole keine Ausweichmöglichkeit — sie ist die einzige
-Option.
+Sie schlägt auf eine unhilfreiche und nicht auf eine offensichtliche Weise fehl, sodass ein
+Knoten, der nie hochgekommen ist, wie ein API-Problem aussieht.
+
+Die serielle Konsole geht den völlig anderen Weg — über die Azure-Plattform zum
+emulierten seriellen Port des Knotens. Es ist ihr gleichgültig, ob der Knoten registriert
+ist, Netzwerkerreichbarkeit besitzt oder eine funktionierende Data Plane hat. Diese
+Unabhängigkeit ist der ganze Sinn, und deshalb muss die Boot-Diagnose auf den CE-VMs
+aktiviert bleiben.
+
+<Aside type="note" title="Wozu Sie greifen sollten">
+Wenn Sie Automatisierung schreiben oder Belege sammeln, die Sie später erneut ausführen
+möchten, verwenden Sie die Debug-API. Wenn die Registrierung das Defekte ist, ist die
+serielle Konsole kein Ausweichweg — sie ist die einzige Option.
 </Aside>
 
-## Zugangsdaten
+## Anmeldedaten
 
-Beide Routen verwenden unterschiedliche Zugangsdaten, und keine davon gehört auf
-eine Befehlszeile.
+Beide Routen verwenden unterschiedliche Anmeldedaten, und keine davon gehört auf eine
+Befehlszeile.
 
 - **Debug-API** — ein F5 Distributed Cloud API-Token als `XCSH_API_TOKEN`, mit der
-  Mandanten-URL als `XCSH_API_URL`. Die `xcsh`-Kontextdatei unter
-  `~/.config/xcsh/contexts/<tenant>.json` enthält beides, was
-  `scripts/capture-sitecli.sh` liest, wenn die Umgebung diese nicht bereitstellt.
-- **Serielle Konsole** — Ihre interaktive Azure-Anmeldung. Es gibt keinen
-  Dienstprinzipal dafür: Der F5-Unternehmens-Entra-Mandant gestattet die
-  Bereitstellung eines solchen nicht, weshalb auch kein Teil davon in CI ausgeführt
-  wird.
+  Tenant-URL als `XCSH_API_URL`. Die `xcsh`-Kontextdatei unter
+  `~/.config/xcsh/contexts/<tenant>.json` enthält beides, und genau diese liest
+  `scripts/capture-sitecli.sh`, wenn die Umgebung sie nicht bereitstellt.
+- **Serielle Konsole** — Ihre interaktive Azure-Anmeldung. Es gibt dafür keinen Service
+  Principal: Der F5-Unternehmens-Entra-Tenant erlaubt keine Bereitstellung eines solchen,
+  weshalb auch kein Teil davon in CI läuft.
 
 <Aside type="danger" title="Übergeben Sie ein Token niemals als Argument">
-Ein Token auf einer Befehlszeile landet im Shell-Verlauf und in der Prozessliste,
-wo jeder andere Benutzer auf dem Rechner es lesen kann. `capture-sitecli.sh` lehnt
-`--token` aus diesem Grund grundsätzlich ab und übergibt den Header stattdessen
-über stdin an `curl`.
+Ein Token auf einer Befehlszeile landet in der Shell-Historie und in der Prozessliste, wo
+jeder andere Benutzer auf der Maschine es lesen kann. `capture-sitecli.sh` verweigert
+`--token` deshalb kategorisch und übergibt den Header stattdessen über stdin an `curl`.
 </Aside>

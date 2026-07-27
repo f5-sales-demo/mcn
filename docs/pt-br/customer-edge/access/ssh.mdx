@@ -1,0 +1,193 @@
+---
+title: SSH
+description: >-
+  Não há caminho SSH de admin suportado nesta build do Customer Edge. Aborda as
+  evidências do vpm de que admin_user_credentials nunca é aplicado ao nó, por
+  que o sshd responde apenas no endereço interno e as duas rotas que realmente
+  funcionam.
+sidebar:
+  order: 25
+  label: SSH
+i18n:
+  sourceHash: 4c6d5777469f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+**Não há caminho SSH `admin` suportado na build de CE que este tenant executa** —
+`crt-20250613-3382`, SO `9.2024.6`. Não se trata de uma questão de configuração. A
+conta `admin` existe, o `sshd` está em execução e `admin_user_credentials.ssh_key`
+é aceito pelo objeto de site e retornado por uma leitura de volta na API — mas a chave
+nunca é aplicada ao nó, portanto toda tentativa de autenticação é recusada.
+
+Use a [API de debug](../debug-api/) em vez disso. Ela alcança a superfície de comandos
+somente leitura do nó e já está automatizada por scripts neste repositório.
+
+<Aside type="danger" title="O suporte do Terraform para isso foi removido">
+`admin_user_credentials` foi integrado em `terraform/modules/xc-site` e depois revertido
+assim que as evidências abaixo foram coletadas (#660, PR #663). Não é uma lacuna esperando
+para ser preenchida — o campo não configura nada no nó. Não o readicione.
+</Aside>
+
+## Por que toda tentativa parece um problema de rede
+
+O `sshd` faz bind em `0.0.0.0:22` no CE, mas apenas o endereço **interno (SLI)** está na
+pilha de rede do host. Sondado a partir de `ar-ecmp-client`, dentro da mesma VNet, contra
+os três CEs de demonstração:
+
+```text
+10.0.1.4     TimeoutError: timed out         ← CE mgmt/SLO  (eth0)
+10.0.2.4     TimeoutError: timed out         ← CE external  (eth1)
+10.0.3.5     CONNECTED  SSH-2.0-OpenSSH_8.7  ← CE internal/SLI
+10.0.3.6     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.7     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.99    TimeoutError: timed out         ← unused address, negative control
+```
+
+O mecanismo é visível em [`health`](../../commands/system/health/): **a eth0 é renomeada
+para `a-i-eth0` e não carrega nenhum endereço IP do host** — o plano de dados do Argo é o
+proprietário dessa interface — enquanto eth1 e eth2 permanecem na pilha do host, onde o
+`sshd` está escutando.
+
+Assim, uma sondagem contra o endereço pelo qual você conhece o nó, seu endereço de
+gerenciamento, expira exatamente como aconteceria com um security group fechado. Nada está
+bloqueando; simplesmente não há nenhum listener nesse endereço para responder.
+
+<Aside type="caution" title="Sonde de dentro da VNet e sonde o endereço interno">
+Dois erros de medição aqui produzem respostas erradas com muita confiança.
+
+Sondar a eth0 ou a interface externa na porta 22 sempre reporta fechado, qualquer que seja
+o estado do SSH no nó, portanto isso não pode dizer nada sobre o SSH. Apenas o endereço SLI
+responde.
+
+E uma sondagem a partir de uma estação de trabalho corporativa pode reportar como **aberta**
+uma porta que está fechada: o Netskope completa o handshake TCP por conta própria em portas
+comuns. As portas 80 e 443 aparecem como abertas nos endereços públicos do CE a partir de uma
+estação de trabalho e estão fechadas quando sondadas de dentro da VNet. Sonde a partir de uma
+VM na VNet.
+</Aside>
+
+## Por que o `admin` não consegue autenticar
+
+O `vpm` configura os usuários locais do nó no registro, e ele se recusa a mexer neste.
+Do próprio log do nó, três vezes em um único boot:
+
+```text
+vpm  users.go:165: Won't do any change for user admin (internal skip)
+```
+
+Todo o resto é consistente com essa única linha:
+
+- A conta existe — `uid=2202(admin) gid=2202(admin) groups=2202(admin),2301(vpm)`,
+  home `/var/home/admin`, shell de login `/opt/bin/vpmu`, que é o Site CLI.
+- `/var/home/admin/.ssh` **nunca existe**, antes ou depois de o site atingir `ONLINE`.
+  Nenhum arquivo `authorized_keys` é escrito em momento algum.
+- `sshd -T` reporta `pubkeyauthentication yes`, `passwordauthentication no`,
+  `kbdinteractiveauthentication no`. O único `PasswordAuthentication yes` em
+  `/etc/ssh/sshd_config` está dentro de `Match User vesbkp,xcuser`, portanto o `admin` está
+  excluído da autenticação por senha **no nível da imagem**.
+- A data da última alteração no shadow do `admin` é a data de build da imagem, 2024-02-16,
+  enquanto `vesbkp` e `vesopcon` mostram a data atual. O `vpm` configurou esses dois e nunca
+  tocou no `admin`.
+- O `vpm` não registra absolutamente nada sobre `ssh_key` ou `authorized_keys`.
+
+O lado do cliente concorda. Ao longo de 45 tentativas de autenticação abrangendo três
+implantações do zero, duas atualizações in-place e três builds de CE diferentes — incluindo
+a mais recente, executando o OpenSSH 9.9:
+
+```text
+debug1: Authenticating to <sli-ip>:22 as 'admin'
+debug1: Offering public key: ... ED25519 SHA256:ENH3M0bFPYMt... explicit
+debug1: Authentications that can continue: publickey
+admin@<sli-ip>: Permission denied (publickey).
+```
+
+O servidor nunca oferece autenticação por senha ou keyboard-interactive, e
+`journalctl -u sshd` no nó registra
+`Connection closed by authenticating user admin ... [preauth]`.
+
+## O que isso não é
+
+Cada um destes foi testado e descartado, e cada um é um palpite plausível o suficiente para
+custar um dia.
+
+| Não é a causa | Como foi descartado |
+| --- | --- |
+| A credencial só se aplica no momento da criação | O `sshd` inicia cerca de 90 segundos após o primeiro boot, *antes de o objeto de site existir* — `sshd[1238]: Server listening on 0.0.0.0 port 22` às 13:04:56, site criado às 13:05:23. `admin_user_credentials` também está presente em `ReplaceSpecType` e se aplica in-place. |
+| `block_all_services` | O fechamento da porta 22 no SLO é idêntico, com serviços bloqueados ou não. |
+| Uma nova linha ao final da chave | Testado das duas formas. Nenhuma mudança. |
+| Software de CE fixado, mais antigo | Reproduzido em três builds, incluindo uma com OpenSSH 9.9. |
+| Um `admin_password` ausente | Definir `admin_password` junto com `ssh_key` em um CE criado do zero não mudou nada. |
+
+<Aside type="caution" title="Dois campos de API que parecem discriminantes e não são">
+`gc_spec.admin_ssh_key` está vazio em **todos os 88 sites do tenant**, incluindo os 20
+que definem `admin_password`. Comparar esse campo entre um site que funciona e um que não
+funciona não diz nada, porque ele está vazio em todos os lugares.
+
+`registrations_by_site` omite o campo por completo e retorna `None` para ele, o que se lê
+como "não configurado" em vez de "não reportado".
+</Aside>
+
+## Use estes em vez disso
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="The recommended route, and already scripted here as <code>scripts/capture-sitecli.sh</code>. Needs the site <code>ONLINE</code>."
+    href="../debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
+    href="../serial-console/"
+  />
+</CardGrid>
+
+A API de debug é verificada contra a demonstração. Ela cobre os 34 comandos que expõe nesta
+build — as partes do Site CLI que só existem no equipamento permanecem inacessíveis de
+qualquer forma. Confirme se a superfície não mudou por baixo da documentação:
+
+```bash
+bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
+```
+
+```text
+catalog matches the live CE (build crt-20250613-3382, 34 commands)
+```
+
+<Aside type="caution" title="Um site recém-criado precisa de cerca de meia hora antes de a API operate responder">
+Por aproximadamente 25 a 30 minutos após um novo site reportar `ONLINE`, os endpoints
+`vpm/debug` retornam uma página `503` do BIG-IP dizendo `The requested URL was rejected`.
+Isso parece um bloqueio de web application firewall, ou um token revogado, e não é nenhum
+dos dois — o site ainda não está pronto para retransmitir. Espere e tente novamente em vez
+de alterar qualquer coisa.
+</Aside>
+
+### Operando o Site CLI por meio de `az vm run-command`
+
+`/opt/bin/vpmu` é o shell de login do `admin`, portanto invocá-lo via `az vm run-command`
+alcança o mesmo Site CLI interativo que o SSH teria alcançado.
+Verificado em um CE descartável da mesma build; `execcli docker-ps`,
+`execcli ip-link-show` e `health` foram todos capturados dessa maneira.
+
+Duas mecânicas são necessárias e nenhuma delas é óbvia:
+
+- **O `vpmu` entra em panic sem um PTY** —
+  `go-prompt … NewStandardInputParser: no such device or address`. Aloque um.
+- **O texto do comando e o byte de Enter precisam ser escritas separadas.** Em uma única
+  escrita, a nova linha chega ao buffer como um caractere literal e o CLI responde
+  `unknown command "execcli\n"`, o que parece indicar que o comando não existe.
+
+O menu interativo lista `configure`, `configure-generic-hardware`,
+`configure-network`, `configure-http-proxy`, `diagnosis` e `health`. **`execcli` é um
+comando oculto** — não está nesse menu, e recebe o nome de um comando do catálogo como
+argumento.
+
+<Aside type="note" title="Este caminho é verificado em um CE descartável, não na demonstração">
+A rota `run-command` foi exercitada em um CE descartável executando a mesma build e a
+mesma configuração. Ela não foi reexecutada contra `ar-bgp-eastus01/02/03`, portanto trate
+seu comportamento ali como esperado, e não como comprovado. A rota da API de debug *é*
+verificada contra a demonstração.
+</Aside>

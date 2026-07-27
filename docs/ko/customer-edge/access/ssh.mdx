@@ -1,0 +1,190 @@
+---
+title: SSH
+description: >-
+  이 Customer Edge 빌드에는 지원되는 admin SSH 경로가 없습니다. admin_user_credentials가 노드에 적용되지
+  않는다는 vpm 증거, sshd가 내부 주소에서만 응답하는 이유, 그리고 실제로 작동하는 두 가지 경로를 다룹니다.
+sidebar:
+  order: 25
+  label: SSH
+i18n:
+  sourceHash: 4c6d5777469f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+**이 테넌트가 실행 중인 CE 빌드에는 지원되는 `admin` SSH 경로가 없습니다** —
+`crt-20250613-3382`, OS `9.2024.6`. 이는 구성의 문제가 아닙니다.
+`admin` 계정은 존재하고, `sshd`는 실행 중이며, `admin_user_credentials.ssh_key`는
+사이트 객체에서 수락되고 API 읽기 응답에서 반환됩니다 — 하지만 그 키는
+노드에 결코 적용되지 않으므로 모든 인증 시도가 거부됩니다.
+
+대신 [디버그 API](../debug-api/)를 사용하십시오. 노드의 읽기 전용 명령
+표면에 도달하며 이 리포지토리에 이미 스크립트로 작성되어 있습니다.
+
+<Aside type="danger" title="이에 대한 Terraform 지원은 제거되었습니다">
+`admin_user_credentials`는 `terraform/modules/xc-site`에 연결되었다가 아래 증거가
+수집된 후 되돌려졌습니다(#660, PR #663). 이는 채워지기를 기다리는 공백이 아닙니다 —
+해당 필드는 노드에서 아무것도 구성하지 않습니다. 다시 추가하지 마십시오.
+</Aside>
+
+## 왜 모든 시도가 네트워크 문제처럼 보이는가
+
+`sshd`는 CE에서 `0.0.0.0:22`에 바인딩되지만, 호스트 네트워크 스택에 있는 것은
+**내부(SLI)** 주소뿐입니다. 동일한 VNet 내부의 `ar-ecmp-client`에서 세 개의
+데모 CE 모두를 대상으로 탐지한 결과:
+
+```text
+10.0.1.4     TimeoutError: timed out         ← CE mgmt/SLO  (eth0)
+10.0.2.4     TimeoutError: timed out         ← CE external  (eth1)
+10.0.3.5     CONNECTED  SSH-2.0-OpenSSH_8.7  ← CE internal/SLI
+10.0.3.6     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.7     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.99    TimeoutError: timed out         ← unused address, negative control
+```
+
+그 메커니즘은 [`health`](../../commands/system/health/)에서 확인할 수 있습니다.
+**eth0는 `a-i-eth0`로 이름이 변경되고 호스트 IP 주소를 갖지 않습니다** — Argo 데이터
+플레인이 해당 인터페이스를 소유합니다 — 반면 eth1과 eth2는 `sshd`가 수신 대기 중인
+호스트 스택에 남아 있습니다.
+
+따라서 노드를 식별하는 주소, 즉 관리 주소를 대상으로 한 탐지는 닫힌 보안 그룹과
+정확히 동일하게 타임아웃됩니다. 아무것도 차단하고 있지 않습니다. 그 주소에서
+응답할 리스너가 없을 뿐입니다.
+
+<Aside type="caution" title="VNet 내부에서, 그리고 내부 주소를 대상으로 탐지하십시오">
+여기서 두 가지 측정 실수가 확신에 찬 잘못된 답을 만들어냅니다.
+
+eth0나 외부 인터페이스의 22번 포트를 탐지하면 노드의 SSH 상태와 무관하게 항상 닫힌
+것으로 보고되므로 SSH에 대해 아무것도 알려줄 수 없습니다. SLI 주소만 응답합니다.
+
+그리고 회사 워크스테이션에서의 탐지는 닫혀 있는 포트를 **열림**으로 보고할 수
+있습니다. Netskope가 일반적인 포트에서 TCP 핸드셰이크를 직접 완료하기 때문입니다.
+워크스테이션에서 보면 CE 공용 주소의 80번과 443번 포트가 열린 것으로 읽히지만,
+VNet 내부에서 탐지하면 닫혀 있습니다. VNet 내의 VM에서 탐지하십시오.
+</Aside>
+
+## `admin`이 인증할 수 없는 이유
+
+`vpm`은 등록 시 노드의 로컬 사용자를 구성하는데, 이 사용자만은 건드리기를 거부합니다.
+노드 자체 로그에서, 단일 부팅 중 세 번 나타납니다:
+
+```text
+vpm  users.go:165: Won't do any change for user admin (internal skip)
+```
+
+그 밖의 모든 것이 이 한 줄과 일치합니다:
+
+- 계정은 존재합니다 — `uid=2202(admin) gid=2202(admin) groups=2202(admin),2301(vpm)`,
+  홈 디렉터리 `/var/home/admin`, 로그인 셸 `/opt/bin/vpmu`(즉, Site CLI).
+- `/var/home/admin/.ssh`는 사이트가 `ONLINE`에 도달하기 전이든 후든 **결코
+  존재하지 않습니다**. 어느 시점에도 `authorized_keys` 파일이 기록되지 않습니다.
+- `sshd -T`는 `pubkeyauthentication yes`, `passwordauthentication no`,
+  `kbdinteractiveauthentication no`를 보고합니다. `/etc/ssh/sshd_config`에서 유일한
+  `PasswordAuthentication yes`는 `Match User vesbkp,xcuser` 안에 있으므로 `admin`은
+  **이미지 수준에서** 비밀번호 인증에서 제외됩니다.
+- `admin`의 shadow 최종 변경 날짜는 이미지 빌드 날짜인 2024-02-16인 반면,
+  `vesbkp`와 `vesopcon`은 현재 날짜를 표시합니다. `vpm`은 그 두 계정을 설정했고
+  `admin`은 결코 건드리지 않았습니다.
+- `vpm`은 `ssh_key`나 `authorized_keys`에 대해 아무것도 기록하지 않습니다.
+
+클라이언트 측도 이에 동의합니다. 세 번의 처음부터 시작한 배포, 두 번의 인플레이스
+업데이트, 그리고 OpenSSH 9.9를 실행하는 최신 빌드를 포함한 세 가지 서로 다른 CE
+빌드에 걸친 45번의 인증 시도에서:
+
+```text
+debug1: Authenticating to <sli-ip>:22 as 'admin'
+debug1: Offering public key: ... ED25519 SHA256:ENH3M0bFPYMt... explicit
+debug1: Authentications that can continue: publickey
+admin@<sli-ip>: Permission denied (publickey).
+```
+
+서버는 비밀번호나 키보드 인터랙티브 인증을 전혀 제공하지 않으며, 노드의
+`journalctl -u sshd`는
+`Connection closed by authenticating user admin ... [preauth]`를 기록합니다.
+
+## 원인이 아닌 것들
+
+다음 각 항목은 테스트되어 배제되었으며, 각각은 하루를 소모할 만큼 그럴듯한
+추측입니다.
+
+| 원인이 아님 | 배제된 방법 |
+| --- | --- |
+| 자격 증명이 생성 시점에만 적용된다 | `sshd`는 첫 부팅 후 약 90초에 시작되며, *사이트 객체가 존재하기 전*입니다 — 13:04:56에 `sshd[1238]: Server listening on 0.0.0.0 port 22`, 사이트는 13:05:23에 생성. `admin_user_credentials`는 `ReplaceSpecType`에도 존재하며 인플레이스로 적용됩니다. |
+| `block_all_services` | 서비스 차단 여부와 관계없이 SLO 22번 포트 폐쇄는 동일합니다. |
+| 키 끝의 개행 문자 | 양쪽 모두 테스트했습니다. 변화 없음. |
+| 고정된 구버전 CE 소프트웨어 | OpenSSH 9.9를 포함한 세 가지 빌드에서 재현되었습니다. |
+| `admin_password` 누락 | 처음부터 만든 CE에서 `ssh_key`와 함께 `admin_password`를 설정해도 아무것도 달라지지 않았습니다. |
+
+<Aside type="caution" title="구별 요소처럼 보이지만 아닌 두 개의 API 필드">
+`gc_spec.admin_ssh_key`는 `admin_password`를 설정한 20개 사이트를 포함해 **테넌트의
+88개 사이트 전부**에서 비어 있습니다. 작동하는 사이트와 작동하지 않는 사이트 간에
+이 값을 비교해도 아무것도 알 수 없습니다. 모든 곳에서 비어 있기 때문입니다.
+
+`registrations_by_site`는 해당 필드를 아예 생략하고 `None`을 반환하는데, 이는
+"보고되지 않음"이 아니라 "구성되지 않음"처럼 읽힙니다.
+</Aside>
+
+## 대신 이것들을 사용하십시오
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="The recommended route, and already scripted here as <code>scripts/capture-sitecli.sh</code>. Needs the site <code>ONLINE</code>."
+    href="../debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
+    href="../serial-console/"
+  />
+</CardGrid>
+
+디버그 API는 데모에 대해 검증되었습니다. 이 빌드에서 노출하는 34개 명령을 다루며 —
+Site CLI의 온박스 전용 부분은 어느 경로로도 접근할 수 없습니다. 해당 표면이 문서
+아래에서 바뀌지 않았는지 확인하십시오:
+
+```bash
+bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
+```
+
+```text
+catalog matches the live CE (build crt-20250613-3382, 34 commands)
+```
+
+<Aside type="caution" title="새로 생성된 사이트는 operate API가 응답하기까지 약 30분이 필요합니다">
+새 사이트가 `ONLINE`을 보고한 후 약 25~30분 동안 `vpm/debug` 엔드포인트는
+`The requested URL was rejected`라고 표시된 BIG-IP `503` 페이지를 반환합니다. 이는
+웹 애플리케이션 방화벽 차단이나 취소된 토큰처럼 보이지만 둘 다 아닙니다 — 사이트가
+아직 중계할 준비가 되지 않은 것입니다. 무언가를 변경하기보다 기다렸다가 다시
+시도하십시오.
+</Aside>
+
+### `az vm run-command`로 Site CLI 구동하기
+
+`/opt/bin/vpmu`는 `admin`의 로그인 셸이므로, `az vm run-command`를 통해 호출하면
+SSH로 도달했을 것과 동일한 대화형 Site CLI에 도달합니다.
+동일한 빌드의 일회용 CE에서 검증되었으며, `execcli docker-ps`,
+`execcli ip-link-show`, `health`를 모두 그 방식으로 캡처했습니다.
+
+두 가지 요령이 필요하며 둘 다 자명하지 않습니다:
+
+- **`vpmu`는 PTY 없이는 패닉을 일으킵니다** —
+  `go-prompt … NewStandardInputParser: no such device or address`. PTY를 할당하십시오.
+- **명령 텍스트와 Enter 바이트는 별도의 쓰기여야 합니다.** 단일 쓰기로 보내면
+  개행 문자가 버퍼에 리터럴 문자로 들어가 CLI가
+  `unknown command "execcli\n"`라고 응답하는데, 이는 마치 해당 명령이 존재하지 않는
+  것처럼 읽힙니다.
+
+대화형 메뉴에는 `configure`, `configure-generic-hardware`,
+`configure-network`, `configure-http-proxy`, `diagnosis`, `health`가 나열됩니다.
+**`execcli`는 숨겨진 명령입니다** — 그 메뉴에 없으며, 카탈로그 명령 이름을 인수로
+받습니다.
+
+<Aside type="note" title="이 경로는 데모가 아니라 일회용 CE에서 검증되었습니다">
+`run-command` 경로는 동일한 빌드와 동일한 구성을 실행하는 일회용 CE에서 수행되었습니다.
+`ar-bgp-eastus01/02/03`에 대해 다시 실행되지는 않았으므로, 그곳에서의 동작은
+입증된 것이 아니라 예상되는 것으로 간주하십시오. 디버그 API 경로는 데모에 대해
+*실제로* 검증되었습니다.
+</Aside>
