@@ -76,14 +76,3 @@ variable "sw_version" {
   type        = string
   default     = ""
 }
-
-variable "ssh_public_key" {
-  description = <<-EOT
-    Public key authorized for SSH login to the CE appliance (admin_user_credentials.ssh_key),
-    used to reach `execcli` and on-box diagnostics. The CE manages its own OS authentication,
-    so the Azure VM's admin_ssh_key does not grant CE login — this is the only thing that does.
-    Empty (default) renders no block, leaving the appliance default of no SSH listener.
-  EOT
-  type        = string
-  default     = ""
-}
