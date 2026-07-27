@@ -1,0 +1,280 @@
+---
+title: Guida alla demo as-built
+description: >-
+  Cosa distribuisce questo repository — tre Customer Edge a nodo singolo che
+  originano un unico VIP via eBGP verso un Azure Route Server per un ECMP a tre
+  vie — come dimostrare che è integro prima di presentarlo e i due risultati
+  dall'aspetto normale che vengono interpretati come un'interruzione senza
+  esserlo.
+sidebar:
+  order: 5
+  label: Demo as-built
+i18n:
+  sourceHash: 8e45b930d69d
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Questa distribuzione dimostra l'**alta disponibilità attiva/attiva dei Customer Edge in Azure**
+senza alcun load balancer Azure davanti ai CE. Tre CE originano ciascuno la stessa route
+host tramite eBGP e l'Azure Route Server installa tutti e tre come next hop a costo uguale nella
+VNet. È quindi il fabric di routing, anziché un load balancer, il punto in cui devono avvenire la
+distribuzione del traffico e la rimozione dei nodi guasti.
+
+Tutto ciò che è mostrato di seguito è stato eseguito sulla distribuzione live e l'output è quello che essa
+ha prodotto. Due aspetti che quella frase *non* copre — failover e distribuzione del traffico —
+sono segnalati alla fine invece di essere dati per scontati.
+
+## Che cosa viene distribuito
+
+```text
+                  Azure Route Server  ce-ha-lab-rrs  ASN 65515
+                          10.0.4.4  and  10.0.4.5
+                                      |
+              +-----------------------+-----------------------+
+              |                       |                       |
+        eastus01-bgp            eastus02-bgp            eastus03-bgp     eBGP
+              |                       |                       |      CE ASN 64512
+        10.0.1.4                10.0.1.5                10.0.1.6     <- CE eth0 / SLO
+     f5-xc-ce-vm-01          f5-xc-ce-vm-02          f5-xc-ce-vm-03
+    ar-bgp-eastus01         ar-bgp-eastus02         ar-bgp-eastus03
+              |                       |                       |
+              +----- each advertises 10.250.0.10/32 -----------+
+                          three-way ECMP into the VNet
+```
+
+| Componente | Come realizzato |
+| --- | --- |
+| Customer Edge | 3 siti Secure Mesh v2 a nodo singolo — `ar-bgp-eastus01`, `ar-bgp-eastus02`, `ar-bgp-eastus03` |
+| Software CE | versione fissata `9.2024.6`, build `crt-20250613-3382` |
+| VM Azure | `f5-xc-ce-vm-01/02/03`, tre NIC ciascuna (management/SLO, external, internal/SLI) |
+| Scambio di route | Azure Route Server `ce-ha-lab-rrs`, ASN `65515`, istanze `10.0.4.4` e `10.0.4.5` |
+| Peering | uno per CE — `eastus01-bgp`, `eastus02-bgp`, `eastus03-bgp` — ASN CE `64512` |
+| VIP annunciato | `10.250.0.10/32`, originato in modo identico da tutti e tre i CE |
+| Load balancer | `ar-bgp-ecmp-lb`, che serve il dominio `ar-bgp-ecmp.bankexample.com` |
+| Client di test | `ar-ecmp-client`, una VM all'interno della stessa VNet |
+| Gruppo di risorse | `rg-mcn-ce-ha-rmordasiewicz` |
+
+<Aside type="caution" title="Il VIP deve trovarsi al di fuori di ogni CIDR della VNet">
+`terraform/main.tf` contiene un blocco `check` che verifica che il VIP sia al di fuori sia del CIDR hub
+sia di quello spoke e rifiuta il plan in caso contrario. La motivazione dichiarata è che un VIP interno a
+un CIDR di VNet perde contro la route di sistema della VNet stessa, nonostante la route BGP sia più specifica.
+
+Considerate la protezione come un contratto: se ripuntate questa demo su un piano di indirizzamento diverso, il
+VIP deve spostarsi fuori dagli intervalli della VNet insieme a esso.
+</Aside>
+
+## Dimostrare che è integro prima di presentare
+
+Quattro controlli, in questo ordine. Ciascuno restringe l'ambito in cui si troverebbe un guasto, così un esito
+negativo vi dice qualcosa e non soltanto che qualcosa non funziona.
+
+<Steps>
+
+1. **Tutti e tre i siti sono `ONLINE`.** Nulla a valle può essere vero se questo non lo è.
+
+   ```bash
+   for s in ar-bgp-eastus01 ar-bgp-eastus02 ar-bgp-eastus03; do
+     printf '%s -> ' "$s"
+     curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+       "$XCSH_API_URL/api/config/namespaces/system/sites/$s" | jq -r '.spec.site_state'
+   done
+   ```
+
+   ```text
+   ar-bgp-eastus01 -> ONLINE
+   ar-bgp-eastus02 -> ONLINE
+   ar-bgp-eastus03 -> ONLINE
+   ```
+
+2. **Ogni peering sta apprendendo l'annuncio del VIP di quel CE.** Interrogate ciascun peering
+   separatamente — vedete la trappola descritta di seguito, perché è qui che la demo più spesso sembra
+   guasta senza esserlo.
+
+   ```bash
+   for p in eastus01-bgp eastus02-bgp eastus03-bgp; do
+     echo "--- $p"
+     az network routeserver peering list-learned-routes \
+       --name "$p" --routeserver ce-ha-lab-rrs -g rg-mcn-ce-ha-rmordasiewicz \
+       --query "RouteServiceRole_IN_0[].{net:network,nextHop:nextHop,asPath:asPath,origin:origin}" \
+       -o table
+   done
+   ```
+
+   ```text
+   --- eastus01-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.4   64512     EBgp
+
+   --- eastus02-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.5   64512     EBgp
+
+   --- eastus03-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.6   64512     EBgp
+   ```
+
+   Tre peering, tre next hop differenti, un solo prefisso. Questo dimostra il lato dell'annuncio
+   di ECMP.
+
+3. **Le route effettive del client riportano tutti e tre i next hop.** Questo è l'ECMP stesso,
+   così come la VNet lo ha programmato — non ciò che i CE dichiarano, ma ciò che Azure ne ha fatto.
+
+   ```bash
+   az network nic show-effective-route-table \
+     --name ar-ecmp-clientVMNic -g rg-mcn-ce-ha-rmordasiewicz \
+     --query "value[?addressPrefix[0]=='10.250.0.10/32']" -o json
+   ```
+
+   ```json
+   [
+     {
+       "addressPrefix": ["10.250.0.10/32"],
+       "nextHopIpAddress": ["10.0.1.5", "10.0.1.4", "10.0.1.6"],
+       "nextHopType": "VirtualNetworkGateway",
+       "source": "VirtualNetworkGateway",
+       "state": "Active"
+     }
+   ]
+   ```
+
+   `state: Active` con tre voci in `nextHopIpAddress` è il controllo. Un solo next hop
+   dove ne aspettate tre significa che un CE ha smesso di annunciare, e il passaggio 2 identifica quale.
+
+4. **Il VIP serve traffico.** Dalla VM client e **con l'header `Host`** — vedete
+   la seconda trappola più sotto.
+
+   ```bash
+   az vm run-command invoke -g rg-mcn-ce-ha-rmordasiewicz -n ar-ecmp-client \
+     --command-id RunShellScript --query "value[0].message" -o tsv \
+     --scripts 'for i in $(seq 1 10); do
+                  curl -s -o /dev/null -w "%{http_code} " \
+                    -H "Host: ar-bgp-ecmp.bankexample.com" http://10.250.0.10/
+                done'
+   ```
+
+   ```text
+   200 200 200 200 200 200 200 200 200 200
+   ```
+
+</Steps>
+
+## Trappola: un peering mostra una sola route, ed è corretto
+
+`list-learned-routes` è limitato al peering che indicate. Riporta ciò che **quel** peer
+ha annunciato, non l'intera tabella del Route Server.
+
+Quindi interrogare solo `eastus01-bgp` restituisce un unico `10.250.0.10/32` via `10.0.1.4`, ed è
+tentante leggerlo come "solo un CE sta annunciando — gli altri due sono giù". Niente
+è giù. Gli altri due annunci sono visibili sui rispettivi peering, che è ciò su cui
+il passaggio 2 sopra itera.
+
+Non è possibile confermare l'ECMP da una singola interrogazione di peering. Iterate su tutti e tre i
+peering, oppure leggete la tabella delle route effettive del client, che mostra il risultato unito in una sola
+chiamata.
+
+## Trappola: una richiesta con solo l'IP restituisce 404
+
+Il load balancer effettua il match su `Host`. Il VIP non è un virtual server che serve qualcosa
+a chiunque si connetta all'indirizzo.
+
+```text
+curl -H 'Host: ar-bgp-ecmp.bankexample.com' http://10.250.0.10/   ->  200   (10 of 10)
+curl                                        http://10.250.0.10/   ->  404
+```
+
+Entrambi sono stati prodotti nella stessa esecuzione sulla distribuzione integra. **Un 404 con solo
+l'IP è la prova che il percorso funziona** — la richiesta ha raggiunto il CE, il proxy del CE ha risposto e
+lo ha rifiutato perché nessun dominio configurato corrispondeva. Interpretarlo come un'interruzione vi porta a
+esaminare BGP, dove non troverete nulla di sbagliato.
+
+Lo stesso vale durante una demo: se digitate l'indirizzo in un browser invece di
+risolvere il dominio su di esso, ottenete il 404.
+
+## L'approvazione della registrazione è automatizzata e l'apply è comunque in due fasi
+
+L'approvazione della registrazione non richiede più un intervento umano nella console. Con il provider **v3.81.1** la
+risorsa `xcsh_registration_approval` la esegue, e il modulo del sito determina quale
+registrazione approvare.
+
+Questo comunque non rende la distribuzione un unico `apply` senza interventi, e la ragione
+vale la pena di essere compresa prima di osservare una prima esecuzione e concludere che è fallita:
+
+- L'oggetto di registrazione di un CE si chiama **`r-<uuid>`**. Non prende mai il nome dal sito, quindi
+  nulla può prevedere il nome al momento del plan.
+- La registrazione esiste solo dopo che la VM è stata avviata e `vpm` si è registrato.
+- Perciò il **primo apply non pianifica alcuna approvazione**. Rieseguite l'apply una volta che i CE si sono registrati
+  e le approvazioni sono state create.
+
+`terraform/main.tf` documenta questo ordinamento in testa al file, che è la
+versione autorevole — la sequenza di deploy risiede insieme al codice che la implementa.
+
+<Aside type="caution" title="Un sito appena creato non è immediatamente raggiungibile tramite l'API operate">
+Per circa 25-30 minuti dopo che un nuovo sito riporta `ONLINE`, gli endpoint `vpm/debug`
+rispondono con una pagina BIG-IP `503` che riporta `The requested URL was rejected`. Sembra un
+blocco di un firewall per applicazioni web o un token revocato e non è né l'uno né l'altro. Attendete, poi riprovate.
+
+Questo riguarda una demo appena costruita, non una già in esecuzione.
+</Aside>
+
+## Accedere alla Site CLI
+
+La diagnostica on-box passa dalla debug API, che qui è già gestita da script. Verificate che la
+superficie dei comandi corrisponda ancora a quanto descritto nella documentazione:
+
+```bash
+bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
+```
+
+```text
+catalog matches the live CE (build crt-20250613-3382, 34 commands)
+```
+
+`--check` non scrive nulla, quindi è sicuro sulla demo live.
+
+<CardGrid>
+  <LinkCard
+    title="Raggiungere un Customer Edge"
+    description="Quale percorso di accesso si applica, le credenziali necessarie per ciascuno e perché la scelta non è una preferenza."
+    href="../customer-edge/access/"
+  />
+  <LinkCard
+    title="Comandi BGP"
+    description="La vista on-box da FRR — stato del peering, tabella completa e ciò che questo nodo annuncia."
+    href="../customer-edge/commands/network/bgp/"
+  />
+</CardGrid>
+
+## Altre due trappole di misurazione
+
+Entrambe hanno prodotto risposte sbagliate ma convincenti in questo ambiente, e nessuna delle due è
+ovvia.
+
+- **Sondate dall'interno della VNet, non dalla vostra workstation.** Netskope completa esso stesso l'handshake TCP
+  sulle porte comuni, quindi un probe dalla workstation riporta come **aperta** una porta che
+  in realtà è chiusa. Le porte 80 e 443 risultano aperte sugli indirizzi pubblici dei CE da una
+  workstation e sono chiuse quando sondate dall'interno della VNet. Usate `ar-ecmp-client`.
+- **La porta 22 su un CE risponde solo sull'indirizzo interno (SLI).** Sondando da
+  `ar-ecmp-client` verso i tre CE, `10.0.3.5`, `10.0.3.6` e `10.0.3.7` restituiscono tutti
+  `SSH-2.0-OpenSSH_8.7`, mentre gli indirizzi di management ed external vanno in timeout — come avviene per un
+  indirizzo non utilizzato impiegato come controllo. Sondare l'indirizzo con cui conoscete il nodo non vi
+  dice quindi nulla sullo stato SSH del nodo.
+
+<Aside type="note" title="Ciò che questa pagina non afferma">
+Due aspetti che un lettore potrebbe ragionevolmente aspettarsi qui sono deliberatamente assenti, perché non sono
+stati verificati sulla distribuzione:
+
+- **Il failover non è stato testato.** È verificato che i tre next hop a costo uguale siano installati; ciò
+  che avviene alla tabella di routing quando un CE viene arrestato non è mostrato, quindi non provate una
+  demo di failover a partire da questa pagina senza averla prima verificata.
+- **La distribuzione del traffico non è stata misurata.** Dieci richieste su dieci verso il VIP hanno restituito `200`,
+  il che dimostra che il percorso funziona. Non mostra come quelle dieci siano state distribuite tra i tre
+  next hop.
+
+</Aside>
