@@ -44,16 +44,11 @@ A node that failed to register — bad cloud-init, an expired token, no route to
 `register.ves.volterra.io` — is exactly the case where you need diagnostics, and
 exactly the case the API cannot serve.
 
-The node also refuses SSH as shipped. Port 22 is closed on the CE itself, not by a
-network security group:
-
-```console
-$ ssh -o ConnectTimeout=10 admin@<ce-public-ip>
-ssh: connect to host <ce-public-ip> port 22: Connection refused
-```
-
-Verified from inside the VNet as well, from a jump host on the same subnet, so
-opening a security group rule does not change it.
+SSH is not a third option. `sshd` runs on the node and answers on its internal (SLI)
+address, but the `admin` account cannot authenticate: `vpm` skips that user, so the
+`ssh_key` you configure on the site object is never applied. No security group rule
+changes it. The evidence is on the [SSH](./access/ssh/) page, which exists because
+every symptom there reads as a firewall or a credential fault.
 
 So: if the site is `ONLINE`, use the debug API. If it is not, serial console is the
 only way in.

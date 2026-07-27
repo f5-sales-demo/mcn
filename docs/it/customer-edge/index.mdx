@@ -1,30 +1,33 @@
 ---
 title: Diagnostica Customer Edge
 description: >-
-  Leggi questo livello per primo quando un Customer Edge non funziona
-  correttamente. Stabilisce quale dei due percorsi di accesso si applica, perché
-  quello sbagliato restituisce silenziosamente nulla.
+  Leggere prima questo livello quando un Customer Edge si comporta in modo
+  anomalo. Stabilisce quale dei due percorsi di accesso è applicabile, perché
+  quello sbagliato non restituisce nulla senza segnalarlo.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: 6fd834c949c2
+  sourceHash: 991cdd445e1e
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Un Customer Edge (CE) è il nodo F5 Distributed Cloud che questo repository provisiona in
-Azure — `terraform/modules/ce-node`, creato a partire dall'immagine marketplace
+Un Customer Edge (CE) è il nodo F5 Distributed Cloud che questo repository esegue il provisioning in
+Azure — `terraform/modules/ce-node`, creato dall'immagine del marketplace
 `volterraedgeservices/volterra-node`.
 
-Esegue il piano dati (Argo), il piano di controllo (Vega), un proxy Envoy, uno stack
-Kubernetes e `vpm`, l'agente che registra il nodo e gestisce tutto il resto su di esso.
+Esegue il data plane (Argo), il control plane (Vega), un proxy Envoy, uno stack
+Kubernetes e `vpm`, l'agente che registra il nodo e gestisce tutto il resto su
+di esso.
 
-Quando un CE non funziona correttamente, la Site CLI è lo strumento da utilizzare. La prima decisione riguarda quale percorso di accesso si applica: scegliere quello sbagliato fa perdere tempo in modo che sembra un nodo guasto.
+Quando un CE si comporta in modo anomalo, la Site CLI è lo strumento da usare. La prima decisione riguarda quale
+percorso di accesso è applicabile, e sbagliarlo fa perdere tempo in un modo che sembra un
+nodo guasto.
 
-## Due percorsi di accesso, e non sono intercambiabili
+## Due percorsi di accesso, e non sono interscambiabili
 
 <CardGrid>
   <LinkCard
@@ -39,27 +42,25 @@ Quando un CE non funziona correttamente, la Site CLI è lo strumento da utilizza
   />
 </CardGrid>
 
-La debug API raggiunge il nodo **attraverso il piano di controllo di F5 Distributed Cloud**.
-Questo è esattamente il motivo per cui la distinzione è importante: l'API può rispondere solo dopo che il nodo si è registrato e riporta lo stato `ONLINE`.
+La debug API raggiunge il nodo **attraverso il control plane di F5 Distributed Cloud**.
+È proprio per questo che la distinzione conta: l'API può rispondere solo dopo che il nodo si è
+registrato e riporta `ONLINE`.
 
-Un nodo che non è riuscito a registrarsi — cloud-init errato, token scaduto, nessun percorso verso
-`register.ves.volterra.io` — è esattamente il caso in cui si ha bisogno della diagnostica, e
-precisamente il caso in cui l'API non può rispondere.
+Un nodo che non è riuscito a registrarsi — cloud-init errato, un token scaduto, nessuna rotta verso
+`register.ves.volterra.io` — è esattamente il caso in cui serve la diagnostica, ed
+esattamente il caso che l'API non può servire.
 
-Il nodo rifiuta anche SSH nella configurazione predefinita. La porta 22 è chiusa sul CE stesso, non da un gruppo di sicurezza di rete:
+SSH non è una terza opzione. `sshd` è in esecuzione sul nodo e risponde sul suo indirizzo interno
+(SLI), ma l'account `admin` non può autenticarsi: `vpm` salta quell'utente, quindi la
+`ssh_key` configurata sull'oggetto del sito non viene mai applicata. Nessuna regola del gruppo di sicurezza
+lo cambia. Le prove sono nella pagina [SSH](./access/ssh/), che esiste perché
+ogni sintomo riportato lì sembra un problema di firewall o di credenziali.
 
-```console
-$ ssh -o ConnectTimeout=10 admin@<ce-public-ip>
-ssh: connect to host <ce-public-ip> port 22: Connection refused
-```
-
-Verificato anche dall'interno della VNet, da un jump host sulla stessa subnet, quindi
-aprire una regola del gruppo di sicurezza non cambia nulla.
-
-Quindi: se il sito è `ONLINE`, utilizzare la debug API. In caso contrario, la console seriale è l'unico modo per accedere.
+Quindi: se il sito è `ONLINE`, usare la debug API. Se non lo è, la console seriale è l'unica
+via d'accesso.
 
 <Aside type="caution" title="Verificare prima lo stato del sito">
-Una sola richiesta indica quale percorso seguire:
+Una sola richiesta indica su quale percorso vi trovate:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -73,29 +74,34 @@ esiste — significa console seriale.
 
 ## Regole di sicurezza
 
-Queste si applicano a ogni comando su ogni pagina seguente.
+Valgono per ogni comando su ogni pagina elencata sotto.
 
-- **Solo lettura, a meno che non si sia certi.** La superficie dei comandi è suddivisa in due
-  livelli di privilegi: il livello `Exec` modifica il nodo oppure legge un marcatore di stato. Nessuna pagina qui esegue un comando `Exec`, e lo stesso vale per il sistema di acquisizione.
-- **Non dare mai per scontato che un comando sia sicuro dal suo nome.** `ip-link-set` sembra una
-  query ma porta un'interfaccia offline. `systemctl-restart-crio` riavvia il runtime dei
-  container sotto un piano dati attivo.
-- **Preferire il comando più limitato che risponda alla domanda.** `health` e
-  `diagnosis` riassumono il nodo in modo economico; `flow-l` scarica una tabella di flusso con 629.760 voci.
-- **Un CE serve traffico in produzione.** Questi sono ambienti demo condivisi. Si assuma che qualcuno
-  stia effettuando una presentazione dal sito che si sta eseguendo il debug.
+- **Sola lettura, a meno che non siate certi.** La superficie dei comandi è divisa in due
+  livelli di privilegio, e il livello `Exec` modifica il nodo oppure legge un
+  marcatore di stato. Nessun comando `Exec` viene eseguito in queste pagine, e nemmeno dal
+  capture harness.
+- **Non dare mai per scontato che un comando sia sicuro in base al suo nome.** `ip-link-set` sembra una
+  query e invece disattiva un'interfaccia. `systemctl-restart-crio` riavvia il
+  runtime dei container sotto un data plane attivo.
+- **Preferire il comando più circoscritto che risponda alla domanda.** `health` e
+  `diagnosis` riassumono lo stato del nodo con poche risorse; `flow-l` scarica una tabella di flusso
+  da 629.760 voci.
+- **Un CE serve traffico reale.** Si tratta di ambienti demo condivisi. Presumete che qualcuno
+  stia presentando dal sito che state analizzando.
 
 ## Cosa è documentato qui
 
-Ogni comando raggiungibile tramite la debug API sulla versione software eseguita da questo tenant,
-ciascuno con output acquisito da un nodo in produzione anziché trascritto da altre fonti.
+Ogni comando raggiungibile tramite la debug API nella build software in uso su questo tenant,
+ciascuno con l'output acquisito da un nodo reale e non trascritto da altre fonti.
 
-Il [riferimento dei comandi](./commands/) li elenca tutti con la relativa categoria, livello di privilegi e trasporto; i [flussi di lavoro](./workflows/) li concatenano nelle sequenze che si utilizzano effettivamente quando qualcosa non funziona.
+Il [riferimento dei comandi](./commands/) li elenca tutti con la relativa categoria, livello
+di privilegio e trasporto; i [workflow](./workflows/) li concatenano nelle sequenze che
+si usano effettivamente quando qualcosa non funziona.
 
-Le parti della Site CLI accessibili solo dal nodo — `configure`, `configure-network`,
-`factory-reset`, `upgrade` e circa sessanta ulteriori comandi `ExecCLI` — non sono
-documentate.
+Le parti della Site CLI disponibili solo sul nodo — `configure`, `configure-network`,
+`factory-reset`, `upgrade` e circa altri sessanta comandi `ExecCLI` — non sono
+trattate.
 
-Sono raggiungibili solo da una sessione di console seriale, quindi nulla di ciò che le riguarda può essere
-verificato a livello programmatico, e la sintassi di comandi non verificata è il difetto che questa
-documentazione si propone di evitare di ripetere.
+Sono raggiungibili solo da una sessione di console seriale, quindi nulla che le riguardi può essere
+verificato in modo programmatico, e la sintassi di comandi non verificata è proprio il difetto che questa
+documentazione esiste per evitare di ripetere.

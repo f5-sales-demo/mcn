@@ -1,65 +1,69 @@
 ---
-title: Accès à un Customer Edge
+title: Atteindre un Customer Edge
 description: >-
-  Lisez ce niveau avant d'exécuter toute commande. Couvre l'authentification, la
-  règle niveau-vers-point-de-terminaison qui détermine où une commande est
-  envoyée, et le chemin de secours pour un nœud non enregistré.
+  Lisez ce niveau avant d'exécuter la moindre commande. Il couvre
+  l'authentification, la règle niveau-vers-point de terminaison qui détermine où
+  une commande est envoyée, et le chemin de secours pour un nœud non enregistré.
 sidebar:
   order: 10
   label: Accès
 i18n:
-  sourceHash: 188808639df6
+  sourceHash: 479fed005588
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Deux routes existent, et celle qui s'applique est déterminée par l'état du nœud plutôt
-que par une préférence.
+Deux voies fonctionnent, et celle qui s'applique est déterminée par l'état du nœud plutôt
+que par préférence.
 
-| État du nœud | Route | Scriptable | Couvre |
-| --- | --- | --- | --- |
-| `ONLINE` | [Debug API](./debug-api/) | Oui | 34 commandes, lecture seule et privilégiées |
-| Non enregistré, ou inaccessible | [Console série](./serial-console/) | Non — nécessite un terminal | L'intégralité du Site CLI embarqué |
+| Voie | Nécessite un nœud `ONLINE` | Nécessite une accessibilité réseau | Limites | Couverture |
+| --- | --- | --- | --- | --- |
+| [Debug API](./debug-api/) | **oui** | oui | environ 25 à 30 minutes de préchauffage sur un nouveau site | 34 commandes |
+| [Console série](./serial-console/) | non | non | une session par VM ; limite de collage de 2 048 caractères | L'intégralité du Site CLI embarqué |
 
-## Pourquoi la séparation n'est pas une préférence
+La console série est le dernier recours, et la seule voie qui survit à un nœud dépourvu de
+chemin réseau opérationnel.
 
-L'API de débogage est servie par le plan de contrôle F5 Distributed Cloud, qui relaie vers
-le nœud via le tunnel que `vpm` établit lors de l'enregistrement. L'absence d'enregistrement
-signifie l'absence de tunnel, ce qui signifie que l'API n'a rien vers quoi relayer.
+[**SSH n'est pas une troisième voie.**](./ssh/) Le compte `admin` ne peut pas s'authentifier sur la
+build utilisée par ce tenant, `vpm` n'applique jamais la clé, et aucun paramètre de site ne
+change cela. Cette page existe pour documenter les preuves, car chacun des modes de défaillance
+ressemble à un problème de pare-feu ou d'identifiants.
 
-L'échec se produit de manière peu explicite plutôt qu'évidente, si bien qu'un nœud
-qui n'a jamais démarré ressemble à un problème d'API.
+## Pourquoi cette séparation n'est pas une question de préférence
 
-La console série fonctionne à l'inverse — via la Plateforme Azure jusqu'au
-port série émulé du nœud. Elle ne se préoccupe pas de savoir si le nœud est enregistré,
-s'il est accessible sur le réseau, ou si son plan de données fonctionne. Cette
-indépendance est précisément son intérêt, et c'est pourquoi les diagnostics de
-démarrage doivent rester activés sur les VM CE.
+L'API de débogage est fournie par le plan de contrôle F5 Distributed Cloud, qui relaie vers
+le nœud via le tunnel que `vpm` établit lors de l'enregistrement. Pas d'enregistrement signifie
+pas de tunnel, ce qui signifie que l'API n'a rien vers quoi relayer.
 
-<Aside type="note" title="Quel outil utiliser">
-Si vous rédigez une Automatisation, ou collectez des données que vous souhaitez
-rejouer ultérieurement, utilisez l'API de débogage. Si l'enregistrement est ce qui
-est défaillant, la console série n'est pas un recours de secours — c'est la seule option.
+L'échec se produit d'une manière peu explicite plutôt qu'évidente, si bien qu'un nœud qui n'a
+jamais démarré ressemble à un problème d'API.
+
+La console série emprunte une voie entièrement différente — à travers la plateforme Azure jusqu'au
+port série émulé du nœud. Elle se moque de savoir si le nœud est enregistré, dispose d'une
+accessibilité réseau ou d'un plan de données fonctionnel. Cette indépendance est tout l'intérêt,
+et c'est pourquoi les diagnostics de démarrage doivent rester activés sur les VM CE.
+
+<Aside type="note" title="Vers quoi se tourner">
+Si vous écrivez de l'automatisation, ou collectez des preuves que vous souhaitez rejouer plus tard, utilisez
+l'API de débogage. Si c'est l'enregistrement qui est défaillant, la console série n'est pas une
+solution de repli — c'est la seule option.
 </Aside>
 
 ## Identifiants
 
-Les deux routes utilisent des identifiants différents, et aucun ne doit figurer dans
-une ligne de commande.
+Les deux voies utilisent des identifiants différents, et aucun n'a sa place sur une ligne de commande.
 
-- **API de débogage** — un jeton d'API F5 Distributed Cloud, sous la forme `XCSH_API_TOKEN`,
-  avec l'URL du tenant sous la forme `XCSH_API_URL`. Le fichier de contexte `xcsh` situé à
-  `~/.config/xcsh/contexts/<tenant>.json` contient les deux, ce que
+- **Debug API** — un jeton d'API F5 Distributed Cloud, sous la forme `XCSH_API_TOKEN`, avec
+  l'URL du tenant sous la forme `XCSH_API_URL`. Le fichier de contexte `xcsh` situé à
+  `~/.config/xcsh/contexts/<tenant>.json` contient les deux, et c'est ce que
   `scripts/capture-sitecli.sh` lit lorsque l'environnement ne les fournit pas.
-- **Console série** — votre connexion Azure interactive. Il n'existe pas de principal de
-  service pour cela : le tenant Entra d'entreprise F5 n'autorise pas l'approvisionnement
-  d'un tel principal, ce qui explique également pourquoi aucune partie de ceci ne
-  s'exécute en CI.
+- **Console série** — votre connexion Azure interactive. Il n'existe pas de principal de service
+  pour cela : le tenant Entra d'entreprise F5 n'autorise pas d'en provisionner un, ce qui
+  explique aussi pourquoi aucune partie de ceci ne s'exécute en CI.
 
 <Aside type="danger" title="Ne jamais passer un jeton en argument">
-Un jeton sur une ligne de commande se retrouve dans l'historique du shell et dans la
-liste des processus, où tout autre utilisateur de la machine peut le lire.
-`capture-sitecli.sh` refuse `--token` de manière catégorique pour cette raison et
-fournit l'en-tête à `curl` via stdin à la place.
+Un jeton sur une ligne de commande se retrouve dans l'historique du shell et dans la liste des processus, où
+tout autre utilisateur de la machine peut le lire. `capture-sitecli.sh` refuse
+purement et simplement `--token` pour cette raison et transmet plutôt l'en-tête à `curl` sur stdin.
 </Aside>

@@ -1,31 +1,37 @@
 ---
 title: 序列主控台
 description: >-
-  用於從未完成註冊的 Customer Edge 的緊急存取途徑，在 debug API
-  無法觸及之處發揮作用。涵蓋開機診斷前置條件、如何透過腳本檢查可用性，以及兩種看似中斷實則並非如此的故障情形。
+  進入從未註冊、debug API 無法觸及的 Customer Edge
+  的破窗手段。涵蓋開機診斷的前置條件、如何從腳本檢查可用性，以及兩種看似服務中斷但其實不是的失敗情況。
 sidebar:
   order: 30
   label: 序列主控台
 i18n:
-  sourceHash: 80d13f3a4194
+  sourceHash: d31fb06b5406
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-Azure 序列主控台透過 Azure 平台連接至節點的模擬序列埠。它不經過 F5 Distributed Cloud 控制平面、節點的資料平面，或任何由節點控制的網路路徑——這正是它在其他方式都失效時仍能運作的原因。
+Azure Serial Console 透過 Azure 平台連接到節點模擬的序列埠。它不會經過 F5 Distributed
+Cloud 控制平面、節點的資料平面，或任何由節點掌控的網路路徑 —— 這正是它在其他一切都
+失效時仍能運作的原因。
 
-當 CE **從未啟動**時請使用此途徑：註冊失敗、站台不存在於租戶中，或節點已啟動但無對外路由。在上述所有情況下，[debug API](../debug-api/) 沒有可供中繼的通道，而且節點出廠時 SSH 也處於關閉狀態。
+當某個 CE **從未啟動成功** 時就該動用它：註冊失敗、租戶中找不到該站點，或節點已啟動
+但沒有對外路由。在上述所有情況中，[debug API](../debug-api/) 沒有可供中繼的通道，而
+[SSH 在此組建上無法進行驗證](../ssh/)。
 
 ## 前置條件：開機診斷
 
-Azure 在允許連接序列主控台之前，要求 VM 必須啟用開機診斷。此設定由 `terraform/modules/ce-node` 啟用：
+Azure 要求 VM 上啟用開機診斷，才會連接序列主控台。這由 `terraform/modules/ce-node`
+啟用：
 
 ```hcl
 boot_diagnostics {}
 ```
 
-空白區塊會選用 Azure 管理的儲存體，因此不需要自行管理診斷儲存體帳戶、生命週期原則或存取金鑰。在節點上確認設定：
+空白區塊會選用 Azure 代管的儲存體，因此沒有診斷儲存體帳戶、生命週期原則或存取金鑰
+需要自行管理。在節點上確認：
 
 ```bash
 az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
@@ -35,21 +41,24 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 { "bootDiagnostics": { "enabled": true } }
 ```
 
-<Aside type="caution" title="啟用並不具有追溯效力">
-開機診斷會在**開機時**擷取序列日誌。對已在執行中的 VM 啟用此功能，不會為已完成的開機程序產生日誌，因此 `az vm boot-diagnostics get-boot-log` 會回應：
+<Aside type="caution" title="啟用並非追溯生效">
+開機診斷是**在開機時**擷取序列記錄。對已在執行中的 VM 開啟此功能，並不會為已經發生
+過的那次開機產生記錄，因此 `az vm boot-diagnostics get-boot-log` 會回覆：
 
 ```
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
-這是預期行為，並非故障。節點下次重新開機後才會產生開機日誌。然而，即時主控台連接可立即運作——它不依賴日誌。
+這是預期行為，不是故障。節點下次重新開機後才會有開機記錄。不過，即時主控台連接會
+立即可用 —— 它不依賴記錄。
 </Aside>
 
 ## 不使用終端機檢查可用性
 
-連接需要互動式工作階段，但判斷是否*能夠*連接只需兩個 API 呼叫。兩者都適用於健康狀態檢查。
+連接需要互動式工作階段，但要判斷它*是否能*連接只需兩個 API 呼叫。兩者在健康檢查中
+都很有用。
 
-必須為訂閱啟用此服務——管理員可以在整個租戶範圍內停用它：
+該服務必須在訂閱層級啟用 —— 管理員可以在整個租戶範圍停用它：
 
 ```bash
 az rest --method get --url \
@@ -60,7 +69,7 @@ az rest --method get --url \
 { "properties": { "disabled": false } }
 ```
 
-接著向特定節點的序列埠要求連線：
+接著要求連線到特定節點的序列埠：
 
 ```bash
 az rest --method post \
@@ -68,17 +77,20 @@ az rest --method post \
   "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
 ```
 
-以 `wss://` 開頭的 `connectionString`——在本部署環境中為 `eastus.gateway.serialconsole.azure.com`——表示主控台目前可以連接。在啟用開機診斷之前，此呼叫沒有任何可連接的目標。
+以 `wss://` 開頭的 `connectionString` —— 在此部署中為
+`eastus.gateway.serialconsole.azure.com` —— 表示主控台目前可以連接。在啟用開機診斷
+之前，此呼叫沒有任何可連接的對象。
 
-<Aside type="danger" title="該連線字串是一種憑證">
-它是嵌入於 URL 中的短期持有人權杖。請勿將其記錄於日誌、貼入工單或提交至版本控制。在展示呼叫成功時，僅顯示主機名稱即可。
+<Aside type="danger" title="該連線字串就是憑證">
+它是嵌入在 URL 中的短期存留 bearer token。不要記錄它、貼到工單裡，或提交到版本控制。
+在示範呼叫成功時，只印出主機名稱。
 </Aside>
 
-## 連接方式
+## 連接
 
 <Steps>
 
-1. 安裝延伸模組（僅需一次）：
+1. 安裝一次擴充套件：
 
    ```bash
    az extension add --name serial-console
@@ -90,24 +102,32 @@ az rest --method post \
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-3. 您會進入節點本身的登入提示，而非 Shell。這是 Site CLI，需要節點上設定的憑證——來自佈建時的管理員密碼，或透過 change-password 端點設定的密碼。序列主控台驗證的是*通道*是否正常運作；它並不繞過身份驗證。
+3. 你會抵達節點自身的登入提示，而不是 shell。這是 Site CLI，需要在節點上設定的憑證
+   —— 佈建時的管理員密碼，或透過變更密碼端點設定的密碼。序列主控台證明*通道*可用；
+   它不會繞過驗證。
 
 </Steps>
 
-以下為從 `f5-xc-ce-vm-01` 擷取的記錄，中間省略了 systemd 單元輸出中無關緊要的部分：
+以下擷取自 `f5-xc-ce-vm-01`，中間 systemd 單元輸出無實質內容的部分已省略：
 
 ```text file=../../../_data/serial-console-boot.txt
 ```
 
-該記錄中有四項值得注意的內容，因為它們回答了 debug API 無法回答的問題：
+該記錄中有四點值得留意，因為它們回答了 debug API 無法回答的問題：
 
-- **cloud-init 已完成** — `Datasource DataSourceAzure`，在 22.37 秒時完成。從未完成註冊的節點通常在此處失敗，在這裡可以看到失敗原因。
-- **兩個容器執行環境均已啟動。** `Container Runtime Interface for OCI (CRI-O)` 與 `Docker Application Container Engine` 均顯示 `[ OK ]`，這是雙執行環境行為在開機時的確認，該行為在 [crictl](../../commands/system/crictl/) 和 [docker](../../commands/system/docker/) 中常令人感到意外。
-- **`VP Manager image load` 與 `Argo Watch service`** — `vpm` 和 Argo 正在啟動。
-- **提示符號是節點本身的**，位於其稽核橫幅之後。序列主控台提供的是登入提示，而非工作階段。
+- **cloud-init 已完成** —— `Datasource DataSourceAzure`，於 22.37 秒完成。
+  從未註冊成功的節點通常是在這裡失敗的，而這裡就是你能看到它的地方。
+- **兩個容器執行環境都已啟動。** `Container Runtime Interface for OCI (CRI-O)`
+  與 `Docker Application Container Engine` 各自都是 `[ OK ]`，這是在
+  [crictl](../../commands/system/crictl/) 與 [docker](../../commands/system/docker/)
+  中令人驚訝的雙執行環境行為在開機時的證明。
+- **`VP Manager image load` 與 `Argo Watch service`** —— `vpm` 與 Argo 正在啟動。
+- **提示字元是節點自身的**，位於其稽核橫幅之後。序列主控台提供給你的是登入提示，
+  而不是工作階段。
 
-<Aside type="caution" title="互動式連接需要真實終端機——但可以透過腳本自動化">
-`az serial-console connect` 會將終端機設為原始模式，因此無法在管線或任何沒有 TTY 的情境中執行。它在客戶端就會失敗，甚至在聯繫 Azure 之前：
+<Aside type="caution" title="互動式連接需要真正的終端機 —— 但可以腳本化">
+`az serial-console connect` 會將終端機切換到 raw 模式，因此無法在管線或任何沒有 TTY
+的環境中執行。它會在聯絡 Azure 之前就於用戶端失敗：
 
 ```
 ERROR: (19, 'Operation not supported by device')
@@ -115,30 +135,57 @@ ERROR: (19, 'Operation not supported by device')
     GV.serial_console_instance.launch_console()
 ```
 
-該堆疊追蹤是終端機處理問題，並非序列主控台中斷。
+該追蹤訊息是終端機處理問題，不是序列主控台服務中斷。
 
-然而，連接本身**可以**自動化——直接驅動 WebSocket，而非使用 CLI。上方記錄即是以這種方式擷取的，不需要 TTY。請參閱 `scripts/serial_console_capture.py`，這是在節點未能完成註冊時、無需人員守候終端機即可收集開機記錄的方法。
+然而連接本身**確實**可以自動化 —— 直接驅動 websocket 而不使用 CLI。上面的記錄就是
+以此方式擷取的，完全沒有 TTY。請參閱 `scripts/serial_console_capture.py`，這就是你
+在無人坐在終端機前的情況下，從註冊失敗的節點收集開機證據的方法。
 </Aside>
 
-<Aside type="caution" title="預期需要重試：閘道大約每隔一次嘗試就會拒絕連線">
-閘道的第一個訊框是挑戰，而非輸出，客戶端需以持有人權杖回應。即便操作正確，Socket 也常會立即關閉：
+<Aside type="caution" title="預期需要重試：閘道大約每隔一次嘗試就會拒絕">
+閘道的第一個訊框是挑戰（challenge），不是輸出，而用戶端會以 bearer token 回應。即使
+正確完成這一步，socket 仍經常立即關閉：
 
 ```
 [close] code=1011 reason=Connection not trusted
 ```
 
-經過在三個節點上反覆測試，此現象呈現交替出現的規律：拒絕之後，同一節點上的下一次嘗試便會成功。這與先前的工作階段仍被佔用一致，而被拒絕的嘗試會將其清除。
+觀察到的行為：它會間歇性成功，而在持續使用下，資源群組中的每個節點都會拒絕 ——
+包括幾分鐘前還能運作的節點。`scripts/serial_console_capture.py` 預設會重試，因為
+重試通常有效。
 
-**這不是憑證問題**，儘管訊息如此顯示。通常重試即可解決，這也是 `scripts/serial_console_capture.py` 預設會重試的原因。
+**原因尚未確立。** 以下是已被排除的可能，因為每一項都是會浪費時間的合理猜測：
 
-無論如何，請對工作階段請求和挑戰使用同一個權杖，與 `az` 延伸模組的做法保持一致。這是正確的做法，但並非導致此問題的原因。
+| 不是這個 | 如何確認 |
+| --- | --- |
+| ARM／compute 節流 | 節流會在 ARM 呼叫上回傳 HTTP `429`。這裡是獨立資料通道上的 websocket 關閉。 |
+| 代理伺服器進行 TLS 攔截 | `openssl s_client -connect <region>.gateway.serialconsole.azure.com:443 \| openssl x509 -noout -issuer`。若簽發者確實是 `O=Microsoft Corporation` 即可排除；若簽發者是代理廠商則證實此因，修正方式是將 `*.serialconsole.azure.com` 加入允許清單。 |
+| 開機診斷未啟用 | `az vm show -g <rg> -n <vm> --query diagnosticsProfile` 回報 `enabled: true`。 |
+| 授權與挑戰之間的 token 不一致 | 兩者使用同一個 token 是正確做法，但無法避免連線關閉。 |
+
+*確實*有記載的 Azure 行為是：**每個 VM 只能有一個序列主控台工作階段，第二個成功的
+請求會逐出第一個。** 被逐出的使用者會被中斷連線但不會被登出，因此 shell 工作階段
+仍然存在。兩個人同時除錯一個節點會反覆互相擠掉對方。
+
+大量作業請優先使用 [debug API](../debug-api/)，它沒有這些限制。
+[SSH 不是替代方案](../ssh/) —— 在此組建上無法啟用。
 </Aside>
 
-## 此處可見而 API 無法顯示的資訊
+<Aside type="caution" title="貼上內容上限為 2,048 個字元">
+Azure 將序列主控台的貼上長度限制為 2,048 個字元，以避免序列埠過載。傳送過長的指令
+—— 或在單次寫入中批次傳送多個指令 —— 失敗時看起來像是卡住或被節流，而不像是長度限制。
 
-- **cloud-init** 執行中、失敗或從未啟動——這是節點從未完成註冊的常見原因。
-- **向 `register.ves.volterra.io` 發起的註冊嘗試**，包括設定錯誤或租戶拒絕的權杖。
-- **核心與開機訊息**，來自任何代理程式執行之前的階段。
-- 節點在**沒有可用網路路徑**時的狀態，這會讓所有其他途徑失效。
+請逐一傳送指令。這是透過序列主控台進行任何大量收集時的實際限制，也是該類工作應優先
+選擇 [debug API](../debug-api/) 的另一個理由。
+</Aside>
 
-對於狀態為 `ONLINE` 的節點，建議優先使用 debug API：它可以透過腳本自動化、產生可重現的記錄，且不會佔用唯一的序列埠。
+## 這裡能看到、而 API 無法呈現的內容
+
+- **cloud-init** 正在執行、失敗，或從未啟動 —— 這是節點從未註冊成功的常見原因。
+- 針對 `register.ves.volterra.io` 的**註冊嘗試**，包括設定錯誤或被租戶拒絕的
+  token。
+- 在任何代理程式執行之前的**核心與開機訊息**。
+- 節點**完全沒有可用網路路徑**時的狀態，這種情況會使其他所有途徑失效。
+
+對於*確實*處於 `ONLINE` 的節點，請優先使用 debug API：它可腳本化、產生可重複執行的
+證據，而且不會佔用唯一的序列埠。

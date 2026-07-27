@@ -1,0 +1,169 @@
+---
+title: SSH
+description: >-
+  此客户边缘（Customer Edge）构建版本不提供受支持的 admin SSH 路径。本文介绍了 vpm 证据表明
+  admin_user_credentials 从未应用到节点、sshd 为何仅在内部地址上响应，以及两条确实可行的替代路径。
+sidebar:
+  order: 25
+  label: SSH
+i18n:
+  sourceHash: 4c6d5777469f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+**在此租户所运行的 CE 构建版本上，不存在受支持的 `admin` SSH 路径** ——
+`crt-20250613-3382`，操作系统 `9.2024.6`。这与配置无关。`admin` 账户存在，
+`sshd` 正在运行，`admin_user_credentials.ssh_key` 会被站点对象接受，并且可以通过 API
+回读返回 —— 但该密钥从未应用到节点上，因此每一次认证尝试都会被拒绝。
+
+请改用 [debug API](../debug-api/)。它可以访问节点的只读命令接口，并且本仓库中已经有相应脚本。
+
+<Aside type="danger" title="对此的 Terraform 支持已被移除">
+`admin_user_credentials` 曾被接入 `terraform/modules/xc-site`，随后在收集到下述证据后被回退
+（#660、PR #663）。这并不是一个有待填补的空缺 —— 该字段在节点上不配置任何东西。请勿重新添加。
+</Aside>
+
+## 为什么每次尝试看起来都像网络问题
+
+`sshd` 在 CE 上绑定 `0.0.0.0:22`，但只有 **内部（SLI）** 地址位于主机网络栈上。从同一 VNet
+内的 `ar-ecmp-client` 对三台演示 CE 进行探测：
+
+```text
+10.0.1.4     TimeoutError: timed out         ← CE mgmt/SLO  (eth0)
+10.0.2.4     TimeoutError: timed out         ← CE external  (eth1)
+10.0.3.5     CONNECTED  SSH-2.0-OpenSSH_8.7  ← CE internal/SLI
+10.0.3.6     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.7     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.99    TimeoutError: timed out         ← unused address, negative control
+```
+
+其机制可在 [`health`](../../commands/system/health/) 中看到：**eth0 被重命名为
+`a-i-eth0` 且不携带任何主机 IP 地址** —— 该接口归 Argo 数据平面所有 ——
+而 eth1 和 eth2 保留在 `sshd` 正在监听的主机网络栈上。
+
+因此，针对你所熟知的节点地址（即其管理地址）进行探测时会超时，表现得就像安全组被关闭一样。
+其实并没有任何东西在阻拦；只是该地址上没有监听器来应答。
+
+<Aside type="caution" title="请从 VNet 内部探测，并探测内部地址">
+这里有两种测量错误会得出自信却错误的结论。
+
+无论节点的 SSH 状态如何，针对 eth0 或外部接口探测 22 端口总是报告关闭，因此它无法告诉你任何关于
+SSH 的信息。只有 SLI 地址会应答。
+
+而且，从企业工作站发起的探测可能会把一个实际关闭的端口报告为 **开放**：
+Netskope 会自行在常见端口上完成 TCP 握手。从工作站看，CE 公网地址上的 80 和 443 端口显示为开放，
+而从 VNet 内部探测时则是关闭的。请从 VNet 中的虚拟机进行探测。
+</Aside>
+
+## 为什么 `admin` 无法通过认证
+
+`vpm` 在注册时配置节点的本地用户，而它拒绝处理这一个用户。以下取自节点自身的日志，在一次启动中出现了三次：
+
+```text
+vpm  users.go:165: Won't do any change for user admin (internal skip)
+```
+
+其他所有现象都与这一行日志一致：
+
+- 该账户存在 —— `uid=2202(admin) gid=2202(admin) groups=2202(admin),2301(vpm)`，
+  主目录 `/var/home/admin`，登录 shell 为 `/opt/bin/vpmu`，也就是 Site CLI。
+- `/var/home/admin/.ssh` **从不存在**，无论在站点进入 `ONLINE` 之前还是之后。
+  任何时候都不会写入 `authorized_keys` 文件。
+- `sshd -T` 报告 `pubkeyauthentication yes`、`passwordauthentication no`、
+  `kbdinteractiveauthentication no`。`/etc/ssh/sshd_config` 中唯一的
+  `PasswordAuthentication yes` 位于 `Match User vesbkp,xcuser` 之内，因此 `admin`
+  **在镜像层面** 就被排除在密码认证之外。
+- `admin` 的 shadow 最后修改日期是镜像构建日期 2024-02-16，而 `vesbkp` 和 `vesopcon`
+  显示的是当前日期。`vpm` 设置了后两者，而从未触及 `admin`。
+- `vpm` 完全没有记录任何关于 `ssh_key` 或 `authorized_keys` 的日志。
+
+客户端一侧的表现也一致。在跨越三次全新部署、两次原地更新和三个不同 CE 构建版本（包括运行
+OpenSSH 9.9 的最新版本）的 45 次认证尝试中：
+
+```text
+debug1: Authenticating to <sli-ip>:22 as 'admin'
+debug1: Offering public key: ... ED25519 SHA256:ENH3M0bFPYMt... explicit
+debug1: Authentications that can continue: publickey
+admin@<sli-ip>: Permission denied (publickey).
+```
+
+服务器从不提供密码或键盘交互式认证，节点上的 `journalctl -u sshd` 记录了
+`Connection closed by authenticating user admin ... [preauth]`。
+
+## 这些都不是原因
+
+以下每一项都经过测试并被排除，而且每一项都足够合理，足以让人浪费一天时间。
+
+| 并非原因 | 如何被排除 |
+| --- | --- |
+| 该凭据只在创建时生效 | `sshd` 在首次启动约 90 秒后启动，*早于站点对象存在* —— 13:04:56 时 `sshd[1238]: Server listening on 0.0.0.0 port 22`，站点在 13:05:23 创建。`admin_user_credentials` 同样存在于 `ReplaceSpecType` 中并可原地生效。 |
+| `block_all_services` | 无论服务是否被阻断，SLO 上 22 端口的关闭情况完全相同。 |
+| 密钥末尾的换行符 | 两种方式都测试过。没有变化。 |
+| 固定的较旧 CE 软件版本 | 在三个构建版本上都复现，包括一个使用 OpenSSH 9.9 的版本。 |
+| 缺少 `admin_password` | 在全新的 CE 上同时设置 `admin_password` 和 `ssh_key` 没有任何改变。 |
+
+<Aside type="caution" title="两个看似区分因素、实则不是的 API 字段">
+`gc_spec.admin_ssh_key` 在 **该租户的全部 88 个站点上** 都是空的，包括那 20 个设置了
+`admin_password` 的站点。在一个可用站点和一个不可用站点之间比较该字段毫无意义，因为它到处都是空的。
+
+`registrations_by_site` 完全省略了该字段并为其返回 `None`，读起来像是"未配置"，而不是"未上报"。
+</Aside>
+
+## 请改用这些方式
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="The recommended route, and already scripted here as <code>scripts/capture-sitecli.sh</code>. Needs the site <code>ONLINE</code>."
+    href="../debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
+    href="../serial-console/"
+  />
+</CardGrid>
+
+debug API 已针对该演示环境验证。它涵盖了此构建版本上公开的 34 条命令 ——
+Site CLI 中仅限在设备本机使用的部分无论如何都无法触及。请确认该接口没有在文档之下发生变化：
+
+```bash
+bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
+```
+
+```text
+catalog matches the live CE (build crt-20250613-3382, 34 commands)
+```
+
+<Aside type="caution" title="新创建的站点需要大约半小时后 operate API 才会响应">
+在新站点报告 `ONLINE` 后的大约 25 到 30 分钟内，`vpm/debug` 端点会返回一个 BIG-IP `503`
+页面，内容为 `The requested URL was rejected`。这看起来像是 Web 应用防火墙拦截或令牌被吊销，
+但两者都不是 —— 站点尚未准备好进行中继。请等待并重试，而不要更改任何配置。
+</Aside>
+
+### 通过 `az vm run-command` 驱动 Site CLI
+
+`/opt/bin/vpmu` 是 `admin` 的登录 shell，因此通过 `az vm run-command` 调用它，可以进入
+与 SSH 本应到达的相同的交互式 Site CLI。
+已在相同构建版本的一次性 CE 上验证；`execcli docker-ps`、
+`execcli ip-link-show` 和 `health` 都是以这种方式采集的。
+
+需要注意两个机制，且两者都不显而易见：
+
+- **`vpmu` 在没有 PTY 的情况下会 panic** ——
+  `go-prompt … NewStandardInputParser: no such device or address`。请分配一个 PTY。
+- **命令文本和回车字节必须分为两次写入。** 若在一次写入中发送，换行符会作为字面字符落入缓冲区，
+  CLI 会返回 `unknown command "execcli\n"`，看起来就像该命令不存在一样。
+
+交互式菜单列出了 `configure`、`configure-generic-hardware`、
+`configure-network`、`configure-http-proxy`、`diagnosis` 和 `health`。**`execcli` 是一条
+隐藏命令** —— 它不在该菜单中，并且以一个目录命令名作为参数。
+
+<Aside type="note" title="此路径已在一次性 CE 上验证，而非在演示环境上">
+`run-command` 路径是在运行相同构建版本和相同配置的一次性 CE 上验证的。它尚未针对
+`ar-bgp-eastus01/02/03` 重新运行，因此请将其在那里的行为视为预期结果而非已证实的结果。
+debug API 路径 *确实* 已针对演示环境验证。
+</Aside>
