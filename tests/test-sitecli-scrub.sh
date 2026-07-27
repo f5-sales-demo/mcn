@@ -44,8 +44,19 @@ assert_preserved() {
 
 # assert_removed <label> <text> <needle>
 # The needle must not appear anywhere in the output.
+#
+# The input is checked first: a removal assertion whose fixture never contained
+# the needle passes for free and proves nothing. That is not hypothetical — the
+# tenant fixture below was rewritten to a placeholder while the tenant the filter
+# was told to redact stayed behind, and the assertion went on passing until the
+# two drifted far enough apart to fail for an unrelated reason.
 assert_removed() {
   local label="$1" text="$2" needle="$3" out
+  if ! printf '%s' "$text" | grep -qF -- "$needle"; then
+    echo "[FAIL] $label — fixture does not contain '$needle', so this asserts nothing"
+    FAIL=1
+    return
+  fi
   out=$(scrub "$text")
   if printf '%s' "$out" | grep -qF -- "$needle"; then
     echo "[FAIL] $label — expected '$needle' to be removed, got: $out"
@@ -73,28 +84,51 @@ MIIEowIBAAKCAQEAx7Vk2mFakePrivateKeyMaterialHere
 -----END RSA PRIVATE KEY-----' 'MIIEowIBAAKCAQEAx7Vk2mFakePrivateKeyMaterialHere'
 
 # --- tenant identity -----------------------------------------------------------
+# The console-hostname rule matches on shape, not on a configured value, so these
+# two fixtures need no tenant set and deliberately name no real tenant.
 assert_removed "tenant console hostname" \
-  'endpoint https://f5-sales-demo.console.ves.volterra.io/api' 'f5-sales-demo.console'
+  'endpoint https://example-tenant.console.ves.volterra.io/api' 'example-tenant.console'
 assert_removed "second tenant console hostname" \
-  'endpoint https://f5-amer-ent.console.ves.volterra.io/api' 'f5-amer-ent.console'
+  'endpoint https://another-tenant.console.ves.volterra.io/api' 'another-tenant.console'
 
 # The tenant also appears, with a unique suffix, inside the internal IPsec SA names
 # that `ipsec-status` and `health` print. The console-hostname rule never saw these,
 # so real captures were publishing the tenant identifier. The tenant is passed in
 # rather than hardcoded, so this generalises to any tenant.
-SITECLI_TENANT=f5-sales-demo
+#
+# The fixtures below are built from $SITECLI_TENANT rather than repeating it, and
+# assert_tenant_removed refuses a fixture that does not contain it. Both guards
+# exist because the literal and the configured value drifted apart once already:
+# a bulk rewrite replaced the tenant label inside the fixture and left the exported
+# tenant behind, leaving an assertion that asked the filter to redact a string it
+# had never been told about.
+SITECLI_TENANT=example-tenant
 export SITECLI_TENANT
-assert_removed "tenant label with unique suffix in an IPsec SA name" \
-  'ver.ar-bgp-eastus01.example-tenant-redacted.32809c43-6b26-4f07-a59b-b023ab1587f1.tenant.int.ves.io[47]' \
-  'example-tenant-redacted'
-assert_removed "bare tenant name" \
-  'site belongs to tenant f5-sales-demo today' 'f5-sales-demo'
-assert_preserved "SA name keeps its shape" \
-  'ver.ar-bgp-eastus01.example-tenant-redacted.32809c43-6b26-4f07-a59b-b023ab1587f1.tenant.int.ves.io[47]' \
-  'tenant.int.ves.io'
-assert_preserved "site name inside an SA name survives" \
-  'ver.ar-bgp-eastus01.example-tenant-redacted.32809c43-6b26-4f07-a59b-b023ab1587f1.tenant.int.ves.io' \
-  'ar-bgp-eastus01'
+TENANT_SA="ver.ar-bgp-eastus01.${SITECLI_TENANT}-a1b2c3d4.32809c43-6b26-4f07-a59b-b023ab1587f1.tenant.int.ves.io"
+
+# assert_tenant_removed <label> <text> <needle>
+# As assert_removed, but the fixture must exercise the configured tenant.
+assert_tenant_removed() {
+  local label="$1" text="$2" needle="$3"
+  if [ -z "${SITECLI_TENANT:-}" ]; then
+    echo "[FAIL] $label — SITECLI_TENANT is unset, so the tenant rule cannot fire"
+    FAIL=1
+    return
+  fi
+  if ! printf '%s' "$text" | grep -qF -- "$SITECLI_TENANT"; then
+    echo "[FAIL] $label — fixture does not contain the configured tenant '$SITECLI_TENANT'"
+    FAIL=1
+    return
+  fi
+  assert_removed "$label" "$text" "$needle"
+}
+
+assert_tenant_removed "tenant label with unique suffix in an IPsec SA name" \
+  "${TENANT_SA}[47]" "${SITECLI_TENANT}-a1b2c3d4"
+assert_tenant_removed "bare tenant name" \
+  "site belongs to tenant ${SITECLI_TENANT} today" "$SITECLI_TENANT"
+assert_preserved "SA name keeps its shape" "${TENANT_SA}[47]" 'tenant.int.ves.io'
+assert_preserved "site name inside an SA name survives" "$TENANT_SA" 'ar-bgp-eastus01'
 
 # Internal object UUIDs identify tenant resources and carry no documentation value.
 assert_removed "object UUID" \
