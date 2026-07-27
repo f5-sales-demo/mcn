@@ -67,3 +67,21 @@ variable "ce_sw_version" {
   type        = string
   default     = ""
 }
+
+variable "ce_ssh_enabled" {
+  description = <<-EOT
+    Authorize the operator's SSH key on the CE appliances (admin_user_credentials.ssh_key),
+    so `execcli` and on-box diagnostics are reachable over SSH at each CE's management
+    public IP. Reuses the same key as the Azure VMs (local.ssh_public_key) — no extra input.
+
+    The CE manages its own OS authentication: the Azure VM's admin_ssh_key does NOT grant
+    CE login, so without this there is no SSH listener and port 22 is closed.
+
+    Defaults to false, and deliberately so: the CE subnets carry no NSG, so enabling
+    this exposes SSH to the internet (key-only auth). That is a decision an operator
+    should make consciously and auditably in their own tfvars, not inherit passively
+    from a module default. Set true to authorize the key.
+  EOT
+  type        = bool
+  default     = false
+}
