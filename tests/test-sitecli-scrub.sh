@@ -56,10 +56,15 @@ assert_removed() {
 }
 
 # --- secrets: the whole point of the filter ------------------------------------
+# Fixtures below are DELIBERATELY fake and obviously so. An earlier version of this
+# file used real tenant API tokens because they made "realistic" fixtures, and
+# committed them to a public repository — in the very test that asserts tokens are
+# redacted. gitleaks did not catch them: the format matches none of its rules. Keep
+# these values self-evidently synthetic.
 assert_removed "API token in an Authorization header" \
-  'Authorization: APIToken ***REMOVED-XC-API-TOKEN***' '***REMOVED-XC-API-TOKEN***'
+  'Authorization: APIToken EXAMPLEtoken0000NotARealValue=' 'EXAMPLEtoken0000NotARealValue='
 assert_removed "bare APIToken value" \
-  'curl -H "Authorization: APIToken ***REMOVED-XC-API-TOKEN***" https://x' '***REMOVED-XC-API-TOKEN***'
+  'curl -H "Authorization: APIToken EXAMPLEsecond0000NotARealValue=" https://x' 'EXAMPLEsecond0000NotARealValue='
 assert_removed "Bearer token" \
   'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abc.def' 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
 assert_removed "private key body" \
