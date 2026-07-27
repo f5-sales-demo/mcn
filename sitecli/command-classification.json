@@ -1,0 +1,139 @@
+{
+  "_note": [
+    "How each Site CLI command is treated in the documentation, and why.",
+    "",
+    "A Customer Edge runs Linux and a number of third-party daemons. Documenting their",
+    "commands would duplicate their own references and imply F5 owns them, so the rule",
+    "is: document F5's software, and for everything else document only what is specific",
+    "to a CE.",
+    "",
+    "Three tiers, because 'ours' and 'theirs' is not a clean split:",
+    "",
+    "  f5-software    F5 wrote it. Full documentation: purpose, syntax, arguments,",
+    "                 captured output, what to look for. Argo, Vega, vpm, vifdump,",
+    "                 configure*, the edit-* set, kubelet params, auxiliary root access.",
+    "",
+    "  ce-specific-   A third-party tool, but its output means something particular on a",
+    "  interpretation CE and getting that wrong misleads. Document the CE-specific reading",
+    "                 and link upstream for the tool's own semantics. FRR does not know",
+    "                 about F5 regional edges; strongSwan does not know which RE a tunnel",
+    "                 terminates on; curl does not know the host and vega namespaces.",
+    "",
+    "  passthrough    Plain Linux or third-party, with nothing CE-specific to say. Listed",
+    "                 as available with a pointer to the upstream reference. No prose.",
+    "",
+    "The distinction is not cosmetic: it decides whether a page exists at all, and it",
+    "keeps this documentation from rotting into a worse copy of the man pages."
+  ],
+  "tiers": {
+    "f5-software": {
+      "dataplane-argo": ["dropstats", "dropstats-non-zero", "flow-l", "flow-l-match", "nh", "rt", "vif", "mpls"],
+      "packet-capture": ["vifdump", "vifdump-d", "vifdump-file-cp", "vifdump-file-rm", "vifdump-stop"],
+      "controlplane-vega": [
+        "vegactl-configuration-list",
+        "vegactl-introspect-dump-table",
+        "vegactl-introspect-get",
+        "vegactl-introspect-list-tracebuffers",
+        "vegactl-introspect-show-election",
+        "vegactl-introspect-show-tracebuffer"
+      ],
+      "envoy-wrappers": ["envoy-clusters", "envoy-config-dump", "envoy-hc-config-dump", "envoy-listeners"],
+      "node-summary": ["health", "diagnosis", "collect-debug-info", "collect-database-stats"],
+      "kubelet-params": ["kubelet-add-param", "kubelet-get-params", "kubelet-remove-param"],
+      "ce-config-files": [
+        "edit-app-env-file",
+        "edit-azure-client-id-secret",
+        "edit-certified-hardware",
+        "edit-udev-10-nic-name"
+      ],
+      "root-access": ["get-auxilary-root-access-to-node", "remove-auxilary-root-access-to-node"],
+      "vpm-service": [
+        "systemctl-status-vpm",
+        "systemctl-restart-vpm",
+        "marker-exists-NetworkManager",
+        "marker-exists-crio",
+        "marker-exists-kubelet"
+      ],
+      "sitecli-toplevel": [
+        "configure",
+        "configure-generic-hardware",
+        "configure-http-proxy",
+        "configure-network",
+        "factory-reset",
+        "upgrade",
+        "reboot",
+        "show",
+        "clear"
+      ]
+    },
+    "ce-specific-interpretation": {
+      "bgp-frr": {
+        "commands": [
+          "show-ip-bgp",
+          "show-ip-bgp-summary",
+          "show-ip-bgp-neighbors",
+          "show-ip-bgp-neighbors-advertised-route"
+        ],
+        "upstream": "FRR",
+        "why": "The vrf-id FRR reports is not the vRouter table id that rt --dump takes. Using the BGP number returns 'No such file or directory', which reads as a broken node."
+      },
+      "ipsec-strongswan": {
+        "commands": ["ipsec-status", "ipsec-statusall"],
+        "upstream": "strongSwan",
+        "why": "The SA names identify which F5 regional edge each tunnel terminates on, which is the CE-relevant fact and is not something strongSwan documents."
+      },
+      "container-runtimes": {
+        "commands": [
+          "crictl-ps",
+          "crictl-ps-a",
+          "crictl-images",
+          "crictl-inspect",
+          "crictl-logs",
+          "docker-ps",
+          "docker-ps-a",
+          "docker-images",
+          "docker-inspect",
+          "docker-logs",
+          "docker-prune"
+        ],
+        "upstream": "CRI-O / Docker",
+        "why": "A CE runs both runtimes at once. vpm, argo_watch and site-console are Docker; Kubernetes workloads are CRI-O. A three-entry docker-ps is the complete list, not a symptom."
+      },
+      "reachability": {
+        "commands": ["curl-host", "curl-vega"],
+        "upstream": "curl",
+        "why": "The two commands run in different network namespaces, so which one fails localises the fault. curl itself has no concept of either."
+      }
+    },
+    "passthrough": {
+      "_treatment": "Listed as available with a pointer upstream. Not documented.",
+      "networking": ["ping", "netstat", "lsof", "nmcli", "ip", "ip-link-show", "ip-link-set", "dig", "iptables-lv"],
+      "system": [
+        "top",
+        "check-mem",
+        "sysctl",
+        "load-sysctl-conf",
+        "journalctl",
+        "files",
+        "rpm-ostree",
+        "chronyc-sources"
+      ],
+      "config-files": ["edit-etc-hosts", "edit-sysctl-conf"],
+      "third-party-services": [
+        "systemctl-status-crio",
+        "systemctl-restart-crio",
+        "systemctl-status-docker",
+        "systemctl-restart-docker",
+        "systemctl-status-kubelet",
+        "systemctl-restart-kubelet",
+        "systemctl-status-iscsid",
+        "systemctl-restart-iscsid",
+        "systemctl-status-multipathd",
+        "systemctl-restart-multipathd",
+        "systemctl-restart-NetworkManager",
+        "systemctl-start-crio-prune",
+        "etcdctl-cluster-member-status"
+      ]
+    }
+  }
+}

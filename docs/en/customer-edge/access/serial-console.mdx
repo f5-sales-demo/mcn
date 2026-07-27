@@ -15,8 +15,8 @@ when nothing else does.
 
 Reach for it when a CE **never came up**: registration failed, the site is absent
 from the tenant, or the node is up but has no route out. In all of those cases the
-[debug API](../debug-api/) has no tunnel to relay through, and SSH is closed on the
-node as shipped.
+[debug API](../debug-api/) has no tunnel to relay through, and
+[SSH cannot authenticate](../ssh/) on this build.
 
 ## Prerequisite: boot diagnostics
 
@@ -154,15 +154,36 @@ bearer token. Even when that is done correctly the socket often closes immediate
 [close] code=1011 reason=Connection not trusted
 ```
 
-Measured across repeated attempts on three nodes, this alternates: a refusal is
-followed by a success on the same node. That is consistent with a previous session
-still being held, and the refused attempt clearing it.
+Observed behaviour: it succeeds intermittently, and under sustained use every node in
+the resource group refuses — including nodes that worked minutes earlier.
+`scripts/serial_console_capture.py` retries by default because retrying often works.
 
-**It is not a credential problem**, despite the message. Retrying is normally enough,
-which is why `scripts/serial_console_capture.py` retries by default.
+**The cause is not established.** What has been ruled out, because each is a plausible
+guess that wastes time:
 
-Use a single token for both the session request and the challenge anyway, matching the
-`az` extension. That is correct practice, but it is not what causes this.
+| Not this | How to confirm |
+| --- | --- |
+| ARM/compute throttling | That returns HTTP `429` on ARM calls. This is a websocket close on a separate data channel. |
+| TLS interception by a proxy | `openssl s_client -connect <region>.gateway.serialconsole.azure.com:443 \| openssl x509 -noout -issuer`. A genuine `O=Microsoft Corporation` issuer rules it out; a proxy vendor as issuer confirms it, and the fix is to allow-list `*.serialconsole.azure.com`. |
+| Boot diagnostics disabled | `az vm show -g <rg> -n <vm> --query diagnosticsProfile` reporting `enabled: true`. |
+| Token mismatch between grant and challenge | Using one token for both is correct practice, but does not prevent the close. |
+
+What *is* documented Azure behaviour: **one serial console session per VM, and a second
+successful request evicts the first.** The evicted user is disconnected but not logged
+out, so the shell session survives. Two people debugging one node will displace each
+other repeatedly.
+
+For bulk work prefer the [debug API](../debug-api/), which has none of these limits.
+[SSH is not an alternative](../ssh/) — it cannot be enabled on this build.
+</Aside>
+
+<Aside type="caution" title="Paste is capped at 2,048 characters">
+Azure limits serial console paste length to 2,048 characters, to avoid overloading the
+serial port. Sending a long command — or a batch of commands in one write — fails in a
+way that reads as a hang or a throttle rather than as a length limit.
+
+Send commands individually. This is a real constraint on any bulk collection over serial
+console, and another reason to prefer the [debug API](../debug-api/) for that work.
 </Aside>
 
 ## What you can see here that the API cannot show you
