@@ -86,10 +86,7 @@ module "ce_node" {
   admin_username      = var.admin_username
   ssh_public_key      = local.ssh_public_key
 
-  custom_data = base64encode(templatefile("${path.module}/cloud-init/ce-node.yaml", {
-    cluster_name = each.value.site_name
-    token        = local.ce_registration_token
-  }))
+  custom_data = base64encode(local.ce_cloud_init[each.key])
 
   tags = local.tags
 }

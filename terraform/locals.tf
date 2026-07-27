@@ -53,4 +53,19 @@ locals {
   # an explicit var.registration_token still wins when supplied (break-glass /
   # externally-minted token). Empty var (default) => the generated token.
   ce_registration_token = var.registration_token != "" ? var.registration_token : xcsh_token.ce.uid
+
+  # --- CE cloud-init, rendered once per node ---
+  # Rendered here rather than inline in the module block so the document is
+  # addressable as local.ce_cloud_init in `terraform test` — the rendered YAML is
+  # the whole contract with the appliance, and it is only worth asserting if it can
+  # be read. See tests/cloud_init.tftest.hcl.
+  ce_cloud_init = {
+    for key, node in module.ce_topology.ce_nodes : key => templatefile("${path.module}/cloud-init/ce-node.yaml", {
+      cluster_name = node.site_name
+      token        = local.ce_registration_token
+      # chomp: a key read from a .pub file ends in a newline, which would render a
+      # second, empty line into authorized_keys under `content: |`.
+      ssh_public_key = chomp(local.ssh_public_key)
+    })
+  }
 }
