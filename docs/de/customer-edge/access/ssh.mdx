@@ -1,0 +1,190 @@
+---
+title: SSH
+description: >-
+  Auf diesem Customer-Edge-Build existiert kein unterstützter SSH-Zugang für
+  admin. Behandelt die vpm-Belege dafür, dass admin_user_credentials nie auf den
+  Knoten angewendet wird, warum sshd nur auf der internen Adresse antwortet, und
+  die zwei Wege, die funktionieren.
+sidebar:
+  order: 25
+  label: SSH
+i18n:
+  sourceHash: 4c6d5777469f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+**Auf dem CE-Build, den dieser Tenant ausführt, gibt es keinen unterstützten `admin`-SSH-Zugang** —
+`crt-20250613-3382`, OS `9.2024.6`. Dies ist keine Frage der Konfiguration. Das
+`admin`-Konto existiert, `sshd` läuft, und `admin_user_credentials.ssh_key`
+wird vom Site-Objekt akzeptiert und von einem API-Rücklesevorgang zurückgegeben — der Schlüssel wird
+jedoch nie auf den Knoten angewendet, sodass jeder Authentifizierungsversuch abgewiesen wird.
+
+Verwenden Sie stattdessen die [Debug-API](../debug-api/). Sie erreicht die schreibgeschützte Befehlsoberfläche
+des Knotens und ist in diesem Repository bereits als Skript vorhanden.
+
+<Aside type="danger" title="Die Terraform-Unterstützung dafür wurde entfernt">
+`admin_user_credentials` wurde in `terraform/modules/xc-site` eingebunden und dann zurückgenommen,
+sobald die untenstehenden Belege gesammelt waren (#660, PR #663). Es handelt sich nicht um eine Lücke, die noch
+gefüllt werden müsste — das Feld konfiguriert auf dem Knoten nichts. Fügen Sie es nicht erneut hinzu.
+</Aside>
+
+## Warum jeder Versuch wie ein Netzwerkproblem aussieht
+
+`sshd` bindet auf dem CE an `0.0.0.0:22`, aber nur die **interne (SLI)** Adresse liegt im
+Host-Netzwerkstack. Von `ar-ecmp-client` aus, innerhalb desselben VNet, gegen alle
+drei Demo-CEs geprüft:
+
+```text
+10.0.1.4     TimeoutError: timed out         ← CE mgmt/SLO  (eth0)
+10.0.2.4     TimeoutError: timed out         ← CE external  (eth1)
+10.0.3.5     CONNECTED  SSH-2.0-OpenSSH_8.7  ← CE internal/SLI
+10.0.3.6     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.7     CONNECTED  SSH-2.0-OpenSSH_8.7
+10.0.3.99    TimeoutError: timed out         ← unused address, negative control
+```
+
+Der Mechanismus ist in [`health`](../../commands/system/health/) sichtbar: **eth0 wird in
+`a-i-eth0` umbenannt und trägt keine Host-IP-Adresse** — die Argo-Datenebene besitzt diese Schnittstelle —
+während eth1 und eth2 im Host-Stack bleiben, wo `sshd` lauscht.
+
+Eine Prüfung gegen die Adresse, unter der Sie den Knoten kennen, also seine Management-Adresse, läuft daher
+genau so in einen Timeout wie bei einer geschlossenen Sicherheitsgruppe. Es blockiert nichts; es gibt auf
+dieser Adresse keinen Listener, der antworten könnte.
+
+<Aside type="caution" title="Prüfen Sie von innerhalb des VNet und prüfen Sie die interne Adresse">
+Zwei Messfehler führen hier zu selbstsicheren Falschaussagen.
+
+Eine Prüfung von eth0 oder der externen Schnittstelle auf Port 22 meldet immer „geschlossen“, unabhängig vom
+SSH-Zustand des Knotens, und kann Ihnen daher nichts über SSH sagen. Nur die SLI-Adresse
+antwortet.
+
+Und eine Prüfung von einer Firmen-Workstation kann einen Port als **offen** melden, der geschlossen ist:
+Netskope schließt den TCP-Handshake auf gängigen Ports selbst ab. Die Ports 80 und 443 erscheinen von einer
+Workstation aus auf den öffentlichen CE-Adressen als offen und sind bei einer Prüfung von
+innerhalb des VNet geschlossen. Prüfen Sie von einer VM im VNet aus.
+</Aside>
+
+## Warum sich `admin` nicht authentifizieren kann
+
+`vpm` konfiguriert die lokalen Benutzer des Knotens bei der Registrierung und weigert sich, diesen
+einen anzufassen. Aus dem Log des Knotens selbst, dreimal innerhalb eines einzigen Bootvorgangs:
+
+```text
+vpm  users.go:165: Won't do any change for user admin (internal skip)
+```
+
+Alles andere ist mit dieser einen Zeile konsistent:
+
+- Das Konto existiert — `uid=2202(admin) gid=2202(admin) groups=2202(admin),2301(vpm)`,
+  Home-Verzeichnis `/var/home/admin`, Login-Shell `/opt/bin/vpmu`, also die Site-CLI.
+- `/var/home/admin/.ssh` **existiert niemals**, weder bevor noch nachdem die Site `ONLINE` erreicht.
+  Zu keinem Zeitpunkt wird eine `authorized_keys`-Datei geschrieben.
+- `sshd -T` meldet `pubkeyauthentication yes`, `passwordauthentication no`,
+  `kbdinteractiveauthentication no`. Das einzige `PasswordAuthentication yes` in
+  `/etc/ssh/sshd_config` steht innerhalb von `Match User vesbkp,xcuser`, sodass `admin`
+  **auf Image-Ebene** von der Passwortauthentifizierung ausgeschlossen ist.
+- Das Datum der letzten Änderung im Shadow-Eintrag von `admin` ist das Build-Datum des Images, 2024-02-16, während
+  `vesbkp` und `vesopcon` das aktuelle Datum zeigen. `vpm` hat diese beiden gesetzt und
+  `admin` nie angefasst.
+- `vpm` protokolliert überhaupt nichts zu `ssh_key` oder `authorized_keys`.
+
+Die Client-Seite bestätigt dies. Über 45 Authentifizierungsversuche hinweg, verteilt auf drei
+Neubereitstellungen von Grund auf, zwei In-Place-Updates und drei verschiedene CE-Builds — einschließlich des neuesten
+mit OpenSSH 9.9:
+
+```text
+debug1: Authenticating to <sli-ip>:22 as 'admin'
+debug1: Offering public key: ... ED25519 SHA256:ENH3M0bFPYMt... explicit
+debug1: Authentications that can continue: publickey
+admin@<sli-ip>: Permission denied (publickey).
+```
+
+Der Server bietet nie Passwort- oder Keyboard-Interactive-Authentifizierung an, und
+`journalctl -u sshd` auf dem Knoten protokolliert
+`Connection closed by authenticating user admin ... [preauth]`.
+
+## Was es nicht ist
+
+Jeder dieser Punkte wurde getestet und ausgeschlossen, und jeder ist eine so plausible Vermutung, dass er
+einen Tag kosten kann.
+
+| Nicht die Ursache | Wie es ausgeschlossen wurde |
+| --- | --- |
+| Die Anmeldedaten gelten nur zum Erstellungszeitpunkt | `sshd` startet etwa 90 Sekunden nach dem ersten Boot, *bevor das Site-Objekt existiert* — `sshd[1238]: Server listening on 0.0.0.0 port 22` um 13:04:56, Site erstellt um 13:05:23. `admin_user_credentials` ist außerdem in `ReplaceSpecType` vorhanden und wird im Betrieb angewendet. |
+| `block_all_services` | Die Schließung von Port 22 auf der SLO ist identisch, ob Dienste blockiert werden oder nicht. |
+| Ein abschließender Zeilenumbruch im Schlüssel | Beide Varianten getestet. Keine Änderung. |
+| Fixierte, ältere CE-Software | Auf drei Builds reproduziert, darunter einer mit OpenSSH 9.9. |
+| Ein fehlendes `admin_password` | Das Setzen von `admin_password` zusammen mit `ssh_key` auf einem von Grund auf neu erstellten CE änderte nichts. |
+
+<Aside type="caution" title="Zwei API-Felder, die wie Unterscheidungsmerkmale aussehen und keine sind">
+`gc_spec.admin_ssh_key` ist auf **allen 88 Sites im Tenant** leer, einschließlich der 20,
+die `admin_password` setzen. Ein Vergleich zwischen einer funktionierenden und einer nicht funktionierenden Site sagt
+Ihnen nichts, weil das Feld überall leer ist.
+
+`registrations_by_site` lässt das Feld vollständig weg und gibt dafür `None` zurück, was sich
+wie „nicht konfiguriert“ liest und nicht wie „nicht gemeldet“.
+</Aside>
+
+## Verwenden Sie stattdessen diese
+
+<CardGrid>
+  <LinkCard
+    title="Debug API"
+    description="The recommended route, and already scripted here as <code>scripts/capture-sitecli.sh</code>. Needs the site <code>ONLINE</code>."
+    href="../debug-api/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
+    href="../serial-console/"
+  />
+</CardGrid>
+
+Die Debug-API ist gegen die Demo verifiziert. Sie deckt die 34 Befehle ab, die sie auf diesem
+Build bereitstellt — die nur auf dem Gerät verfügbaren Teile der Site-CLI bleiben in beiden Fällen unerreichbar. Prüfen Sie, dass sich
+die Oberfläche nicht unter der Dokumentation hinweg verändert hat:
+
+```bash
+bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
+```
+
+```text
+catalog matches the live CE (build crt-20250613-3382, 34 commands)
+```
+
+<Aside type="caution" title="Eine neu erstellte Site braucht etwa eine halbe Stunde, bevor die Operate-API antwortet">
+Für etwa 25 bis 30 Minuten nachdem eine neue Site `ONLINE` meldet, geben die `vpm/debug`-Endpunkte
+eine BIG-IP-`503`-Seite mit dem Text `The requested URL was rejected` zurück. Das
+sieht wie eine Blockade durch eine Web Application Firewall oder ein widerrufenes Token aus und ist keines von beidem — die
+Site ist noch nicht bereit weiterzuleiten. Warten Sie und versuchen Sie es erneut, anstatt etwas zu ändern.
+</Aside>
+
+### Die Site-CLI über `az vm run-command` steuern
+
+`/opt/bin/vpmu` ist die Login-Shell von `admin`, sodass ein Aufruf über `az vm run-command` dieselbe
+interaktive Site-CLI erreicht, die auch SSH erreicht hätte.
+Verifiziert auf einem Einweg-CE desselben Builds; `execcli docker-ps`,
+`execcli ip-link-show` und `health` wurden alle auf diese Weise erfasst.
+
+Zwei Mechaniken sind erforderlich, und keine davon ist offensichtlich:
+
+- **`vpmu` stürzt ohne PTY ab** —
+  `go-prompt … NewStandardInputParser: no such device or address`. Weisen Sie eines zu.
+- **Der Befehlstext und das Enter-Byte müssen separate Schreibvorgänge sein.** In einem einzigen Schreibvorgang landet der
+  Zeilenumbruch als literales Zeichen im Puffer und die CLI antwortet mit
+  `unknown command "execcli\n"`, was sich so liest, als existiere der Befehl nicht.
+
+Das interaktive Menü listet `configure`, `configure-generic-hardware`,
+`configure-network`, `configure-http-proxy`, `diagnosis` und `health` auf. **`execcli` ist ein
+verborgener Befehl** — er steht nicht in diesem Menü und erwartet einen Katalog-Befehlsnamen als
+Argument.
+
+<Aside type="note" title="Dieser Weg ist auf einem Einweg-CE verifiziert, nicht auf der Demo">
+Der `run-command`-Weg wurde auf einem Wegwerf-CE mit demselben Build und derselben
+Konfiguration erprobt. Er wurde nicht erneut gegen `ar-bgp-eastus01/02/03` ausgeführt, betrachten Sie sein
+Verhalten dort also als erwartet und nicht als bewiesen. Der Weg über die Debug-API *ist* gegen
+die Demo verifiziert.
+</Aside>

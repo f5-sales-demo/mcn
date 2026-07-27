@@ -8,13 +8,21 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
-Two routes exist, and which one applies is decided by the state of the node rather
+Two routes work, and which one applies is decided by the state of the node rather
 than by preference.
 
-| Node state | Route | Scriptable | Covers |
-| --- | --- | --- | --- |
-| `ONLINE` | [Debug API](./debug-api/) | Yes | 34 commands, read-only and privileged |
-| Not registered, or unreachable | [Serial console](./serial-console/) | No — needs a terminal | The full on-box Site CLI |
+| Route | Needs node `ONLINE` | Needs network reachability | Limits | Covers |
+| --- | --- | --- | --- | --- |
+| [Debug API](./debug-api/) | **yes** | yes | about 25–30 minutes of warm-up on a new site | 34 commands |
+| [Serial console](./serial-console/) | no | no | one session per VM; 2,048-character paste cap | The full on-box Site CLI |
+
+Serial console is the last resort, and the only route that survives a node with no working
+network path.
+
+[**SSH is not a third route.**](./ssh/) The `admin` account cannot authenticate on the
+build this tenant runs, `vpm` never applies the key, and there is no site setting that
+changes that. The page exists to document the evidence, because every failure mode there
+looks like a firewall or a credential problem.
 
 ## Why the split is not a preference
 

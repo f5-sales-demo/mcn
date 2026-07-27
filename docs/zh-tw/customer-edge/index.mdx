@@ -1,25 +1,26 @@
 ---
 title: Customer Edge 診斷
-description: 當 Customer Edge 發生異常時，請優先閱讀此層級。說明兩種存取路徑的適用情境，因為選錯路徑將會靜默地返回空結果。
+description: 當 Customer Edge 出現異常時，請先閱讀此層級。先確認兩種存取路徑中適用哪一種，因為選錯的那一種會靜默地什麼都不回傳。
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: 6fd834c949c2
+  sourceHash: 991cdd445e1e
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Customer Edge（CE）是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節點——`terraform/modules/ce-node`，
-由 `volterraedgeservices/volterra-node` Marketplace 映像檔建置而成。
+Customer Edge (CE) 是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節點 —— `terraform/modules/ce-node`，以
+`volterraedgeservices/volterra-node` marketplace 映像檔建置。
 
-它執行資料平面（Argo）、控制平面（Vega）、Envoy Proxy、Kubernetes 堆疊，以及 `vpm`——負責節點註冊並管理其上所有元件的代理程式。
+它執行資料平面 (Argo)、控制平面 (Vega)、一個 Envoy proxy、一套 Kubernetes
+堆疊，以及 `vpm`——負責註冊節點並管理節點上其他一切的代理程式。
 
-當 CE 發生異常時，Site CLI 是主要的診斷工具。首要決策是判斷適用哪條存取路徑，選錯路徑將浪費時間，且表現形式與節點故障無異。
+當 CE 出現異常時，Site CLI 就是診斷工具。第一個決定是判斷適用哪一條存取路徑，選錯會浪費時間，而且症狀看起來像是節點壞了。
 
-## 兩條存取路徑，且無法互換
+## 兩條存取路徑，且兩者不可互換
 
 <CardGrid>
   <LinkCard
@@ -34,24 +35,20 @@ Customer Edge（CE）是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節
   />
 </CardGrid>
 
-Debug API 透過 **F5 Distributed Cloud 控制平面**連線至節點。
-這正是區分兩條路徑的根本原因：API 僅能在節點完成註冊並回報 `ONLINE` 狀態後才能回應。
+debug API **透過 F5 Distributed Cloud 控制平面**連線至節點。
+這正是為何這個區分如此重要：只有在節點已完成註冊並回報 `ONLINE` 之後，API 才能作出回應。
 
-若節點因 cloud-init 錯誤、Token 過期、或無法路由至 `register.ves.volterra.io` 而未能完成註冊，正是最需要診斷資訊的情境，卻也正是 API 無法服務的情境。
+註冊失敗的節點——錯誤的 cloud-init、過期的權杖、無法路由至
+`register.ves.volterra.io`——恰恰是你需要診斷的情況，也恰恰是 API 無法服務的情況。
 
-此外，節點出廠即關閉 SSH。Port 22 在 CE 本身即為關閉狀態，並非由網路安全群組所封鎖：
+SSH 不是第三個選項。`sshd` 在節點上執行，並在其內部 (SLI)
+位址上回應，但 `admin` 帳號無法通過驗證：`vpm` 會略過該使用者，因此你在 site 物件上設定的
+`ssh_key` 永遠不會被套用。沒有任何安全群組規則能改變這一點。相關證據列於 [SSH](./access/ssh/) 頁面，該頁面之所以存在，是因為那裡的每個症狀看起來都像是防火牆或憑證故障。
 
-```console
-$ ssh -o ConnectTimeout=10 admin@<ce-public-ip>
-ssh: connect to host <ce-public-ip> port 22: Connection refused
-```
+所以：如果 site 為 `ONLINE`，就使用 debug API。如果不是，serial console 是唯一的進入方式。
 
-已在 VNet 內部、從同一子網路的跳板主機驗證，開放安全群組規則無法改變此行為。
-
-因此：若 Site 狀態為 `ONLINE`，請使用 Debug API；若否，序列主控台是唯一的連入方式。
-
-<Aside type="caution" title="請先確認 Site 狀態">
-一個請求即可判斷您所在的路徑：
+<Aside type="caution" title="先檢查 site 狀態">
+一個請求就能告訴你目前處於哪條路徑：
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -59,24 +56,36 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` 表示 Debug API 可正常使用。其他任何狀態——或 Site 不存在——均表示需使用序列主控台。
+`ONLINE` 表示 debug API 可以運作。其他任何狀態——或是不存在的 site——都意味著要使用 serial console。
 </Aside>
 
 ## 安全規則
 
-以下規則適用於後續所有頁面的每一條指令。
+以下規則適用於下列各頁面中的每一個命令。
 
-- **非必要不執行寫入操作。** 指令介面分為兩個權限層級，`Exec` 層級的指令會變更節點狀態或讀取狀態標記。本文件所有頁面均不執行 `Exec` 指令，擷取工具組亦然。
-- **切勿僅憑名稱假設指令安全性。** `ip-link-set` 看似查詢指令，實際上會關閉網路介面；`systemctl-restart-crio` 會在即時資料平面運行期間重啟容器執行環境。
-- **優先使用最精確、範圍最小的指令來回答問題。** `health` 與 `diagnosis` 以低成本方式彙整節點狀態；`flow-l` 則會傾印多達 629,760 筆的流量表。
-- **CE 承載即時流量。** 這些是共用示範環境，請假設當前正在除錯的 Site 有人正在進行展示。
+- **除非你有十足把握，否則僅執行唯讀操作。** 命令介面分為兩個
+  權限層級，而 `Exec` 層級的命令會變更節點狀態，或讀取某個狀態
+  標記。這些頁面上沒有任何內容會執行 `Exec` 命令，擷取工具鏈亦然。
+- **絕不要從命令名稱推測它是安全的。** `ip-link-set` 讀起來像是
+  查詢，實際上會將介面關閉。`systemctl-restart-crio` 會在資料平面正在運作的情況下重新啟動
+  容器執行環境。
+- **優先使用能回答問題的最小範圍命令。** `health` 與
+  `diagnosis` 能以低成本摘要節點狀態；`flow-l` 則會傾印一份 629,760 筆項目的流量
+  表。
+- **CE 承載實際流量。** 這些是共用的示範環境。請假設有人
+  正在使用你正在除錯的那個 site 進行演示。
 
-## 本文件涵蓋範圍
+## 本文件涵蓋的內容
 
-本文件涵蓋此租戶所執行軟體版本上，可透過 Debug API 存取的所有指令，每條指令均附有從即時節點擷取的輸出，而非轉錄自其他來源。
+在此租戶所執行的軟體版本上，所有可透過 debug API 存取的命令，
+每一項的輸出都是從實際運作中的節點擷取，而非從別處轉抄而來。
 
-[指令參考](./commands/)列出所有指令及其類別、權限層級與傳輸方式；[工作流程](./workflows/)則將其串連為實際排查問題時使用的操作序列。
+[命令參考](./commands/)列出所有命令及其類別、權限
+層級與傳輸方式；[工作流程](./workflows/)則將它們串接成你在出問題時實際會使用的操作序列。
 
-Site CLI 中僅限節點本機存取的部分——`configure`、`configure-network`、`factory-reset`、`upgrade` 以及約六十條 `ExecCLI` 指令——不在本文件涵蓋範圍內。
+Site CLI 中僅能在節點上執行的部分——`configure`、`configure-network`、
+`factory-reset`、`upgrade` 以及大約六十個其他 `ExecCLI` 命令——不在
+涵蓋範圍內。
 
-這些指令僅能透過序列主控台連線存取，因此無法以程式方式驗證，而本文件存在的目的正是為了避免重蹈未經驗證的指令語法所帶來的缺失。
+這些命令只能透過 serial console 工作階段存取，因此關於它們的任何內容都無法以程式方式
+驗證，而未經驗證的命令語法正是本文件存在所要避免重複發生的缺陷。
