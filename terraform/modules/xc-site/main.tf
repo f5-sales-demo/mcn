@@ -97,6 +97,18 @@ resource "xcsh_securemesh_site_v2" "this" {
       volterra_software_version = var.sw_version == "" ? null : var.sw_version
     }
   }
+
+  # SSH access to the CE appliance, for `execcli` and on-box diagnostics.
+  # The CE image manages its own OS authentication, so the Azure VM's
+  # admin_ssh_key (modules/ce-node) does NOT grant CE login — this block is what
+  # authorizes a key on the appliance itself. An empty var renders no block,
+  # leaving the appliance default (no SSH listener), so this is opt-in.
+  dynamic "admin_user_credentials" {
+    for_each = var.ssh_public_key == "" ? [] : [1]
+    content {
+      ssh_key = var.ssh_public_key
+    }
+  }
 }
 
 # The approve API takes the runtime registration name ("r-<uuid>"), NOT the site
