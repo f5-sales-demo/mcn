@@ -11,7 +11,7 @@
 # "fail to match certified hardware" and never registers.
 #
 # ${token} = generated xcsh_token.ce.uid (or var.registration_token override);
-# ${cluster_name} = the XC site name (<component>-<region>0N). 0600 root-only: the
+# ${cluster_name} = the XC site name (ar-bgp-eastus0N). 0600 root-only: the
 # Token is a credential and vpmd runs as root.
 write_files:
   - path: /etc/vpm/config.yaml

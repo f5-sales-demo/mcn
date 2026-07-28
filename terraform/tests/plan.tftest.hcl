@@ -8,6 +8,18 @@ mock_provider "azuread" {}
 mock_provider "xcsh" {}
 
 variables {
+  # Explicitly null so these assert the DERIVED names no matter what a local
+  # terraform.tfvars pins — `terraform test` reads that file too, so without this a
+  # deployment holding older names steady would turn this suite red on the
+  # engineer's machine while CI, which has no tfvars, stayed green.
+  site_prefix         = null
+  lb_name             = null
+  origin_pool_name    = null
+  route_server_name   = null
+  bastion_name        = null
+  client_vm_name      = null
+  region_short        = null
+  resource_group_name = null
   # Pinned rather than inherited. Both now have NO default (an origin default is
   # one specific machine; an lb_domain default belongs to whoever deploys), and
   # `terraform test` also reads the gitignored terraform.tfvars — so without these

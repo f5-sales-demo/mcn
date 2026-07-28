@@ -103,6 +103,12 @@ variable "enable_bastion" {
   default     = false
 }
 
+variable "client_vm_name" {
+  description = "Test client VM name, and the stem of its public IP, NSG and NIC. Leave null (the default) to derive `<component>-client`. Set it only to hold an existing client VM steady: the name is also its computer_name, which forces a VM replacement when it changes."
+  type        = string
+  default     = null
+}
+
 variable "bastion_name" {
   description = "Azure Bastion host name (the --name argument of `az network bastion tunnel`). Leave null (the default) to derive `<component>-bastion`."
   type        = string

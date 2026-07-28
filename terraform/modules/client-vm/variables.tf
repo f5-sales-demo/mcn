@@ -1,7 +1,6 @@
 variable "name" {
-  description = "Test client VM name."
+  description = "Test client VM name; every child resource derives from it (<name>PublicIP, <name>NSG, <name>VMNic). REQUIRED, deliberately without a default: the root passes a value derived from var.component, so no deployment-specific name can hide in a module default."
   type        = string
-  default     = "ar-ecmp-client"
 }
 
 variable "resource_group_name" {

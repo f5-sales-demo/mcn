@@ -58,7 +58,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   #checkov:skip=CKV_AZURE_50:Lab VM - no extensions required
   #checkov:skip=CKV_AZURE_93:Lab VM - platform-managed encryption sufficient
   name                = var.name
-  computer_name       = "ar-ecmp-client"
+  computer_name       = var.name
   resource_group_name = var.resource_group_name
   location            = var.location
   size                = var.vm_size

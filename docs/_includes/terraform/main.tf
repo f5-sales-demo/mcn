@@ -168,6 +168,7 @@ module "azure_route_server_bgp" {
 module "client_vm" {
   source = "./modules/client-vm"
 
+  name                = local.client_vm_name
   resource_group_name = module.azure_hub.resource_group_name
   location            = module.azure_hub.location
   subnet_id           = module.azure_hub.internal_subnet_id

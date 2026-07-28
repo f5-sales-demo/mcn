@@ -55,6 +55,7 @@ locals {
   resource_group_name = coalesce(var.resource_group_name, "rg-${var.component}-${local.deployer}")
   route_server_name   = coalesce(var.route_server_name, "${var.component}-rs")
   bastion_name        = coalesce(var.bastion_name, "${var.component}-bastion")
+  client_vm_name      = coalesce(var.client_vm_name, "${var.component}-client")
   origin_pool_name    = coalesce(var.origin_pool_name, "${var.component}-pool")
   # `-f5se` matches the convention this tenant's other load balancers already use.
   lb_name = coalesce(var.lb_name, "${var.component}-f5se")
