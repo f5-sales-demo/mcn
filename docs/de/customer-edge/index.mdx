@@ -1,67 +1,57 @@
 ---
 title: Customer Edge Diagnose
 description: >-
-  Lesen Sie diese Ebene zuerst, wenn ein Customer Edge sich fehlerhaft verhält.
-  Sie legt fest, welcher der beiden Zugriffswege zutrifft, denn der falsche
-  liefert stillschweigend nichts zurück.
+  Lesen Sie diesen Abschnitt zuerst, wenn ein Customer Edge Fehlfunktionen
+  aufweist. Er legt fest, welcher der beiden Zugriffspfade gilt, da der falsche
+  ohne jede Meldung nichts zurückgibt.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: 991cdd445e1e
+  sourceHash: b4cc7a6da640
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Ein Customer Edge (CE) ist der F5 Distributed Cloud Knoten, den dieses Repository in
-Azure bereitstellt — `terraform/modules/ce-node`, erstellt aus dem
-Marktplatz-Image `volterraedgeservices/volterra-node`.
+Ein Customer Edge (CE) ist der F5 Distributed Cloud-Knoten, den dieses Repository in
+Azure bereitstellt – `terraform/modules/ce-node`, erstellt aus dem
+`volterraedgeservices/volterra-node` Marktplatz-Image.
 
-Er betreibt die Datenebene (Argo), die Steuerungsebene (Vega), einen Envoy-Proxy, einen
-Kubernetes-Stack sowie `vpm`, den Agenten, der den Knoten registriert und alles Weitere
-darauf verwaltet.
+Er führt die Datenebene (Argo), die Steuerungsebene (Vega), einen Envoy-Proxy, einen Kubernetes-
+Stack sowie `vpm` aus – den Agenten, der den Knoten registriert und alles weitere darauf
+verwaltet.
 
-Wenn ein CE sich fehlerhaft verhält, ist die Site CLI das Instrument. Die erste
-Entscheidung ist, welcher Zugriffsweg zutrifft, und ein Fehler dabei kostet Zeit auf
-eine Weise, die wie ein defekter Knoten aussieht.
+Wenn ein CE Fehlfunktionen aufweist, ist die Site CLI das geeignete Werkzeug. Die erste Entscheidung besteht darin, welcher Zugriffspfad gilt – eine falsche Wahl kostet Zeit auf eine Weise, die wie ein defekter Knoten aussieht.
 
-## Zwei Zugriffswege, die nicht austauschbar sind
+## Zwei Zugriffspfade, die nicht austauschbar sind
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    description="Für einen Knoten mit dem Status <code>ONLINE</code>. Skriptfähig, schreibgeschützt und umfasst 34 Befehle."
     href="./access/debug-api/"
   />
   <LinkCard
-    title="Serial console"
-    description="For a node that never registered. The only route when the API cannot answer."
+    title="Serielle Konsole"
+    description="Für einen Knoten, der sich nie registriert hat. Der einzige Weg, wenn die API nicht antwortet."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-Die Debug-API erreicht den Knoten **über die F5 Distributed Cloud Steuerungsebene**.
-Genau darin liegt die Bedeutung dieser Unterscheidung: Die API kann erst antworten,
-wenn der Knoten registriert ist und `ONLINE` meldet.
+Die Debug-API erreicht den Knoten **über die F5 Distributed Cloud-Steuerungsebene**.
+Das ist der eigentliche Grund, warum die Unterscheidung wichtig ist: Die API kann erst antworten, wenn sich der Knoten registriert hat und `ONLINE` meldet.
 
-Ein Knoten, dessen Registrierung fehlgeschlagen ist — fehlerhaftes cloud-init, ein
-abgelaufenes Token, keine Route zu `register.ves.volterra.io` — ist genau der Fall, in
-dem Sie Diagnose benötigen, und genau der Fall, den die API nicht bedienen kann.
+Ein Knoten, der sich nicht registrieren konnte – fehlerhafte Cloud-Init-Konfiguration, ein abgelaufenes Token, keine Route zu
+`register.ves.volterra.io` – ist genau der Fall, in dem Sie Diagnosefunktionen benötigen, und gleichzeitig genau der Fall, dem die API nicht bedienen kann.
 
-SSH ist keine dritte Option. `sshd` läuft auf dem Knoten und antwortet auf seiner
-internen (SLI-)Adresse, aber das `admin`-Konto kann sich nicht authentifizieren: `vpm`
-überspringt diesen Benutzer, sodass der `ssh_key`, den Sie am Site-Objekt konfigurieren,
-niemals angewendet wird. Keine Sicherheitsgruppenregel ändert das. Die Belege finden
-sich auf der [SSH](./access/ssh/)-Seite, die existiert, weil jedes dortige Symptom wie
-ein Firewall- oder Anmeldedatenfehler aussieht.
+[SSH](./access/ssh/) ist die dritte Option und die einzige, die die vollständige Befehlsoberfläche des Geräts erreicht – die Debug-API stellt 34 Befehle bereit, während der Knoten selbst viele weitere anbietet. Zwei Einschränkungen bestehen: `sshd` antwortet nur auf der internen Adresse (SLI) des Knotens, sodass ein Host innerhalb des VNet erforderlich ist; und der Schlüssel wird von Cloud-Init beim ersten Start geschrieben, da das Feld `ssh_key` im Site-Objekt wirkungslos ist – `vpm` überspringt den `admin`-Benutzer und wendet ihn nie an. Die nachträgliche Aktivierung auf laufenden Knoten führt daher zu deren Ersatz.
 
-Also: Wenn die Site `ONLINE` ist, verwenden Sie die Debug-API. Wenn nicht, ist die
-serielle Konsole der einzige Weg hinein.
+Zusammenfassend gilt: Wenn die Site `ONLINE` ist und 34 Befehle ausreichen, verwenden Sie die Debug-API. Wenn Sie die restliche Oberfläche benötigen und das VNet erreichen können, verwenden Sie SSH. Wenn die Registrierung das Problem ist, ist die serielle Konsole der einzige Zugangsweg.
 
-<Aside type="caution" title="Prüfen Sie zuerst den Site-Zustand">
-Eine Anfrage sagt Ihnen, auf welchem Weg Sie sich befinden:
+<Aside type="caution" title="Zuerst den Site-Status prüfen">
+Eine Anfrage zeigt Ihnen, auf welchem Pfad Sie sich befinden:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -69,43 +59,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` bedeutet, dass die Debug-API funktioniert. Alles andere — oder eine Site, die
-nicht existiert — bedeutet serielle Konsole.
+`ONLINE` bedeutet, dass die Debug-API funktioniert. Jeder andere Status – oder eine Site, die nicht
+existiert – bedeutet, dass die serielle Konsole verwendet werden muss.
 </Aside>
 
 ## Sicherheitsregeln
 
 Diese gelten für jeden Befehl auf jeder der folgenden Seiten.
 
-- **Nur lesend, sofern Sie nicht ganz sicher sind.** Die Befehlsoberfläche ist in zwei
-  Berechtigungsebenen unterteilt, und die `Exec`-Ebene verändert entweder den Knoten oder
-  liest einen Zustandsmarker. Nichts auf diesen Seiten führt einen `Exec`-Befehl aus, und
-  das Capture-Harness ebenfalls nicht.
-- **Gehen Sie niemals davon aus, dass ein Befehl anhand seines Namens sicher ist.**
-  `ip-link-set` liest sich wie eine Abfrage und schaltet eine Schnittstelle ab.
-  `systemctl-restart-crio` startet die Container-Laufzeitumgebung unter einer laufenden
-  Datenebene neu.
-- **Bevorzugen Sie den engsten Befehl, der die Frage beantwortet.** `health` und
-  `diagnosis` fassen den Knoten kostengünstig zusammen; `flow-l` gibt eine Flow-Tabelle
-  mit 629.760 Einträgen aus.
-- **Ein CE bedient echten Datenverkehr.** Dies sind gemeinsam genutzte
-  Demo-Umgebungen. Gehen Sie davon aus, dass jemand von der Site präsentiert, die Sie
-  gerade debuggen.
+- **Schreibgeschützt, sofern Sie nicht sicher sind.** Die Befehlsoberfläche ist in zwei
+  Berechtigungsstufen unterteilt, und die Stufe `Exec` mutiert entweder den Knoten oder liest einen Zustandsmarker. Keine der Seiten hier führt einen `Exec`-Befehl aus, und das Erfassungs-Harness ebenfalls nicht.
+- **Niemals davon ausgehen, dass ein Befehl aufgrund seines Namens sicher ist.** `ip-link-set` klingt wie eine Abfrage und schaltet eine Schnittstelle ab. `systemctl-restart-crio` startet die Container-Runtime unter einer aktiven Datenebene neu.
+- **Den engsten Befehl bevorzugen, der die Frage beantwortet.** `health` und
+  `diagnosis` fassen den Knoten kostengünstig zusammen; `flow-l` gibt eine Flow-Tabelle mit 629.760 Einträgen aus.
+- **Ein CE bedient Live-Datenverkehr.** Dies sind gemeinsam genutzte Demo-Umgebungen. Gehen Sie davon aus, dass jemand von der Site aus präsentiert, die Sie debuggen.
 
 ## Was hier dokumentiert ist
 
-Jeder über die Debug-API erreichbare Befehl auf dem Software-Build, den dieser Tenant
-betreibt, jeweils mit Ausgaben, die von einem laufenden Knoten erfasst und nicht von
-anderswo übernommen wurden.
+Jeder Befehl, der über die Debug-API in dem Software-Build erreichbar ist, auf dem dieser Tenant läuft, jeweils mit einer Ausgabe, die von einem Live-Knoten erfasst wurde und nicht anderswoher übertragen wurde.
 
-Die [Befehlsreferenz](./commands/) listet sie alle mit ihrer Kategorie,
-Berechtigungsebene und Transportart auf; die [Workflows](./workflows/) verketten sie zu
-den Abläufen, die Sie tatsächlich verwenden, wenn etwas nicht stimmt.
+Die [Befehlsreferenz](./commands/) listet alle Befehle mit ihrer Kategorie, Berechtigungsstufe und Transportmethode auf; die [Workflows](./workflows/) verketten sie zu den Abläufen, die tatsächlich verwendet werden, wenn etwas nicht stimmt.
 
-Die ausschließlich auf dem Gerät verfügbaren Teile der Site CLI — `configure`,
-`configure-network`, `factory-reset`, `upgrade` und rund sechzig weitere
-`ExecCLI`-Befehle — werden nicht behandelt.
+Die ausschließlich auf dem Gerät verfügbaren Teile der Site CLI – `configure`, `configure-network`,
+`factory-reset`, `upgrade` und rund sechzig weitere `ExecCLI`-Befehle – werden nicht
+behandelt.
 
-Sie sind nur aus einer Sitzung über die serielle Konsole erreichbar, sodass sich nichts
-daran programmatisch überprüfen lässt, und nicht verifizierte Befehlssyntax ist genau
-der Fehler, dessen Wiederholung diese Dokumentation vermeiden soll.
+Sie sind nur über eine serielle Konsolensitzung erreichbar, sodass nichts daran programmatisch überprüft werden kann – und ungeprüfte Befehlssyntax ist genau der Fehler, den diese Dokumentation verhindern soll.

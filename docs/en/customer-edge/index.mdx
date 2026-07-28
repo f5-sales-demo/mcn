@@ -44,14 +44,16 @@ A node that failed to register — bad cloud-init, an expired token, no route to
 `register.ves.volterra.io` — is exactly the case where you need diagnostics, and
 exactly the case the API cannot serve.
 
-SSH is not a third option. `sshd` runs on the node and answers on its internal (SLI)
-address, but the `admin` account cannot authenticate: `vpm` skips that user, so the
-`ssh_key` you configure on the site object is never applied. No security group rule
-changes it. The evidence is on the [SSH](./access/ssh/) page, which exists because
-every symptom there reads as a firewall or a credential fault.
+[SSH](./access/ssh/) is the third option, and the only one that reaches the appliance's
+full command surface — the debug API exposes 34 commands and the node itself offers many
+more. Two things constrain it. `sshd` answers on the node's internal (SLI) address only,
+so it needs a host inside the VNet; and the key is written by cloud-init at first boot,
+because the `ssh_key` field on the site object is inert — `vpm` skips the `admin` user and
+never applies it. Enabling it on running nodes therefore replaces them.
 
-So: if the site is `ONLINE`, use the debug API. If it is not, serial console is the
-only way in.
+So: if the site is `ONLINE` and 34 commands are enough, use the debug API. If you need the
+rest of the surface and can reach the VNet, use SSH. If registration is what is broken,
+serial console is the only way in.
 
 <Aside type="caution" title="Check the site state first">
 One request tells you which path you are on:

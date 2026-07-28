@@ -1,70 +1,78 @@
 ---
 title: Raggiungere un Customer Edge
 description: >-
-  Leggere questa sezione prima di eseguire qualsiasi comando. Illustra
-  l'autenticazione, la regola che associa il livello all'endpoint e determina
-  dove viene inviato un comando, e il percorso di emergenza per un nodo non
-  registrato.
+  Leggi questo livello prima di eseguire qualsiasi comando. Copre le tre rotte
+  verso un Customer Edge — l'API di debug, SSH verso la Site CLI on-box e la
+  console seriale — con l'autenticazione per ciascuna, la regola
+  livello-endpoint che determina dove viene inviato un comando dell'API di
+  debug, e il percorso break-glass per un nodo non registrato. Inizia qui per
+  scegliere una rotta, perché solo SSH e la console seriale raggiungono la
+  superficie completa dei comandi on-box.
 sidebar:
   order: 10
   label: Accesso
 i18n:
-  sourceHash: 479fed005588
+  sourceHash: 4f47fbc1e917
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Sono disponibili due percorsi, e quale dei due si applichi è determinato dallo stato del nodo
-piuttosto che da una preferenza.
+Tre rotte funzionano, e quale si applica è determinato dallo stato del nodo e dal punto
+di connessione, piuttosto che dalla preferenza.
 
-| Percorso | Richiede nodo `ONLINE` | Richiede raggiungibilità di rete | Limiti | Copertura |
+| Rotta | Richiede nodo `ONLINE` | Richiede raggiungibilità di rete | Limiti | Copre |
 | --- | --- | --- | --- | --- |
-| [Debug API](./debug-api/) | **sì** | sì | circa 25–30 minuti di riscaldamento su un nuovo sito | 34 comandi |
-| [Console seriale](./serial-console/) | no | no | una sessione per VM; limite di 2.048 caratteri per l'incolla | L'intera Site CLI on-box |
+| [API di debug](./debug-api/) | **sì** | sì | circa 25–30 minuti di riscaldamento su un nuovo sito | 34 comandi |
+| [SSH](./ssh/) | no | dall'interno della VNet, solo all'indirizzo interno | la chiave deve essere presente dal primo avvio | La Site CLI on-box completa |
+| [Console seriale](./serial-console/) | no | no | una sessione per VM; limite di incolla di 2.048 caratteri | La Site CLI on-box completa |
 
-La console seriale è l'ultima risorsa, e l'unico percorso che sopravvive a un nodo senza alcun
-percorso di rete funzionante.
+La console seriale è l'ultima risorsa, e l'unica rotta che sopravvive a un nodo senza
+un percorso di rete funzionante.
 
-[**SSH non è un terzo percorso.**](./ssh/) L'account `admin` non può autenticarsi sulla
-build utilizzata da questo tenant, `vpm` non applica mai la chiave, e non esiste alcuna
-impostazione del sito che modifichi questo comportamento. La pagina esiste per documentare le prove,
-perché ogni modalità di errore in quel contesto sembra un problema di firewall o di credenziali.
+SSH è quella a cui ricorrere quando l'API di debug non è sufficiente, perché l'appliance offre
+sostanzialmente più comandi rispetto ai 34 che l'API espone. Ha due costi. La chiave è
+scritta da cloud-init e quindi deve essere presente al **primo avvio**, il che significa che abilitarla su
+nodi in esecuzione li sostituisce — e questo al momento blocca la registrazione
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). E `sshd` risponde solo sull'
+indirizzo interno del nodo, quindi è necessario un host all'interno della VNet; sondare l'indirizzo con cui
+si conosce il nodo riporterà sempre chiuso.
 
-## Perché la distinzione non è una preferenza
+## Perché la suddivisione non è una preferenza
 
-La debug API è erogata dal control plane di F5 Distributed Cloud, che inoltra le richieste al
+L'API di debug è gestita dal piano di controllo di F5 Distributed Cloud, che inoltra al
 nodo attraverso il tunnel che `vpm` stabilisce durante la registrazione. Nessuna registrazione significa
-nessun tunnel, il che significa che l'API non ha nulla a cui inoltrare le richieste.
+nessun tunnel, il che significa che l'API non ha nulla a cui inoltrare.
 
-L'errore si manifesta in modo poco utile anziché evidente, quindi un nodo che non si è mai avviato
+Fallisce in modo non utile anziché in modo ovvio, quindi un nodo che non è mai partito
 sembra un problema dell'API.
 
-La console seriale segue una strada completamente diversa — attraverso la piattaforma Azure fino alla
-porta seriale emulata del nodo. Non le importa se il nodo si sia registrato, se abbia
-raggiungibilità di rete o se disponga di un data plane funzionante. Tale indipendenza è l'intero
-scopo, ed è il motivo per cui la diagnostica di avvio deve rimanere abilitata sulle VM CE.
+La console seriale funziona in modo completamente diverso — attraverso la piattaforma Azure verso la
+porta seriale emulata del nodo. Non si preoccupa se il nodo si è registrato, ha
+raggiungibilità di rete, o ha un piano dati funzionante. Questa indipendenza è l'intero
+punto, ed è per questo che la diagnostica di avvio deve rimanere abilitata sulle VM CE.
 
-<Aside type="note" title="Cosa utilizzare">
-Se si sta scrivendo automazione, o si stanno raccogliendo prove che si desidera rieseguire successivamente, utilizzare
-la debug API. Se è la registrazione stessa a non funzionare, la console seriale non è un
+<Aside type="note" title="A cosa ricorrere">
+Se stai scrivendo un'Automazione, o raccogliendo prove che vuoi rieseguire in seguito, usa
+l'API di debug. Se la registrazione è il problema, la console seriale non è un
 ripiego — è l'unica opzione.
 </Aside>
 
 ## Credenziali
 
-I due percorsi utilizzano credenziali diverse, e nessuna delle due va inserita sulla riga di comando.
+Entrambe le rotte utilizzano credenziali diverse, e nessuna appartiene a una riga di comando.
 
-- **Debug API** — un token API di F5 Distributed Cloud, come `XCSH_API_TOKEN`, con
-  l'URL del tenant come `XCSH_API_URL`. Il file di contesto `xcsh` in
-  `~/.config/xcsh/contexts/<tenant>.json` contiene entrambi, ed è ciò che
+- **API di debug** — un token API di F5 Distributed Cloud, come `XCSH_API_TOKEN`, con l'
+  URL del tenant come `XCSH_API_URL`. Il file di contesto `xcsh` in
+  `~/.config/xcsh/contexts/<tenant>.json` contiene entrambi, che è ciò che
   `scripts/capture-sitecli.sh` legge quando l'ambiente non li fornisce.
-- **Console seriale** — il proprio accesso interattivo ad Azure. Non esiste un service principal
-  per questo: il tenant Entra aziendale F5 non ne consente il provisioning, che
-  è anche il motivo per cui nessuna parte di questo processo viene eseguita in CI.
+- **Console seriale** — il tuo login Azure interattivo. Non esiste un service principal
+  per questo: il tenant Entra aziendale F5 non consente il provisioning di uno, il che
+  è anche il motivo per cui nessuna parte di questo viene eseguita in CI.
 
 <Aside type="danger" title="Non passare mai un token come argomento">
-Un token sulla riga di comando finisce nella cronologia della shell e nell'elenco dei processi, dove
-ogni altro utente della macchina può leggerlo. Per questo motivo `capture-sitecli.sh` rifiuta
-categoricamente `--token` e fornisce invece l'header a `curl` tramite stdin.
+Un token su una riga di comando finisce nella cronologia della shell e nell'elenco dei processi, dove
+ogni altro utente sulla macchina può leggerlo. `capture-sitecli.sh` rifiuta
+`--token` categoricamente per questo motivo e fornisce l'intestazione a `curl` su stdin
+invece.
 </Aside>

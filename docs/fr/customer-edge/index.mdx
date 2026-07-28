@@ -1,66 +1,57 @@
 ---
-title: Diagnostics du Customer Edge
+title: Diagnostics Customer Edge
 description: >-
-  Consultez ce niveau en premier lorsqu'un Customer Edge dysfonctionne. Il
-  détermine lequel des deux chemins d'accès s'applique, car le mauvais ne
-  renvoie silencieusement rien.
+  Lisez ce niveau en premier lorsqu'un Customer Edge se comporte de manière
+  anormale. Détermine lequel des deux chemins d'accès s'applique, car le mauvais
+  ne retourne silencieusement rien.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: 991cdd445e1e
+  sourceHash: b4cc7a6da640
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Un Customer Edge (CE) est le nœud F5 Distributed Cloud que ce dépôt provisionne dans
-Azure — `terraform/modules/ce-node`, construit à partir de l'image de la place de marché
+Un Customer Edge (CE) est le nœud F5 Distributed Cloud que ce référentiel provisionne dans
+Azure — `terraform/modules/ce-node`, construit à partir de l'image marketplace
 `volterraedgeservices/volterra-node`.
 
 Il exécute le plan de données (Argo), le plan de contrôle (Vega), un proxy Envoy, une pile
-Kubernetes et `vpm`, l'agent qui enregistre le nœud et gère tout le reste sur
-celui-ci.
+Kubernetes, ainsi que `vpm`, l'agent qui enregistre le nœud et gère tout le reste.
 
-Lorsqu'un CE dysfonctionne, la CLI du site est l'instrument à utiliser. La première décision porte sur le chemin
-d'accès applicable, et se tromper fait perdre du temps d'une manière qui donne l'impression d'un
-nœud défaillant.
+Lorsqu'un CE se comporte de manière anormale, le Site CLI est l'instrument à utiliser. La première décision consiste à déterminer quel chemin d'accès s'applique ; se tromper fait perdre du temps d'une façon qui ressemble à un nœud défaillant.
 
-## Deux chemins d'accès, et ils ne sont pas interchangeables
+## Deux chemins d'accès, qui ne sont pas interchangeables
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    description="Pour un nœud dont l'état est <code>ONLINE</code>. Scriptable, en lecture seule, et couvre 34 commandes."
     href="./access/debug-api/"
   />
   <LinkCard
     title="Serial console"
-    description="For a node that never registered. The only route when the API cannot answer."
+    description="Pour un nœud qui ne s'est jamais enregistré. La seule voie lorsque l'API ne peut pas répondre."
     href="./access/serial-console/"
   />
 </CardGrid>
 
 L'API de débogage atteint le nœud **via le plan de contrôle F5 Distributed Cloud**.
-C'est précisément la raison pour laquelle cette distinction importe : l'API ne peut répondre qu'une fois que le nœud s'est
-enregistré et signale l'état `ONLINE`.
+C'est précisément la raison pour laquelle cette distinction est importante : l'API ne peut répondre qu'une fois que le nœud s'est enregistré et signale l'état `ONLINE`.
 
-Un nœud qui n'a pas réussi à s'enregistrer — cloud-init incorrect, jeton expiré, aucune route vers
-`register.ves.volterra.io` — correspond exactement au cas où vous avez besoin de diagnostics, et
-exactement au cas que l'API ne peut pas traiter.
+Un nœud qui a échoué à s'enregistrer — cloud-init défectueux, jeton expiré, aucune route vers
+`register.ves.volterra.io` — est exactement le cas où des diagnostics sont nécessaires, et
+exactement le cas que l'API ne peut pas traiter.
 
-SSH n'est pas une troisième option. `sshd` s'exécute sur le nœud et répond sur son adresse interne
-(SLI), mais le compte `admin` ne peut pas s'authentifier : `vpm` ignore cet utilisateur, de sorte que la
-`ssh_key` que vous configurez sur l'objet site n'est jamais appliquée. Aucune règle de groupe de sécurité
-n'y change quoi que ce soit. Les preuves figurent sur la page [SSH](./access/ssh/), qui existe parce que
-chaque symptôme qui y est décrit ressemble à un problème de pare-feu ou d'identifiants.
+[SSH](./access/ssh/) est la troisième option, et la seule qui atteint la surface de commandes complète de l'appliance — l'API de débogage expose 34 commandes alors que le nœud lui-même en offre bien davantage. Deux contraintes s'appliquent. `sshd` ne répond que sur l'adresse interne (SLI) du nœud, ce qui nécessite un hôte à l'intérieur du VNet ; et la clé est écrite par cloud-init au premier démarrage, car le champ `ssh_key` de l'objet site est inopérant — `vpm` ignore l'utilisateur `admin` et ne l'applique jamais. L'activer sur des nœuds en cours d'exécution les remplace donc.
 
-Donc : si le site est `ONLINE`, utilisez l'API de débogage. Sinon, la console série est le
-seul moyen d'accès.
+En résumé : si le site est `ONLINE` et que 34 commandes suffisent, utilisez l'API de débogage. Si vous avez besoin du reste de la surface et pouvez atteindre le VNet, utilisez SSH. Si c'est l'enregistrement qui est défaillant, la console série est la seule voie d'accès.
 
 <Aside type="caution" title="Vérifiez d'abord l'état du site">
-Une seule requête vous indique sur quel chemin vous vous trouvez :
+Une seule requête vous indique quel chemin vous suivez :
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -68,40 +59,34 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` signifie que l'API de débogage fonctionnera. Toute autre valeur — ou un site qui n'existe
-pas — implique la console série.
+`ONLINE` signifie que l'API de débogage fonctionnera. Tout autre état — ou un site qui
+n'existe pas — signifie qu'il faut utiliser la console série.
 </Aside>
 
 ## Règles de sécurité
 
-Elles s'appliquent à toutes les commandes de toutes les pages ci-dessous.
+Ces règles s'appliquent à chaque commande sur chaque page ci-dessous.
 
-- **En lecture seule, sauf si vous êtes certain.** La surface de commandes est répartie en deux
-  niveaux de privilèges, et le niveau `Exec` modifie le nœud ou lit un marqueur
-  d'état. Aucune des pages ici n'exécute une commande `Exec`, pas plus que le
-  harnais de capture.
-- **Ne supposez jamais qu'une commande est sans danger d'après son nom.** `ip-link-set` ressemble à une
-  requête et désactive une interface. `systemctl-restart-crio` redémarre le
-  moteur d'exécution de conteneurs sous un plan de données actif.
-- **Préférez la commande la plus restreinte qui répond à la question.** `health` et
-  `diagnosis` résument l'état du nœud à moindre coût ; `flow-l` déverse une table de flux de
-  629 760 entrées.
-- **Un CE traite du trafic réel.** Ce sont des environnements de démonstration partagés. Partez du principe que quelqu'un
-  est en train de présenter depuis le site que vous déboguez.
+- **En lecture seule, sauf si vous êtes certain.** La surface de commandes est divisée en deux
+  niveaux de privilèges, et le niveau `Exec` soit modifie l'état du nœud, soit lit un marqueur d'état.
+  Aucune commande `Exec` n'est exécutée sur ces pages, ni par le dispositif de capture.
+- **Ne supposez jamais qu'une commande est sûre d'après son nom.** `ip-link-set` ressemble à une
+  requête mais désactive une interface. `systemctl-restart-crio` redémarre le runtime de
+  conteneurs sous un plan de données actif.
+- **Préférez la commande la plus ciblée qui répond à la question.** `health` et
+  `diagnosis` résument l'état du nœud à faible coût ; `flow-l` vide une table de flux de 629 760 entrées.
+- **Un CE sert du trafic en production.** Ce sont des environnements de démonstration partagés. Supposez que quelqu'un présente depuis le site que vous déboguez.
 
 ## Ce qui est documenté ici
 
-Toutes les commandes accessibles via l'API de débogage sur la version logicielle exécutée par ce tenant,
-chacune accompagnée d'une sortie capturée sur un nœud réel plutôt que retranscrite d'ailleurs.
+Toutes les commandes accessibles via l'API de débogage sur la version logicielle que ce tenant exécute,
+chacune avec une sortie capturée depuis un nœud actif plutôt que retranscrite d'une autre source.
 
-La [référence des commandes](./commands/) les répertorie toutes avec leur catégorie, leur niveau de
-privilège et leur transport ; les [flux de travail](./workflows/) les enchaînent dans les séquences que vous
-utilisez réellement lorsqu'un problème survient.
+La [référence des commandes](./commands/) les liste toutes avec leur catégorie, leur niveau de privilège et leur transport ; les [workflows](./workflows/) les enchaînent dans les séquences que vous utilisez réellement lorsque quelque chose ne fonctionne pas.
 
-Les parties de la CLI du site accessibles uniquement sur la machine — `configure`, `configure-network`,
-`factory-reset`, `upgrade` et environ soixante autres commandes `ExecCLI` — ne sont pas
-couvertes.
+Les éléments du Site CLI accessibles uniquement depuis le nœud — `configure`, `configure-network`,
+`factory-reset`, `upgrade` et environ soixante autres commandes `ExecCLI` — ne sont pas couverts.
 
-Elles ne sont accessibles que depuis une session de console série, de sorte que rien à leur sujet ne peut être
-vérifié par programmation, et une syntaxe de commande non vérifiée est précisément le défaut que cette
-documentation cherche à ne pas reproduire.
+Ils ne sont accessibles que depuis une session de console série ; rien à leur sujet ne peut donc être
+vérifié par programmation, et la syntaxe de commande non vérifiée est précisément le défaut que cette
+documentation existe pour éviter de répéter.
