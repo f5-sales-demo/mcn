@@ -1,13 +1,11 @@
 ---
 title: docker
-description: >-
-  รันไทม์ Docker ซึ่งรันบริการแพลตฟอร์ม CE มีห้าคำสั่ง และเป็นที่สำหรับค้นหา vpm
-  เอง
+description: Docker runtime ซึ่งรันบริการแพลตฟอร์ม CE มีห้าคำสั่ง และเป็นที่สำหรับค้นหา vpm
 sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
@@ -25,11 +23,11 @@ Docker รันบริการแพลตฟอร์ม ส่วน Kuber
 ```text file=../../../../_data/sitecli-docker-ps.txt
 ```
 
-<Aside type="tip" title="สามคอนเทนเนอร์คือรายการทั้งหมด ไม่ใช่โหนดที่เสียหาย">
-`vpm`, `argo_watch` และ `site-console` เนื่องจากส่วนใหญ่ของโหนดรันภายใต้ CRI-O
-`docker-ps` ที่แสดงผลสั้นๆ อาจดูเหมือนความล้มเหลว หากคุณคาดว่าจะเห็น Kubernetes workloads ที่นี่
-แต่ไม่ใช่เช่นนั้น — นี่คือชุดคอนเทนเนอร์ Docker ที่สมบูรณ์บน CE ที่ทำงานปกติ และ
-`vpm` ที่ปรากฏอยู่และมีสถานะ `Up` คือบรรทัดที่สำคัญที่สุดในหน้านี้
+<Aside type="tip" title="คอนเทนเนอร์สามตัวคือรายการทั้งหมด ไม่ใช่โหนดที่เสียหาย">
+`vpm`, `argo_watch` และ `site-console` เนื่องจากโหนดส่วนใหญ่ทำงานภายใต้ CRI-O
+การแสดงผล `docker-ps` ที่สั้นอาจดูเหมือนความล้มเหลวหากคุณคาดหวัง Kubernetes workloads
+ที่นี่ แต่ไม่ใช่ — นี่คือชุดคอนเทนเนอร์ Docker ทั้งหมดบน CE ที่ทำงานปกติ และ
+การที่ `vpm` ปรากฏอยู่และมีสถานะ `Up` คือบรรทัดที่สำคัญที่สุดในหน้านี้
 </Aside>
 
 ## `docker-ps-a`
@@ -41,7 +39,7 @@ Docker รันบริการแพลตฟอร์ม ส่วน Kuber
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-รวมคอนเทนเนอร์ที่หยุดทำงานแล้ว ดังนั้น `vpm` ที่หยุดทำงานซ้ำๆ จะทิ้งหลักฐานไว้ที่นี่
+รวมคอนเทนเนอร์ที่หยุดทำงานแล้ว ดังนั้น `vpm` ที่หยุดทำงานซ้ำ ๆ จะทิ้งหลักฐานไว้ที่นี่
 
 ## `docker-images`
 
@@ -52,8 +50,8 @@ Docker รันบริการแพลตฟอร์ม ส่วน Kuber
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-แท็กของอิมเมจระบุเวอร์ชันแพลตฟอร์มที่โหนดกำลังรันอยู่จริง ซึ่งควรนำไปเปรียบเทียบกับ
-build ของซอฟต์แวร์ที่รายงานโดย [`health`](../health/)
+แท็กของ image ระบุเวอร์ชันแพลตฟอร์มที่โหนดกำลังรันอยู่จริง ซึ่งควรเปรียบเทียบ
+กับ software build ที่รายงานโดย [`health`](../health/)
 
 ## `docker-inspect`
 
@@ -64,8 +62,8 @@ build ของซอฟต์แวร์ที่รายงานโดย [
 ```text file=../../../../_data/sitecli-docker-inspect.txt
 ```
 
-รับทั้งชื่อและ id ดังนั้น `docker-inspect vpm` ใช้งานได้และมีความเสถียรข้ามการรีสตาร์ท
-ผลลัพธ์เป็น JSON เต็มรูปแบบ: mounts, environment, restart policy และสถานะการออก
+รับทั้งชื่อและ id ดังนั้น `docker-inspect vpm` ใช้งานได้และคงที่ข้ามการรีสตาร์ท
+แสดง JSON แบบเต็ม: mounts, environment, restart policy และสถานะการออก
 
 ## `docker-logs`
 
@@ -76,6 +74,27 @@ build ของซอฟต์แวร์ที่รายงานโดย [
 ```text file=../../../../_data/sitecli-docker-logs.txt
 ```
 
-`docker-logs vpm` คือวิธีที่เร็วที่สุดในการเข้าถึงข้อผิดพลาดการลงทะเบียน สำหรับข้อมูล
+`docker-logs vpm` คือเส้นทางที่เร็วที่สุดสู่ข้อผิดพลาดการลงทะเบียน สำหรับข้อมูล
 เดียวกันพร้อม timestamp และข้ามการรีสตาร์ท ให้ใช้
 [`journalctl`](../journalctl/) แทน
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+ลบ Docker object ที่ไม่ได้ใช้ทั้งหมด — คอนเทนเนอร์ที่หยุดทำงาน, เครือข่ายที่ไม่ได้ใช้, image ที่ค้างอยู่ และ build cache
+
+**เฉพาะจากเครื่องเท่านั้น** `docker-prune` ไม่อยู่บน debug API จำเป็นต้องใช้
+[`execcli`](../../on-box/)
+
+<Aside type="danger" title="ทำลายข้อมูลและไม่ได้บันทึกไว้ที่นี่">
+คำสั่งนี้ลบสถานะ มันอยู่ในรายการปฏิเสธของ harvest harness และไม่เคยถูกรัน ดังนั้น
+หน้านี้จึงจัดทำเอกสารจาก catalog metadata ของ appliance เอง แทนที่จะแสดงผลลัพธ์
+
+ข้อควรระวังเฉพาะสำหรับ CE: โหนดนี้รัน container runtime **สอง** ตัว `docker-prune` 
+ส่งผลกระทบเฉพาะฝั่ง Docker เท่านั้น — `vpm`, `argo_watch` และ `site-console` — 
+และไม่สามารถเข้าถึง Kubernetes workloads ภายใต้ [CRI-O](../crictl/) การเรียกคืนพื้นที่
+บนฝั่ง CRI-O เป็นคำสั่งที่แตกต่างออกไปคือ `systemctl-start-crio-prune` ซึ่งไม่มีอยู่ใน build นี้
+</Aside>

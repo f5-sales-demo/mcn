@@ -1,0 +1,63 @@
+---
+title: 노드 구성
+description: >-
+  Site CLI 최상위 레벨의 네 가지 configure 명령 — 등록, 네트워크, HTTP 프록시 및 미인증 하드웨어. 라이브 노드를
+  재구성하는 인터랙티브 마법사로, 실행 없이 어플라이언스 자체 메뉴에서 문서화되었으며, 이 저장소가 cloud-init을 통해 모든 것을
+  구성하는 이유도 포함합니다.
+sidebar:
+  order: 80
+  label: Configure
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+네 가지 명령이 [`execcli`](../) 뒤가 아닌 Site CLI의 **최상위 레벨**에 위치합니다 — 이 명령들은 [`health`](../../system/health/) 및 [`diagnosis`](../../system/diagnosis/)와 함께 로그인 시 인터랙티브 메뉴에서 제공되는 항목입니다.
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+위는 어플라이언스 자체 메뉴 텍스트이며, 해당 여섯 항목이 전체 최상위 레벨입니다.
+
+<Aside type="caution" title="예상할 수 있는 다섯 가지 명령이 여기에 없습니다">
+`factory-reset`, `upgrade`, `reboot`, `show`, `clear`는 빌드 `crt-20250613-3382`에 **존재하지 않습니다**. 이 명령들은 Site CLI에 존재할 것이라는 가정 하에 한동안 이 저장소의 명령 분류에 포함되어 있었으나, `site_state: PROVISIONING` 상태에서의 한 번, `PROVISIONED` 상태에서의 한 번, 총 두 차례의 독립적인 열거 과정에서 흔적조차 발견되지 않았습니다. 측정 방법에 대해서는 [온박스 인덱스](../)를 참조하십시오.
+</Aside>
+
+<Aside type="danger" title="인터랙티브 방식이며 라이브 노드를 재구성합니다">
+이 명령들은 각각 노드 구성을 덮어쓰는 마법사입니다. 이 문서화 작업 중 어느 것도 실행되지 않았으며 출력이 캡처되지 않았습니다 — 캡처할 수 있는 읽기 전용 형식이 없기 때문입니다. 검증된 것은 네 가지 모두 존재한다는 사실과 완성 메뉴에서 확인된 설명입니다.
+</Aside>
+
+## `configure`
+
+노드의 초기 구성: 노드를 테넌트 및 사이트에 바인딩하는 등록 세부 정보입니다.
+
+## `configure-network`
+
+네트워크 초기 구성 — 노드 인터페이스의 주소 지정입니다.
+
+## `configure-http-proxy`
+
+CE가 F5 컨트롤 플레인에 직접 도달할 수 없는 경우를 위한 아웃바운드 HTTP 프록시를 구성합니다.
+
+## `configure-generic-hardware`
+
+F5가 인증하지 않은 하드웨어를 구성합니다. [`edit-certified-hardware`](../config-files/)를 통해 접근 가능한 인증 하드웨어 구성과 관련이 있습니다. 유효한 인증 하드웨어 엔드포인트가 없으면 `vpmd`는 *"fail to match certified hardware"*와 함께 종료되며 노드는 등록되지 않습니다.
+
+## 이 저장소에서 해당 명령을 사용하지 않는 이유
+
+이 명령들은 수동 경로이며, 이 배포는 자동화된 경로를 사용합니다. 등록은 최초 부팅 시 cloud-init에 의해 작성됩니다 — `terraform/cloud-init/ce-node.yaml`이 클러스터 이름, 토큰 및 인증 하드웨어 엔드포인트와 함께 `/etc/vpm/config.yaml`을 작성하므로 노드는 이미 구성된 상태로 기동되며 `configure`가 수행할 작업이 없습니다.
+
+이는 단순한 정돈 이상의 두 가지 이유에서 중요합니다:
+
+- **재현성.** 마법사로 구성된 노드는 누군가 구성할 때마다 다르게 구성됩니다. cloud-init으로 구성된 노드는 매번 동일하게 구성되며, 이것이 데모를 재배포 가능하게 만드는 요소입니다.
+- **이 명령들은 복구 경로이지 배포 경로가 아닙니다.** `configure`는 노드를 재지정해야 하고 Terraform을 사용할 수 없는 경우 — 등록에 실패한 노드에서, 다른 어떤 것도 접근할 수 없는 [시리얼 콘솔](../../../access/serial-console/)을 통해 — 사용하십시오.
+
+<Aside type="note" title="등록은 상태이며, 노드를 교체하면 과거에는 상태가 고착될 수 있었습니다">
+재등록은 순수하게 노드 측 작업이 아닙니다. 테넌트는 `(tenant, cluster_name, hostname)` 키로 등록 객체를 보유합니다. CE를 교체하면서 이름을 유지하면 파괴된 노드의 등록이 해당 키를 여전히 보유하고 있어 배포가 영구적으로 고착된 적이 있었습니다. 이 문제는 해결되었습니다 — [등록 워크플로우](../../../workflows/registration/)를 참조하십시오 — 하지만 이것이 재구축된 노드를 복구하는 데 `configure`만으로는 항상 충분하지 않은 이유입니다.
+</Aside>

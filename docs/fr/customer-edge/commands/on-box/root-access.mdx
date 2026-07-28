@@ -1,0 +1,67 @@
+---
+title: Accès root auxiliaire
+description: >-
+  Les deux commandes qui créent et suppriment le compte root xuser sur un
+  Customer Edge. Dirigées par le support, elles laissent le nœud modifié, et la
+  commande de création est le seul moyen documenté d'accéder aux fichiers que le
+  compte admin ne peut pas lire.
+sidebar:
+  order: 70
+  label: Accès root
+i18n:
+  sourceHash: c2417b409442
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Deux commandes créent et suppriment un compte root nommé `xuser`. Elles appartiennent à F5, sont absentes de l'
+[API de débogage](../../../access/debug-api/), et constituent la solution de secours pour les opérations que le compte `admin`
+ne peut pas effectuer.
+
+<Aside type="danger" title="Ces commandes modifient l'état des comptes du nœud et ne sont pas exécutées ici">
+`get-auxilary-root-access-to-node` crée un **utilisateur root**. Il s'agit d'une modification du nœud
+qui survit à votre session, et ce n'est pas quelque chose à faire de manière exploratoire. Les deux commandes sont
+documentées depuis le menu de complétion de l'appliance ; aucune n'a été exécutée, et le
+harnais de collecte refuse les deux.
+
+La faute d'orthographe sur « auxiliary » est celle de l'appliance, et non une coquille sur cette page. Saisissez-la telle
+qu'elle est indiquée, sinon la commande ne sera pas trouvée.
+</Aside>
+
+## `get-auxilary-root-access-to-node`
+
+Crée le compte root `xuser`.
+
+```bash
+execcli get-auxilary-root-access-to-node
+```
+
+**Quand cette commande est véritablement la solution.** Certains diagnostics sont tout simplement inaccessibles en tant qu'`admin`.
+L'exemple vérifié le plus clair sur cette version est [`kubelet-get-params`](../kubelet/), qui
+échoue avec `open /etc/vpm/kubelet-custom-params.txt: permission denied` — le fichier existe mais
+le compte `admin` ne peut pas le lire. L'accès root est la voie documentée pour ce type de
+problème.
+
+**Avant d'y recourir**, examinez si l'[API de débogage](../../../access/debug-api/)
+répond déjà à la question. Son niveau `exec` exécute des commandes privilégiées sans créer de
+compte persistant, ce qui représente une modification moindre du nœud.
+
+## `remove-auxilary-root-access-to-node`
+
+Supprime le compte `xuser`.
+
+```bash
+execcli remove-auxilary-root-access-to-node
+```
+
+**Exécutez cette commande lorsque vous avez terminé.** Un compte root créé pour une session de diagnostic et laissé en
+place constitue des identifiants permanents sur l'appliance dont rien ne vous rappellera l'existence. Traitez
+la création et la suppression comme une paire, dans la même session, de la même façon que
+[`vifdump`](../packet-capture/) et `vifdump-file-rm` forment une paire.
+
+<Aside type="note" title="Ce qui n'a pas été établi">
+La sortie d'aucune des deux commandes n'est enregistrée ; cette page ne peut donc pas vous indiquer à quoi ressemble un succès,
+avec quel mot de passe ou quelle clé `xuser` est créé, ni si la suppression est refusée lorsqu'une session
+est ouverte. Ces informations nécessitent un nœud que vous êtes prêt à modifier.
+</Aside>

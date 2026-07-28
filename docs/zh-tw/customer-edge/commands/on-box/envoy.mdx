@@ -1,0 +1,87 @@
+---
+title: Envoy
+description: >-
+  圍繞客戶邊緣節點上 Envoy 管理介面的四個封裝器——監聽器、叢集以及兩個配置轉儲。說明為何每個指令都以 curl
+  進度計開頭，以及監聽器輸出如何呈現已公告的 VIP。
+sidebar:
+  order: 20
+  label: Envoy
+i18n:
+  sourceHash: 6ca185ca6ece
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Envoy 在客戶邊緣節點上終止並代理應用程式流量。以下四個指令
+查詢其管理介面，且均不屬於
+[除錯 API](../../../access/debug-api/)。
+
+<Aside type="note" title="每個指令都以 curl 進度計開頭">
+這些指令是圍繞 Envoy 管理端點的 `curl` 封裝器，執行時未加 `-s`，因此以下每次擷取的前兩三行均為 curl 輸出至 stderr 的傳輸進度：
+
+```text
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0 …
+```
+
+這不是 Envoy 的輸出，也不是錯誤訊息。它同樣具有參考價值：`% Received` 的位元組數可告知您 Envoy 是否有回傳任何內容，藉此區分「未設定任何監聽器」與「管理介面未回應」這兩種情況。
+</Aside>
+
+## `envoy-listeners`
+
+Envoy 已安裝的所有監聽器，格式為 `name:address:port`。
+
+```bash
+execcli envoy-listeners
+```
+
+```text file=../../../../_data/sitecli-envoy-listeners.txt
+```
+
+**應注意的事項。** 在此部署中，監聽器帶有 `10.250.0.10:80`——即 CE 公告至 BGP 的 VIP。這單一行將三個層次串聯在一起：若
+[`show-ip-bgp-summary`](../../network/bgp/) 顯示前綴正在公告，但此監聽器不存在，則路由正被吸引至一個無法提供服務的節點，這是 ECMP 集合中最糟糕的故障模式，因為流量會負載分散至黑洞之中。
+
+結尾的 `[fe80:…]:80` 是監聽器所綁定介面的鏈路本地位址。
+
+**它無法告知您的事項。** 不涉及上游健康狀態——無論其後方的資源是否可連線，監聽器都會存在。如需查看上游狀態，請使用 `envoy-clusters`。
+
+## `envoy-clusters`
+
+所有叢集，以及其各優先級的連線與請求限制。
+
+```bash
+execcli envoy-clusters
+```
+
+```text file=../../../../_data/sitecli-envoy-clusters.txt
+```
+
+**應注意的事項。** 各行格式為 `cluster::scope::key::value`。`observability_name` 項目可識別每個叢集，而 `default_priority::max_connections`、`max_pending_requests` 以及 `max_requests` 這三項即為請求限制的所在——若某叢集的 `max_pending_requests` 已達上限，則該叢集正受到配置層面的限流，而非上游本身的限制。
+
+## `envoy-config-dump`
+
+Envoy 的完整配置，以 JSON 格式呈現。體積較大：在閒置的示範節點上為 126 KB。
+
+```bash
+execcli envoy-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-config-dump.txt
+```
+
+**應注意的事項。** 頂層的 `configs` 陣列每種配置類型各含一個物件——包括 bootstrap、叢集、監聽器、路由以及憑證。當監聽器或叢集存在但行為異常時，可查閱此項，建議搜尋特定內容而非逐行閱讀。
+
+## `envoy-hc-config-dump`
+
+專門針對健康檢查的配置內容。
+
+```bash
+execcli envoy-hc-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
+```
+
+**應注意的事項。** 在此部署中，它回傳**單一位元組**——在 curl 進度計中顯示為 `100 1`——表示目前未安裝任何健康檢查配置。對於未設定健康檢查來源池的 CE 而言，這是預期狀態，且值得留意：此處的空結果並非查詢失敗。

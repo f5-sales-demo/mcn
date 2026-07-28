@@ -74,3 +74,25 @@ restarts. Full JSON: mounts, environment, restart policy and the exit state.
 `docker-logs vpm` is the fastest route to registration errors. For the same
 information with timestamps and across restarts, use
 [`journalctl`](../journalctl/) instead.
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+Removes every unused Docker object — stopped containers, unused networks, dangling images and
+build cache.
+
+**Only from the box.** `docker-prune` is not on the debug API; it needs
+[`execcli`](../../on-box/).
+
+<Aside type="danger" title="Destructive, and not captured here">
+This deletes state. It is on the harvest harness's refusal list and was never run, so this
+page documents it from the appliance's own catalog metadata rather than showing output.
+
+The CE-specific caution: this node runs **two** container runtimes. `docker-prune` touches
+only the Docker side — `vpm`, `argo_watch` and `site-console` — and cannot reach the
+Kubernetes workloads under [CRI-O](../crictl/). Reclaiming space on the CRI-O side is a
+different command, `systemctl-start-crio-prune`, which is not present on this build.
+</Aside>

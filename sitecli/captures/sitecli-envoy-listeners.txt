@@ -1,6 +1,4 @@
->>> execcli envoy-listeners
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100    85    0    85    0     0   7727      0 --:--:-- --:--:-- --:--:--  7727
 <uuid>-65538:10.250.0.10:80::[fe80:1:0:1:2:0:afa:a]:80
->>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

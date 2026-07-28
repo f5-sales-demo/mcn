@@ -1,13 +1,13 @@
 ---
 title: docker
 description: >-
-  O runtime Docker, que executa os serviços da plataforma CE. Cinco comandos, e
-  o lugar para encontrar o próprio vpm.
+  O runtime Docker, que executa os serviços da plataforma CE. Cinco comandos e o
+  lugar para encontrar o próprio vpm.
 sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
@@ -27,7 +27,7 @@ O Docker executa os serviços da plataforma. As cargas de trabalho do Kubernetes
 
 <Aside type="tip" title="Três contêineres é a lista completa, não um nó com falha">
 `vpm`, `argo_watch` e `site-console`. Como a maior parte do nó é executada sob CRI-O, um
-`docker-ps` curto parece uma falha se você estiver esperando cargas de trabalho do Kubernetes
+`docker-ps` curto parece uma falha se você espera cargas de trabalho do Kubernetes
 aqui. Não é — este é o conjunto completo de contêineres Docker em um CE saudável, e
 a presença do `vpm` com status `Up` é a linha mais importante da página.
 </Aside>
@@ -41,7 +41,7 @@ a presença do `vpm` com status `Up` é a linha mais importante da página.
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-Inclui contêineres encerrados, portanto, um `vpm` que continua falhando deixa evidências aqui.
+Inclui contêineres encerrados, portanto um `vpm` que continua falhando deixa evidências aqui.
 
 ## `docker-images`
 
@@ -52,8 +52,8 @@ Inclui contêineres encerrados, portanto, um `vpm` que continua falhando deixa e
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-As tags de imagem identificam a versão da plataforma que o nó está realmente executando, o que
-vale comparar com o build de software reportado por [`health`](../health/).
+As tags de imagem identificam a versão da plataforma que o nó está executando de fato, o que vale
+comparar com o build de software reportado por [`health`](../health/).
 
 ## `docker-inspect`
 
@@ -77,5 +77,27 @@ reinicializações. JSON completo: montagens, variáveis de ambiente, política 
 ```
 
 `docker-logs vpm` é o caminho mais rápido para erros de registro. Para as mesmas
-informações com timestamps e entre reinicializações, utilize
-[`journalctl`](../journalctl/).
+informações com timestamps e entre reinicializações, use
+[`journalctl`](../journalctl/) em vez disso.
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+Remove todos os objetos Docker não utilizados — contêineres parados, redes não utilizadas, imagens pendentes e
+cache de build.
+
+**Somente a partir do dispositivo.** `docker-prune` não está na API de depuração; requer
+[`execcli`](../../on-box/).
+
+<Aside type="danger" title="Destrutivo e não capturado aqui">
+Este comando exclui estado. Ele está na lista de recusa do harness de coleta e nunca foi executado, portanto esta
+página o documenta a partir dos metadados do catálogo próprio do appliance, sem exibir a saída.
+
+A ressalva específica do CE: este nó executa **dois** runtimes de contêiner. `docker-prune` afeta
+apenas o lado Docker — `vpm`, `argo_watch` e `site-console` — e não alcança as
+cargas de trabalho do Kubernetes sob [CRI-O](../crictl/). Recuperar espaço no lado CRI-O é um
+comando diferente, `systemctl-start-crio-prune`, que não está presente neste build.
+</Aside>

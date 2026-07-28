@@ -1,0 +1,151 @@
+---
+title: ऑन-बॉक्स कमांड
+description: >-
+  82 कमांड जो अप्लायंस का अपना Site CLI प्रदान करता है, जिनमें से 55 तक डीबग API
+  बिल्कुल नहीं पहुँच सकती। छिपे हुए execcli कमांड की व्याख्या जो उन्हें चलाता
+  है, यह सतह API से बड़ी क्यों है, कौन से कमांड पूरी तरह दस्तावेज़ीकृत हैं और
+  कौन से केवल सूचीबद्ध हैं, और इस सेट को कैसे मापा गया।
+sidebar:
+  order: 40
+  label: ऑन-बॉक्स
+i18n:
+  sourceHash: 1f8259efff3f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+[डीबग API](../../access/debug-api/) **34 कमांड** उजागर करती है। अप्लायंस स्वयं
+**82** प्रदान करता है, और **उनमें से 55 का कोई API समकक्ष नहीं है** — पूरा Vega कंट्रोल प्लेन,
+Envoy रैपर, पैकेट कैप्चर, kubelet पैरामीटर सेट, `edit-*` फ़ाइलें और
+सहायक रूट-एक्सेस जोड़ी केवल बॉक्स से ही उपलब्ध हैं।
+
+उन तक पहुँचने के लिए [SSH](../../access/ssh/) या
+[सीरियल कंसोल](../../access/serial-console/) की आवश्यकता है, और एक ऐसी चीज़ जो कहीं भी दस्तावेज़ीकृत नहीं है:
+
+<Aside type="tip" title="execcli एक छिपा हुआ कमांड है">
+`execcli` Site CLI के इंटरेक्टिव मेनू में दिखाई नहीं देता। यह एक कमांड नाम को
+अपने तर्क के रूप में लेता है, और `execcli ` टाइप करने के बाद **Tab** दबाने से अप्लायंस के
+अपने एक-पंक्ति विवरण के साथ सभी 82 सूचीबद्ध हो जाते हैं। वह पूर्णता मेनू किसी
+बिल्ड के लिए आधिकारिक कैटलॉग है, और यही `sitecli/exec-catalog.json` में दर्ज होता है।
+</Aside>
+
+## इसे कैसे मापा गया
+
+नीचे दिया गया सेट किसी विक्रेता दस्तावेज़ से नहीं लिया गया है। इसे दो लाइव नोड्स से पढ़ा गया और
+इसके उद्गम के साथ `sitecli/exec-catalog.json` में दर्ज किया गया:
+
+| | शीर्ष स्तर | `execcli` |
+| --- | --- | --- |
+| `site_state: PROVISIONING` पर मापा गया | 6 | 82 |
+| `site_state: PROVISIONED` पर मापा गया | 6 | 82 |
+
+दोनों रन ने **समान सेट** लौटाए। यह संख्या से अधिक महत्वपूर्ण है: इसका अर्थ है कि
+कमांड सतह पंजीकरण स्थिति के साथ नहीं बदलती, इसलिए जो कमांड अनुपस्थित है वह वास्तव में
+अनुपस्थित है न कि अभी तक प्रस्तुत नहीं की गई।
+
+<Aside type="caution" title="पाँच कमांड जो मौजूद नहीं हैं">
+`factory-reset`, `upgrade`, `reboot`, `show` और `clear` इस बिल्ड पर **नहीं** हैं। ये
+वह प्रकार की चीज़ें हैं जो एक Site CLI में होने की संभावना है, ये इस रिपॉज़िटरी के
+वर्गीकरण में उस धारणा पर कुछ समय के लिए रहीं, और न तो किसी एनुमरेशन ने उन्हें पाया। शीर्ष
+स्तर में ठीक छह प्रविष्टियाँ हैं: `configure`, `configure-generic-hardware`,
+`configure-network`, `configure-http-proxy`, `diagnosis` और `health`।
+</Aside>
+
+## क्या दस्तावेज़ीकृत है, और क्या केवल सूचीबद्ध है
+
+एक Customer Edge Linux और कई थर्ड-पार्टी डेमॉन चलाता है। उनके कमांड का दस्तावेज़ीकरण
+उनके अपने संदर्भों को दोहराएगा और यह दर्शाएगा कि F5 उनका स्वामी है, इसलिए नियम यह है:
+**F5 के सॉफ़्टवेयर का दस्तावेज़ीकरण करें, और बाकी सब के लिए केवल वही दस्तावेज़ीकृत करें जो
+CE के लिए विशिष्ट है।**
+
+तीन स्तर, क्योंकि "हमारा" और "उनका" एक स्वच्छ विभाजन नहीं है। विभाजन
+`sitecli/command-classification.json` में दर्ज है।
+
+| स्तर | उपचार |
+| --- | --- |
+| **F5 सॉफ़्टवेयर** | पूर्ण दस्तावेज़ीकरण — उद्देश्य, सिंटैक्स, तर्क, कैप्चर किया गया आउटपुट, क्या देखना है। Argo, Vega, `vpm`, `vifdump`, `configure*`, `edit-*` सेट, kubelet पैरामीटर, रूट एक्सेस। |
+| **CE-विशिष्ट व्याख्या** | एक थर्ड-पार्टी उपकरण जिसका आउटपुट CE पर कुछ विशेष अर्थ रखता है। CE-विशिष्ट पठन दस्तावेज़ीकृत है और उपकरण के अपने सिमेंटिक्स को अपस्ट्रीम पर छोड़ा गया है। |
+| **पासथ्रू** | सामान्य Linux या थर्ड-पार्टी जिसके बारे में CE-विशिष्ट कुछ नहीं कहना है। उपलब्ध के रूप में सूचीबद्ध, अपस्ट्रीम की ओर पॉइंटर के साथ। कोई गद्य नहीं। |
+
+यह अंतर तय करता है कि कोई पृष्ठ मौजूद है या नहीं, और यही इस
+दस्तावेज़ीकरण को मैन पेजों की खराब प्रति बनने से रोकता है।
+
+## F5 सॉफ़्टवेयर
+
+<CardGrid>
+  <LinkCard
+    title="Vega control plane"
+    description="Six <code>vegactl</code> commands: configuration objects, introspection tables, trace buffers, and which node holds the primary role."
+    href="./vega/"
+  />
+  <LinkCard
+    title="Envoy"
+    description="Four wrappers around Envoy's admin interface — listeners, clusters, and two config dumps."
+    href="./envoy/"
+  />
+  <LinkCard
+    title="Packet capture"
+    description="The five <code>vifdump</code> commands. Documented, never run here: they write capture files onto the node."
+    href="./packet-capture/"
+  />
+  <LinkCard
+    title="Kubelet parameters"
+    description="Read, add and remove custom kubelet parameters. Support-directed."
+    href="./kubelet/"
+  />
+  <LinkCard
+    title="vpm service"
+    description="The agent that registers the node and runs the platform containers."
+    href="./vpm/"
+  />
+  <LinkCard
+    title="Configuration files"
+    description="The four <code>edit-*</code> commands that open F5-owned files on the node."
+    href="./config-files/"
+  />
+  <LinkCard
+    title="Auxiliary root access"
+    description="Creating and removing the <code>xuser</code> root account. Support-directed, and it leaves the node modified."
+    href="./root-access/"
+  />
+  <LinkCard
+    title="Node configuration"
+    description="The four <code>configure*</code> commands at the Site CLI top level."
+    href="./configure/"
+  />
+</CardGrid>
+
+## पासथ्रू
+
+बॉक्स पर उपलब्ध और **यहाँ दस्तावेज़ीकृत नहीं** — ये ऑपरेटिंग सिस्टम और
+थर्ड-पार्टी डेमॉन हैं, F5 का सॉफ़्टवेयर नहीं, और उनके अपने संदर्भ इस
+पृष्ठ द्वारा दोहराई जा सकने वाली किसी भी चीज़ से बेहतर हैं।
+
+| कमांड | अपस्ट्रीम |
+| --- | --- |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, BIND utilities |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | ये फ़ाइलें ऑपरेटिंग सिस्टम की हैं |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — इनमें से हर एक नोड पर वर्कलोड को बाधित करता है |
+
+इनमें से दो के बारे में जानना उपयोगी है, भले ही उन्हें कोई पृष्ठ नहीं मिलता। `files` फ़ाइल
+ऑपरेशन करता है और केवल `/tmp` के नीचे ही लिखेगा। और प्रत्येक `systemctl-restart-*` परिभाषा
+के अनुसार विघटनकारी है — `crio` या `kubelet` को पुनः आरंभ करने से उस नोड पर वर्कलोड बाधित होते हैं।
+
+<Aside type="note" title="सात कमांड नए बिल्ड पर मौजूद हैं और इस पर नहीं">
+`collect-database-stats`, `iptables-lv`, तीन `marker-exists-*` कमांड,
+`systemctl-restart-NetworkManager` और `systemctl-start-crio-prune` बिल्ड `crt-20260201-0179` पर
+डीबग API के माध्यम से देखे गए थे। ये वर्गीकरण में `not_on_this_build.newer_build_debug_api`
+के अंतर्गत दर्ज हैं ताकि यहाँ कुछ भी ऐसी चीज़ के रूप में गलत न समझा जाए जिसे आप
+`crt-20250613-3382` पर चला सकते हैं।
+
+`collect-debug-info` एक अलग मामला है: यह किसी मेनू या कैटलॉग में नहीं दिखता। Site CLI
+वेलकम टेक्स्ट कहता है कि CLI "सहायता के लिए डीबग जानकारी एकत्र करने … की अनुमति देता है",
+इसलिए नाम सबसे अधिक संभावना उस गद्य से व्युत्पन्न हुआ था न कि देखा गया था। इसे
+अनवेरिफाइड के रूप में चिह्नित किया गया है और जानबूझकर जाँचा नहीं गया — एक लाइव नोड पर
+अनुमानात्मक रूप से एक अज्ञात कमांड चलाना वह तरीका है जिससे एक `vifdump` पैकेट कैप्चर एक
+CE पर शुरू हो गया जो अभी भी पंजीकरण कर रहा था।
+</Aside>

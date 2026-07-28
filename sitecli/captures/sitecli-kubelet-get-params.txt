@@ -1,3 +1,1 @@
->>> execcli kubelet-get-params
 Error: failed to read all params: failed to read custom param file: open /etc/vpm/kubelet-custom-params.txt: permission denied
->>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

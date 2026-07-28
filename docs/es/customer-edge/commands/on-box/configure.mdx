@@ -1,0 +1,93 @@
+---
+title: Configuración del nodo
+description: >-
+  Los cuatro comandos configure en el nivel superior del CLI del sitio —
+  registro, red, proxy HTTP y hardware no certificado. Asistentes interactivos
+  que reconfiguran un nodo activo, documentados desde el propio menú del
+  dispositivo sin ser ejecutados, además de por qué este repositorio configura
+  todo mediante cloud-init en su lugar.
+sidebar:
+  order: 80
+  label: Configure
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Cuatro comandos se encuentran en el **nivel superior** del CLI del sitio en lugar de estar detrás de
+[`execcli`](../) — son lo que el menú interactivo ofrece al iniciar sesión, junto con
+[`health`](../../system/health/) y [`diagnosis`](../../system/diagnosis/).
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+Ese es el texto del propio menú del dispositivo, y esas seis entradas constituyen el nivel superior completo.
+
+<Aside type="caution" title="Cinco comandos que podría esperar no están aquí">
+`factory-reset`, `upgrade`, `reboot`, `show` y `clear` **no** existen en la compilación
+`crt-20250613-3382`. Estuvieron incluidos en la clasificación de comandos de este repositorio
+durante un tiempo bajo la suposición de que un CLI del sitio los tendría, y dos enumeraciones
+independientes — una en `site_state: PROVISIONING` y otra en `PROVISIONED` — no encontraron
+ni rastro de ellos. Consulte [el índice en el dispositivo](../) para ver cómo se midió eso.
+</Aside>
+
+<Aside type="danger" title="Son interactivos y reconfiguran un nodo activo">
+Cada uno de estos es un asistente que reescribe la configuración del nodo. Ninguno fue
+ejecutado durante este trabajo de documentación y ninguno tiene salida capturada — no existe
+una forma de solo lectura para capturar. Lo que está verificado es que los cuatro existen,
+y sus descripciones, procedentes del menú de autocompletado.
+</Aside>
+
+## `configure`
+
+Configuración inicial del nodo: los detalles de registro que lo vinculan a un tenant y a un
+sitio.
+
+## `configure-network`
+
+Configuración inicial de la red — direccionamiento para las interfaces del nodo.
+
+## `configure-http-proxy`
+
+Configura un proxy HTTP de salida, para un CE que no puede alcanzar el plano de control de
+F5 directamente.
+
+## `configure-generic-hardware`
+
+Configura hardware que F5 no ha certificado. Está relacionado con la configuración de
+hardware certificado accesible a través de [`edit-certified-hardware`](../config-files/): sin
+un endpoint de hardware certificado válido, `vpmd` termina con *"fail to match certified
+hardware"* y el nodo nunca se registra.
+
+## Por qué este repositorio no los utiliza
+
+Estos son el camino manual, y este despliegue toma el automatizado. El registro es escrito
+por cloud-init en el primer arranque — `terraform/cloud-init/ce-node.yaml` escribe
+`/etc/vpm/config.yaml` con el nombre del clúster, el token y el endpoint de hardware
+certificado — por lo que un nodo arranca ya configurado y `configure` no tiene nada que
+hacer.
+
+Eso importa por dos razones más allá del orden:
+
+- **Reproducibilidad.** Un nodo configurado por asistente se configura de forma diferente
+  cada vez que alguien lo hace. Un nodo configurado por cloud-init se configura de forma
+  idéntica cada vez, lo cual es lo que hace que la demostración sea redespliegable.
+- **Son el camino de recuperación, no el camino de despliegue.** Recurra a `configure`
+  cuando un nodo necesite ser redirigido y Terraform no sea una opción — un nodo que nunca
+  se registró, a través de la [consola serie](../../../access/serial-console/), donde nada
+  más puede alcanzarlo.
+
+<Aside type="note" title="El registro es estado, y reemplazar un nodo solía dejarlo bloqueado">
+Volver a registrar no es una operación puramente del lado del nodo: el tenant mantiene un
+objeto de registro con clave en `(tenant, cluster_name, hostname)`. Reemplazar un CE
+manteniendo su nombre dejaba el despliegue bloqueado permanentemente, porque el registro del
+nodo destruido aún conservaba esa clave. Eso está corregido — consulte el
+[flujo de trabajo de registro](../../../workflows/registration/) — pero es la razón por la
+que `configure` por sí solo no siempre es suficiente para recuperar un nodo reconstruido.
+</Aside>

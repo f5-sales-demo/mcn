@@ -105,6 +105,27 @@ def parse_menu(raw: str) -> list[tuple[str, str]]:
     return rows
 
 
+def trim_command_output(raw: str) -> str:
+    """Strip the Site CLI's own interface from a command's output.
+
+    Two pieces of chrome travel with every captured command: the prompt line
+    echoing what was typed, and the completion menu the CLI repaints once the
+    command returns. Committed verbatim, those put `>>> execcli <name>` and the
+    entire six-entry top-level menu into the documentation as though the command
+    had printed them.
+
+    Only lines that *begin* with the prompt are dropped, so real output that
+    happens to contain `>>>` — usage text, for instance — survives.
+    """
+    lines = [ln.rstrip() for ln in strip_ansi(raw).splitlines()]
+    lines = [ln for ln in lines if not ln.lstrip().startswith(PROMPT.strip())]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+
 class MenuAccumulator:
     """Collects rows across a scrolling menu, first-seen order, no duplicates.
 

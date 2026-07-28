@@ -1,0 +1,67 @@
+---
+title: Acesso root auxiliar
+description: >-
+  Os dois comandos que criam e removem a conta root xuser em um Customer Edge.
+  Direcionados pelo suporte, eles deixam o nó modificado, e o comando de criação
+  é a única forma documentada de acessar arquivos que a conta admin não consegue
+  ler.
+sidebar:
+  order: 70
+  label: Acesso root
+i18n:
+  sourceHash: c2417b409442
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Dois comandos criam e removem uma conta root chamada `xuser`. Eles pertencem à F5, estão ausentes da
+[API de debug](../../../access/debug-api/), e são a saída de emergência para trabalhos que a conta
+`admin` não consegue realizar.
+
+<Aside type="danger" title="Estes alteram o estado de conta do nó e não são executados aqui">
+`get-auxilary-root-access-to-node` cria um **usuário root**. Isso é uma alteração no nó
+que persiste além da sua sessão, e não é algo a ser feito de forma exploratória. Ambos os comandos estão
+documentados no menu de completar do próprio appliance; nenhum foi executado, e o
+harness de coleta recusa ambos.
+
+O erro de grafia em "auxiliary" é do appliance, não um erro de digitação nesta página. Digite como
+mostrado ou o comando não será encontrado.
+</Aside>
+
+## `get-auxilary-root-access-to-node`
+
+Cria a conta root `xuser`.
+
+```bash
+execcli get-auxilary-root-access-to-node
+```
+
+**Quando esta é genuinamente a resposta.** Alguns diagnósticos simplesmente não são acessíveis como `admin`.
+O exemplo verificado mais claro neste build é [`kubelet-get-params`](../kubelet/), que
+falha com `open /etc/vpm/kubelet-custom-params.txt: permission denied` — o arquivo existe e
+a conta `admin` não consegue lê-lo. O acesso root é a rota documentada para esse tipo de
+problema.
+
+**Antes de recorrer a ele**, considere se a [API de debug](../../../access/debug-api/)
+já responde à pergunta. Seu nível `exec` executa comandos privilegiados sem criar uma
+conta persistente, o que representa uma alteração menor no nó.
+
+## `remove-auxilary-root-access-to-node`
+
+Exclui a conta `xuser`.
+
+```bash
+execcli remove-auxilary-root-access-to-node
+```
+
+**Execute este comando quando terminar.** Uma conta root criada para uma sessão de diagnóstico e deixada
+ativa é uma credencial permanente no appliance sobre a qual nada irá lembrá-lo. Trate
+criar e remover como um par, na mesma sessão, da mesma forma que
+[`vifdump`](../packet-capture/) e `vifdump-file-rm` são um par.
+
+<Aside type="note" title="O que não foi estabelecido">
+A saída de nenhum dos comandos foi registrada, portanto esta página não pode informar como é o
+sucesso, com qual senha ou chave o `xuser` é criado, ou se a remoção é recusada enquanto uma sessão
+está aberta. Isso requer um nó que você esteja disposto a modificar.
+</Aside>

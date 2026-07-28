@@ -1,0 +1,111 @@
+---
+title: Plano de controle Vega
+description: >-
+  Os seis comandos vegactl que introspeccionam o plano de controle do Customer
+  Edge — objetos de configuração, tabelas de introspecção, buffers de
+  rastreamento e qual nó detém o papel primário. Acessível apenas a partir do
+  dispositivo, nunca pela API de depuração.
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega é o plano de controle do Customer Edge. `vegactl` é o cliente da F5 para ele, e nenhum desses
+seis comandos está na [API de depuração](../../../access/debug-api/) — eles existem apenas no
+dispositivo, acessados por meio do [`execcli`](../).
+
+Consulte esta página quando o plano de dados parecer incorreto, mas as interfaces e rotas parecerem corretas.
+O Argo encaminha o que o Vega programou; se os dois discordarem, a resposta está aqui.
+
+## `vegactl-introspect-show-election`
+
+Qual nó atualmente detém o papel primário no cluster CE. O comando mais útil
+desta página e o de menor custo.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**O que observar.** Exatamente um nó em um CE de três nós reporta `role: Master`; os demais
+reportam um papel de seguidor. Dois masters, ou nenhum, indica que o cluster não convergiu, e
+nada mais que você leia do plano de controle pode ser confiável até que isso ocorra.
+
+**O que não informa.** Nada sobre se o primário eleito está *saudável* — apenas
+que a eleição foi resolvida.
+
+## `vegactl-configuration-list`
+
+Lista os objetos de configuração que o plano de controle mantém. Invocado sem argumentos, exibe seu próprio uso,
+o que é a forma prática de descobrir os tipos de objetos que esta versão conhece.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**O que observar.** Os blocos `Usage` e `Examples` nomeiam os tipos de objetos totalmente qualificados
+— `ves.io.<service>.<object>.Object`. Esses nomes são os argumentos que os demais
+comandos de introspecção esperam, portanto esta saída é onde um tipo de objeto desconhecido é
+resolvido antes de ser consultado.
+
+## `vegactl-introspect-list-tracebuffers`
+
+Todos os buffers de rastreamento que o plano de controle mantém, com seu tamanho e ocupação atual.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**O que observar.** Os nomes dos buffers são o argumento para
+`vegactl-introspect-show-tracebuffer`. Isso é um diretório, não um diagnóstico — seu valor está em
+indicar o que pode ser inspecionado.
+
+## `vegactl-introspect-show-tracebuffer`
+
+Conteúdo de um buffer de rastreamento nomeado.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="Requer um argumento e nenhuma saída foi capturada aqui">
+Executado sem argumentos, reporta `not sufficient args`. Qual buffer vale a pena ler depende inteiramente
+do que você está investigando, portanto não há uma captura representativa a publicar — obtenha um nome
+do `vegactl-introspect-list-tracebuffers` acima.
+</Aside>
+
+## `vegactl-introspect-get`
+
+Busca um único objeto do plano de controle por tipo e chave.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+Despeja uma tabela de introspecção completa.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="Ambos recebem argumentos específicos ao que está sendo depurado">
+Nenhum dos dois possui saída capturada nesta página. Ambos precisam de um tipo de objeto ou nome de tabela, obtido
+do `vegactl-configuration-list` ou `vegactl-introspect-list-tracebuffers`, e o despejo de
+uma tabela arbitrária seria um arquivo grande que não ilustraria nada. Sua existência e
+a forma de seus argumentos estão verificadas; a saída não é reproduzida.
+</Aside>

@@ -1,0 +1,66 @@
+---
+title: vpm 與叢集狀態
+description: >-
+  負責註冊節點並執行平台容器的 vpm 代理程式，以及 CE 叢集所維護的 etcd 成員狀態。包含已驗證的細節：vpm 以特權 Docker
+  容器方式執行，且 etcd 回報一個成員而非三個。
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` 是將 Customer Edge 註冊至租戶並監管平台容器的代理程式。當節點無法上線時，其狀態是首要確認的事項。
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**需要關注的項目。**
+
+- `Active: active (running) since …` 以及已運行時間。若一個已運行數小時的節點上，`vpm` 在數分鐘前重新啟動，這就是警示訊號——註冊失敗會在租戶端顯現之前，以重啟循環的形式先行出現。
+- **`Main PID` 為 `docker`。** `vpm` 以特權 Docker 容器方式執行，而非原生程序，啟動時帶有 `--net=host --privileged` 以及一長串主機綁定掛載，包含 `/`、`/dev` 和 `/etc`。因此 `vpm` 會出現在
+  [`docker-ps`](../../system/docker/) 中，而不會出現在 [`crictl-ps`](../../system/crictl/) 中——這也是為何 CE 上的 `docker-ps` 顯示三個項目屬於完整狀態，而非異常症狀。
+- 尾端的日誌行。`statusreporter.go: Status reporter loop has finished without
+  error, sleeping for 5m…` 是健康的穩定狀態：`vpm` 大約每五分鐘回報一次。`module.go: Running intra-cluster, type: node` 確認其已加入叢集，而非以獨立模式運行。
+
+**其未告知的事項。** 無法得知租戶是否*接受*了該註冊。一個完全健康的 `vpm` 可能會對拒絕其連線的控制平面無限循環——請閱讀日誌行以了解原因。
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="具破壞性，且不在此處擷取">
+重新啟動 `vpm` 會中斷並重新建立節點與租戶的連線。此操作在採集框架的拒絕清單中，因此僅依據其目錄中繼資料進行說明，從未實際執行。除非受指示，否則請勿使用。
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+支撐 CE 的 Kubernetes 控制平面的 etcd 叢集，從此節點上的 etcd Pod 進行查詢。
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**需要關注的項目。** `IS LEADER`、`RAFT TERM`，以及 `RAFT INDEX` 與
+`RAFT APPLIED INDEX` 是否一致。若兩者之間存在持續性差距，表示該成員的套用進度落後於日誌。`ERRORS` 為空是健康的狀態。
+
+<Aside type="caution" title="三節點部署中只有一個成員">
+此部署運行三個 CE 節點，但指令回報**單一**成員——
+`https://etcd-0.etcd:2379`，`IS LEADER: true`。這是指令實際返回的結果，值得明確說明，因為自然的假設是三個 CE 節點意味著三成員的 etcd，而一行的表格意味著兩個成員缺失。
+
+目前**尚未確定**的是原因：究竟是每個節點運行其自身的單成員 etcd，還是 `--cluster` 查詢始終只觸及本地 Pod。這兩種情況皆與此輸出結果一致。在未確認其他兩個節點的情況下，請勿將單行表格視為叢集降級的證據。
+</Aside>

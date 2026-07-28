@@ -1,0 +1,97 @@
+---
+title: Capture de paquets
+description: >-
+  Les cinq commandes vifdump qui capturent des paquets sur les interfaces
+  virtuelles d'un Customer Edge. Documentées à partir des métadonnées vérifiées
+  du catalogue et jamais exécutées ici, car elles écrivent des fichiers de
+  capture sur le nœud — notamment un récit de ce qui s'est passé lorsqu'une
+  d'elles a été invoquée comme sonde d'apparence anodine.
+sidebar:
+  order: 30
+  label: Capture de paquets
+i18n:
+  sourceHash: ff41ac658325
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vifdump` capture des paquets sur les interfaces virtuelles du plan de données Argo. Cinq commandes, toutes
+de F5, aucune sur l'[API de débogage](../../../access/debug-api/).
+
+<Aside type="danger" title="Ces commandes écrivent sur le nœud, et aucune n'est exécutée sur cette page">
+`vifdump` et `vifdump-d` démarrent une capture qui écrit des fichiers `.pcap` dans `/tmp` à l'intérieur du
+conteneur Argo. Sur un CE doté d'un disque de 31 Gio, une capture laissée en cours d'exécution constitue un problème
+d'espace disque avec une minuterie.
+
+Chaque commande présentée ici est documentée à partir des métadonnées du catalogue de l'appliance et de la description
+de son menu de complétion. **Aucune sortie capturée n'apparaît sur cette page**, et le harnais de collecte refuse d'en exécuter aucune.
+</Aside>
+
+## Pourquoi cette page ne contient aucune sortie, précisément
+
+L'arité des arguments sur le Site CLI est découvrable en exécutant une commande sans arguments — elle
+répond `not sufficient args for command <name>`. Cela est sans danger pour une commande en lecture seule.
+Appliqué à `vifdump` lors de ce travail de documentation, il n'a renvoyé **aucune erreur**, sur un
+nœud qui était encore en cours d'enregistrement. Il est inconnu si une capture a démarré, car le nœud a été
+détruit et reconstruit avant qu'il soit possible de le vérifier.
+
+C'est là tout l'argument justifiant la conception du harnais : l'exécution est **refusée par défaut**, et non
+gérée par une liste de refus. `vifdump` ne figurait sur aucune liste de refus, car personne n'y avait pensé. Seule une
+liste d'autorisation explicite refuse la commande à laquelle personne n'a pensé.
+
+## `vifdump`
+
+Capture des paquets sur une vif spécifiée.
+
+```bash
+execcli vifdump <vif-id> [options]
+```
+
+Obtenez l'identifiant de la vif depuis [`vif --list`](../../network/dataplane-forwarding/).
+
+## `vifdump-d`
+
+Capture les paquets **abandonnés**, sur une vif ou sur toutes.
+
+```bash
+execcli vifdump-d <vif-id|all>
+```
+
+S'utilise en complément de [`dropstats`](../../network/dataplane-drops/) : `dropstats` vous indique que des abandons se
+produisent et quel compteur s'incrémente, `vifdump-d` vous montre les paquets concernés.
+
+## `vifdump-stop`
+
+Arrête une capture qu'une exécution précédente a laissée en cours.
+
+```bash
+execcli vifdump-stop
+```
+
+La description propre de l'appliance est « stop vifdump command if previous run abnormally ended »,
+ce qui indique que le mode de défaillance est attendu : une capture peut survivre à la session qui l'a démarrée.
+Si vous avez exécuté `vifdump` et n'êtes pas certain qu'elle soit toujours en cours, exécutez cette commande.
+
+## `vifdump-file-cp`
+
+Copie les fichiers de capture hors du conteneur Argo vers l'hôte, dans `/tmp/vifdump/`.
+
+```bash
+execcli vifdump-file-cp
+```
+
+Équivalent à `docker cp $(argo):/tmp/. /tmp/vifdump/`. Nécessaire car la capture est
+écrite *à l'intérieur* du conteneur.
+
+## `vifdump-file-rm`
+
+Supprime les fichiers `.pcap` du conteneur Argo.
+
+```bash
+execcli vifdump-file-rm
+```
+
+**Exécutez cette commande lorsque vous avez terminé.** Associée à `vifdump-stop`, elle forme la paire de nettoyage pour
+tout travail de capture, et ces deux commandes sont celles à exécuter en premier si vous héritez d'un nœud où quelqu'un
+d'autre a peut-être laissé une capture en cours.

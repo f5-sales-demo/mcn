@@ -1,0 +1,81 @@
+---
+title: Kubelet 参数
+description: >-
+  用于读取、添加和删除客户边缘节点上自定义 kubelet 参数的三条命令。包含已验证的发现：读取命令在管理员 Site CLI
+  中完全无法使用，因为该账户无权读取参数文件。
+sidebar:
+  order: 40
+  label: Kubelet 参数
+i18n:
+  sourceHash: 4490323ac4fd
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+三条命令用于管理自定义 kubelet 参数文件
+`/etc/vpm/kubelet-custom-params.txt`。这三条命令均属于 F5，均不在
+[调试 API](../../../access/debug-api/) 中，且均需由支持团队指导使用——kubelet
+参数会影响节点运行 Kubernetes 工作负载的方式。
+
+<Aside type="danger" title="除非 F5 支持要求，否则请勿使用这些命令">
+自定义 kubelet 参数在节点重启后仍会保留，并应用于节点运行的每个工作负载。
+此处不进行任何验证：错误的参数会被接受，并在下次 kubelet 启动时生效。
+</Aside>
+
+## `kubelet-get-params`
+
+读取当前的自定义参数。
+
+```bash
+execcli kubelet-get-params
+```
+
+```text file=../../../../_data/sitecli-kubelet-get-params.txt
+```
+
+**此命令在当前版本的 Site CLI 中无法正常工作。** `admin` 账户无法读取参数文件，因此无论是否设置了任何参数，该命令均会失败：
+
+```text
+Error: failed to read all params: failed to read custom param file:
+open /etc/vpm/kubelet-custom-params.txt: permission denied
+```
+
+**为何此问题比表面看起来更严重。** 此失败是*权限*错误，而非空结果，两者很容易混淆——"failed to read all params"读起来像"没有任何参数"。这并不能说明未配置任何参数。在当前版本中，从 Site CLI 查看这些参数的唯一方式是使用
+[辅助 root 访问](../root-access/)，而该方式本身也需由支持团队指导使用。
+
+<Aside type="note" title="已验证的内容">
+该命令存在、可运行，并在版本 `crt-20250613-3382` 上以 `admin` 身份返回上述错误。
+是否能在 `xuser` root 账户下成功执行**未经测试**——获取该账户会修改节点。
+</Aside>
+
+## `kubelet-add-param`
+
+添加自定义参数。
+
+```bash
+execcli kubelet-add-param <parameter>
+```
+
+在不带参数的情况下运行时，命令会报告其自身的参数要求，这也是在不实际设置任何内容的情况下确认需求的方式：
+
+```text
+Error: at least one parameter is required
+```
+
+**无捕获输出。** 此命令会向节点写入内容。已验证该命令存在且需要参数；未携带参数运行。
+
+## `kubelet-remove-param`
+
+删除自定义参数。
+
+```bash
+execcli kubelet-remove-param <parameter>
+```
+
+**无捕获输出**，原因相同。
+
+<Aside type="caution" title="两条写入命令均不在只读允许列表中">
+`scripts/sitecli_ssh_harvest.py` 拒绝执行 `kubelet-add-param` 和
+`kubelet-remove-param`：只有明确列入只读允许列表的命令名称才可运行，其他所有命令均会被枚举但不会被执行。这是有意为之——拒绝列表只能阻止预先想到的内容。
+</Aside>

@@ -1,0 +1,62 @@
+---
+title: vpm とクラスター状態
+description: >-
+  ノードを登録してプラットフォームコンテナを実行する vpm エージェント、および CE クラスターが保持する etcd メンバーステータス。vpm が特権
+  Docker コンテナとして実行され、etcd が 3 つではなく 1 つのメンバーを報告するという検証済みの詳細を含みます。
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` は、Customer Edge をテナントに登録し、プラットフォームコンテナを監視するエージェントです。ノードがオンラインにならない場合、その状態を最初に確認する必要があります。
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**確認すべき点。**
+
+- `Active: active (running) since …` と経過時間。数時間稼働しているノードで `vpm` が数分前に再起動していた場合、それはシグナルです — 登録の失敗は、テナントに現れる前に、再起動ループとして先に表れます。
+- **`Main PID` が `docker` であること。** `vpm` はネイティブプロセスではなく、特権 Docker コンテナとして実行されており、`--net=host --privileged` および `/`、`/dev`、`/etc` を含む多数のホストバインドマウントを使用して起動されます。そのため、`vpm` は [`docker-ps`](../../system/docker/) には表示されますが、[`crictl-ps`](../../system/crictl/) には表示されません — これはまた、CE 上の `docker-ps` に 3 エントリーしかないことが、症状ではなく完全な状態である理由でもあります。
+- 末尾のジャーナル行。`statusreporter.go: Status reporter loop has finished without error, sleeping for 5m…` は正常な定常状態です: `vpm` はおよそ 5 分周期でレポートします。`module.go: Running intra-cluster, type: node` は、スタンドアロンで実行されているのではなく、クラスターに参加済みであることを確認します。
+
+**確認できないこと。** テナントが登録を*受け入れた*かどうかについては何も示しません。完全に正常な `vpm` は、拒否しているコントロールプレーンに対して無限にループし続けます — 理由はジャーナル行を参照してください。
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="破壊的であり、ここでは記録されていません">
+`vpm` を再起動すると、ノードのテナントへの接続が切断され、再確立されます。これはハーベストハーネスの拒否リストに含まれているため、カタログメタデータから文書化されており、実行されることはありません。指示があった場合にのみ使用してください。
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+このノード上の etcd ポッドから照会された、CE の Kubernetes コントロールプレーンを支える etcd クラスターです。
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**確認すべき点。** `IS LEADER`、`RAFT TERM`、および `RAFT INDEX` と `RAFT APPLIED INDEX` が一致しているかどうか。この 2 つの間に持続的な差異がある場合、そのメンバーはログの適用が遅れていることを意味します。`ERRORS` が空であることが正常な状態です。
+
+<Aside type="caution" title="3 ノード構成における 1 メンバー">
+このデプロイメントは 3 つの CE ノードで実行されていますが、このコマンドは**単一の**メンバーを報告します — `https://etcd-0.etcd:2379`、`IS LEADER: true`。これはコマンドが返した結果であり、はっきりと述べる価値があります。なぜなら、3 つの CE ノードは 3 メンバーの etcd を意味し、1 行のテーブルは 2 つのメンバーが欠落していることを意味するという自然な思い込みがあるからです。
+
+**確立されていないこと**は、その理由です: 各ノードが独自の単一メンバー etcd を実行しているのか、それとも `--cluster` クエリが常にローカルポッドにしか到達しないのか。どちらもこの出力と矛盾しません。他の 2 つのノードを確認せずに、1 行のテーブルをクラスター障害の証拠として読み取らないでください。
+</Aside>

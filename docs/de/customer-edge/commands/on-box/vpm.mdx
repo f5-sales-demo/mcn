@@ -1,0 +1,91 @@
+---
+title: vpm und Cluster-Zustand
+description: >-
+  Der vpm-Agent, der den Knoten registriert und die Plattform-Container
+  ausführt, sowie der etcd-Mitgliedsstatus des CE-Clusters. Enthält die
+  verifizierten Details, dass vpm als privilegierter Docker-Container ausgeführt
+  wird und etcd ein Mitglied – nicht drei – meldet.
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` ist der Agent, der einen Customer Edge beim Mandanten registriert und die
+Plattform-Container überwacht. Wenn ein Knoten nicht online kommt, ist sein Zustand das Erste,
+was ermittelt werden muss.
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**Worauf zu achten ist.**
+
+- `Active: active (running) since …` und die vergangene Zeit. Ein `vpm`, das auf einem Knoten,
+  der seit Stunden läuft, erst vor wenigen Minuten neu gestartet wurde, ist das Signal —
+  Registrierungsfehler erscheinen als Neustartschleifen, lange bevor sie im Mandanten sichtbar werden.
+- **`Main PID` ist `docker`.** `vpm` läuft als privilegierter Docker-Container, nicht als
+  nativer Prozess, gestartet mit `--net=host --privileged` und einer langen Liste von
+  Host-Bind-Mounts, einschließlich `/`, `/dev` und `/etc`. Daher erscheint `vpm` in
+  [`docker-ps`](../../system/docker/) und niemals in [`crictl-ps`](../../system/crictl/) —
+  was auch der Grund ist, warum ein `docker-ps` mit drei Einträgen auf einem CE vollständig
+  und kein Symptom ist.
+- Die abschließenden Journal-Zeilen. `statusreporter.go: Status reporter loop has finished without
+  error, sleeping for 5m…` ist der gesunde Normalzustand: `vpm` meldet sich in einem
+  ungefähr fünfminütigen Zyklus. `module.go: Running intra-cluster, type: node` bestätigt,
+  dass es dem Cluster beigetreten ist und nicht eigenständig läuft.
+
+**Was es nicht verrät.** Nichts darüber, ob der Mandant die Registrierung *akzeptiert* hat.
+Ein vollständig gesundes `vpm` wird unbegrenzt gegen eine Control-Plane schleifen, die es
+ablehnt — die Journal-Zeilen enthalten den Grund dafür.
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="Unterbrechend und hier nicht erfasst">
+Das Neustarten von `vpm` beendet die Verbindung des Knotens zum Mandanten und stellt sie
+neu her. Es steht auf der Ablehnungsliste des Harvest-Harness, ist daher anhand seiner
+Katalog-Metadaten dokumentiert und wird niemals ausgeführt. Greifen Sie nur dann darauf
+zurück, wenn Sie dazu angewiesen werden.
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+Das etcd-Cluster, das die Kubernetes-Control-Plane des CE unterstützt, abgefragt vom
+etcd-Pod auf diesem Knoten.
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**Worauf zu achten ist.** `IS LEADER`, `RAFT TERM` und ob `RAFT INDEX` und
+`RAFT APPLIED INDEX` übereinstimmen. Eine anhaltende Lücke zwischen diesen beiden bedeutet,
+dass das Mitglied hinter dem Log anwendet. `ERRORS` leer ist der gesunde Zustand.
+
+<Aside type="caution" title="Ein Mitglied bei einer Drei-Knoten-Bereitstellung">
+Diese Bereitstellung betreibt drei CE-Knoten, und der Befehl meldet ein **einzelnes** Mitglied —
+`https://etcd-0.etcd:2379`, `IS LEADER: true`. Das ist das Ergebnis, das der Befehl
+zurückgegeben hat, und es ist es wert, klar ausgesprochen zu werden, da die natürliche
+Annahme ist, dass drei CE-Knoten ein drei Mitglieder umfassendes etcd bedeuten und eine
+einzeilige Tabelle bedeutet, dass zwei Mitglieder fehlen.
+
+Was **nicht** geklärt wurde, ist der Grund: ob jeder Knoten sein eigenes Einzelmitglied-etcd
+betreibt oder ob die `--cluster`-Abfrage immer nur den lokalen Pod erreicht. Beides ist mit
+dieser Ausgabe vereinbar. Lesen Sie die einzeilige Tabelle nicht als Beweis für ein
+degradiertes Cluster, ohne die anderen beiden Knoten zu überprüfen.
+</Aside>
