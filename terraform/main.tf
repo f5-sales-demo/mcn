@@ -16,6 +16,40 @@
 # approval, and a re-apply once the CEs have registered creates them. The bgp/LB
 # objects can be applied before ONLINE; they converge once the CE is up.
 
+# Guard: the F5 XC tenant in the environment MUST be the one this deployment
+# belongs to.
+#
+# providers.tf already pins the xcsh endpoint to var.expected_xc_tenant, so a
+# stray XCSH_API_URL can no longer redirect the deployment. What it can still do
+# is mean the operator's TOKEN belongs to a different tenant — and the symptom of
+# that is a bare 401 from the first API call, which reads like an expired
+# credential and not like "you are pointed at the wrong tenant". This turns it
+# into a sentence that says so.
+#
+# It is not hypothetical. The MCN demo was built in f5-sales-demo; the credential
+# file later started exporting an f5-amer-ent XCSH_API_URL; subsequent applies
+# minted an f5-amer-ent token, the CE VMs re-registered there, and their
+# f5-sales-demo registrations were abandoned. Every plan in between was clean,
+# because nothing in the configuration had an opinion about the tenant (#696).
+#
+# The external program reads the environment and nothing else — no credential, no
+# network call — which is what keeps `terraform test` and CI's
+# `terraform init -backend=false` credential-free. Where XCSH_API_URL is unset the
+# program reports an empty tenant and the guard abstains.
+#
+# postcondition, not check{}: a check block only WARNS, and a warning scrolls past
+# in exactly the situation this exists to stop.
+data "external" "xc_env_tenant" {
+  program = ["${path.module}/scripts/xc-env-tenant.sh"]
+
+  lifecycle {
+    postcondition {
+      condition     = contains(["", var.expected_xc_tenant], self.result.tenant)
+      error_message = "Wrong F5 XC tenant. XCSH_API_URL in this environment names tenant '${self.result.tenant}', but this deployment belongs to '${var.expected_xc_tenant}' (state key mcn.tfstate). Source the credential file for '${var.expected_xc_tenant}', or — if you really do mean to act on '${self.result.tenant}' — say so explicitly with -var expected_xc_tenant=${self.result.tenant} and a state key of its own."
+    }
+  }
+}
+
 # Guard: the HA VIP MUST be outside every VNet CIDR, or Azure prefers the VNet
 # system route over the more-specific BGP /32. Masks the VIP to each CIDR's prefix
 # length and compares network addresses (a correct containment test for any prefix).
@@ -146,15 +180,17 @@ module "client_vm" {
 # ---------------------------------------------------------
 
 # The application namespace (origin pool + VIP load balancer live here) is an
-# input, never an owned object. This deployment CANNOT create a namespace:
-# POST /api/web/namespaces is 403 for every name with the deploying credential,
-# because namespace creation is tenant-scoped in this shared enterprise tenant
-# (issue #634). A `resource` block therefore expresses semantics the API does not
-# permit, and the only way to make an apply succeed was to import a namespace
-# somebody else owns — which put a personal namespace, and the unrelated demos
-# living in it, on the destroy list (issue #637).
+# input, never an owned object. `multi-cloud-networking` predates this deployment
+# and outlives it, and a `resource` block would put a namespace full of other
+# people's demos on this stack's destroy list — which is how issue #637 happened.
 #
-# Reading it instead means Terraform never creates, updates or destroys it. The
+# Issues #634 ("cannot be recreated, POST is 403") and #639 ("defaults to a
+# namespace that no longer exists") were symptoms of reading the WRONG TENANT, not
+# of a permissions or lifecycle problem: the namespace exists, in f5-sales-demo,
+# and always did. The tenant guard at the top of this file is the actual fix (#696).
+# Reading rather than owning the namespace is still correct, for the #637 reason.
+#
+# Reading it means Terraform never creates, updates or destroys it. The
 # read still gives the pool and the load balancer their apply-time ordering: they
 # take their namespace from this data source, so a missing namespace fails the
 # plan loudly rather than half-applying. `namespace` is empty because a namespace
