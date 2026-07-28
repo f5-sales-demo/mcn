@@ -1,0 +1,104 @@
+---
+title: Vega control plane
+description: The six vegactl commands that introspect the Customer Edge control plane — configuration objects, introspection tables, trace buffers, and which node holds the primary role. Reachable only from the box, never through the debug API.
+sidebar:
+  order: 10
+  label: Vega
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega is the Customer Edge control plane. `vegactl` is F5's client for it, and none of these
+six commands are on the [debug API](../../../access/debug-api/) — they exist only on the
+box, reached through [`execcli`](../).
+
+Read this page when the data plane looks wrong but the interfaces and routes look right.
+Argo forwards what Vega has programmed; if the two disagree, the answer is here.
+
+## `vegactl-introspect-show-election`
+
+Which node currently holds the primary role in the CE cluster. The single most useful
+command on this page, and the cheapest.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**What to look for.** Exactly one node in a three-node CE reports `role: Master`; the others
+report a follower role. Two masters, or none, means the cluster has not converged, and
+nothing else you read from the control plane can be trusted until it has.
+
+**What it does not tell you.** Nothing about whether the elected primary is *healthy* — only
+that the election resolved.
+
+## `vegactl-configuration-list`
+
+Lists configuration objects the control plane holds. Invoked bare it prints its own usage,
+which is the practical way to discover the object types this build knows about.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**What to look for.** The `Usage` and `Examples` blocks name the fully qualified object
+types — `ves.io.<service>.<object>.Object`. Those names are the arguments the other
+introspection commands expect, so this output is where an unfamiliar object type gets
+resolved before you query it.
+
+## `vegactl-introspect-list-tracebuffers`
+
+Every trace buffer the control plane maintains, with its size and current occupancy.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**What to look for.** The buffer names are the argument to
+`vegactl-introspect-show-tracebuffer`. This is a directory, not a diagnosis — its value is
+telling you what can be inspected.
+
+## `vegactl-introspect-show-tracebuffer`
+
+Contents of one named trace buffer.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="Requires an argument, and no output is captured here">
+Run bare it reports `not sufficient args`. Which buffer is worth reading depends entirely
+on what you are chasing, so there is no representative capture to publish — take a name
+from `vegactl-introspect-list-tracebuffers` above.
+</Aside>
+
+## `vegactl-introspect-get`
+
+Fetches a single object from the control plane by type and key.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+Dumps an entire introspection table.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="Both take arguments that are specific to what you are debugging">
+Neither has captured output on this page. Both need an object type or table name, taken
+from `vegactl-configuration-list` or `vegactl-introspect-list-tracebuffers`, and a dump of
+an arbitrary table would be a large file that illustrates nothing. Their existence and
+their argument shape are verified; their output is not reproduced.
+</Aside>

@@ -1,0 +1,80 @@
+---
+title: 구성 파일
+description: >-
+  Customer Edge에서 F5 소유 파일을 여는 네 가지 edit-* 명령 — 앱 환경, 인증된 하드웨어, Azure 클라이언트 자격
+  증명 및 NIC 명명 규칙. 모두 지원 지시 사항이며, 실행 없이 문서화됩니다.
+sidebar:
+  order: 60
+  label: 구성 파일
+i18n:
+  sourceHash: d018a3245c8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+네 가지 명령은 F5 소유 파일에서 편집기를 엽니다. 이 명령들은
+[디버그 API](../../../access/debug-api/)에 포함되어 있지 않으며, 그 중 두 가지는 자체 설명에 다음과 같이 명시되어 있습니다:
+*"F5 XC 지원 팀이 요청하지 않는 한 사용하지 마십시오"*.
+
+<Aside type="danger" title="이 페이지에는 의도적으로 캡처된 출력이 없습니다">
+이 명령들 각각은 실시간 구성 파일에서 대화형 편집기를 엽니다. 읽기 전용 형식이
+없으므로, 쓰기 기회이기도 하지 않은 캡처할 출력이 없으며,
+수집 하니스는 네 가지 모두를 거부합니다. 검증되는 것은 명령들이 존재한다는 것과 각 명령이 어떤 파일을 여는지입니다 — 어플라이언스 자체의 완성 메뉴에서 확인됩니다.
+</Aside>
+
+## `edit-app-env-file`
+
+노드의 로컬 애플리케이션 환경인 `/etc/vpm/app_env.yaml`을 엽니다.
+
+```bash
+execcli edit-app-env-file
+```
+
+어플라이언스의 설명은 *"F5 XC 지원 팀이 요청하지 않는 한 사용하지 마십시오"*로 끝납니다.
+이를 문자 그대로 받아들이십시오: 이 파일은 시작 시 `vpm`이 읽으며, 잘못된 값은
+노드의 모든 플랫폼 컨테이너에 영향을 미칩니다.
+
+## `edit-certified-hardware`
+
+인증된 하드웨어 구성을 엽니다.
+
+```bash
+execcli edit-certified-hardware
+```
+
+어플라이언스에 의해 지원 전용으로도 표시됩니다. 이것은 `vpm`이 F5가 인증하는 하드웨어에서
+실행 중인지 여부를 결정하는 구성입니다 — 잘못 설정하는 것은 이론적인 문제가 아닙니다.
+유효한 `CertifiedHardwareEndpoint` 없이는 `vpmd`가 *"fail to match certified hardware"*와 함께 종료되고
+노드는 절대 등록되지 않습니다. 그렇기 때문에 이 저장소의 cloud-init은 기본값에 의존하는 대신
+엔드포인트를 명시적으로 설정합니다; `terraform/cloud-init/ce-node.yaml`을 참조하십시오.
+
+## `edit-azure-client-id-secret`
+
+CE가 사용하는 Azure 클라이언트 ID와 시크릿을 업데이트합니다. 자격 증명이 만료된 경우에 사용합니다.
+
+```bash
+execcli edit-azure-client-id-secret
+```
+
+**이 명령이 해답인 경우.** 작동하다가 Azure 작업에 실패하기 시작한 CE가
+이 명령이 존재하는 이유입니다 — 어떤 구성 변경도 없이 자격 증명이 만료된 경우입니다.
+
+## `edit-udev-10-nic-name`
+
+NIC 명명 방식을 결정하는 `/etc/udev/rules.d/10-nic-names.rules`를 엽니다.
+
+```bash
+execcli edit-udev-10-nic-name
+```
+
+**이 파일을 수정하기 전에 인터페이스 페이지를 읽으십시오.** CE에서 NIC 명명은 이미 예상을 벗어납니다:
+`eth0`은 `a-i-eth0`으로 이름이 변경되며 호스트 주소를 가지지 않고, SLO 주소는 `vhost0`에 있으며,
+이 배포의 세 노드 전체에서 `eth1`/`eth2` 중 어느 것이 내부 주소를 가지는지는 일관되지 않습니다.
+[`ip`](../../network/ip/)를 참조하십시오. 더 깔끔한 배열을 가정하는 udev 규칙은 상황을 더 악화시킬 것입니다.
+
+<Aside type="note" title="두 가지 추가 edit-* 명령은 패스스루이며 여기에 해당하지 않습니다">
+`edit-etc-hosts`와 `edit-sysctl-conf`는 일반 Linux 파일을 열며
+[온박스 인덱스](../)에서 패스스루로 나열됩니다 — 운영 체제 자체의 문서가 이를 다루며,
+CE에 특정한 추가 내용은 없습니다.
+</Aside>

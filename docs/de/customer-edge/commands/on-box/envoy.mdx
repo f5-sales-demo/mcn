@@ -1,0 +1,104 @@
+---
+title: Envoy
+description: >-
+  Die vier Wrapper um Envoys Admin-Interface auf einem Customer Edge — Listener,
+  Cluster und zwei Config-Dumps. Erklärt, warum jeder von ihnen mit einem
+  curl-Fortschrittsanzeiger beginnt, und was die Listener-Ausgabe über die
+  beworbene VIP aussagt.
+sidebar:
+  order: 20
+  label: Envoy
+i18n:
+  sourceHash: 6ca185ca6ece
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Envoy terminiert und proxyt den Anwendungsdatenverkehr auf dem Customer Edge. Diese vier Befehle
+fragen dessen Admin-Interface ab und sind nicht in der
+[Debug-API](../../../access/debug-api/) enthalten.
+
+<Aside type="note" title="Jeder von ihnen beginnt mit einem curl-Fortschrittsanzeiger">
+Es handelt sich um `curl`-Wrapper um Envoys Admin-Endpunkt, die ohne `-s` aufgerufen werden, sodass die ersten
+zwei oder drei Zeilen jeder der folgenden Aufzeichnungen den von curl nach stderr geschriebenen Übertragungsfortschritt darstellen:
+
+```text
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0 …
+```
+
+Das ist weder Envoy-Ausgabe noch ein Fehler. Es ist zudem nützlich: Die Byteanzahl bei `% Received`
+zeigt an, ob Envoy überhaupt etwas zurückgegeben hat — damit lässt sich „keine Listener konfiguriert"
+von „das Admin-Interface hat nicht geantwortet" unterscheiden.
+</Aside>
+
+## `envoy-listeners`
+
+Jeder von Envoy installierte Listener, im Format `name:adresse:port`.
+
+```bash
+execcli envoy-listeners
+```
+
+```text file=../../../../_data/sitecli-envoy-listeners.txt
+```
+
+**Worauf zu achten ist.** In dieser Bereitstellung trägt der Listener `10.250.0.10:80` — die VIP, die der
+CE in BGP bewirbt. Diese einzelne Zeile verbindet drei Ebenen miteinander: Wenn
+[`show-ip-bgp-summary`](../../network/bgp/) zeigt, dass das Präfix beworben wird, dieser
+Listener jedoch fehlt, wird die Route zu einem Knoten gezogen, der sie nicht bedienen wird — das ist der
+schlimmste Fehlermodus in einem ECMP-Satz, da der Datenverkehr lastverteilt in ein Black Hole geleitet wird.
+
+Die nachgestellte Adresse `[fe80:…]:80` ist die Link-Local-Adresse des Interfaces, an das der Listener gebunden ist.
+
+**Was es nicht zeigt.** Nichts über den Upstream-Zustand — ein Listener existiert unabhängig davon, ob
+etwas dahinter erreichbar ist. Verwenden Sie `envoy-clusters` dafür.
+
+## `envoy-clusters`
+
+Jeder Cluster mit seinen verbindungs- und anfragebezogenen Limits je Priorität.
+
+```bash
+execcli envoy-clusters
+```
+
+```text file=../../../../_data/sitecli-envoy-clusters.txt
+```
+
+**Worauf zu achten ist.** Zeilen haben das Format `cluster::scope::schlüssel::wert`. Der Eintrag `observability_name`
+identifiziert jeden Cluster, und das Tripel `default_priority::max_connections`,
+`max_pending_requests` und `max_requests` gibt Auskunft über Anfragelimits — ein Cluster,
+der sein `max_pending_requests`-Limit erreicht hat, wird durch die Konfiguration gedrosselt, nicht durch den Upstream.
+
+## `envoy-config-dump`
+
+Envoys vollständige Konfiguration als JSON. Umfangreich: 126 KB auf einem ansonsten inaktiven Demo-Knoten.
+
+```bash
+execcli envoy-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-config-dump.txt
+```
+
+**Worauf zu achten ist.** Das Array `configs` auf oberster Ebene enthält je ein Objekt pro Konfigurationstyp —
+Bootstrap, Cluster, Listener, Routen, Secrets. Greifen Sie darauf zurück, wenn ein Listener oder Cluster
+zwar existiert, sich aber unerwartet verhält, und durchsuchen Sie es gezielt, anstatt es vollständig zu lesen.
+
+## `envoy-hc-config-dump`
+
+Die Health-Check-Konfiguration im Speziellen.
+
+```bash
+execcli envoy-hc-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
+```
+
+**Worauf zu achten ist.** In dieser Bereitstellung gibt der Befehl ein **einzelnes Byte** zurück — im curl-Meter als `100 1` sichtbar —
+was bedeutet, dass keine Health-Check-Konfiguration installiert ist. Das ist der erwartete
+Zustand für ein CE ohne health-gecheckte Origin-Pools, und es lohnt sich, dies zu erkennen: Ein leeres
+Ergebnis hier ist keine fehlgeschlagene Abfrage.

@@ -1,0 +1,143 @@
+---
+title: On-box commands
+description: The 82 commands the appliance's own Site CLI offers, 55 of which the debug API cannot reach at all. Explains the hidden execcli command that runs them, why this surface is larger than the API's, which commands are documented in full and which are only listed, and how the set was measured.
+sidebar:
+  order: 40
+  label: On-box
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+The [debug API](../../access/debug-api/) exposes **34 commands**. The appliance itself
+offers **82**, and **55 of those have no API equivalent** — the whole Vega control plane,
+the Envoy wrappers, packet capture, the kubelet parameter set, the `edit-*` files and the
+auxiliary root-access pair are reachable only from the box.
+
+Getting to them needs [SSH](../../access/ssh/) or the
+[serial console](../../access/serial-console/), and one thing that is documented nowhere:
+
+<Aside type="tip" title="execcli is a hidden command">
+`execcli` does not appear in the Site CLI's interactive menu. It takes a command name as
+its argument, and typing `execcli ` followed by **Tab** lists all 82 with the appliance's
+own one-line description for each. That completion menu is the authoritative catalog for a
+build, and it is what `sitecli/exec-catalog.json` records.
+</Aside>
+
+## How this was measured
+
+The set below is not transcribed from a vendor document. It was read off two live nodes and
+committed to `sitecli/exec-catalog.json` with its provenance:
+
+| | Top level | `execcli` |
+| --- | --- | --- |
+| Measured at `site_state: PROVISIONING` | 6 | 82 |
+| Measured at `site_state: PROVISIONED` | 6 | 82 |
+
+The two runs returned **identical sets**. That matters more than the count: it means the
+command surface does not change with registration state, so a command that is absent is
+genuinely absent rather than not yet offered.
+
+<Aside type="caution" title="Five commands that do not exist">
+`factory-reset`, `upgrade`, `reboot`, `show` and `clear` are **not** on this build. They
+are the kind of thing a Site CLI plausibly has, they were carried in this repository's
+classification for a while on that assumption, and neither enumeration found them. The
+top level has exactly six entries: `configure`, `configure-generic-hardware`,
+`configure-network`, `configure-http-proxy`, `diagnosis` and `health`.
+</Aside>
+
+## What is documented, and what is only listed
+
+A Customer Edge runs Linux and a number of third-party daemons. Documenting their commands
+would duplicate their own references and imply F5 owns them, so the rule is: **document
+F5's software, and for everything else document only what is specific to a CE.**
+
+Three tiers, because "ours" and "theirs" is not a clean split. The split is recorded in
+`sitecli/command-classification.json`.
+
+| Tier | Treatment |
+| --- | --- |
+| **F5 software** | Full documentation — purpose, syntax, arguments, captured output, what to look for. Argo, Vega, `vpm`, `vifdump`, `configure*`, the `edit-*` set, kubelet parameters, root access. |
+| **CE-specific interpretation** | A third-party tool whose output means something particular on a CE. The CE-specific reading is documented and the tool's own semantics are left upstream. |
+| **Passthrough** | Plain Linux or third-party with nothing CE-specific to say. Listed as available, with a pointer upstream. No prose. |
+
+That distinction decides whether a page exists at all, and it is what keeps this
+documentation from rotting into a worse copy of the man pages.
+
+## F5 software
+
+<CardGrid>
+  <LinkCard
+    title="Vega control plane"
+    description="Six <code>vegactl</code> commands: configuration objects, introspection tables, trace buffers, and which node holds the primary role."
+    href="./vega/"
+  />
+  <LinkCard
+    title="Envoy"
+    description="Four wrappers around Envoy's admin interface — listeners, clusters, and two config dumps."
+    href="./envoy/"
+  />
+  <LinkCard
+    title="Packet capture"
+    description="The five <code>vifdump</code> commands. Documented, never run here: they write capture files onto the node."
+    href="./packet-capture/"
+  />
+  <LinkCard
+    title="Kubelet parameters"
+    description="Read, add and remove custom kubelet parameters. Support-directed."
+    href="./kubelet/"
+  />
+  <LinkCard
+    title="vpm service"
+    description="The agent that registers the node and runs the platform containers."
+    href="./vpm/"
+  />
+  <LinkCard
+    title="Configuration files"
+    description="The four <code>edit-*</code> commands that open F5-owned files on the node."
+    href="./config-files/"
+  />
+  <LinkCard
+    title="Auxiliary root access"
+    description="Creating and removing the <code>xuser</code> root account. Support-directed, and it leaves the node modified."
+    href="./root-access/"
+  />
+  <LinkCard
+    title="Node configuration"
+    description="The four <code>configure*</code> commands at the Site CLI top level."
+    href="./configure/"
+  />
+</CardGrid>
+
+## Passthrough
+
+Available on the box and **not documented here** — these are the operating system and
+third-party daemons, not F5's software, and their own references are better than anything
+this page could restate.
+
+| Commands | Upstream |
+| --- | --- |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, BIND utilities |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | The files are the operating system's |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — every one of these interrupts workloads on the node |
+
+Two of these are worth knowing about even though they get no page. `files` performs file
+operations and will only write beneath `/tmp`. And every `systemctl-restart-*` is
+disruptive by definition — restarting `crio` or `kubelet` interrupts the workloads on that
+node.
+
+<Aside type="note" title="Seven commands exist on newer builds and not on this one">
+`collect-database-stats`, `iptables-lv`, the three `marker-exists-*` commands,
+`systemctl-restart-NetworkManager` and `systemctl-start-crio-prune` were observed through
+the debug API on build `crt-20260201-0179`. They are recorded under
+`not_on_this_build.newer_build_debug_api` in the classification so that nothing here is
+mistaken for something you can run on `crt-20250613-3382`.
+
+`collect-debug-info` is a separate case: it appears in no menu and no catalog. The Site CLI
+welcome text says the CLI "allows to … collect debug information for support", so the name
+was most likely derived from that prose rather than observed. It is marked unverified and
+deliberately not probed — running an unknown command speculatively on a live node is how a
+`vifdump` packet capture got started on a CE that was still registering.
+</Aside>

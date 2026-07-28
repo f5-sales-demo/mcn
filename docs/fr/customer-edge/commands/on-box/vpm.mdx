@@ -1,0 +1,92 @@
+---
+title: vpm et état du cluster
+description: >-
+  L'agent vpm qui enregistre le nœud et exécute les conteneurs de la plateforme,
+  ainsi que l'état du membre etcd que le cluster CE maintient. Inclut le détail
+  vérifié que vpm s'exécute en tant que conteneur Docker privilégié et que etcd
+  signale un seul membre, et non trois.
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` est l'agent qui enregistre un Customer Edge auprès du tenant et supervise les
+conteneurs de la plateforme. Lorsqu'un nœud ne se met pas en ligne, son état est la première
+chose à établir.
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**Éléments à surveiller.**
+
+- `Active: active (running) since …` et le temps écoulé. Un `vpm` qui a redémarré il y a
+  quelques minutes sur un nœud actif depuis des heures est le signal d'alerte — les échecs
+  d'enregistrement se manifestent sous forme de boucles de redémarrage bien avant d'apparaître
+  dans le tenant.
+- **`Main PID` est `docker`.** `vpm` s'exécute en tant que conteneur Docker privilégié, et
+  non en tant que processus natif, lancé avec `--net=host --privileged` et une longue liste
+  de montages bind de l'hôte incluant `/`, `/dev` et `/etc`. Ainsi, `vpm` apparaît dans
+  [`docker-ps`](../../system/docker/) et jamais dans [`crictl-ps`](../../system/crictl/) —
+  c'est également pourquoi un `docker-ps` à trois entrées sur un CE est complet plutôt qu'un
+  symptôme.
+- Les dernières lignes du journal. `statusreporter.go: Status reporter loop has finished without
+  error, sleeping for 5m…` correspond à l'état stable et sain : `vpm` effectue son rapport
+  selon un cycle d'environ cinq minutes. `module.go: Running intra-cluster, type: node`
+  confirme qu'il a rejoint le cluster plutôt que de fonctionner en mode autonome.
+
+**Ce que cela ne vous indique pas.** Rien sur le fait que le tenant ait *accepté* ou non
+l'enregistrement. Un `vpm` parfaitement sain boucle indéfiniment contre un plan de contrôle
+qui le refuse — lisez les lignes du journal pour en comprendre la raison.
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="Perturbateur, et non capturé ici">
+Le redémarrage de `vpm` interrompt et rétablit la connexion du nœud au tenant. Cette commande
+figure sur la liste des refus du harnais de collecte, elle est donc documentée à partir de ses
+métadonnées de catalogue et n'est jamais exécutée. N'y recourez que sur instruction explicite.
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+Le cluster etcd qui soutient le plan de contrôle Kubernetes du CE, interrogé depuis le pod
+etcd sur ce nœud.
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**Éléments à surveiller.** `IS LEADER`, `RAFT TERM`, et si `RAFT INDEX` et
+`RAFT APPLIED INDEX` concordent. Un écart persistant entre ces deux valeurs signifie que le
+membre applique les entrées en retard par rapport au journal. `ERRORS` vide correspond au cas
+sain.
+
+<Aside type="caution" title="Un seul membre, sur un déploiement à trois nœuds">
+Ce déploiement exécute trois nœuds CE, et la commande signale un **seul** membre —
+`https://etcd-0.etcd:2379`, `IS LEADER: true`. C'est ce que la commande a retourné, et il
+convient de l'énoncer clairement, car l'hypothèse naturelle est que trois nœuds CE impliquent
+un etcd à trois membres et qu'un tableau à une seule ligne signifie que deux membres sont
+manquants.
+
+Ce qui n'a **pas** été établi, c'est la raison : soit chaque nœud exécute son propre etcd
+à membre unique, soit la requête `--cluster` n'atteint que le pod local. Les deux
+interprétations sont compatibles avec cette sortie. Ne lisez pas le tableau à une seule ligne
+comme une preuve de dégradation du cluster sans vérifier les deux autres nœuds.
+</Aside>

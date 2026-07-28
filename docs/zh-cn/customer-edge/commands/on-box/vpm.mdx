@@ -1,0 +1,62 @@
+---
+title: vpm 与集群状态
+description: >-
+  负责注册节点并运行平台容器的 vpm 代理，以及 CE 集群维护的 etcd 成员状态。包含以下已验证细节：vpm 以特权 Docker 容器方式运行，且
+  etcd 仅报告一个成员而非三个。
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` 是负责将 Customer Edge 注册到租户并监管平台容器的代理。当节点无法上线时，首先需要确认其状态。
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**关注要点。**
+
+- `Active: active (running) since …` 及其已运行时长。若节点已运行数小时，而 `vpm` 却在数分钟前刚重启，这是一个警示信号——注册失败会以重启循环的形式呈现，往往早于在租户侧的表现。
+- **`Main PID` 为 `docker`。** `vpm` 以特权 Docker 容器方式运行，而非原生进程，启动时使用了 `--net=host --privileged` 参数，并挂载了大量宿主机目录，包括 `/`、`/dev` 和 `/etc`。因此 `vpm` 会出现在 [`docker-ps`](../../system/docker/) 中，而不会出现在 [`crictl-ps`](../../system/crictl/) 中——这也是为什么 CE 上 `docker-ps` 显示三条记录是完整状态，而非异常症状。
+- 末尾的日志行。`statusreporter.go: Status reporter loop has finished without error, sleeping for 5m…` 是健康的稳定状态：`vpm` 大约每五分钟上报一次。`module.go: Running intra-cluster, type: node` 表示它已成功加入集群，而非以独立模式运行。
+
+**此命令无法告知的信息。** 它不反映租户是否*接受*了注册请求。一个完全健康的 `vpm` 可能会持续不断地尝试连接一个拒绝其接入的控制面——请通过日志行查看具体原因。
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="具有破坏性，且不在采集范围内">
+重启 `vpm` 会拆除并重新建立节点与租户之间的连接。该命令已被采集工具拒绝执行，因此仅通过其目录元数据进行记录，从不实际运行。仅在明确指示的情况下才使用此命令。
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+支撑 CE 的 Kubernetes 控制面的 etcd 集群，从本节点上的 etcd Pod 查询。
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**关注要点。** `IS LEADER`、`RAFT TERM`，以及 `RAFT INDEX` 与 `RAFT APPLIED INDEX` 是否一致。若两者之间存在持续差距，说明该成员的日志应用落后于日志记录。`ERRORS` 为空是健康状态。
+
+<Aside type="caution" title="三节点部署中仅显示一个成员">
+此部署运行三个 CE 节点，但该命令仅报告**单个**成员——`https://etcd-0.etcd:2379`，`IS LEADER: true`。这是命令实际返回的结果，有必要明确说明，因为直觉上会认为三个 CE 节点意味着三成员 etcd，而单行表格则意味着两个成员缺失。
+
+尚未确定的是原因：是每个节点各自运行独立的单成员 etcd，还是 `--cluster` 查询始终只能访问到本地 Pod。这两种情况均与此输出吻合。在未检查其他两个节点之前，请勿将单行表格解读为集群降级的证据。
+</Aside>

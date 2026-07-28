@@ -1,0 +1,63 @@
+---
+title: ノード設定
+description: >-
+  Site CLI のトップレベルにある4つの configure コマンド — 登録、ネットワーク、HTTP
+  プロキシ、未認定ハードウェア。ライブノードを再設定するインタラクティブウィザードについて、実行せずにアプライアンス自身のメニューからドキュメント化。また、このリポジトリがすべてを
+  cloud-init で設定する理由についても説明します。
+sidebar:
+  order: 80
+  label: 設定
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+4つのコマンドが、[`execcli`](../) の配下ではなく Site CLI の**トップレベル**に存在します — これらは [`health`](../../system/health/) および [`diagnosis`](../../system/diagnosis/) と並んで、ログイン時にインタラクティブメニューが提供するものです。
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+これはアプライアンス自身のメニューテキストであり、この6つのエントリがトップレベルの全項目です。
+
+<Aside type="caution" title="予想されるかもしれない5つのコマンドはここにありません">
+`factory-reset`、`upgrade`、`reboot`、`show`、`clear` はビルド `crt-20250613-3382` には**存在しません**。これらのコマンドは、Site CLI に含まれているという想定のもとで、しばらくの間このリポジトリのコマンド分類に含まれていました。`site_state: PROVISIONING` 時と `PROVISIONED` 時の2回、独立した列挙を行いましたが、いずれも見つかりませんでした。計測方法については[オンボックスインデックス](../)を参照してください。
+</Aside>
+
+<Aside type="danger" title="インタラクティブであり、ライブノードを再設定します">
+これらはいずれもノードの設定を書き換えるウィザードです。このドキュメント作業中に実行されたものはなく、出力もキャプチャされていません — 読み取り専用の形式でキャプチャする手段がありません。確認済みの事項は、4つすべてが存在すること、および補完メニューからのそれぞれの説明のみです。
+</Aside>
+
+## `configure`
+
+ノードの初期設定：テナントおよびサイトにバインドするための登録情報を設定します。
+
+## `configure-network`
+
+ネットワークの初期設定 — ノードのインターフェースのアドレッシングを設定します。
+
+## `configure-http-proxy`
+
+CE が F5 コントロールプレーンに直接到達できない場合のために、アウトバウンド HTTP プロキシを設定します。
+
+## `configure-generic-hardware`
+
+F5 が認定していないハードウェアを設定します。[`edit-certified-hardware`](../config-files/) を通じてアクセスできる認定ハードウェア設定に関連しており、有効な認定ハードウェアエンドポイントがない場合、`vpmd` は *"fail to match certified hardware"* で終了し、ノードは登録されません。
+
+## このリポジトリがこれらを使用しない理由
+
+これらは手動のパスであり、このデプロイメントは自動化されたパスを採用しています。登録は初回起動時に cloud-init によって書き込まれます — `terraform/cloud-init/ce-node.yaml` がクラスター名、トークン、認定ハードウェアエンドポイントを含む `/etc/vpm/config.yaml` を書き込むため、ノードは起動時点ですでに設定済みとなり、`configure` は何も行う必要がありません。
+
+これは単なる整理の問題を超えて、2つの理由で重要です：
+
+- **再現性。** ウィザードで設定されたノードは、実行するたびに異なる設定になります。cloud-init で設定されたノードは毎回同一の設定になり、これがデモを再デプロイ可能にします。
+- **これらはリカバリーパスであり、デプロイメントパスではありません。** Terraform が使用できない状況でノードを再接続する必要がある場合 — 一度も登録されていないノードを[シリアルコンソール](../../../access/serial-console/)から操作する場合など、他に手段がない時に `configure` を使用してください。
+
+<Aside type="note" title="登録は状態であり、ノードの置き換えによってかつてはそれが残留しました">
+再登録は純粋にノード側の操作ではありません：テナントは `(tenant, cluster_name, hostname)` をキーとする登録オブジェクトを保持しています。名前を維持したまま CE を置き換えると、破棄されたノードの登録がそのキーを保持し続けるため、デプロイメントが永続的に行き詰まる状態になっていました。この問題は修正されています — [登録ワークフロー](../../../workflows/registration/)を参照してください — しかしこれが、再構築されたノードを復旧させるために `configure` だけでは必ずしも十分でない理由です。
+</Aside>

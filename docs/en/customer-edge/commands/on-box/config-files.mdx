@@ -1,0 +1,79 @@
+---
+title: Configuration files
+description: The four edit-* commands that open F5-owned files on a Customer Edge — app environment, certified hardware, Azure client credentials and NIC naming rules. All support-directed, all documented without being run.
+sidebar:
+  order: 60
+  label: Config files
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Four commands open an editor on a file F5 owns. They are not on the
+[debug API](../../../access/debug-api/), and two of them say so in their own description:
+*"please do not use this unless F5 XC support requested"*.
+
+<Aside type="danger" title="No captured output on this page, deliberately">
+Each of these opens an interactive editor on a live configuration file. There is no
+read-only form, so there is no output to capture that is not also a write opportunity, and
+the harvest harness refuses all four. What is verified is that they exist, and which file
+each one opens — both from the appliance's own completion menu.
+</Aside>
+
+## `edit-app-env-file`
+
+Opens `/etc/vpm/app_env.yaml`, the node's local application environment.
+
+```bash
+execcli edit-app-env-file
+```
+
+The appliance's description ends *"please do not use this unless F5 XC support requested"*.
+Take that literally: this file is read by `vpm` at start, and a malformed value affects
+every platform container on the node.
+
+## `edit-certified-hardware`
+
+Opens the certified-hardware configuration.
+
+```bash
+execcli edit-certified-hardware
+```
+
+Also flagged support-only by the appliance. This is the configuration that decides whether
+`vpm` believes it is running on hardware F5 certifies — and getting it wrong is not
+theoretical. Without a valid `CertifiedHardwareEndpoint`, `vpmd` exits with *"fail to match
+certified hardware"* and the node never registers. That is why this repository's cloud-init
+sets the endpoint explicitly rather than relying on a default; see
+`terraform/cloud-init/ce-node.yaml`.
+
+## `edit-azure-client-id-secret`
+
+Updates the Azure client id and secret this CE uses, for when the credential has expired.
+
+```bash
+execcli edit-azure-client-id-secret
+```
+
+**When this is the answer.** A CE that was working and has begun failing Azure operations,
+with no configuration change to explain it, is the case this exists for — the credential
+aged out rather than anything breaking.
+
+## `edit-udev-10-nic-name`
+
+Opens `/etc/udev/rules.d/10-nic-names.rules`, which decides how NICs are named.
+
+```bash
+execcli edit-udev-10-nic-name
+```
+
+**Read the interface pages before touching this.** NIC naming on a CE is already surprising:
+`eth0` is renamed `a-i-eth0` and carries no host address, the SLO address lives on `vhost0`,
+and which of `eth1`/`eth2` holds the internal address is not consistent across the three
+nodes in this deployment. See [`ip`](../../network/ip/). A udev rule that assumes a tidier
+arrangement will make things worse.
+
+<Aside type="note" title="Two more edit-* commands are passthrough, not these">
+`edit-etc-hosts` and `edit-sysctl-conf` open ordinary Linux files and are listed as
+passthrough in [the on-box index](../) — the operating system's own documentation covers
+them, and there is nothing CE-specific to add.
+</Aside>

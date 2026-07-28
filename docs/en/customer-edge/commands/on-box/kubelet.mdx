@@ -1,0 +1,86 @@
+---
+title: Kubelet parameters
+description: The three commands that read, add and remove custom kubelet parameters on a Customer Edge. Includes the verified finding that the read command cannot be used from the admin Site CLI at all, because the parameter file is not readable by that account.
+sidebar:
+  order: 40
+  label: Kubelet params
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Three commands manage a file of custom kubelet parameters,
+`/etc/vpm/kubelet-custom-params.txt`. All three are F5's, none are on the
+[debug API](../../../access/debug-api/), and all three are support-directed — kubelet
+parameters change how the node runs Kubernetes workloads.
+
+<Aside type="danger" title="Do not use these except when F5 support asks you to">
+A custom kubelet parameter survives reboots and applies to every workload the node runs.
+There is no validation here: a bad parameter is accepted and takes effect at the next
+kubelet start.
+</Aside>
+
+## `kubelet-get-params`
+
+Reads the current custom parameters.
+
+```bash
+execcli kubelet-get-params
+```
+
+```text file=../../../../_data/sitecli-kubelet-get-params.txt
+```
+
+**This command does not work from the Site CLI on this build.** The `admin` account cannot
+read the parameter file, so the command fails whether or not any parameters are set:
+
+```text
+Error: failed to read all params: failed to read custom param file:
+open /etc/vpm/kubelet-custom-params.txt: permission denied
+```
+
+**Why that matters more than it looks.** The failure is a *permission* error, not an empty
+result, and the two are easy to confuse — "failed to read all params" reads like "there are
+no params". It is not evidence that no parameters are configured. On this build the only way
+to see them from the Site CLI is with
+[auxiliary root access](../root-access/), which is itself support-directed.
+
+<Aside type="note" title="What was verified">
+The command exists, runs, and returns the error above as `admin` on build
+`crt-20250613-3382`. Whether it succeeds under the `xuser` root account was **not** tested —
+obtaining that account modifies the node.
+</Aside>
+
+## `kubelet-add-param`
+
+Adds a custom parameter.
+
+```bash
+execcli kubelet-add-param <parameter>
+```
+
+Run with no argument it reports its own arity, which is how the requirement was confirmed
+without setting anything:
+
+```text
+Error: at least one parameter is required
+```
+
+**No captured output.** This command writes to the node. It was verified to exist and to
+require an argument; it was not run with one.
+
+## `kubelet-remove-param`
+
+Removes a custom parameter.
+
+```bash
+execcli kubelet-remove-param <parameter>
+```
+
+**No captured output**, for the same reason.
+
+<Aside type="caution" title="Neither write command is on the read-only allow-list">
+`scripts/sitecli_ssh_harvest.py` refuses to execute `kubelet-add-param` and
+`kubelet-remove-param`: only names on its explicit read-only allow-list may run, and
+anything else is enumerated and never executed. That is deliberate — a deny-list only stops
+what somebody thought to list.
+</Aside>

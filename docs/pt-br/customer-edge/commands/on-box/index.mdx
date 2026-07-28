@@ -1,0 +1,154 @@
+---
+title: Comandos no dispositivo
+description: >-
+  Os 82 comandos que o próprio Site CLI do appliance oferece, 55 dos quais a API
+  de debug não consegue acessar. Explica o comando oculto execcli que os
+  executa, por que essa superfície é maior que a da API, quais comandos são
+  documentados completamente e quais são apenas listados, e como o conjunto foi
+  medido.
+sidebar:
+  order: 40
+  label: No dispositivo
+i18n:
+  sourceHash: 1f8259efff3f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+A [API de debug](../../access/debug-api/) expõe **34 comandos**. O próprio appliance
+oferece **82**, e **55 desses não possuem equivalente na API** — todo o plano de controle
+Vega, os wrappers do Envoy, a captura de pacotes, o conjunto de parâmetros do kubelet,
+os arquivos `edit-*` e o par auxiliar de acesso root só são acessíveis a partir do
+dispositivo.
+
+Para acessá-los, é necessário [SSH](../../access/ssh/) ou o
+[console serial](../../access/serial-console/), além de algo que não está documentado em
+nenhum lugar:
+
+<Aside type="tip" title="execcli é um comando oculto">
+`execcli` não aparece no menu interativo do Site CLI. Ele recebe um nome de comando como
+argumento, e digitar `execcli ` seguido de **Tab** lista todos os 82 com a própria
+descrição de uma linha do appliance para cada um. Esse menu de autocompletar é o catálogo
+autoritativo para uma build, e é o que `sitecli/exec-catalog.json` registra.
+</Aside>
+
+## Como isso foi medido
+
+O conjunto abaixo não foi transcrito de um documento do fornecedor. Ele foi lido de dois
+nós ativos e confirmado em `sitecli/exec-catalog.json` com sua procedência:
+
+| | Nível superior | `execcli` |
+| --- | --- | --- |
+| Medido em `site_state: PROVISIONING` | 6 | 82 |
+| Medido em `site_state: PROVISIONED` | 6 | 82 |
+
+As duas execuções retornaram **conjuntos idênticos**. Isso importa mais do que a contagem:
+significa que a superfície de comandos não muda com o estado de registro, portanto, um
+comando ausente está genuinamente ausente e não apenas ainda não disponível.
+
+<Aside type="caution" title="Cinco comandos que não existem">
+`factory-reset`, `upgrade`, `reboot`, `show` e `clear` **não estão** nesta build. São o
+tipo de coisa que um Site CLI plausivelmente teria, foram incluídos na classificação deste
+repositório por um tempo com base nessa suposição, e nenhuma das enumerações os encontrou.
+O nível superior tem exatamente seis entradas: `configure`, `configure-generic-hardware`,
+`configure-network`, `configure-http-proxy`, `diagnosis` e `health`.
+</Aside>
+
+## O que está documentado e o que apenas está listado
+
+Um Customer Edge executa Linux e vários daemons de terceiros. Documentar seus comandos
+duplicaria as referências próprias deles e implicaria que a F5 os possui, portanto a regra
+é: **documentar o software da F5, e para todo o restante documentar apenas o que é
+específico de um CE.**
+
+Três camadas, porque "nosso" e "deles" não é uma divisão clara. A divisão está registrada
+em `sitecli/command-classification.json`.
+
+| Camada | Tratamento |
+| --- | --- |
+| **Software F5** | Documentação completa — propósito, sintaxe, argumentos, saída capturada, o que observar. Argo, Vega, `vpm`, `vifdump`, `configure*`, o conjunto `edit-*`, parâmetros do kubelet, acesso root. |
+| **Interpretação específica do CE** | Uma ferramenta de terceiros cuja saída tem um significado particular em um CE. A leitura específica do CE é documentada e a semântica própria da ferramenta é deixada ao upstream. |
+| **Passthrough** | Linux simples ou de terceiros sem nada específico do CE a dizer. Listado como disponível, com um ponteiro ao upstream. Sem prosa. |
+
+Essa distinção decide se uma página existe ou não, e é o que impede que esta documentação
+deteriore em uma cópia inferior das páginas de manual.
+
+## Software F5
+
+<CardGrid>
+  <LinkCard
+    title="Plano de controle Vega"
+    description="Seis comandos <code>vegactl</code>: objetos de configuração, tabelas de introspecção, buffers de rastreamento e qual nó ocupa o papel primário."
+    href="./vega/"
+  />
+  <LinkCard
+    title="Envoy"
+    description="Quatro wrappers em torno da interface de administração do Envoy — listeners, clusters e dois dumps de configuração."
+    href="./envoy/"
+  />
+  <LinkCard
+    title="Captura de pacotes"
+    description="Os cinco comandos <code>vifdump</code>. Documentados, nunca executados aqui: eles gravam arquivos de captura no nó."
+    href="./packet-capture/"
+  />
+  <LinkCard
+    title="Parâmetros do kubelet"
+    description="Ler, adicionar e remover parâmetros personalizados do kubelet. Direcionado ao suporte."
+    href="./kubelet/"
+  />
+  <LinkCard
+    title="Serviço vpm"
+    description="O agente que registra o nó e executa os contêineres da plataforma."
+    href="./vpm/"
+  />
+  <LinkCard
+    title="Arquivos de configuração"
+    description="Os quatro comandos <code>edit-*</code> que abrem arquivos pertencentes à F5 no nó."
+    href="./config-files/"
+  />
+  <LinkCard
+    title="Acesso root auxiliar"
+    description="Criação e remoção da conta root <code>xuser</code>. Direcionado ao suporte e deixa o nó modificado."
+    href="./root-access/"
+  />
+  <LinkCard
+    title="Configuração do nó"
+    description="Os quatro comandos <code>configure*</code> no nível superior do Site CLI."
+    href="./configure/"
+  />
+</CardGrid>
+
+## Passthrough
+
+Disponíveis no dispositivo e **não documentados aqui** — estes são o sistema operacional e
+daemons de terceiros, não o software da F5, e suas próprias referências são melhores do
+que qualquer coisa que esta página pudesse reproduzir.
+
+| Comandos | Upstream |
+| --- | --- |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, utilitários BIND |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | Os arquivos pertencem ao sistema operacional |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — cada um desses interrompe cargas de trabalho no nó |
+
+Dois desses merecem atenção mesmo sem receberem uma página. `files` realiza operações com
+arquivos e só gravará dentro de `/tmp`. E todo `systemctl-restart-*` é perturbador por
+definição — reiniciar `crio` ou `kubelet` interrompe as cargas de trabalho naquele nó.
+
+<Aside type="note" title="Sete comandos existem em builds mais recentes e não nesta">
+`collect-database-stats`, `iptables-lv`, os três comandos `marker-exists-*`,
+`systemctl-restart-NetworkManager` e `systemctl-start-crio-prune` foram observados por
+meio da API de debug na build `crt-20260201-0179`. Eles estão registrados em
+`not_on_this_build.newer_build_debug_api` na classificação para que nada aqui seja
+confundido com algo que você possa executar em `crt-20250613-3382`.
+
+`collect-debug-info` é um caso à parte: não aparece em nenhum menu nem catálogo. O texto
+de boas-vindas do Site CLI diz que o CLI "permite … coletar informações de debug para
+suporte", portanto o nome provavelmente foi derivado dessa prosa em vez de observado. Ele
+está marcado como não verificado e deliberadamente não é testado — executar
+especulativamente um comando desconhecido em um nó ativo foi assim que uma captura de
+pacotes `vifdump` foi iniciada em um CE que ainda estava sendo registrado.
+</Aside>

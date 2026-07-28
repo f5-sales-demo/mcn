@@ -1,6 +1,3 @@
->>> execcli envoy-hc-config-dump
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100     1    0     1    0     0    111      0 --:--:-- --:--:-- --:--:--   111
-
->>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

@@ -1,0 +1,90 @@
+---
+title: Configuration du nœud
+description: >-
+  Les quatre commandes de configuration au niveau supérieur du Site CLI —
+  enregistrement, réseau, proxy HTTP et matériel non certifié. Assistants
+  interactifs qui reconfigurent un nœud actif, documentés à partir du menu de
+  l'appliance sans être exécutés, ainsi que les raisons pour lesquelles ce dépôt
+  configure l'ensemble via cloud-init.
+sidebar:
+  order: 80
+  label: Configurer
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Quatre commandes se trouvent au **niveau supérieur** du Site CLI plutôt que derrière
+[`execcli`](../) — ce sont celles que le menu interactif propose lors de la connexion, aux côtés de
+[`health`](../../system/health/) et [`diagnosis`](../../system/diagnosis/).
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+Il s'agit du texte du menu propre à l'appliance, et ces six entrées constituent l'intégralité du niveau supérieur.
+
+<Aside type="caution" title="Cinq commandes que vous pourriez attendre sont absentes">
+`factory-reset`, `upgrade`, `reboot`, `show` et `clear` n'**existent pas** sur le build
+`crt-20250613-3382`. Elles ont été répertoriées dans la classification des commandes de ce dépôt
+pendant un certain temps, en supposant qu'un Site CLI les posséderait, et deux énumérations indépendantes —
+l'une à `site_state: PROVISIONING`, l'autre à `PROVISIONED` — n'en ont trouvé aucune trace.
+Voir [l'index embarqué](../) pour la méthode de mesure utilisée.
+</Aside>
+
+<Aside type="danger" title="Interactif, et reconfigure un nœud actif">
+Chacune de ces commandes est un assistant qui réécrit la configuration du nœud. Aucune n'a été exécutée
+lors de ce travail de documentation et aucune n'a de sortie capturée — il n'existe pas de forme en
+lecture seule à capturer. Ce qui est vérifié, c'est que les quatre commandes existent, ainsi que leurs
+descriptions, issues du menu de complétion.
+</Aside>
+
+## `configure`
+
+Configuration initiale du nœud : les détails d'enregistrement qui le rattachent à un locataire et à un
+site.
+
+## `configure-network`
+
+Configuration initiale du réseau — adressage des interfaces du nœud.
+
+## `configure-http-proxy`
+
+Configure un proxy HTTP sortant, pour un CE qui ne peut pas atteindre le plan de contrôle F5 directement.
+
+## `configure-generic-hardware`
+
+Configure du matériel que F5 n'a pas certifié. En lien avec la configuration du matériel certifié
+accessible via [`edit-certified-hardware`](../config-files/) : sans un point de terminaison de matériel
+certifié valide, `vpmd` se termine avec *"fail to match certified hardware"* et le nœud ne s'enregistre
+jamais.
+
+## Pourquoi ce dépôt ne les utilise pas
+
+Il s'agit du chemin manuel, et ce déploiement emprunte le chemin automatisé. L'enregistrement est
+écrit par cloud-init au premier démarrage — `terraform/cloud-init/ce-node.yaml` écrit
+`/etc/vpm/config.yaml` avec le nom du cluster, le jeton et le point de terminaison du matériel certifié —
+de sorte qu'un nœud démarre déjà configuré et que `configure` n'a rien à faire.
+
+Cela est important pour deux raisons qui vont au-delà de la simple rigueur :
+
+- **Reproductibilité.** Un nœud configuré par assistant est configuré différemment à chaque
+  intervention. Un nœud configuré par cloud-init est configuré de manière identique à chaque fois,
+  ce qui rend la démonstration redéployable.
+- **Ce sont les commandes de récupération, pas les commandes de déploiement.** Ayez recours à
+  `configure` lorsqu'un nœud doit être redirigé et que Terraform n'est pas une option — un nœud
+  qui ne s'est jamais enregistré, via la [console série](../../../access/serial-console/), là où rien
+  d'autre ne peut l'atteindre.
+
+<Aside type="note" title="L'enregistrement est un état, et le remplacement d'un nœud pouvait autrefois le bloquer">
+La ré-inscription n'est pas une opération purement côté nœud : le locataire conserve un objet
+d'enregistrement indexé sur `(tenant, cluster_name, hostname)`. Remplacer un CE tout en conservant son nom
+bloquait autrefois le déploiement de façon permanente, car l'enregistrement du nœud détruit conservait
+encore cette clé. Ce problème est résolu — voir le [flux d'enregistrement](../../../workflows/registration/) —
+mais c'est pourquoi `configure` seul ne suffit pas toujours à remettre en service un nœud reconstruit.
+</Aside>

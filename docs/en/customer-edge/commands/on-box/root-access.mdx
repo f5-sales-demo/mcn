@@ -1,0 +1,60 @@
+---
+title: Auxiliary root access
+description: The two commands that create and remove the xuser root account on a Customer Edge. Support-directed, they leave the node modified, and the create command is the only documented way to reach files the admin account cannot read.
+sidebar:
+  order: 70
+  label: Root access
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Two commands create and remove a root account named `xuser`. They are F5's, absent from the
+[debug API](../../../access/debug-api/), and they are the escape hatch for work the `admin`
+account cannot do.
+
+<Aside type="danger" title="These change the node's account state, and are not run here">
+`get-auxilary-root-access-to-node` creates a **root user**. That is a change to the node
+that outlives your session, and it is not something to do exploratively. Both commands are
+documented from the appliance's own completion menu; neither was run, and the harvest
+harness refuses both.
+
+The misspelling of "auxiliary" is the appliance's, not a typo in this page. Type it as
+shown or the command will not be found.
+</Aside>
+
+## `get-auxilary-root-access-to-node`
+
+Creates the `xuser` root account.
+
+```bash
+execcli get-auxilary-root-access-to-node
+```
+
+**When this is genuinely the answer.** Some diagnostics are simply unreachable as `admin`.
+The clearest verified example on this build is [`kubelet-get-params`](../kubelet/), which
+fails with `open /etc/vpm/kubelet-custom-params.txt: permission denied` — the file exists and
+the `admin` account cannot read it. Root access is the documented route to that class of
+problem.
+
+**Before reaching for it**, consider whether the [debug API](../../../access/debug-api/)
+already answers the question. Its `exec` tier runs privileged commands without creating a
+persistent account, which is a smaller change to the node.
+
+## `remove-auxilary-root-access-to-node`
+
+Deletes the `xuser` account.
+
+```bash
+execcli remove-auxilary-root-access-to-node
+```
+
+**Run this when you are done.** A root account created for one diagnostic session and left in
+place is a standing credential on the appliance that nothing will remind you about. Treat
+create and remove as a pair, in the same session, the way
+[`vifdump`](../packet-capture/) and `vifdump-file-rm` are a pair.
+
+<Aside type="note" title="What was not established">
+Neither command's output is recorded, so this page cannot tell you what success looks like,
+what password or key `xuser` is created with, or whether removal is refused while a session
+is open. Those need a node you are willing to modify.
+</Aside>

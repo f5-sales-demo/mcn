@@ -1,0 +1,94 @@
+---
+title: Kubelet-Parameter
+description: >-
+  Die drei Befehle zum Lesen, Hinzufügen und Entfernen benutzerdefinierter
+  Kubelet-Parameter auf einem Customer Edge. Einschließlich der verifizierten
+  Feststellung, dass der Lesebefehl über das Site-CLI des Administrators
+  überhaupt nicht verwendet werden kann, da die Parameterdatei von diesem Konto
+  nicht lesbar ist.
+sidebar:
+  order: 40
+  label: Kubelet-Parameter
+i18n:
+  sourceHash: 4490323ac4fd
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Drei Befehle verwalten eine Datei mit benutzerdefinierten Kubelet-Parametern,
+`/etc/vpm/kubelet-custom-params.txt`. Alle drei stammen von F5, keiner ist in der
+[Debug-API](../../../access/debug-api/) verfügbar, und alle drei sind support-gesteuert —
+Kubelet-Parameter ändern, wie der Knoten Kubernetes-Workloads ausführt.
+
+<Aside type="danger" title="Verwenden Sie diese nur, wenn der F5-Support Sie dazu auffordert">
+Ein benutzerdefinierter Kubelet-Parameter übersteht Neustarts und gilt für jeden Workload, den der Knoten ausführt.
+Es findet hier keine Validierung statt: Ein ungültiger Parameter wird akzeptiert und tritt beim nächsten
+Kubelet-Start in Kraft.
+</Aside>
+
+## `kubelet-get-params`
+
+Liest die aktuellen benutzerdefinierten Parameter.
+
+```bash
+execcli kubelet-get-params
+```
+
+```text file=../../../../_data/sitecli-kubelet-get-params.txt
+```
+
+**Dieser Befehl funktioniert in diesem Build nicht über das Site-CLI.** Das `admin`-Konto kann
+die Parameterdatei nicht lesen, daher schlägt der Befehl fehl, unabhängig davon, ob Parameter gesetzt sind oder nicht:
+
+```text
+Error: failed to read all params: failed to read custom param file:
+open /etc/vpm/kubelet-custom-params.txt: permission denied
+```
+
+**Warum das wichtiger ist, als es aussieht.** Der Fehler ist ein *Berechtigungs*fehler, kein leeres
+Ergebnis, und beides ist leicht zu verwechseln — „failed to read all params" liest sich wie „es gibt
+keine Parameter". Es ist kein Beweis dafür, dass keine Parameter konfiguriert sind. In diesem Build ist der einzige Weg,
+sie über das Site-CLI einzusehen, der
+[zusätzliche Root-Zugriff](../root-access/), der selbst support-gesteuert ist.
+
+<Aside type="note" title="Was verifiziert wurde">
+Der Befehl existiert, wird ausgeführt und gibt den oben genannten Fehler als `admin` auf Build
+`crt-20250613-3382` zurück. Ob er unter dem `xuser`-Root-Konto erfolgreich ist, wurde **nicht** getestet —
+das Erlangen dieses Kontos verändert den Knoten.
+</Aside>
+
+## `kubelet-add-param`
+
+Fügt einen benutzerdefinierten Parameter hinzu.
+
+```bash
+execcli kubelet-add-param <parameter>
+```
+
+Ohne Argument gibt er seine eigene Stelligkeit aus, womit die Anforderung bestätigt wurde,
+ohne etwas zu setzen:
+
+```text
+Error: at least one parameter is required
+```
+
+**Keine erfasste Ausgabe.** Dieser Befehl schreibt auf den Knoten. Es wurde verifiziert, dass er existiert und
+ein Argument erfordert; er wurde nicht mit einem Argument ausgeführt.
+
+## `kubelet-remove-param`
+
+Entfernt einen benutzerdefinierten Parameter.
+
+```bash
+execcli kubelet-remove-param <parameter>
+```
+
+**Keine erfasste Ausgabe**, aus demselben Grund.
+
+<Aside type="caution" title="Keiner der Schreibbefehle steht auf der schreibgeschützten Zulassungsliste">
+`scripts/sitecli_ssh_harvest.py` verweigert die Ausführung von `kubelet-add-param` und
+`kubelet-remove-param`: Nur Namen auf der expliziten schreibgeschützten Zulassungsliste dürfen ausgeführt werden, und
+alles andere wird aufgezählt und niemals ausgeführt. Das ist beabsichtigt — eine Ablehnungsliste stoppt nur,
+was jemand daran gedacht hat aufzulisten.
+</Aside>

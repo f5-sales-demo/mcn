@@ -1,21 +1,21 @@
 ---
 title: Routen und Next-Hops
 description: >-
-  Worauf die Argo-Datenebene tatsächlich weiterleitet, was nicht zwangsläufig
-  dem entspricht, was Linux annimmt. Behandelt die vRouter-Routentabelle, die
-  Next-Hop-Tabelle und virtuelle Schnittstellen.
+  Was die Argo-Datenebene tatsächlich weiterleitet, was nicht notwendigerweise
+  mit dem übereinstimmt, was Linux glaubt. Behandelt die vRouter-Routentabelle,
+  die Next-Hop-Tabelle und virtuelle Schnittstellen.
 sidebar:
   order: 50
   label: Routen und Next-Hops
 i18n:
-  sourceHash: 80785e30393a
+  sourceHash: 9e8dd5045310
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo hält den Weiterleitungszustand getrennt vom Linux-Kernel. Wenn
-[`ip`](../ip/) und diese Befehle sich widersprechen, dann sind es diese Befehle, die den Datenverkehr bewegen.
+Argo hält den Weiterleitungszustand von dem Linux-Kernel getrennt. Wenn
+[`ip`](../ip/) und diese Befehle nicht übereinstimmen, sind diese Befehle ausschlaggebend für den Datenverkehr.
 
 ## `rt`
 
@@ -28,18 +28,18 @@ Die vRouter-Routentabelle, pro VRF.
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="Die VRF-ID ist nicht die, die BGP meldet">
-`show-ip-bgp-summary` gibt `vrf-id 3` aus. Das ist die Nummerierung von FRR und sie liegt in einem
-anderen Namensraum als die Tabellen-ID des vRouters. Wird sie hier übergeben, schlägt es auf eine Weise fehl, die
-sich wie ein defekter Knoten liest:
+<Aside type="danger" title="Die VRF-ID ist nicht dieselbe, die BGP meldet">
+`show-ip-bgp-summary` gibt `vrf-id 3` aus. Das ist die Nummerierung von FRR und gehört einem
+anderen Namensraum als die vRouter-Tabellen-ID an. Die Übergabe dieser ID schlägt auf eine Weise fehl, die
+wie ein defekter Knoten aussieht:
 
 ```
 vRouter(Response):  [No such file or directory (2)]
 ```
 
 Dieselbe Antwort kommt bei `--dump 0` zurück. In dieser Topologie ist **VRF 2** die
-befüllte inet4-Tabelle, während VRF 1 zwei Routen enthält. Wenn Sie die ID nicht kennen,
-tasten Sie sich von 1 aufwärts vor, anstatt der BGP-Ausgabe zu vertrauen.
+befüllte inet4-Tabelle, wobei VRF 1 zwei Routen enthält. Wenn die ID nicht bekannt ist,
+sollte man von 1 aufwärts suchen, anstatt der BGP-Ausgabe zu vertrauen.
 </Aside>
 
 ## `nh`
@@ -53,27 +53,26 @@ Die Next-Hop-Tabelle. Jede Route verweist auf eine Next-Hop-ID, und diese löst 
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-Jeder Eintrag trägt einen `Type` und das VRF, zu dem er gehört. Auf diesen Knoten treten acht Typen auf, in
-diesen Verhältnissen — bei Zählung identisch über alle drei CEs:
+Jeder Eintrag enthält einen `Type` und das zugehörige VRF. Auf diesen Knoten kommen acht Typen vor, in
+folgenden Anteilen — identisch über alle drei CEs hinweg:
 
 ```text
 Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
 ```
 
-Eine Route, die zu einem `Drop`-Next-Hop auflöst, ist ein Blackhole, und diese Kombination ist immer dann
-eine Prüfung wert, wenn ein Präfix in `rt` vorhanden ist, der Datenverkehr aber dennoch verschwindet.
+Eine Route, die zu einem `Drop`-Next-Hop aufgelöst wird, ist ein Blackhole. Diese Kombination sollte immer
+dann überprüft werden, wenn ein Präfix in `rt` vorhanden ist, der Datenverkehr aber trotzdem verschwindet.
 
 <Aside type="caution" title="Die obige Aufzeichnung ist gekürzt und enthält daher nicht jeden Typ">
-Es sind die ersten 60 von 3.849 Zeilen. `Tunnel`, der mit großem Abstand häufigste Typ, erscheint in
-diesen 60 Zeilen überhaupt nicht — lesen Sie die Aufzeichnung also nicht als vollständige Typ-Inventur und schließen Sie
-nicht daraus, dass ein Typ auf einem Knoten fehlt, weil er in einer gekürzten Aufzeichnung fehlt. Die obigen Zählungen
-stammen aus der ungekürzten Antwort.
+Es handelt sich um die ersten 60 Zeilen von 3.849. `Tunnel`, der mit Abstand häufigste Typ, kommt in
+diesen 60 Zeilen gar nicht vor — daher sollte die Aufzeichnung nicht als vollständiges Typinventar gelesen werden, und es sollte nicht
+der Schluss gezogen werden, dass ein Typ auf einem Knoten fehlt, weil er in einer gekürzten Aufzeichnung fehlt. Die obigen
+Zählungen stammen aus der vollständigen Antwort.
 </Aside>
 
 ## `vif`
 
-Die Tabelle der virtuellen Schnittstellen: woran sich die Datenebene bindet, sowie
-Zähler pro Schnittstelle.
+Die virtuelle Schnittstellentabelle: womit die Datenebene verknüpft ist, und Zähler pro Schnittstelle.
 
 ```bash
 {"command":["vif","--list"]}
@@ -82,7 +81,23 @@ Zähler pro Schnittstelle.
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-Die Flag-Legende am Anfang ist es wert, einmal gelesen zu werden — `Vp` kennzeichnet die physische
-vhost-Schnittstelle, `Dpdk` eine DPDK-verwaltete. Verwenden Sie dies, um zu bestätigen, dass die Datenebene die
-erwartete Schnittstelle übernommen hat, und um RX- und TX-Zähler zu sehen, die Linux nicht anzeigt,
+Die Flags-Legende am Anfang ist es wert, einmal gelesen zu werden — `Vp` markiert die physische
+vhost-Schnittstelle, `Dpdk` eine DPDK-verwaltete. Damit lässt sich bestätigen, dass die Datenebene
+die erwartete Schnittstelle übernommen hat, und RX- sowie TX-Zähler anzeigen, die Linux nicht anzeigt,
 weil der Datenverkehr den Kernel nie erreicht.
+
+## `mpls`
+
+```bash
+execcli mpls --help
+```
+
+Die Argo-MPLS-Tabelle. Nur **vom Gerät selbst** erreichbar — `mpls` ist nicht in der Debug-API, daher
+benötigt es im Gegensatz zu `rt`, `nh` und `vif` oben [SSH](../../../access/ssh/) oder die
+[serielle Konsole](../../../access/serial-console/), über
+[`execcli`](../../on-box/).
+
+Hier gibt es keine aufgezeichnete Ausgabe. In dieser Bereitstellung leitet der CE IPv4 mit BGP und ECMP weiter und verwendet
+keine MPLS-Labels, sodass eine Aufzeichnung eine leere Tabelle zeigen und nichts lehren würde. Ihre Existenz
+und die Form ihres `--help`-Arguments sind über das Vervollständigungsmenü des Geräts selbst verifiziert; die
+befüllte Ausgabe wird hier nicht wiedergegeben.

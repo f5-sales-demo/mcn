@@ -1,0 +1,74 @@
+---
+title: Kubeletパラメーター
+description: >-
+  Customer
+  EdgeでカスタムKubeletパラメーターを読み取り、追加、削除する3つのコマンド。adminのサイトCLIからは読み取りコマンドが全く使用できないという検証済みの所見を含む（パラメーターファイルはそのアカウントから読み取り不可）。
+sidebar:
+  order: 40
+  label: Kubeletパラメーター
+i18n:
+  sourceHash: 4490323ac4fd
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+3つのコマンドがカスタムKubeletパラメーターのファイル `/etc/vpm/kubelet-custom-params.txt` を管理します。すべてF5製であり、いずれも[デバッグAPI](../../../access/debug-api/)には含まれず、すべてサポート指示のもとで使用するものです。Kubeletパラメーターは、ノードがKubernetesワークロードを実行する方法を変更します。
+
+<Aside type="danger" title="F5サポートから指示された場合のみ使用してください">
+カスタムKubeletパラメーターは再起動後も保持され、ノードが実行するすべてのワークロードに適用されます。ここではバリデーションは行われません。不正なパラメーターも受け入れられ、次回のKubelet起動時に有効になります。
+</Aside>
+
+## `kubelet-get-params`
+
+現在のカスタムパラメーターを読み取ります。
+
+```bash
+execcli kubelet-get-params
+```
+
+```text file=../../../../_data/sitecli-kubelet-get-params.txt
+```
+
+**このコマンドは、このビルドのサイトCLIからは動作しません。** `admin` アカウントはパラメーターファイルを読み取ることができないため、パラメーターが設定されているかどうかに関わらず、コマンドは失敗します。
+
+```text
+Error: failed to read all params: failed to read custom param file:
+open /etc/vpm/kubelet-custom-params.txt: permission denied
+```
+
+**これが見た目以上に重要な理由。** この失敗は空の結果ではなく *権限* エラーです。両者は混同しやすく、「failed to read all params（全パラメーターの読み取りに失敗）」は「パラメーターが存在しない」と読めてしまいます。しかし、これはパラメーターが設定されていないことを示す根拠にはなりません。このビルドでは、サイトCLIからパラメーターを確認する唯一の方法は[補助的なrootアクセス](../root-access/)であり、これ自体もサポート指示のもとで行うものです。
+
+<Aside type="note" title="検証済みの内容">
+コマンドは存在し、実行され、ビルド `crt-20250613-3382` 上で `admin` として上記のエラーを返すことが確認されました。`xuser` rootアカウントで成功するかどうかは**テストされていません**。そのアカウントを取得するとノードが変更されるためです。
+</Aside>
+
+## `kubelet-add-param`
+
+カスタムパラメーターを追加します。
+
+```bash
+execcli kubelet-add-param <parameter>
+```
+
+引数なしで実行すると、コマンド自身のアリティ（引数の数）を報告します。これにより、何も設定せずに要件を確認できました。
+
+```text
+Error: at least one parameter is required
+```
+
+**キャプチャされた出力はありません。** このコマンドはノードに書き込みを行います。存在することおよび引数が必要であることは確認しましたが、実際に引数を指定して実行はしていません。
+
+## `kubelet-remove-param`
+
+カスタムパラメーターを削除します。
+
+```bash
+execcli kubelet-remove-param <parameter>
+```
+
+**キャプチャされた出力はありません。** 同じ理由によります。
+
+<Aside type="caution" title="どちらの書き込みコマンドも読み取り専用許可リストには含まれていません">
+`scripts/sitecli_ssh_harvest.py` は `kubelet-add-param` および `kubelet-remove-param` の実行を拒否します。明示的な読み取り専用許可リストに含まれる名前のみが実行でき、それ以外はすべて列挙されるだけで実行されません。これは意図的な設計です。拒否リストは、誰かが思いついてリストに追加したものしか防げないためです。
+</Aside>

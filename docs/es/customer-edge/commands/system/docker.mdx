@@ -1,19 +1,19 @@
 ---
 title: docker
 description: >-
-  El runtime de Docker, que ejecuta los servicios de plataforma del CE. Cinco
-  comandos y el lugar donde buscar el propio vpm.
+  El tiempo de ejecución de Docker, que ejecuta los servicios de la plataforma
+  CE. Cinco comandos y el lugar donde buscar el propio vpm.
 sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Docker ejecuta los servicios de plataforma. Las cargas de trabajo de Kubernetes se encuentran en
+Docker ejecuta los servicios de la plataforma. Las cargas de trabajo de Kubernetes se encuentran bajo
 [CRI-O](../crictl/).
 
 ## `docker-ps`
@@ -25,9 +25,9 @@ Docker ejecuta los servicios de plataforma. Las cargas de trabajo de Kubernetes 
 ```text file=../../../../_data/sitecli-docker-ps.txt
 ```
 
-<Aside type="tip" title="Tres contenedores es la lista completa, no un nodo roto">
+<Aside type="tip" title="Tres contenedores es la lista completa, no un nodo defectuoso">
 `vpm`, `argo_watch` y `site-console`. Dado que la mayor parte del nodo se ejecuta bajo CRI-O, un
-`docker-ps` corto parece un fallo si se esperan cargas de trabajo de Kubernetes
+`docker-ps` breve puede parecer un fallo si se esperan cargas de trabajo de Kubernetes
 aquí. No lo es — este es el conjunto completo de contenedores Docker en un CE saludable, y
 que `vpm` esté presente y en estado `Up` es la línea más importante de la página.
 </Aside>
@@ -41,7 +41,7 @@ que `vpm` esté presente y en estado `Up` es la línea más importante de la pá
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-Incluye contenedores detenidos, por lo que un `vpm` que se reinicia constantemente deja evidencia aquí.
+Incluye los contenedores que han finalizado, por lo que un `vpm` que sigue interrumpiéndose deja evidencia aquí.
 
 ## `docker-images`
 
@@ -52,7 +52,7 @@ Incluye contenedores detenidos, por lo que un `vpm` que se reinicia constantemen
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-Las etiquetas de imagen identifican la versión de plataforma que el nodo está ejecutando realmente, lo cual
+Las etiquetas de imagen identifican la versión de la plataforma que el nodo está ejecutando realmente, lo cual
 vale la pena comparar con la compilación de software reportada por [`health`](../health/).
 
 ## `docker-inspect`
@@ -64,8 +64,8 @@ vale la pena comparar con la compilación de software reportada por [`health`](.
 ```text file=../../../../_data/sitecli-docker-inspect.txt
 ```
 
-Acepta tanto un nombre como un id, por lo que `docker-inspect vpm` funciona y es estable entre
-reinicios. JSON completo: montajes, variables de entorno, política de reinicio y el estado de salida.
+Acepta tanto un nombre como un identificador, por lo que `docker-inspect vpm` funciona y es estable entre
+reinicios. JSON completo: montajes, entorno, política de reinicio y el estado de salida.
 
 ## `docker-logs`
 
@@ -76,6 +76,28 @@ reinicios. JSON completo: montajes, variables de entorno, política de reinicio 
 ```text file=../../../../_data/sitecli-docker-logs.txt
 ```
 
-`docker-logs vpm` es la ruta más rápida hacia los errores de registro. Para obtener la misma
+`docker-logs vpm` es la ruta más rápida para acceder a errores de registro. Para obtener la misma
 información con marcas de tiempo y entre reinicios, utilice
 [`journalctl`](../journalctl/) en su lugar.
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+Elimina todos los objetos Docker en desuso: contenedores detenidos, redes sin usar, imágenes huérfanas y
+caché de compilación.
+
+**Solo desde el equipo.** `docker-prune` no está disponible en la API de depuración; requiere
+[`execcli`](../../on-box/).
+
+<Aside type="danger" title="Destructivo y no registrado aquí">
+Este comando elimina estado. Está en la lista de rechazo del arnés de recolección y nunca fue ejecutado, por lo que esta
+página lo documenta a partir de los metadatos del catálogo del propio appliance en lugar de mostrar una salida.
+
+La advertencia específica para CE: este nodo ejecuta **dos** tiempos de ejecución de contenedores. `docker-prune` afecta
+únicamente al lado de Docker — `vpm`, `argo_watch` y `site-console` — y no puede alcanzar las
+cargas de trabajo de Kubernetes bajo [CRI-O](../crictl/). Para recuperar espacio en el lado de CRI-O se utiliza un
+comando diferente, `systemctl-start-crio-prune`, que no está disponible en esta compilación.
+</Aside>
