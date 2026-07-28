@@ -52,3 +52,18 @@ output "rs_asn" {
   description = "Route Server ASN (fixed by Azure at 65515)."
   value       = azurerm_route_server.this.virtual_router_asn
 }
+
+output "bastion_name" {
+  description = "Azure Bastion host name, or null when Bastion is not deployed. This is the --name argument of `az network bastion tunnel`."
+  value       = one(azurerm_bastion_host.this[*].name)
+}
+
+output "bastion_subnet_id" {
+  description = "AzureBastionSubnet subnet ID, or null when Bastion is not deployed."
+  value       = one(azurerm_subnet.bastion[*].id)
+}
+
+output "bastion_subnet_prefix" {
+  description = "The AzureBastionSubnet prefix this module was given (echoed so callers can assert on it without reading a count-gated resource)."
+  value       = var.bastion_subnet_prefix
+}

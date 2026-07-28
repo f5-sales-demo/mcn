@@ -39,6 +39,23 @@ variable "route_server_name" {
   default     = "ce-ha-lab-rrs"
 }
 
+variable "bastion_subnet_prefix" {
+  description = "AzureBastionSubnet prefix (/26 or larger, named literally AzureBastionSubnet, no NSG and no route table). Only read when enable_bastion is true."
+  type        = string
+}
+
+variable "enable_bastion" {
+  description = "Deploy Azure Bastion (AzureBastionSubnet + public IP + Standard-SKU host) so the CE Site Console web UI on TCP 65500 is reachable without a jump host. Opt-in: Bastion bills hourly whether or not anyone connects."
+  type        = bool
+  default     = false
+}
+
+variable "bastion_name" {
+  description = "Azure Bastion host name (the --name argument of `az network bastion tunnel`)."
+  type        = string
+  default     = "ce-ha-lab-bastion"
+}
+
 variable "tags" {
   description = "Tags applied to every resource."
   type        = map(string)
