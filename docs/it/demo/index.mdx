@@ -1,0 +1,117 @@
+---
+title: Demo CE-HA di rete multi-cloud
+description: >-
+  Cosa distribuisce questo repository — N Customer Edge a nodo singolo che
+  originano un unico VIP via eBGP verso un Azure Route Server per il multipath a
+  costo uguale, senza alcun load balancer Azure davanti a essi — cosa la demo
+  intende dimostrare e dove andare per distribuirla, verificarne lo stato di
+  salute e presentarla.
+sidebar:
+  order: 5
+  label: Demo
+i18n:
+  sourceHash: 924839aeeaf6
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Questa distribuzione dimostra l'**alta disponibilità attiva/attiva dei Customer Edge in Azure**
+senza alcun load balancer Azure davanti ai CE. Ogni CE origina la stessa route host via
+eBGP e l'Azure Route Server li installa tutti come next hop a costo uguale nella VNet.
+È quindi il tessuto di routing, e non un load balancer, il punto in cui devono avvenire la
+distribuzione del traffico e la rimozione dei nodi guasti.
+
+Tutto ciò che si trova in queste pagine è stato eseguito sulla distribuzione live e l'output
+mostrato è l'output che essa ha prodotto. Ciò che quella frase *non* copre — il failover e il
+modo in cui il traffico si suddivide tra i next hop — è indicato esplicitamente anziché essere
+lasciato a supposizioni.
+
+## Cosa distribuisce
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| Elemento | Di cosa si tratta |
+| --- | --- |
+| Tenant F5 Distributed Cloud | `var.expected_xc_tenant` — l'unico punto in cui il tenant viene nominato |
+| Namespace | i siti CE in `system`; origin pool e load balancer in `var.xc_app_namespace` |
+| Customer Edge | `var.ce_count` siti Secure Mesh v2 a nodo singolo, da 1 a 3, uno per zona di disponibilità |
+| Software CE | fissato da `var.ce_sw_version` / `var.ce_os_version` |
+| VM Azure | tre NIC ciascuna — management/SLO, esterna, interna/SLI |
+| Scambio di route | un Azure Route Server, ASN `var.rs_asn`, due indirizzi di istanza |
+| Peering | uno per CE, denominato `<key>-bgp`, ASN CE `var.ce_asn` |
+| VIP annunciato | `var.vip` come `/32`, originato in modo identico da ogni CE |
+| Load balancer | serve `var.lb_domain`, supportato da un origin pool su `var.origin_ip` |
+| Client di test | una VM all'interno della stessa VNet, per generare traffico verso il VIP |
+
+Nulla di quanto sopra è un valore letterale da copiare. Ogni valore è leggibile dalla
+distribuzione e ogni pagina lo legge anziché nominarlo:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="Il VIP deve trovarsi fuori da ogni CIDR della VNet">
+`terraform/main.tf` contiene un blocco `check` che verifica che il VIP sia esterno sia al CIDR
+hub sia a quello spoke e rifiuta il plan in caso contrario. La motivazione dichiarata è che un
+VIP interno a un CIDR della VNet perde contro la route di sistema della VNet stessa, nonostante
+la route BGP sia più specifica.
+
+Considerate il controllo come il contratto: se ripuntate questa demo su un indirizzamento
+diverso, il VIP deve spostarsi di conseguenza fuori dagli intervalli della VNet.
+</Aside>
+
+<Aside type="note" title="Osservato il 28-07-2026: gli oggetti live mantengono ancora nomi provvisori">
+I nomi degli oggetti derivano da `var.component`, quindi una distribuzione non fissata crea
+`<component>-<region>01`, `<component>-f5se`, `<component>-pool`, `<component>-rs` e
+`<component>-bastion`. La demo attualmente in esecuzione precede questa convenzione e mantiene
+i nomi originali, fissati in un `terraform.tfvars` locale affinché nulla venga sostituito mentre
+l'ambiente è in uso.
+
+Per questo motivo l'output reale dei comandi in queste pagine mostra nomi che non corrispondono
+allo schema riportato sopra. Adottare i nomi derivati sostituisce ogni VM CE, perché il nome del
+sito è il `ClusterName` incorporato in cloud-init e cloud-init viene eseguito soltanto al primo
+avvio — si tratta quindi di una ricostruzione deliberata, tracciata nella
+[issue 700](https://github.com/f5-sales-demo/mcn/issues/700), non di una ridenominazione.
+</Aside>
+
+## Dove andare adesso
+
+<CardGrid>
+  <LinkCard
+    title="Distribuirla"
+    description="Prerequisiti, i due valori che dovete fornire, perché il primo apply è in due fasi e come smantellare tutto."
+    href="./deploy/"
+  />
+  <LinkCard
+    title="Il Terraform"
+    description="La configurazione stessa, letta dai file che la distribuiscono anziché ridigitata."
+    href="./terraform/"
+  />
+  <LinkCard
+    title="Verificarne lo stato di salute"
+    description="Quattro controlli in ordine e i risultati apparentemente normali che sembrano un'interruzione ma non lo sono."
+    href="./verify/"
+  />
+  <LinkCard
+    title="Presentarla"
+    description="Cosa questa demo può mostrare, cosa non può ancora mostrare e l'unico comando che rende visibile l'ECMP."
+    href="./present/"
+  />
+</CardGrid>

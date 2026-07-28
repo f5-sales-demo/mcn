@@ -1,29 +1,32 @@
 ---
 title: 從未上線的站點
-description: 針對註冊失敗的 CE 的有序操作流程；由於偵錯 API 依賴的正是失敗的註冊程序，因此在此情境下無法提供協助。
+description: 針對註冊失敗的 CE 所設計的排序流程；由於除錯 API 依賴於失敗的註冊程序，因此無法提供協助。
 sidebar:
   order: 10
   label: 註冊
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: 0bec51f79119
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-<Aside type="danger" title="API 無法偵錯此問題">
-偵錯 API 是透過 F5 Distributed Cloud 控制平面、經由註冊所建立的通道抵達節點。
-若註冊失敗，就沒有通道存在，因此本站台上的所有指令對於此特定故障皆無法使用。
-若節點仍具備網路路徑，請改用
-[Site Console](../../access/site-console/)；若沒有網路路徑，則使用
-[序列主控台](../../access/serial-console/)。
+擷取自此部署的其中一個 CE，時間為 2026-07-28。`sitecli/capture-manifest.json`
+記錄了擷取來源節點，而 `scripts/capture-sitecli.sh --check` 會針對運作中的 CE
+重新驗證命令介面。
+
+<Aside type="danger" title="API 無法除錯此問題">
+除錯 API 透過 F5 Distributed Cloud 控制平面連上節點，而該連線走的是註冊程序所建立的
+通道。若註冊失敗就沒有通道，因此本站的每一個命令在此特定故障情境下都不可用。
+若節點仍有網路路徑，請改用 [Site Console](../../access/site-console/) 作業；
+若沒有，則從 [序列主控台](../../access/serial-console/) 著手。
 </Aside>
 
 <Steps>
 
-1. **確認你查詢的租戶正確。** 這只需要一個指令，而且排在最前面，因為一旦弄錯，
-   後續每個步驟都會給你錯誤的資訊：你沒在看的那個租戶裡有一支健康的機群，
-   與一支從未註冊的機群在表象上毫無區別。
+1. **確認你查詢的租戶正確。** 這只需一個命令，而且排在第一位，因為一旦弄錯，
+   後面每個步驟都會給你錯誤的訊息：位於你沒有查看的那個租戶中的健康機群，
+   與從未註冊成功的機群看起來毫無差別。
 
    ```bash
    cd terraform
@@ -36,11 +39,11 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    f5-sales-demo
    ```
 
-   兩者不一致，或你認為有效的憑證卻回傳單純的 `401`？這正是為其他租戶簽發的
-   權杖所造成的症狀，而它已經讓這個部署付出一次完整重建的代價
+   兩者不一致？或是你認為有效的憑證卻只回傳一個空的 `401`？那正是為其他租戶
+   簽發的權杖所呈現的症狀，而這已經讓此部署付出一次完整重建的代價
    （[issue 696](https://github.com/f5-sales-demo/mcn/issues/696)）。
 
-2. **確認租戶的認知。** 從站點清單中缺席，與存在但狀態不是 `ONLINE`，
+2. **確認租戶端的認知。** 從站點清單中「不存在」，與「存在但狀態不是 `ONLINE`」
    是兩種不同的問題。
 
    ```bash
@@ -50,7 +53,7 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
    若站點存在且回報 `ONLINE`，表示註冊已成功，你走錯了流程。
 
-3. **找出站點的註冊記錄及其狀態。** 節點可能已註冊但仍在等待核准，
+3. **找出站點的註冊記錄及其狀態。** 節點可能已完成註冊但仍在等待核准，
    從外部看起來與失敗完全相同。
 
    ```bash
@@ -63,11 +66,11 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
    ```
 
-   完全沒有項目表示節點尚未註冊 — 請前往序列主控台。若有項目但狀態不是
-   `ONLINE`，表示它已完成註冊，而是之後的某個環節失敗了，那是另一種調查方向。
+   完全沒有任何項目表示節點尚未註冊——請前往序列主控台。若項目的狀態不是
+   `ONLINE`，表示它已完成註冊，而是註冊之後的某個環節失敗，那是另一項調查。
 
    若要掃描整個命名空間中所有等待核准的項目，`listregistrationsbystate`
-   將狀態作為 **`POST` 主體** 傳入：
+   會以 **`POST` 主體**的形式接收狀態值：
 
    ```bash
    curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -76,9 +79,9 @@ import { Aside, Steps } from "@astrojs/starlight/components";
      "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
    ```
 
-   在健康的機群上這不會回傳任何內容，因為核准是自動化的。
+   在健康的機群上，這會不回傳任何內容，因為核准已自動化。
 
-4. **確認 VM 確實正在執行**，再假設是軟體故障之前。
+4. **確認虛擬機確實在執行中**，別急著假設是軟體故障。
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
@@ -93,44 +96,44 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    f5-xc-ce-vm-03  VM running
    ```
 
-5. **連接序列主控台。** 互動式操作需要真正的終端機；連接本身也可以透過
-   websocket 以腳本方式進行 — 請參閱
+5. **連接序列主控台。** 互動式操作需要一個真正的終端機；連接動作本身也可以
+   改用 websocket 以指令稿執行——請參閱
    [序列主控台](../../access/serial-console/)。
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   若被拒絕，在斷定節點無法連線之前，請先檢查該 VM 是否已啟用開機診斷；
-   該先決條件及其失敗模式在
-   [序列主控台](../../access/serial-console/) 頁面中有說明。
+   若被拒絕，在斷定節點無法連線之前，請先檢查該虛擬機是否已啟用開機診斷；
+   該前置條件及其失敗模式記載於
+   [序列主控台](../../access/serial-console/) 頁面。
 
-6. **依此順序讀取主控台顯示的內容。** 先看 cloud-init — cloud-init 從未完成的節點
-   沒有任何組態可用來註冊。接著是註冊嘗試本身，然後是 DNS：若節點無法解析
+6. **依此順序閱讀主控台顯示的內容。** 先看 cloud-init——cloud-init 從未完成的節點
+   沒有任何設定可用於註冊。接著看註冊嘗試本身，然後是 DNS：若節點無法解析
    `register.ves.volterra.io`，後續一切都不可能運作。
 
-7. **一旦節點狀態為 `ONLINE`**，請以 [`health`](../../commands/system/health/) 驗證，
+7. **當節點變為 `ONLINE` 後**，以 [`health`](../../commands/system/health/) 驗證，
    並預期看到 `state: PROVISIONED`。
 
 </Steps>
 
 <Aside type="caution" title="註冊記錄以 UUID 命名，絕不會以其站點命名">
-註冊記錄的名稱格式為 `r-<uuid>`，且沒有任何端點會在應該接收註冊名稱的位置接受站點名稱。
-`GET .../registrations/<site>` 會回傳 `404`，看起來像是「這個站點沒有註冊記錄」，
-但實際上是「那不是一個註冊名稱」。站點與註冊記錄的對應關係只能透過
-`registrations_by_site/<site>` 取得（如步驟 3），或列出
+註冊記錄的名稱格式為 `r-<uuid>`，而且沒有任何端點會在應該填入註冊名稱的位置接受站點名稱。
+`GET .../registrations/<site>` 會回傳 `404`，讀起來像是「此站點沒有註冊記錄」，
+實際意思卻是「那不是一個註冊名稱」。站點與註冊記錄的對應關係只能透過
+`registrations_by_site/<site>` 取得（如步驟 3 所示），或是列出
 `registrations` 並比對 `gc_spec.passport.cluster_name`。
 
-同一個陷阱曾讓一支健康的機群看起來像是完全沒有註冊記錄。
+同一個陷阱曾讓一個健康的機群看起來像是完全沒有註冊記錄。
 </Aside>
 
 ## 常見原因
 
-- **你指向了錯誤的租戶**，因此一支正常的機群看起來像不存在。見步驟 1。
-- cloud-init 未完成，因此 `/etc/vpm/config.yaml` 缺失或內容錯誤。
-- 註冊權杖已過期、已被使用，或來自其他租戶。
+- **你指向了錯誤的租戶**，因此一個運作正常的機群看起來像是不存在。見步驟 1。
+- cloud-init 未完成，因此 `/etc/vpm/config.yaml` 不存在或內容錯誤。
+- 註冊權杖已過期、已被使用，或屬於其他租戶。
 - 沒有通往 `register.ves.volterra.io` 的出向路由。
-- 時鐘偏移大到足以使憑證失效 — 之後可用
-  [`chronyc-sources`](../../commands/network/chronyc-sources/) 快速排除，
-  但在節點上線之前無法存取。當 SSH 可用時，[SSH](../../access/ssh/) 登入橫幅
-  會在你執行任何指令之前先回報 `NTP: Synced` 以及解析器的狀態。
+- 時鐘偏移大到足以使憑證失效——之後可用
+  [`chronyc-sources`](../../commands/network/chronyc-sources/) 快速排除，但在節點
+  上線前無法執行。當 SSH 可用時，[SSH](../../access/ssh/) 登入橫幅會在你執行任何命令
+  之前回報 `NTP: Synced` 以及解析器的狀態。

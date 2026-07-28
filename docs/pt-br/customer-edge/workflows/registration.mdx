@@ -7,24 +7,28 @@ sidebar:
   order: 10
   label: Registro
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: 0bec51f79119
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-<Aside type="danger" title="A API não pode depurar isso">
+Capturado em 28/07/2026 de um CE deste deployment. `sitecli/capture-manifest.json`
+registra qual nó, e `scripts/capture-sitecli.sh --check` reverifica a superfície de
+comandos contra um CE ativo.
+
+<Aside type="danger" title="A API não pode depurar isto">
 A API de depuração alcança o nó através do control plane do F5 Distributed Cloud, pelo
-túnel que o registro estabelece. Se o registro falhou, não há túnel,
-portanto todos os comandos deste site ficam indisponíveis para exatamente essa falha. Trabalhe a partir do
-[Site Console](../../access/site-console/) se o nó ainda tiver um caminho de rede, e a partir do
+túnel que o registro estabelece. Se o registro falhou não existe túnel,
+portanto todos os comandos deste site ficam indisponíveis exatamente para esta falha. Trabalhe a partir do
+[Site Console](../../access/site-console/) se o nó ainda tiver um caminho de rede, e do
 [console serial](../../access/serial-console/) se não tiver.
 </Aside>
 
 <Steps>
 
 1. **Confirme que você está consultando o tenant correto.** Isso custa um comando e vem
-   primeiro porque errar isso faz com que todas as etapas seguintes mintam para você: uma frota saudável no tenant
+   primeiro porque errar nesse ponto faz com que todos os passos seguintes mintam para você: uma frota saudável no tenant
    que você não está olhando é indistinguível de uma frota que nunca se registrou.
 
    ```bash
@@ -42,7 +46,7 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
    sintoma de um token emitido para outro tenant, e isso já custou a este deployment uma
    reconstrução completa ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
 
-2. **Confirme o que o tenant acredita.** Ausente da lista de sites é um problema
+2. **Confirme o que o tenant pensa.** Ausente da lista de sites é um problema
    diferente de presente mas não `ONLINE`.
 
    ```bash
@@ -97,24 +101,24 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
    f5-xc-ce-vm-03  VM running
    ```
 
-5. **Conecte-se ao console serial.** De forma interativa isso exige um terminal real; a própria
-   conexão pode ser automatizada via websocket — veja
+5. **Conecte-se ao console serial.** De forma interativa isso requer um terminal real; a própria
+   conexão pode ser feita via script sobre o websocket — veja
    [console serial](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   Se recusar, verifique se o boot diagnostics está habilitado na VM antes de concluir que o
-   nó está inacessível; esse pré-requisito e seus modos de falha estão descritos na página do
+   Se recusar, verifique se o diagnóstico de boot está habilitado na VM antes de concluir que o
+   nó está inacessível; esse pré-requisito e seus modos de falha estão cobertos na página do
    [console serial](../../access/serial-console/).
 
 6. **Leia o que o console mostra, nesta ordem.** cloud-init primeiro — um nó cujo
    cloud-init nunca foi concluído não tem configuração com a qual se registrar. Depois as
-   próprias tentativas de registro, então o DNS: se o nó não conseguir resolver
+   próprias tentativas de registro, então o DNS: se o nó não consegue resolver
    `register.ves.volterra.io`, nada a jusante pode funcionar.
 
-7. **Quando o nó estiver `ONLINE`**, verifique com [`health`](../../commands/system/health/)
+7. **Uma vez que o nó esteja `ONLINE`**, verifique com [`health`](../../commands/system/health/)
    e espere `state: PROVISIONED`.
 
 </Steps>
@@ -123,20 +127,20 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
 Registros são nomeados `r-<uuid>`, e não existe endpoint que aceite um nome de site onde um
 nome de registro é esperado.
 `GET .../registrations/<site>` retorna `404`, o que se lê como "este site não tem
-registro" e na verdade é "esse não é um nome de registro". O mapeamento de site para registro
-só vem de `registrations_by_site/<site>`, como na etapa 3, ou listando
-`registrations` e correspondendo por `gc_spec.passport.cluster_name`.
+registro" e na verdade é "esse não é um nome de registro". O mapeamento site-para-registro
+vem apenas de `registrations_by_site/<site>`, como no passo 3, ou listando
+`registrations` e casando por `gc_spec.passport.cluster_name`.
 
-Essa mesma armadilha fez parecer que uma frota saudável tinha zero registros.
+A mesma armadilha fez parecer que uma frota saudável tinha zero registros.
 </Aside>
 
-## As causas habituais
+## As causas usuais
 
-- **Você está apontado para o tenant errado**, então uma frota que está bem parece ausente. Etapa 1.
+- **Você está apontado para o tenant errado**, então uma frota que está bem parece ausente. Passo 1.
 - O cloud-init não foi concluído, então `/etc/vpm/config.yaml` está ausente ou incorreto.
 - O token de registro está expirado, já consumido, ou é de outro tenant.
 - Nenhuma rota de saída para `register.ves.volterra.io`.
 - Desvio de relógio grande o suficiente para invalidar certificados — rápido de descartar depois com
-  [`chronyc-sources`](../../commands/network/chronyc-sources/), mas não acessível
-  até que o nó esteja online. O banner de login por [SSH](../../access/ssh/) reporta `NTP: Synced`
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), mas inacessível
+  até que o nó esteja online. O banner de login do [SSH](../../access/ssh/) reporta `NTP: Synced`
   e o status do resolver antes de você executar qualquer coisa, quando o SSH está disponível.

@@ -1,32 +1,36 @@
 ---
-title: 'Ein Standort, der nie online ging'
+title: 'Ein Standort, der niemals online ging'
 description: >-
   Geordnete Abfolge für eine CE, deren Registrierung fehlgeschlagen ist, wobei
-  die Debug-API nicht helfen kann, weil sie von der fehlgeschlagenen
-  Registrierung abhängt.
+  die Debug-API nicht helfen kann, da sie von der fehlgeschlagenen Registrierung
+  abhängt.
 sidebar:
   order: 10
   label: Registrierung
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: 0bec51f79119
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
+Erfasst am 28.07.2026 von einer CE dieser Bereitstellung. `sitecli/capture-manifest.json`
+dokumentiert, welcher Knoten betroffen ist, und `scripts/capture-sitecli.sh --check` verifiziert
+die Befehlsoberfläche erneut gegen eine laufende CE.
+
 <Aside type="danger" title="Die API kann dies nicht debuggen">
-Die Debug-API erreicht den Knoten über die Steuerungsebene von F5 Distributed Cloud, über
-den Tunnel, den die Registrierung aufbaut. Wenn die Registrierung fehlgeschlagen ist, gibt es keinen Tunnel,
-sodass jeder Befehl auf dieser Seite für genau diesen Fehlerfall nicht verfügbar ist. Arbeiten Sie von
-der [Standortkonsole](../../access/site-console/) aus, wenn der Knoten noch über einen Netzwerkpfad verfügt, und von
-der [seriellen Konsole](../../access/serial-console/) aus, wenn dies nicht der Fall ist.
+Die Debug-API erreicht den Knoten über die F5 Distributed Cloud Control Plane, und zwar über
+den Tunnel, den die Registrierung aufbaut. Ist die Registrierung fehlgeschlagen, existiert kein Tunnel,
+sodass jeder Befehl auf diesem Standort für genau diesen Fehlerfall nicht verfügbar ist. Arbeiten Sie über die
+[Standort-Konsole](../../access/site-console/), wenn der Knoten noch einen Netzwerkpfad besitzt, und über die
+[serielle Konsole](../../access/serial-console/), wenn dies nicht der Fall ist.
 </Aside>
 
 <Steps>
 
-1. **Vergewissern Sie sich, dass Sie den richtigen Mandanten abfragen.** Das kostet einen Befehl und steht an erster Stelle,
-   weil ein Fehler hier jeden späteren Schritt verfälscht: Eine gesunde Flotte in dem Mandanten,
-   den Sie gerade nicht betrachten, ist nicht von einer Flotte zu unterscheiden, die sich nie registriert hat.
+1. **Stellen Sie sicher, dass Sie den richtigen Tenant abfragen.** Das kostet einen Befehl und steht an erster
+   Stelle, weil ein Fehler hier alle späteren Schritte verfälscht: eine gesunde Flotte in dem Tenant,
+   den Sie nicht betrachten, ist von einer Flotte, die sich niemals registriert hat, nicht zu unterscheiden.
 
    ```bash
    cd terraform
@@ -39,23 +43,23 @@ der [seriellen Konsole](../../access/serial-console/) aus, wenn dies nicht der F
    f5-sales-demo
    ```
 
-   Stimmen sie nicht überein, oder liefert eine Anmeldeinformation, die Sie für gültig halten, ein blankes `401`? Das ist das
-   Symptom eines Tokens, das für einen anderen Mandanten ausgestellt wurde, und es hat diese Bereitstellung bereits einen
+   Stimmen sie nicht überein, oder liefert eine Anmeldeinformation, die Sie für korrekt halten, ein bloßes `401`? Das ist das
+   Symptom eines Tokens, das für einen anderen Tenant ausgestellt wurde, und es hat diese Bereitstellung schon einen
    vollständigen Neuaufbau gekostet ([Issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
 
-2. **Prüfen Sie, was der Mandant meint.** In der Standortliste zu fehlen ist ein anderes
-   Problem, als vorhanden, aber nicht `ONLINE` zu sein.
+2. **Prüfen Sie, was der Tenant meint.** In der Standortliste zu fehlen, ist ein anderes
+   Problem als vorhanden zu sein, aber nicht `ONLINE`.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
      "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
    ```
 
-   Wenn der Standort existiert und `ONLINE` meldet, war die Registrierung erfolgreich und Sie befinden sich im
+   Existiert der Standort und meldet `ONLINE`, war die Registrierung erfolgreich und Sie befinden sich im
    falschen Arbeitsablauf.
 
 3. **Finden Sie die Registrierung des Standorts und deren Zustand.** Ein Knoten kann sich registrieren und dann auf
-   Genehmigung warten, was von außen identisch mit einem Fehlschlag aussieht.
+   Genehmigung warten, was von außen betrachtet identisch mit einem Fehler aussieht.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -68,10 +72,10 @@ der [seriellen Konsole](../../access/serial-console/) aus, wenn dies nicht der F
    ```
 
    Überhaupt keine Einträge bedeutet, dass sich der Knoten noch nicht registriert hat — gehen Sie zur seriellen Konsole. Ein Eintrag
-   in einem anderen Zustand als `ONLINE` bedeutet, dass er sich registriert hat und danach etwas fehlgeschlagen ist, was
+   in einem anderen Zustand als `ONLINE` bedeutet, dass er sich registriert hat und etwas danach fehlgeschlagen ist, was
    eine andere Untersuchung erfordert.
 
-   Um den gesamten Namensraum nach allem zu durchsuchen, was auf Genehmigung wartet, erwartet `listregistrationsbystate`
+   Um den gesamten Namespace nach allem zu durchsuchen, das auf Genehmigung wartet, erwartet `listregistrationsbystate`
    den Zustand als **`POST`-Body**:
 
    ```bash
@@ -81,9 +85,9 @@ der [seriellen Konsole](../../access/serial-console/) aus, wenn dies nicht der F
      "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
    ```
 
-   Bei einer gesunden Flotte liefert das nichts zurück, weil die Genehmigung automatisiert erfolgt.
+   In einer gesunden Flotte liefert das nichts zurück, weil die Genehmigung automatisiert erfolgt.
 
-4. **Vergewissern Sie sich, dass die VM tatsächlich läuft**, bevor Sie einen Softwarefehler annehmen.
+4. **Prüfen Sie, ob die VM tatsächlich läuft**, bevor Sie einen Softwarefehler annehmen.
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
@@ -98,46 +102,46 @@ der [seriellen Konsole](../../access/serial-console/) aus, wenn dies nicht der F
    f5-xc-ce-vm-03  VM running
    ```
 
-5. **Verbinden Sie sich mit der seriellen Konsole.** Interaktiv erfordert dies ein echtes Terminal; die Verbindung
-   selbst lässt sich stattdessen über das WebSocket skripten — siehe
+5. **Verbinden Sie sich mit der seriellen Konsole.** Interaktiv benötigt dies ein echtes Terminal; die Verbindung
+   selbst kann stattdessen über das WebSocket skriptgesteuert erfolgen — siehe
    [serielle Konsole](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   Wird die Verbindung verweigert, prüfen Sie, ob die Startdiagnose auf der VM aktiviert ist, bevor Sie schließen,
-   dass der Knoten nicht erreichbar ist; diese Voraussetzung und ihre Fehlerfälle werden auf der Seite
+   Wird dies abgelehnt, prüfen Sie, ob die Boot-Diagnose auf der VM aktiviert ist, bevor Sie schlussfolgern, dass der
+   Knoten nicht erreichbar ist; diese Voraussetzung und ihre Fehlerbilder werden auf der Seite
    [serielle Konsole](../../access/serial-console/) behandelt.
 
-6. **Lesen Sie, was die Konsole anzeigt, in dieser Reihenfolge.** Zuerst cloud-init — ein Knoten, dessen
+6. **Lesen Sie in dieser Reihenfolge, was die Konsole anzeigt.** Zuerst cloud-init — ein Knoten, dessen
    cloud-init nie abgeschlossen wurde, hat keine Konfiguration, mit der er sich registrieren könnte. Dann die
-   Registrierungsversuche selbst, danach DNS: Wenn der Knoten
-   `register.ves.volterra.io` nicht auflösen kann, kann nichts Nachgelagertes funktionieren.
+   Registrierungsversuche selbst, dann DNS: kann der Knoten
+   `register.ves.volterra.io` nicht auflösen, kann nichts Nachgelagertes funktionieren.
 
 7. **Sobald der Knoten `ONLINE` ist**, verifizieren Sie mit [`health`](../../commands/system/health/)
-   und erwarten Sie `state: PROVISIONED`.
+   und erwarten `state: PROVISIONED`.
 
 </Steps>
 
 <Aside type="caution" title="Eine Registrierung ist nach einer UUID benannt, niemals nach ihrem Standort">
-Registrierungen heißen `r-<uuid>`, und es gibt keinen Endpunkt, der einen Standortnamen dort akzeptiert, wo ein
+Registrierungen werden `r-<uuid>` benannt, und es gibt keinen Endpunkt, der einen Standortnamen dort akzeptiert, wo ein
 Registrierungsname erwartet wird.
-`GET .../registrations/<site>` gibt `404` zurück, was sich liest wie „dieser Standort hat keine
-Registrierung“ und in Wirklichkeit „das ist kein Registrierungsname“ bedeutet. Die Zuordnung von Standort zu Registrierung
-ergibt sich ausschließlich aus `registrations_by_site/<site>`, wie in Schritt 3, oder durch Auflisten von
-`registrations` und Abgleich über `gc_spec.passport.cluster_name`.
+`GET .../registrations/<site>` liefert `404`, was sich wie „dieser Standort hat keine
+Registrierung“ liest, in Wirklichkeit aber „das ist kein Registrierungsname“ bedeutet. Die Zuordnung von Standort zu Registrierung
+ergibt sich nur aus `registrations_by_site/<site>`, wie in Schritt 3, oder durch das Auflisten von
+`registrations` und den Abgleich über `gc_spec.passport.cluster_name`.
 
 Dieselbe Falle ließ es so aussehen, als hätte eine gesunde Flotte null Registrierungen.
 </Aside>
 
 ## Die üblichen Ursachen
 
-- **Sie sind auf den falschen Mandanten ausgerichtet**, sodass eine intakte Flotte abwesend erscheint. Schritt 1.
-- cloud-init wurde nicht abgeschlossen, sodass `/etc/vpm/config.yaml` fehlt oder fehlerhaft ist.
-- Das Registrierungstoken ist abgelaufen, bereits verbraucht oder stammt von einem anderen Mandanten.
-- Keine ausgehende Route zu `register.ves.volterra.io`.
-- Zeitabweichung, die groß genug ist, um Zertifikate ungültig zu machen — später schnell mit
-  [`chronyc-sources`](../../commands/network/chronyc-sources/) auszuschließen, aber nicht erreichbar,
-  solange der Knoten nicht online ist. Das [SSH](../../access/ssh/)-Anmeldebanner meldet `NTP: Synced`
-  und den Status des Resolvers, bevor Sie irgendetwas ausführen, sofern SSH verfügbar ist.
+- **Sie sind auf den falschen Tenant ausgerichtet**, sodass eine intakte Flotte abwesend erscheint. Schritt 1.
+- cloud-init wurde nicht abgeschlossen, sodass `/etc/vpm/config.yaml` fehlt oder falsch ist.
+- Das Registrierungstoken ist abgelaufen, bereits verbraucht oder stammt aus einem anderen Tenant.
+- Keine Egress-Route zu `register.ves.volterra.io`.
+- Zeitabweichung, groß genug, um Zertifikate ungültig zu machen — später schnell auszuschließen mit
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), aber nicht erreichbar,
+  solange der Knoten nicht online ist. Das [SSH](../../access/ssh/)-Login-Banner meldet `NTP: Synced`
+  und den Status des Resolvers, noch bevor Sie irgendetwas ausführen, sofern SSH verfügbar ist.

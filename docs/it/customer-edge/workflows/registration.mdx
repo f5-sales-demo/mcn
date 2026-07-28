@@ -1,5 +1,5 @@
 ---
-title: Un sito che non è mai stato online
+title: Un sito che non è mai andato online
 description: >-
   Sequenza ordinata per un CE che non è riuscito a registrarsi, dove l'API di
   debug non può essere d'aiuto perché dipende dalla registrazione che è fallita.
@@ -7,24 +7,28 @@ sidebar:
   order: 10
   label: Registrazione
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: 0bec51f79119
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-<Aside type="danger" title="L'API non può eseguire il debug di questo caso">
+Acquisito il 2026-07-28 da un CE di questo deployment. `sitecli/capture-manifest.json`
+registra quale nodo, e `scripts/capture-sitecli.sh --check` ri-verifica la superficie
+dei comandi su un CE attivo.
+
+<Aside type="danger" title="L'API non può eseguire il debug di questo problema">
 L'API di debug raggiunge il nodo attraverso il control plane di F5 Distributed Cloud, tramite
-il tunnel che la registrazione stabilisce. Se la registrazione è fallita non esiste alcun tunnel,
-quindi ogni comando su questo sito non è disponibile per questo specifico guasto. Operare da
+il tunnel stabilito dalla registrazione. Se la registrazione è fallita non esiste alcun tunnel,
+quindi ogni comando su questo sito non è disponibile per esattamente questo tipo di guasto. Operare da
 [Site Console](../../access/site-console/) se il nodo dispone ancora di un percorso di rete, e dalla
-[console seriale](../../access/serial-console/) se non ne dispone.
+[console seriale](../../access/serial-console/) in caso contrario.
 </Aside>
 
 <Steps>
 
-1. **Verificare di interrogare il tenant corretto.** Costa un solo comando ed è al primo posto
-   perché sbagliare rende ingannevole ogni passaggio successivo: una flotta in salute nel tenant
+1. **Verificare di interrogare il tenant corretto.** Questo costa un solo comando ed è al primo
+   posto perché sbagliarlo fa mentire ogni passaggio successivo: una flotta sana nel tenant
    che non si sta osservando è indistinguibile da una flotta che non si è mai registrata.
 
    ```bash
@@ -38,11 +42,11 @@ quindi ogni comando su questo sito non è disponibile per questo specifico guast
    f5-sales-demo
    ```
 
-   Valori discordanti, oppure una credenziale che si ritiene valida che restituisce un semplice `401`? Questo è il
-   sintomo di un token generato per un altro tenant, e a questo deployment è già costato una
+   Valori non corrispondenti, oppure una credenziale che si ritiene valida che restituisce un semplice `401`? Questo è il
+   sintomo di un token emesso per un altro tenant, e a questo deployment è già costato una
    ricostruzione completa ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
 
-2. **Verificare che cosa risulta al tenant.** Assente dall'elenco dei siti è un problema
+2. **Verificare cosa ne pensa il tenant.** Assente dall'elenco dei siti è un problema
    diverso da presente ma non `ONLINE`.
 
    ```bash
@@ -50,11 +54,11 @@ quindi ogni comando su questo sito non è disponibile per questo specifico guast
      "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
    ```
 
-   Se il sito esiste e riporta `ONLINE`, la registrazione è andata a buon fine e ci si trova nel
+   Se il sito esiste e riporta `ONLINE`, la registrazione è riuscita e ci si trova nel
    workflow sbagliato.
 
 3. **Individuare la registrazione del sito e il suo stato.** Un nodo può registrarsi e poi attendere
-   l'approvazione, cosa che dall'esterno appare identica a un fallimento.
+   l'approvazione, cosa che dall'esterno appare identica a un guasto.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -66,8 +70,8 @@ quindi ogni comando su questo sito non è disponibile per questo specifico guast
    r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
    ```
 
-   L'assenza totale di elementi significa che il nodo non si è ancora registrato — passare alla console seriale. Un elemento
-   in uno stato diverso da `ONLINE` significa che si è registrato e che qualcosa è fallito successivamente, il che
+   L'assenza di elementi significa che il nodo non si è ancora registrato — passare alla console seriale. Un elemento
+   in uno stato diverso da `ONLINE` significa che si è registrato e che qualcosa dopo di ciò è fallito, il che
    costituisce un'indagine differente.
 
    Per esaminare l'intero namespace alla ricerca di qualsiasi elemento in attesa di approvazione, `listregistrationsbystate`
@@ -80,9 +84,9 @@ quindi ogni comando su questo sito non è disponibile per questo specifico guast
      "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
    ```
 
-   In una flotta in salute questo non restituisce nulla, perché l'approvazione è automatizzata.
+   Su una flotta sana questo non restituisce nulla, perché l'approvazione è automatizzata.
 
-4. **Verificare che la VM sia effettivamente in esecuzione**, prima di ipotizzare un guasto software.
+4. **Verificare che la VM sia effettivamente in esecuzione**, prima di presumere un guasto software.
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
@@ -97,21 +101,21 @@ quindi ogni comando su questo sito non è disponibile per questo specifico guast
    f5-xc-ce-vm-03  VM running
    ```
 
-5. **Collegarsi alla console seriale.** In modalità interattiva serve un terminale reale; il collegamento
-   in sé può essere invece automatizzato tramite websocket — vedere
+5. **Collegarsi alla console seriale.** In modalità interattiva è necessario un terminale reale; il collegamento
+   in sé può invece essere automatizzato tramite websocket — vedere
    [console seriale](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   Se il comando viene rifiutato, verificare che la diagnostica di avvio sia abilitata sulla VM prima di concludere che il
-   nodo è irraggiungibile; questo prerequisito e le sue modalità di errore sono trattati nella pagina
+   Se il collegamento viene rifiutato, verificare che la diagnostica di avvio sia abilitata sulla VM prima di concludere che il
+   nodo è irraggiungibile; tale prerequisito e le sue modalità di guasto sono trattati nella pagina
    [console seriale](../../access/serial-console/).
 
-6. **Leggere ciò che la console mostra, in quest'ordine.** Prima cloud-init — un nodo il cui
+6. **Leggere ciò che la console mostra, in questo ordine.** Prima cloud-init — un nodo il cui
    cloud-init non è mai stato completato non ha alcuna configurazione con cui registrarsi. Poi i
-   tentativi di registrazione stessi, quindi il DNS: se il nodo non riesce a risolvere
+   tentativi di registrazione stessi, poi il DNS: se il nodo non riesce a risolvere
    `register.ves.volterra.io`, nulla a valle può funzionare.
 
 7. **Una volta che il nodo è `ONLINE`**, verificare con [`health`](../../commands/system/health/)
@@ -120,23 +124,23 @@ quindi ogni comando su questo sito non è disponibile per questo specifico guast
 </Steps>
 
 <Aside type="caution" title="Una registrazione prende il nome da un UUID, mai dal suo sito">
-Le registrazioni sono denominate `r-<uuid>`, e non esiste alcun endpoint che accetti un nome di sito dove è
-previsto un nome di registrazione.
+Le registrazioni sono denominate `r-<uuid>` e non esiste alcun endpoint che accetti un nome di sito dove è
+atteso un nome di registrazione.
 `GET .../registrations/<site>` restituisce `404`, che si legge come "questo sito non ha alcuna
-registrazione" ma in realtà significa "quello non è un nome di registrazione". La corrispondenza tra sito e registrazione
-si ottiene solo da `registrations_by_site/<site>`, come nel passaggio 3, oppure elencando le
-`registrations` e cercando la corrispondenza su `gc_spec.passport.cluster_name`.
+registrazione" mentre in realtà significa "quello non è un nome di registrazione". La corrispondenza tra sito e registrazione
+si ottiene solo da `registrations_by_site/<site>`, come al passaggio 3, oppure elencando le
+`registrations` e confrontando `gc_spec.passport.cluster_name`.
 
-La stessa trappola ha fatto sembrare che una flotta in salute avesse zero registrazioni.
+La stessa trappola ha fatto sembrare che una flotta sana avesse zero registrazioni.
 </Aside>
 
 ## Le cause più comuni
 
-- **Si sta puntando al tenant sbagliato**, quindi una flotta che funziona correttamente sembra assente. Passaggio 1.
+- **Si sta puntando al tenant sbagliato**, quindi una flotta che sta bene appare assente. Passaggio 1.
 - cloud-init non è stato completato, quindi `/etc/vpm/config.yaml` è assente o errato.
-- Il token di registrazione è scaduto, già utilizzato oppure appartiene a un altro tenant.
+- Il token di registrazione è scaduto, già consumato o proveniente da un altro tenant.
 - Nessuna rotta in uscita verso `register.ves.volterra.io`.
-- Uno scostamento dell'orologio abbastanza ampio da invalidare i certificati — rapido da escludere successivamente con
+- Scostamento dell'orologio abbastanza grande da invalidare i certificati — facile da escludere successivamente con
   [`chronyc-sources`](../../commands/network/chronyc-sources/), ma non raggiungibile
-  fino a quando il nodo non è online. Il banner di accesso [SSH](../../access/ssh/) riporta `NTP: Synced`
+  finché il nodo non è online. Il banner di accesso [SSH](../../access/ssh/) riporta `NTP: Synced`
   e lo stato del resolver prima di eseguire qualsiasi comando, quando SSH è disponibile.

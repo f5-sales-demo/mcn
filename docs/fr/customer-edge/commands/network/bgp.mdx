@@ -1,26 +1,30 @@
 ---
 title: BGP
 description: >-
-  Si le site établit un peering, ce qu'il annonce et ce qu'il apprend. Quatre
-  commandes couvrant le résumé, la table complète, le détail des voisins et les
-  routes annoncées.
+  Indique si le site établit un peering, ce qu'il annonce et ce qu'il apprend.
+  Quatre commandes couvrant le résumé, la table complète, le détail des voisins
+  et les routes annoncées.
 sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 8a6e8bdbb3fa
+  sourceHash: 91512c977f72
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Le CE exécute FRR pour BGP. Sur cette topologie, il établit un peering avec les deux instances
-Azure Route Server, annonce la VIP et apprend le préfixe du VNet.
+Capturé le 28/07/2026 depuis un CE de ce déploiement. `sitecli/capture-manifest.json`
+consigne le nœud concerné, et `scripts/capture-sitecli.sh --check` revérifie la surface
+de commande sur un CE en fonctionnement.
+
+Le CE exécute FRR pour BGP. Sur cette topologie, il établit un peering avec les deux
+instances Azure Route Server, annonce le VIP et apprend le préfixe du VNet.
 
 ## `show-ip-bgp-summary`
 
-Commencez ici. Un seul écran vous indique si le peering est actif et depuis combien de temps il
-est stable.
+Commencez ici. Un seul écran vous indique si le peering est actif et depuis combien de
+temps il est stable.
 
 ```bash
 {"command":["show-ip-bgp-summary"]}
@@ -29,16 +33,17 @@ est stable.
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-Lisez d'abord `State/PfxRcd`. Un nombre correspond au décompte des préfixes reçus et signifie que
-la session est établie ; toute autre valeur — `Active`, `Connect`, `Idle` — indique une session
-qui n'est pas active. `Up/Down` indique depuis combien de temps l'état actuel dure, de sorte qu'une
-session qui se réinitialise sans cesse affiche une valeur suspicieusement faible.
+Lisez d'abord `State/PfxRcd`. Un nombre correspond au nombre de préfixes reçus et signifie
+que la session est établie ; toute autre valeur — `Active`, `Connect`, `Idle` — indique une
+session qui n'est pas active. `Up/Down` indique depuis combien de temps l'état actuel dure,
+si bien qu'une session qui se réinitialise en permanence affiche une valeur suspectement
+faible.
 
 <Aside type="caution" title="Le vrf id indiqué ici n'est pas celui attendu par rt">
-Cette sortie signale `vrf-id 3`. Il s'agit de la numérotation de FRR. Le plan de données Argo utilise
-un identifiant de table distinct, et transmettre le numéro de FRR à
+Cette sortie signale `vrf-id 3`. Il s'agit de la numérotation de FRR. Le plan de données
+Argo utilise un identifiant de table distinct, et transmettre le numéro de FRR à
 [`rt --dump`](../dataplane-forwarding/) renvoie `No such file or directory`, ce qui
-ressemble à un nœud défectueux plutôt qu'à un argument incorrect.
+donne l'impression d'un nœud défaillant plutôt que d'un mauvais argument.
 </Aside>
 
 ## `show-ip-bgp`
@@ -52,44 +57,45 @@ La table complète, avec la sélection du meilleur chemin visible.
 ```text file=../../../../_data/sitecli-show-ip-bgp.txt
 ```
 
-`*` désigne une route valide, `>` le meilleur chemin sélectionné, `=` un membre multipath. Dans la capture
-ci-dessus, le préfixe VNet appris `10.0.0.0/16` possède deux chemins — un via chaque instance de Route
-Server — marqués `*=` et `*>` : un meilleur chemin plus un membre multipath, de sorte que le nœud répartit
-la charge de son trafic de retour sur les deux instances. La VIP `10.250.0.10/32` dispose d'un unique chemin
-`*>` car ce nœud en est l'origine.
+`*` désigne une route valide, `>` le meilleur chemin sélectionné, `=` un membre multichemin.
+Dans la capture ci-dessus, le préfixe VNet appris `10.0.0.0/16` possède deux chemins — un par
+instance de Route Server — marqués `*=` et `*>` : un meilleur chemin plus un membre
+multichemin, de sorte que le nœud répartit la charge de son trafic de retour sur les deux
+instances. Le VIP `10.250.0.10/32` n'a qu'un seul chemin `*>` car ce nœud en est l'origine.
 
-<Aside type="caution" title="L'ECMP à trois voies de la démonstration n'est pas visible dans cette sortie">
-`show-ip-bgp` correspond à la table d'un seul nœud. L'ECMP que ce déploiement illustre repose sur trois CE
-*différents* annonçant le même `/32`, et il est programmé côté Azure — aucune table BGP d'un CE isolé ne peut
-donc le montrer, et l'absence de marqueur multipath sur la VIP ici n'est pas un défaut.
-Vérifiez-le plutôt depuis les peerings du Route Server ou depuis la table de routage effective du client ;
-les deux figurent sur la [page as-built](../../../../as-built/).
+<Aside type="caution" title="Le multichemin à coût égal de la démo n'est pas visible dans cette sortie">
+`show-ip-bgp` correspond à la table d'un seul nœud. L'ECMP que démontre ce déploiement
+repose sur plusieurs CE *différents* annonçant le même `/32`, et il est programmé du côté
+Azure — aucune table BGP d'un CE isolé ne peut donc l'afficher, et l'absence de marqueur
+multichemin sur le VIP ici n'est pas une anomalie. Vérifiez-le plutôt depuis les peerings
+Route Server ou depuis la table de routage effective du client ; les deux figurent sur la
+[page de vérification](../../../../demo/verify/).
 </Aside>
 
 ## `show-ip-bgp-neighbors`
 
-Détail par voisin : capacités négociées, minuteries, compteurs de messages et la
-raison de la dernière réinitialisation.
+Détail par voisin : capacités négociées, temporisateurs, compteurs de messages et
+motif de la dernière réinitialisation.
 
 ```bash
 {"command":["show-ip-bgp-neighbors"]}
 ```
 
-Utilisez-la lorsque le résumé indique une session instable et que vous devez en connaître la cause.
-`Last reset` et son motif sont les lignes utiles.
+Utilisez-la lorsque le résumé montre une session instable et que vous devez en connaître la
+raison. `Last reset` et son motif sont les lignes utiles.
 
 <Aside type="note" title="Aucune sortie capturée sur cette page pour l'instant">
-Cette capture ne peut pas être validée tant que `f5-sales-demo/docs-control#795` n'est pas intégré. FRR
-comporte une faute d'orthographe dans sa ligne Graceful Restart, et `codespell` rejette le fichier.
+Cette capture ne peut pas être validée avant l'intégration de `f5-sales-demo/docs-control#795`. FRR
+écrit un mot avec une faute dans sa ligne Graceful Restart, et `codespell` rejette le fichier.
 
-Corriger le texte capturé ferait décrire à cette documentation une sortie qui n'a jamais
+Corriger le texte capturé conduirait cette documentation à décrire une sortie qui n'a jamais
 existé ; la correction est donc effectuée en amont. Exécutez la commande sur votre propre
 nœud en attendant.
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
 
-Ce que ce nœud communique à ses pairs, par opposition à ce qu'il connaît.
+Ce que ce nœud annonce à ses pairs, par opposition à ce qu'il connaît.
 
 ```bash
 {"command":["show-ip-bgp-neighbors-advertised-route"]}
@@ -98,11 +104,11 @@ Ce que ce nœud communique à ses pairs, par opposition à ce qu'il connaît.
 ```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 ```
 
-C'est la commande à utiliser pour « la VIP n'est pas joignable depuis le VNet ». Si la VIP est
-absente ici, le problème se situe sur ce nœud et examiner le pair ne servira à
-rien.
+C'est la commande à utiliser pour « le VIP n'est pas joignable depuis le VNet ». Si le VIP
+est absent ici, le problème se situe sur ce nœud et examiner le pair ne servira à rien.
 
-La sortie répète un bloc `bgp neighbor:` **par pair**, de sorte que sur cette topologie vous obtenez les
-deux mêmes préfixes en double — une fois pour chaque instance de Route Server. Il ne s'agit pas d'un rendu
-dupliqué : c'est ce qui confirme que le nœud annonce bien aux deux. Le cas intéressant est celui d'un bloc
-présent pour un pair et absent ou incomplet pour l'autre.
+La sortie répète un bloc `bgp neighbor:` **par pair**, si bien que sur cette topologie vous
+obtenez deux fois les mêmes deux préfixes — une fois pour chaque instance de Route Server. Il
+ne s'agit pas d'un affichage dupliqué : c'est ce qui confirme que le nœud annonce aux deux.
+Le cas intéressant est celui d'un bloc présent pour un pair mais absent ou incomplet pour
+l'autre.

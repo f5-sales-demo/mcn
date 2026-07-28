@@ -2,22 +2,27 @@
 title: 调试 API
 description: >-
   如何通过 HTTP 在 ONLINE 节点上运行 Site CLI
-  命令，包括决定命令需要使用三种传输方式中哪一种的层级到端点规则，以及用于列出这些命令的发现调用。
+  命令，包括决定命令需要使用三种传输方式中哪一种的层级到端点规则，以及可列出这些命令的发现调用。
 sidebar:
   order: 20
   label: 调试 API
 i18n:
-  sourceHash: ee7f5b2d1442
+  sourceHash: 0f194b45e362
   translator: machine
 ---
 
 import { Aside, Steps, Badge } from "@astrojs/starlight/components";
 
-`vpm/debug` API 在已注册的节点上运行 Site CLI 命令并返回其输出。以下所有内容均针对实际运行的节点验证得出；这些内容均未由上游发布。
+于 2026-07-28 从本部署的某个 CE 上采集。`sitecli/capture-manifest.json`
+记录了具体是哪个节点，而 `scripts/capture-sitecli.sh --check` 会针对实时 CE
+重新校验命令面。
+
+`vpm/debug` API 在已注册的节点上运行 Site CLI 命令并返回其输出。以下全部内容均基于实时节点验证得出；
+上游均未公开发布。
 
 ## 命令目录具有自描述性
 
-通过向 `exec-user` 发送 POST 请求并**省略** `command` 键，即可询问节点支持哪些命令：
+通过向 `exec-user` 发送 POST 请求并**省略** `command` 键，来询问节点支持哪些命令：
 
 ```bash
 curl -sS -X POST \
@@ -28,7 +33,7 @@ curl -sS -X POST \
   | jq -r .output | jq .
 ```
 
-响应是一个以命令名称为键的 JSON 对象：
+响应是一个以命令名为键的 JSON 对象：
 
 ```json
 {
@@ -38,16 +43,18 @@ curl -sS -X POST \
 }
 ```
 
-每个条目的格式为 `[category, tier, exampleArgument?, scope?]`，而这些字段并非文档说明——它们决定了命令必须如何调用。
+每一条目的格式为 `[category, tier, exampleArgument?, scope?]`，而这些字段并非文档说明——
+它们决定了该命令必须以何种方式调用。
 
 <Aside type="caution" title="省略该键；不要发送错误的值">
-发现功能的原理是不包含 `command`。如果改为发送一个未知值，则会返回错误，而不是目录：
+发现机制依赖于不传 `command`。如果改为发送一个未知值，返回的将是错误，而不是目录：
 
 ```json
 {"code":3,"details":[],"message":"exec command failed: command not supported"}
 ```
 
-将*真实*命令发送到错误的端点时也会得到该消息，因此很容易被误读为"此命令不存在"。
+当把一个*真实存在*的命令发送到错误的端点时，也会得到同样的消息，
+因此很容易被误读为“该命令不存在”。
 </Aside>
 
 ## 三种传输方式，由目录条目决定
@@ -58,9 +65,9 @@ curl -sS -X POST \
 | `tier` 为 `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | `command` 数组 | 文本 |
 | `tier` 为 `Exec` | `POST .../vpm/debug/<node>/exec` | `command` 数组 | 文本 |
 
-### `ExecUser` —— 只读层级 <Badge text="31 条命令" variant="note" />
+### `ExecUser` — 只读层级 <Badge text="31 条命令" variant="note" />
 
-最常见的情况。将命令及其参数作为数组传递，命令名称放在最前面：
+最常见的情况。将命令及其参数作为数组传入，命令名放在首位：
 
 ```bash
 curl -sS -X POST \
@@ -74,15 +81,16 @@ curl -sS -X POST \
 { "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
 ```
 
-参数应作为独立的数组元素，而不是单个字符串：
+参数是独立的数组元素，而不是单个字符串：
 
 ```json
 { "command": ["journalctl", "-u", "vpm", "-n", "200"] }
 ```
 
-### `GLOBAL` —— 站点范围，且传输方式完全不同 <Badge text="2 条命令" variant="tip" />
+### `GLOBAL` — 站点范围，且传输方式完全不同 <Badge text="2 条命令" variant="tip" />
 
-`health` 和 `diagnosis` 是仅有的两条。它们是对 `global` 路径的 `GET` 请求，不接受参数，并返回结构化 JSON 而非终端文本。
+只有 `health` 和 `diagnosis` 两条。它们是发往 `global` 路径的 `GET` 请求，
+不接受参数，返回结构化 JSON 而非终端文本。
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -90,7 +98,9 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```
 
 <Aside type="danger" title="GLOBAL 命令无法通过 exec-user 访问">
-这是最耗费时间的陷阱。将 `health` 或 `diagnosis` 发送到 `exec-user` 会返回 `command not supported`，这看起来像是该命令在节点上不存在——而实际上它存在，只是你使用了错误的传输方式。
+这是最耗费时间的陷阱。将 `health` 或 `diagnosis` 发送到
+`exec-user` 会返回 `command not supported`，读起来像是该命令在节点上不存在——
+而实际上它是存在的，只是你用错了传输方式。
 
 ```bash
 # 错误。返回：exec command failed: command not supported
@@ -102,19 +112,27 @@ GET .../vpm/debug/global/health
 
 </Aside>
 
-### `Exec` —— 特权层级 <Badge text="此版本中 1 条命令" variant="danger" />
+### `Exec` — 特权层级 <Badge text="此版本上仅 1 条命令" variant="danger" />
 
-这是一个独立的端点，并且层级是强制执行的而非建议性的：`exec` 会以同样的 `command not supported` 消息拒绝 `ExecUser` 命令。该层级的每个成员要么会更改节点，要么会读取某个状态标记。
+这是一个独立的端点，且层级是强制执行的而非建议性的：`exec` 会以同样的
+`command not supported` 消息拒绝 `ExecUser` 命令。该层级的每个成员
+要么会更改节点，要么会读取状态标记。
 
-在该租户运行的版本上，此层级仅包含 `ip-link-set`。较新的版本增加了 `systemctl-restart-NetworkManager`、`systemctl-restart-crio`、`systemctl-restart-kubelet`、`systemctl-start-crio-prune` 以及三条 `marker-exists-*` 命令。
+在该租户运行的这个版本上，此层级仅包含 `ip-link-set`。较新的版本
+增加了 `systemctl-restart-NetworkManager`、`systemctl-restart-crio`、
+`systemctl-restart-kubelet`、`systemctl-start-crio-prune` 以及三条
+`marker-exists-*` 命令。
 
 <Aside type="danger" title="此处不会运行任何 Exec 命令">
-采集工具会拒绝该层级，并且它从实时目录而非硬编码列表中读取层级——因此如果将来的版本把某条命令提升为 `Exec`，也无需任何人修改代码即可被遵守。只有在你有意为之、并且愿意承担节点中断风险时才运行此类命令。
+采集工具会拒绝该层级，并且从实时目录而非硬编码列表中读取层级——
+因此如果未来某个版本将某条命令提升为 `Exec`，无需任何人修改代码即可被正确对待。
+只有在你有意为之、且愿意让该节点受到干扰时才运行此类命令。
 </Aside>
 
-## 查找站点和节点名称
+## 查找站点名与节点名
 
-节点名称即 Azure VM 名称，而 `list-service` 是一种低成本的确认方式，可同时查看其上运行的服务：
+节点名即 Azure VM 名称，而 `list-service` 是一种低成本的方式，
+可在确认节点名的同时查看其上运行的服务：
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -126,23 +144,28 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ["", "f5-xc-ce-vm-01"]
 ```
 
-某些服务报告的节点名称为空，因此该列表中的空字符串是响应本身的产物，而非第二个节点。`list-service` 也不在包含 34 条命令的目录中：它是一个目录未公布的 `global` 端点，这也是它在此处而非[命令参考](../../commands/)中记录的原因。
+某些服务报告的节点名为空，因此该列表中的空字符串是响应本身的产物，
+并不代表存在第二个节点。`list-service` 同样不在 34 条命令的目录中：
+它是一个目录未公布的 `global` 端点，这也是它记录在此处
+而非[命令参考](../../commands/)中的原因。
 
 ## 复现本仓库的采集结果
 
-每个命令页面都嵌入了由 `scripts/capture-sitecli.sh` 采集的输出，该脚本实现了上述三条规则。
+每个命令页面都嵌入了由 `scripts/capture-sitecli.sh` 采集的输出，
+该脚本实现了上述全部三条规则。
 
 <Steps>
 
-1. 将其指向某个租户。它会读取 `XCSH_API_URL` 和 `XCSH_API_TOKEN`，否则回退到当前激活的 `xcsh` 上下文。
+1. 将其指向某个租户。它会读取 `XCSH_API_URL` 和 `XCSH_API_TOKEN`，
+   否则回退到当前活动的 `xcsh` 上下文。
 
-2. 刷新目录并确认节点未在文档之下发生变化：
+2. 刷新目录并确认节点未在文档背后发生变化：
 
    ```bash
    bash scripts/capture-sitecli.sh --check
    ```
 
-   这仅比较已提交的目录和软件版本。它会将版本变化与新增或移除的命令分别报告。
+   这仅比较已提交的目录与软件版本。它会将版本变化与新增或移除的命令分别报告。
 
 3. 当你需要新的证据时重新采集：
 
@@ -153,15 +176,25 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 </Steps>
 
 <Aside type="note" title="采集结果是证据，而非可复现的产物">
-计数器、运行时长和容器年龄会在不同运行之间变化，因此重新采集总会产生差异。目录才是稳定的契约，在节点未发生变化时其在多次运行之间是逐字节一致的；这正是 `--check` 所比较的内容。较长的输出会被截断，并以明确的标记结尾，因此被截断的表格绝不会被当作完整内容展示。
+计数器、运行时长与容器存续时间在每次运行之间都会变化，因此重新采集总会
+产生差异。目录才是稳定的契约，在节点未变化时其在多次运行之间逐字节一致；
+这正是 `--check` 所比较的内容。过长的输出会被截断并以显式标记结尾，
+因此被截断的表格绝不会被当作完整内容展示。
 </Aside>
 
-<Aside type="danger" title="从客户节点采集时：检查脱敏配置">
-命令输出携带基础设施身份信息——内部编址、MAC 地址、AS 编号、主机名——对客户而言，这些都是关于该组织的可识别信息。
+<Aside type="danger" title="从客户节点采集时：请检查脱敏配置">
+命令输出携带基础设施身份信息——内部编址、MAC 地址、
+AS 号、主机名——对于客户而言，这些都是可识别其组织的信息。
 
-因此，清理过滤器默认采用会移除全部此类信息的**strict** 配置。本仓库在 `sitecli/capture-manifest.json` 中声明了 `lab`，从而保留这些细节，而这仅在此处是正确的，因为这些采集来自 F5 自有的演示基础设施。
+因此，清洗过滤器默认采用**严格（strict）**配置，会移除所有这些内容。
+本仓库在 `sitecli/capture-manifest.json` 中声明了 `lab`，从而保留这些
+细节；这在此处是正确的，仅因为这些采集来自 F5 自有的演示基础设施。
 
-**请勿将该设置带到客户采集中。** 在两种配置下，令牌、私钥、租户标识符、对象 UUID、电子邮件地址和主目录路径都会被移除。
+**不要把该设置带到客户采集中。**令牌、私钥、租户
+标识符、对象 UUID、电子邮件地址与家目录路径在两种配置下都会被移除。
 
-有一项限制值得了解：BGP 邻居表将 AS 打印为一个没有标签的裸列，无法用于锚定匹配模式，因此 ASN 是按值与私有范围进行匹配的。其中的**公共** ASN 能够在 strict 配置下存留，需要在发布前手动审查 `show-ip-bgp*` 的输出。
+有一个局限值得了解：BGP 邻居表将 AS 打印为一个无标签的裸列，
+没有可供模式匹配锚定的标记，因此 ASN 是按值与私有范围进行匹配的。
+其中的**公有** ASN 会在严格模式下保留下来，在发布前需要人工审查
+`show-ip-bgp*` 的输出。
 </Aside>

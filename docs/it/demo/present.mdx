@@ -1,0 +1,134 @@
+---
+title: Presentare la demo
+description: >-
+  Cosa può dimostrare questo deployment e come mostrarlo con un solo comando —
+  multipath a costo uguale programmato dal tessuto di routing anziché da un load
+  balancer — oltre alle tre cose che non può ancora mostrare, dichiarate in modo
+  esplicito così che una prova non le scopra davanti a un pubblico.
+sidebar:
+  order: 40
+  label: Presenta
+i18n:
+  sourceHash: 5e23dca1c815
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+L'affermazione che questa demo sostiene è circoscritta e vale la pena enunciarla con precisione, perché una più ampia non
+sopravvivrebbe alle domande:
+
+> Diversi Customer Edge annunciano ciascuno la stessa route host tramite eBGP, e Azure li installa tutti
+> come next hop a costo uguale. La distribuzione del traffico e la rimozione dei nodi sono quindi
+> proprietà del tessuto di routing — non c'è alcun load balancer di Azure davanti ai CE.
+
+Eseguite prima [i quattro controlli di integrità](../verify/). Tutto quanto segue presuppone che siano stati superati.
+
+## L'unico comando che lo rende visibile
+
+Le route effettive sono il singolo artefatto più solido: sono ciò che Azure ha effettivamente programmato,
+non ciò che i CE affermano.
+
+```bash
+cd terraform
+az network nic show-effective-route-table \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_nic_name)" \
+  --query "value[?addressPrefix[0]=='$(terraform output -raw vip)/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,state:state}" \
+  -o json
+```
+
+Osservato il 2026-07-28:
+
+```json
+[
+  {
+    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+    "prefix": "10.250.0.10/32",
+    "state": "Active"
+  }
+]
+```
+
+Un prefisso, tre next hop, `Active`. Questo è tutto il senso della demo in un unico
+output, e vale la pena soffermarsi: nulla in questo quadro è un load balancer.
+
+Poi mostratelo mentre serve traffico, dall'interno della VNet e con l'header `Host`:
+
+```bash
+az vm run-command invoke \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_vm_name)" \
+  --command-id RunShellScript --query "value[0].message" -o tsv \
+  --scripts "curl -s -o /dev/null -w '%{http_code}\n' \
+               -H 'Host: $(terraform output -raw lb_domain)' \
+               http://$(terraform output -raw vip)/"
+```
+
+<Aside type="caution" title="Non mostratelo digitando l'indirizzo in un browser">
+Il load balancer effettua il match sull'header `Host`, quindi una richiesta al solo IP restituisce **404** — su un deployment
+perfettamente integro. Inviate l'header, oppure risolvete prima il dominio verso il VIP. Un 404 davanti
+a un pubblico è difficile da rimediare, anche se non c'è nulla che non funzioni.
+</Aside>
+
+## Ordine suggerito
+
+<Steps>
+
+1. **Inquadrate il contesto.** Un VIP, diversi CE, nessun load balancer. Il tessuto di routing è il
+   meccanismo di HA.
+2. **Mostrate il lato annuncio.** Scorrete i peering ([controllo 2](../verify/)) — ogni CE
+   annuncia lo stesso prefisso con il proprio next hop, tutti con lo stesso AS path, così nessuno è
+   preferito.
+3. **Mostrate cosa ne ha fatto Azure.** La tabella delle route effettive vista sopra: un prefisso, N next
+   hop, `Active`.
+4. **Mostratelo mentre serve traffico.** Il `curl` di cui sopra, con l'header.
+5. **Mostrate la configurazione.** [Il Terraform](../terraform/) è pubblicato qui, letto dai
+   file che lo distribuiscono — utile quando qualcuno chiede se tutto questo è riproducibile.
+
+</Steps>
+
+## Cosa questa demo non può ancora mostrare
+
+Dichiarato qui anziché scoperto in diretta. Tutti e tre sono assenze di evidenze, non guasti
+noti.
+
+<Aside type="danger" title="Non provate una storia di failover a partire da queste pagine">
+**Il failover non è stato testato.** I next hop a costo uguale risultano verificati come installati; ciò che
+accade alla tabella di routing quando un CE viene arrestato o smette di annunciare non è stato messo alla prova
+su questo deployment. Il meccanismo previsto è ritirare l'annuncio di un CE e
+osservare il calo del numero di next hop, ma finché non è stato effettivamente eseguito e misurato resta un
+piano, non un risultato — quindi non promettetelo e non improvvisatelo davanti a un pubblico.
+
+Tracciato nella [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). Richiede una finestra
+in cui nessun altro stia usando l'ambiente, poiché modifica lo stato di annuncio in produzione.
+</Aside>
+
+- **La distribuzione del traffico tra i next hop non è stata misurata.** 1.470 richieste verso il
+  VIP sono rendicontate nella [pagina di verifica](../verify/), il che stabilisce che il percorso
+  funziona e come si comporta nel tempo. Nulla di ciò mostra come le richieste siano state distribuite tra i
+  next hop, e questa topologia non offre un listener HTTP per nodo a cui attribuirle. Se
+  vi chiedono "è uniforme?", la risposta onesta è che qui non è stato misurato.
+- **La causa del transitorio di convergenza su build appena creata non è accertata.** È
+  caratterizzato — quando si verifica, per quanto tempo, e che l'origine resta pulita per tutto il periodo —
+  ma non spiegato.
+
+<Aside type="note" title="Se presentate su uno stack appena creato, attendete">
+Il VIP perde una piccola frazione di richieste per circa i primi 45 minuti dopo che i CE
+raggiungono lo stato `ONLINE`. Il fenomeno si risolve completamente. Create la demo ben prima di averne bisogno, e rieseguite il
+controllo 4 immediatamente prima.
+</Aside>
+
+<CardGrid>
+  <LinkCard
+    title="Dimostratene l'integrità"
+    description="I quattro controlli, e i risultati apparentemente normali che sembrano un'interruzione ma non lo sono."
+    href="../verify/"
+  />
+  <LinkCard
+    title="Il Terraform"
+    description="La configurazione stessa, per la domanda sul fatto che tutto questo sia riproducibile."
+    href="../terraform/"
+  />
+</CardGrid>

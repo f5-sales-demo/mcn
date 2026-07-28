@@ -1,62 +1,65 @@
 ---
 title: 사이트 콘솔
 description: >-
-  TCP 65500에서 제공되며 Azure Bastion 터널을 통해 접근하는 F5의 노드별 사이트 콘솔입니다. SSH 키, 점프 호스트,
-  공용 IP가 필요하지 않으며 — 접근 권한은 Azure RBAC 결정 사항이고, 사이트 등록에 실패한 상태에서도 응답합니다. 정확한 명령어와
-  실제 출력, 경고가 발생하는 인증서, 터널이 VM 리소스 ID를 대상으로 지정해야 하는 이유, 그리고 관리자 자격 증명을 다루는 방법을
+  F5의 노드별 사이트 콘솔은 TCP 65500에서 제공되며 Azure Bastion 터널을 통해 접근합니다. SSH 키도, 점프 호스트도,
+  공용 IP도 필요하지 않습니다 — 접근 권한은 Azure RBAC 결정 사항이며, 사이트 등록이 실패한 상태에서도 응답합니다. 정확한 명령과
+  실제 출력, 경고가 표시될 인증서, 터널이 반드시 VM 리소스 ID를 대상으로 해야 하는 이유, 그리고 admin 자격 증명을 다루는 방법을
   다룹니다.
 sidebar:
   order: 22
   label: 사이트 콘솔
 i18n:
-  sourceHash: e514eb8fdcfe
+  sourceHash: d1a0b5ed6521
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
+2026-07-28에 이 배포의 CE 한 대에서 캡처했습니다. `sitecli/capture-manifest.json`에
+어느 노드였는지 기록되어 있으며, `scripts/capture-sitecli.sh --check`는 실제 CE를 대상으로
+명령 표면을 다시 검증합니다.
+
 모든 Customer Edge는 `https://<sli-ip>:65500`에서 F5의 사이트 콘솔을 제공합니다. 이
-배포 환경에서는 보통 가장 먼저 시도해 볼 경로입니다.
+배포에서는 보통 가장 먼저 시도해 볼 경로입니다.
 
-요구 사항이 가장 적습니다. 배포할 SSH 키도, 유지할 점프 호스트도, 노드의 공용 IP도,
-이를 활성화하기 위한 VM 교체도 필요하지 않습니다. 누가 접속할 수 있는지는 **Azure RBAC
-결정 사항**이 됩니다. 그리고 사이트가 등록되어 있어야 하지도 않습니다. 이 페이지는 세
-사이트 모두가 `site_state: FAILED`를 보고하던 중에 처음 캡처되었고, 동일한 노드들이
-`ONLINE` 상태가 된 후에도 변경 없이 재검증되었습니다.
+요구 사항이 가장 적습니다: 배포할 SSH 키도, 유지할 점프 호스트도, 노드의 공용 IP도,
+이를 활성화하기 위한 VM 교체도 필요하지 않습니다. 누가 연결할 수 있는지는 **Azure RBAC
+결정 사항**이 됩니다. 또한 사이트가 등록되어 있을 필요도 없습니다: 이 페이지는 세 사이트
+모두가 `site_state: FAILED`를 보고하던 중에 처음 캡처되었고, 동일한 노드들이 `ONLINE`이 된
+후에도 변경 없이 재검증되었습니다.
 
-문제는 사이트 콘솔이 노드의 내부(SLI) 주소에서만 응답하며, 이는 VNet 내부에서만
-접근할 수 있다는 점입니다. Azure Bastion은 네트워크에 다른 무엇도 추가하지 않고 그
-간극을 메워 줍니다.
+문제는 사이트 콘솔이 노드의 내부(SLI) 주소에서만 응답하며, 이는 VNet 내부에서만 접근할 수
+있다는 점입니다. Azure Bastion은 네트워크에 다른 무엇도 추가하지 않고 그 간극을 메웁니다.
 
 <Aside type="note" title="여기서 검증된 것과 검증되지 않은 것">
-이 페이지의 모든 명령어와 모든 출력은 이 배포 환경의 `f5-xc-ce-vm-01`을 대상으로
-실행되었으며, 실패 사례까지 포함해 그대로 재현되어 있습니다.
+이 페이지의 모든 명령과 모든 출력은 이 배포의 `f5-xc-ce-vm-01`을 대상으로 실행되었으며,
+실패 사례까지 포함해 그대로 재현되어 있습니다.
 
-**인증은 검증되었습니다**: 어플라이언스의 `admin` 자격 증명이 터널을 통해 `200`을
-반환합니다. *검증되지 않은* 것은 콘솔 자체입니다. 아래 내용 어디에도 콘솔에 들어간 후
-무엇을 볼 수 있고 무엇을 할 수 있는지는 설명되어 있지 않습니다.
+**인증은 검증되었습니다**: 어플라이언스의 `admin` 자격 증명은 터널을 통해 `200`을 반환합니다.
+*검증되지 않은* 것은 콘솔 자체입니다 — 아래 내용 중 어느 것도 내부에 들어간 후 무엇을 보고
+무엇을 할 수 있는지 설명하지 않습니다.
 
-**Azure RBAC는 검증되지 않았습니다.** 모든 실행은 구독 소유자로 진행되었으므로, 2단계의
-Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서화한 요구 사항입니다.
+**Azure RBAC은 검증되지 않았습니다.** 모든 실행은 구독 소유자 권한으로 이루어졌으므로,
+2단계의 Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서화한 요구 사항입니다.
 </Aside>
 
-<Aside type="caution" title="Bastion은 선택 사항이며 기본적으로 배포되지 않습니다">
-`enable_bastion`의 기본값은 `false`이므로, 기본 `terraform apply`에서는 Bastion 호스트가
-없고 `terraform output -raw bastion_name`은 `null`입니다. `terraform/terraform.tfvars`에서
-`enable_bastion = true`로 설정하십시오 — 이 배포 환경에서는 `true`입니다.
+<Aside type="caution" title="Bastion은 옵트인이며 기본적으로 배포되지 않습니다">
+`enable_bastion`의 기본값은 `false`이므로 기본 `terraform apply`에서는 Bastion 호스트가 없고
+`terraform output -raw bastion_name`은 `null`입니다. `terraform/terraform.tfvars`에서
+`enable_bastion = true`로 설정하십시오 — 이 배포에서는 `true`입니다.
 
-선택 사항인 이유는 위험이 아니라 비용입니다. Standard SKU 호스트는 프로비저닝된 순간부터
-누가 터널을 열든 열지 않든 시간당 고정 요금이 청구됩니다 — `eastus`에서 포함된 두 개의
-스케일 유닛에 대해 시간당 USD 0.29(소매가, 2026-07), 대략 월 USD 212입니다. 데모에 콘솔
-접근이 필요하지 않을 때는 다시 끄십시오.
+옵트인인 이유는 위험이 아니라 비용입니다: Standard SKU 호스트는 누군가 터널을 열든 열지 않든
+프로비저닝된 순간부터 시간당 고정 요금이 부과됩니다 — 포함된 두 개의 스케일 유닛에 대해
+`eastus`에서 시간당 USD 0.29(정가, 2026-07), 월 약 USD 212입니다. 데모에 콘솔 접근이 필요하지
+않으면 다시 끄십시오.
 </Aside>
 
 ## 시작하기 전에
 
 <Steps>
 
-1. Azure에 로그인하고 Bastion 확장을 추가하십시오. 터널링은 네이티브 클라이언트 기능이며
+1. Azure에 로그인하고 Bastion 확장을 추가합니다. 터널링은 네이티브 클라이언트 기능이며
    확장은 기본적으로 설치되어 있지 않습니다.
 
    ```bash
@@ -65,15 +68,15 @@ Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서
    ```
 
 2. CE 가상 머신, 해당 네트워크 인터페이스, 그리고 Bastion 호스트에 대해 **Reader** 권한을
-   보유하십시오. 이는 Microsoft가 문서화한 요구 사항이며 **여기서는 검증되지 않았습니다** —
-   이 배포 환경의 모든 실행은 구독 소유자로 진행되었으므로, 더 낮은 역할이 충분하거나
-   불충분하다는 것이 입증된 바 없습니다.
+   보유해야 합니다. 이는 Microsoft가 문서화한 요구 사항이며 **여기서는 검증되지
+   않았습니다** — 이 배포의 모든 실행은 구독 소유자 권한으로 이루어졌으므로, 더 낮은 역할이
+   충분한지 불충분한지는 확인되지 않았습니다.
 
-3. Bastion이 배포되어 있고 필요한 기능을 갖추었는지 확인하십시오. Basic SKU는 터널링도
-   IP 기반 연결도 지원하지 않으므로, 여기서 `Standard`와 `True`는 모두 중요합니다.
+3. Bastion이 배포되어 있고 필요한 기능을 갖추었는지 확인합니다. Basic SKU는 터널링도
+   IP 기반 연결도 지원하지 않으므로, 여기서 `Standard`와 `True`는 모두 핵심입니다.
 
    ```bash
-   az network bastion list -g rg-mcn-ce-ha-rmordasiewicz \
+   az network bastion list -g "$(terraform output -raw resource_group_name)" \
      --query "[].{name:name, sku:sku.name, tunneling:enableTunneling}" -o table
    ```
 
@@ -87,12 +90,12 @@ Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서
 
 ## 터널 열기
 
-값을 직접 입력하지 말고 `terraform output`에서 가져오십시오 — 리소스 ID는 손으로
-조립할 만한 것이 아닙니다.
+값을 직접 입력하지 말고 `terraform output`에서 가져오십시오 — 리소스 ID는 손으로 조립할
+만한 것이 아닙니다.
 
 <Steps>
 
-1. Bastion 호스트 이름, 리소스 그룹, 대상 CE의 VM 리소스 ID를 읽어 옵니다.
+1. Bastion 호스트 이름, 리소스 그룹, 대상 CE의 VM 리소스 ID를 읽습니다.
 
    ```bash
    cd terraform
@@ -108,9 +111,9 @@ Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서
    ```
 
    <Aside type="caution" title="맵의 키는 VM 이름이 아니라 사이트입니다">
-   `ce_vm_ids`의 키는 `eastus01`, `eastus02`, `eastus03`이며 — VM 이름이 **아닙니다**.
-   `jq -r '."f5-xc-ce-vm-01"'` 같은 필터는 `null`을 반환하고, 그러면 터널은 빈 리소스
-   ID로 실패합니다. 확실하지 않으면 목록을 확인하십시오:
+   `ce_vm_ids`의 키는 `eastus01`, `eastus02`, `eastus03`이며 **VM 이름이 아닙니다**.
+   `jq -r '."f5-xc-ce-vm-01"'`와 같은 필터는 `null`을 반환하고, 그러면 터널은 빈 리소스 ID로
+   실패합니다. 확실하지 않으면 나열해 보십시오:
 
    ```bash
    terraform output -json ce_vm_ids | jq -r 'keys | join(", ")'
@@ -122,8 +125,8 @@ Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서
 
    </Aside>
 
-2. 터널을 시작하십시오. 중지할 때까지 포트를 열어 두므로, 백그라운드로 실행하거나 두 번째
-   터미널을 사용하십시오.
+2. 터널을 시작합니다. 중지할 때까지 포트를 계속 열어 두므로, 백그라운드로 실행하거나
+   두 번째 터미널을 사용하십시오.
 
    ```bash
    az network bastion tunnel \
@@ -140,10 +143,10 @@ Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서
    WARNING: Ctrl + C to close
    ```
 
-   세 줄 모두 `WARNING:` 접두사가 붙습니다. 이는 Azure CLI가 진행 상황을 stderr에 쓰는
-   것이며 문제가 아닙니다. 연결하기 전에 `Tunnel is ready`를 기다리십시오.
+   세 줄 모두 `WARNING:`으로 시작합니다. 이는 Azure CLI가 진행 상황을 stderr로 쓰는 것이며
+   문제가 아닙니다. 연결하기 전에 `Tunnel is ready`를 기다리십시오.
 
-3. 리스너가 로컬 루프백에 있는지 확인하십시오:
+3. 리스너가 로컬 루프백에 있는지 확인합니다:
 
    ```bash
    lsof -nP -iTCP:65500 -sTCP:LISTEN
@@ -154,7 +157,7 @@ Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서
    Python  41648  you   7u  IPv4  …            0t0   TCP  127.0.0.1:65500 (LISTEN)
    ```
 
-4. 콘솔을 여십시오. 터널이 이를 로컬로 만들어 주므로 주소는 노드의 주소가 아니라
+4. 콘솔을 엽니다. 터널이 이를 로컬로 만들어 주므로 주소는 노드의 주소가 아니라
    `localhost`입니다.
 
    ```bash
@@ -162,14 +165,14 @@ Reader 요구 사항은 여기서 측정된 것이 아니라 Microsoft가 문서
    xdg-open https://localhost:65500/      # Linux
    ```
 
-5. 작업을 마쳤으면 터널을 중지하십시오 — `Ctrl-C`, 또는 백그라운드로 실행했다면
-   `kill %1`입니다. 열어 두면 로컬 포트 65500과 Bastion 세션을 계속 점유합니다.
+5. 작업이 끝나면 터널을 중지하십시오 — `Ctrl-C`, 또는 백그라운드로 실행했다면 `kill %1`.
+   열어 두면 로컬 포트 65500과 Bastion 세션을 계속 점유합니다.
 
 </Steps>
 
-## 무엇을 보게 되는가
+## 보게 될 화면
 
-**로그인 페이지가 아니라 자격 증명 대화상자입니다.** 콘솔은 HTTP Basic 인증을 사용하므로,
+**로그인 페이지가 아니라 자격 증명 대화 상자입니다.** 콘솔은 HTTP Basic 인증을 사용하므로
 브라우저가 자체 사용자 이름과 비밀번호 프롬프트를 띄웁니다. 볼 수 있는 폼은 없습니다:
 
 ```bash
@@ -183,9 +186,9 @@ Content-Type: text/html; charset=utf-8
 Content-Length: 0
 ```
 
-해당 realm과 함께 나타나는 `401`은 콘솔이 정상적으로 동작하고 있다는 뜻입니다. 인증되지
-않은 요청이 받아야 할 응답이며 — 같은 URL에 `admin` 자격 증명을 제공하면 `200`으로
-응답합니다. 이것이 브라우저를 열기 전에 자격 증명을 확인하는 방법입니다:
+해당 realm과 함께 나오는 `401`은 콘솔이 정상 작동하고 있다는 뜻입니다. 인증되지 않은
+요청이 받아야 하는 응답이며 — 동일한 URL에 `admin` 자격 증명을 제공하면 `200`이 응답되므로,
+브라우저를 열기 전에 자격 증명을 확인하는 방법이 됩니다:
 
 ```bash
 curl -sk -u admin -o /dev/null -w '%{http_code}\n' https://localhost:65500/
@@ -196,10 +199,10 @@ Enter host password for user 'admin':
 200
 ```
 
-콜론 없이 `-u admin`을 쓰면 `curl`이 명령줄에서 비밀번호를 받는 대신 프롬프트를 띄웁니다.
+콜론 없이 `-u admin`을 쓰면 `curl`이 명령줄에서 비밀번호를 받지 않고 프롬프트로 묻습니다.
 명령줄에 쓰면 셸 히스토리와 프로세스 목록에 남게 됩니다.
 
-**인증서 경고, 그것도 세 가지 이유가 동시에 발생합니다.** 인증서를 직접 확인해 보면:
+**세 가지 이유가 동시에 겹친 인증서 경고입니다.** 인증서를 직접 확인해 보면:
 
 ```bash
 openssl s_client -connect localhost:65500 -servername localhost </dev/null 2>/dev/null \
@@ -213,52 +216,52 @@ notBefore=Oct 25 04:51:31 2024 GMT
 notAfter=Oct 25 04:51:31 2025 GMT
 ```
 
-주체(subject)와 발급자(issuer)가 같으므로 자체 서명 인증서입니다. 이름은
-`site-local.volterra.io`인데 접속 대상은 `localhost`이므로 일치하지 않습니다. 그리고 이
-배포 환경이 실행하는 빌드에서는 **인증서가 2025년 10월 25일에 만료되었습니다** —
-어플라이언스가 이를 함께 제공하며, 이 리포지토리의 어떤 것도 갱신하지 않습니다.
+subject와 issuer가 같으므로 자체 서명 인증서입니다. 이름은 `site-local.volterra.io`인데
+연결 대상은 `localhost`이므로 일치하지 않습니다. 그리고 이 배포가 실행하는 빌드에서는
+**인증서가 2025년 10월 25일에 만료되었습니다** — 어플라이언스가 이를 함께 제공하며, 이
+리포지터리의 어떤 것도 갱신하지 않습니다.
 
-노골적인 브라우저 경고를 예상하시고, 매번 나타날 것이라고 예상하십시오. 위의 주체 줄이
-유용한 부분입니다. 로컬 포트 65500에서 수신 대기하는 다른 무엇이 아니라 어플라이언스에
-도달했음을 확인하는 방법입니다.
+노골적인 브라우저 경고를 예상하고, 매번 나올 것으로 예상하십시오. 위의 subject 줄이 유용한
+부분입니다: 로컬 포트 65500에서 대기하는 다른 무엇이 아니라 어플라이언스에 도달했음을
+확인하는 방법입니다.
 
-## 관리자 자격 증명
+## admin 자격 증명
 
-`admin`으로 로그인하십시오. **이 문서는 비밀번호를 게시하지 않으며, 게시해서도 안 됩니다.**
+`admin`으로 로그인하십시오. **이 문서는 비밀번호를 공개하지 않으며, 공개해서도 안 됩니다.**
 
-<Aside type="danger" title="이 배포 환경에서 해당 비밀번호는 여전히 F5의 공장 기본값입니다">
-이는 의심이 아니라 측정된 사실입니다. 공장 기본 자격 증명이 오늘 세 CE 모두에서 인증되어
-`200`을 반환합니다. F5는 그 기본값을 공개하며 변경할 것을 요구하는데, 변경되지 않았습니다.
+<Aside type="danger" title="이 배포에서 그 비밀번호는 여전히 F5의 공장 기본값입니다">
+이는 추측이 아니라 측정된 사실입니다: 공장 기본 자격 증명이 오늘 세 CE 모두에서 인증되어
+`200`을 반환합니다. F5는 그 기본값을 공개하며 변경할 것을 요구하지만, 변경되지 않았습니다.
 
-실질적인 결과는, 이 배포 환경에서 "Bastion에 대한 Reader 권한 보유"가 F5의 공개 문서에
-있는 값을 아는 누구에게든 완전한 어플라이언스 콘솔 접근과 동등하다는 것입니다. 변경하십시오.
-그리고 그 변경을 나중의 강화 작업이 아니라 노드 배포의 일부로 취급하십시오.
+실질적인 결과는, 이 배포에서 "Bastion에 대한 Reader 보유"가 F5의 공개 문서에 실린 값을 아는
+누구에게나 어플라이언스 콘솔 전체 접근과 동등하다는 것입니다. 변경하고, 이를 나중의 하드닝이
+아니라 노드 배포의 일부로 취급하십시오.
 </Aside>
 
-여기서 이를 게시하지 않는 것이 겉보기보다 더 중요한 두 가지 이유:
+여기서 비밀번호를 공개하지 않는 것이 보기보다 더 중요한 두 가지 이유:
 
-- 이 문서는 공개되어 있습니다. 플릿의 현재 콘솔 비밀번호를 인쇄하면 이 페이지를 읽는
-  누구에게든 "Bastion에 대한 Reader 권한 보유"가 완전한 어플라이언스 접근으로 바뀝니다.
-- 문서에 게시된 비밀번호는 누군가 교체하는 순간 틀린 것이 되며, 가장 오해를 유발하는
-  방식으로 틀립니다 — 독자는 페이지가 오래되었다고 생각하는 대신 자신의 접근 권한이
-  고장 났다고 결론 내립니다.
+- 이 문서는 공개되어 있습니다. 플릿의 현재 콘솔 비밀번호를 적어 두면 이 페이지를 읽는
+  누구에게나 "Bastion에 대한 Reader 보유"가 어플라이언스 전체 접근으로 바뀝니다.
+- 문서에 공개된 비밀번호는 누군가 이를 교체하는 순간 틀린 것이 되며, 가장 오해를 유발하는
+  방식으로 틀립니다 — 독자는 페이지가 낡았다고 생각하지 않고 자신의 접근 권한이 깨졌다고
+  결론 내립니다.
 
 교체된 후에는 팀이 운영 비밀을 보관하는 곳에서 가져오십시오.
 
 <Aside type="caution" title="Terraform에서 비밀번호를 설정하는 것은 검증되지 않았습니다">
 사이트 객체의 `admin_user_credentials.admin_password`는 이를 설정하는 선언적 방법처럼
-보입니다. 이 빌드에서 사이트 콘솔에 반영된다는 것이 **확인되지 않았으므로**, 그렇다고
+보입니다. 이 빌드에서 사이트 콘솔에 실제로 반영되는지는 **확인되지 않았으므로**, 그렇다고
 가정하지 마십시오.
 
-[SSH 페이지](../ssh/)를 어느 쪽 증거로도 읽지 마십시오. `admin_password`가 "아무것도
-바꾸지 않았다"는 그 결론은 SSH 인증을 대상으로 측정된 것이며, `vpm`은 `admin` 사용자에
-대해 SSH 인증을 완전히 건너뜁니다. 이는 콘솔에 대해서는 아무것도 말해 주지 않습니다.
+[SSH 페이지](../ssh/)를 어느 쪽 증거로도 읽지 마십시오. `admin_password`가 "아무것도 바꾸지
+않았다"는 그 결론은 SSH 인증을 대상으로 측정된 것이며, `vpm`은 `admin` 사용자에 대해 SSH
+인증을 완전히 건너뜁니다. 그것은 콘솔에 대해서는 아무것도 말해 주지 않습니다.
 </Aside>
 
-## 터널이 리소스 ID를 대상으로 지정해야 하는 이유
+## 터널이 반드시 리소스 ID를 대상으로 해야 하는 이유
 
-`--target-resource-id`는 필수입니다. 대신 노드의 주소를 대상으로 지정하면 거부됩니다 —
-어떤 주소를 쓰더라도 그렇기 때문에, 여기에는 의도적으로 실제 주소를 표시하지 않았습니다:
+`--target-resource-id`는 필수입니다. 대신 노드의 주소를 대상으로 하면 거부됩니다 —
+어떤 주소를 쓰더라도 그렇기 때문에, 여기에는 의도적으로 실제 주소를 적지 않았습니다:
 
 ```bash
 az network bastion tunnel --name "$BASTION" -g "$RG" \
@@ -270,46 +273,46 @@ ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is
 ```
 
 이유는 IP 기반 연결이 비활성화되어 있기 때문이 **아닙니다** — 이 Bastion에서
-`ip_connect_enabled`는 `true`입니다. Microsoft는 해당 설정과 무관하게 IP 기반 네이티브
-클라이언트 연결에서 사용자 지정 포트를 지원하지 않으며
+`ip_connect_enabled`는 `true`입니다. Microsoft는 그 설정과 무관하게 IP 기반 네이티브 클라이언트
+연결에서 사용자 지정 포트를 지원하지 않으며
 ([Azure 문서](https://learn.microsoft.com/azure/bastion/connect-ip-address)), 65500은
-사용자 지정 포트입니다. 여기서 Bastion 구성을 살펴봐도 소용없습니다. 리소스 ID를
+사용자 지정 포트입니다. 여기서 Bastion 구성을 들여다봐도 소용없습니다. 리소스 ID를
 사용하십시오.
 
-## 동작하지 않을 때
+## 작동하지 않을 때
 
 | 증상 | 원인 | 해결 |
 | --- | --- | --- |
 | `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | `--target-ip-address`를 사용함 | `--target-resource-id`를 사용하십시오 |
-| `ERROR: Defined port is currently unavailable` | 다른 터널이 이미 해당 로컬 포트를 점유하고 있음 | 다른 터널을 중지하거나 다른 `--port`를 전달하십시오. `--resource-port`는 65500으로 유지합니다 |
+| `ERROR: Defined port is currently unavailable` | 다른 터널이 이미 해당 로컬 포트를 점유함 | 다른 터널을 중지하거나 다른 `--port`를 전달하십시오. `--resource-port`는 65500으로 유지합니다 |
 | `terraform output -raw bastion_name`이 `null` 또는 비어 있음 | Bastion이 배포되지 않음 | `enable_bastion = true`로 설정하고 apply하십시오 |
-| 터널은 시작되지만 리소스 ID가 비어 있음 | `jq` 필터가 사이트 키 대신 VM 이름을 사용함 | `eastus01`/`02`/`03`으로 키를 지정하십시오 |
+| 터널은 시작되지만 리소스 ID가 비어 있음 | `jq` 필터가 사이트 키 대신 VM 이름을 사용함 | `eastus01`/`02`/`03`을 키로 사용하십시오 |
 | realm이 `Volterra Site Console`인 `401 Unauthorized` | 결함이 아님 — 인증되지 않은 요청 | `admin` 자격 증명을 제공하십시오 |
-| 브라우저가 인증서를 거부함 | 자체 서명, 이름 불일치, 그리고 2025년 10월 이후 만료됨 | 예상된 동작입니다. 주체가 `CN=site-local.volterra.io`인지 확인하고 계속 진행하십시오 |
+| 브라우저가 인증서를 거부함 | 자체 서명, 이름 불일치, 그리고 2025년 10월부터 만료됨 | 예상된 동작입니다. subject가 `CN=site-local.volterra.io`임을 확인하고 진행하십시오 |
 
-<Aside type="note" title="인증 권한 실패는 재현되지 않았습니다">
-RBAC 부족은 이것이 실패하는 또 다른 명백한 경로이지만, 이를 재현하려면 공유 배포 환경에서
-역할 할당을 제거해야 하므로 여기에는 그대로의 오류 메시지와 함께 문서화되어 있지 않습니다.
-터널이 시작 시 인증 권한 오류로 실패하면 VM, 해당 NIC, Bastion 호스트 세 가지 모두에 대한
-Reader 권한을 확인하십시오.
+<Aside type="note" title="인가 실패는 재현되지 않았습니다">
+RBAC 부족은 이것이 실패하는 또 다른 명백한 경로이지만, 이를 재현하려면 공유 배포에서 역할
+할당을 제거해야 하므로 여기에 실제 오류 문구로 문서화하지 않았습니다. 터널이 시작 시
+인가 오류로 실패한다면 VM, 해당 NIC, Bastion 호스트 세 곳 모두에 대해 Reader 권한을
+확인하십시오.
 </Aside>
 
 ## 다른 경로들
 
 <CardGrid>
   <LinkCard
-    title="Debug API"
-    description="스크립트로 작성 가능하고 반복 가능하며 VNet 접근이 필요하지 않습니다. 34개 명령어, 그리고 사이트가 <code>ONLINE</code>이어야 합니다."
+    title="디버그 API"
+    description="스크립트로 자동화 가능하고 반복 가능하며, VNet 접근이 필요하지 않습니다. 34개 명령이 있고, 사이트는 <code>ONLINE</code>이어야 합니다."
     href="../debug-api/"
   />
   <LinkCard
     title="SSH"
-    description="완전한 온박스 사이트 CLI입니다. 최초 부팅 시점부터 키가 존재해야 하고 VNet 내부의 호스트가 필요합니다."
+    description="온박스 사이트 CLI 전체. 첫 부팅부터 키가 존재해야 하고 VNet 내부의 호스트가 필요합니다."
     href="../ssh/"
   />
   <LinkCard
     title="시리얼 콘솔"
-    description="동작하는 네트워크 경로가 전혀 없는 노드를 위한 방법입니다. VM당 세션 하나, 붙여넣기 2,048자 제한."
+    description="작동하는 네트워크 경로가 전혀 없는 노드용. VM당 세션 하나, 붙여넣기 2,048자 제한."
     href="../serial-console/"
   />
 </CardGrid>

@@ -1,0 +1,115 @@
+---
+title: Demostración de CE-HA de redes multinube
+description: >-
+  Lo que despliega este repositorio — N Customer Edges de un solo nodo que
+  originan un VIP a través de eBGP hacia un Azure Route Server para multipath de
+  coste equivalente, sin ningún balanceador de carga de Azure delante de ellos
+  —, lo que la demostración pretende demostrar y dónde acudir para desplegarla,
+  comprobar su estado y presentarla.
+sidebar:
+  order: 5
+  label: Demostración
+i18n:
+  sourceHash: 924839aeeaf6
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Este despliegue demuestra la **alta disponibilidad activo/activo de Customer Edge en Azure**
+sin ningún balanceador de carga de Azure delante de los CE. Cada CE origina la misma ruta de host
+mediante eBGP, y el Azure Route Server los instala todos como siguientes saltos de coste equivalente en la VNet.
+El tejido de enrutamiento, y no un balanceador de carga, es por tanto donde deben producirse la distribución
+del tráfico y la eliminación de los nodos caídos.
+
+Todo lo que aparece en estas páginas se ejecutó contra el despliegue en vivo, y la salida mostrada es la
+salida que produjo. Lo que esa frase *no* cubre —la conmutación por error y cómo se divide el tráfico
+entre los siguientes saltos— se señala explícitamente en lugar de dejarlo por supuesto.
+
+## Qué despliega
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| Elemento | Qué es |
+| --- | --- |
+| Tenant de F5 Distributed Cloud | `var.expected_xc_tenant` — el único lugar donde se nombra el tenant |
+| Espacios de nombres | Sitios CE en `system`; grupo de origen y balanceador de carga en `var.xc_app_namespace` |
+| Customer Edges | `var.ce_count` sitios Secure Mesh v2 de un solo nodo, de 1 a 3, uno por zona de disponibilidad |
+| Software del CE | fijado por `var.ce_sw_version` / `var.ce_os_version` |
+| VM de Azure | tres NIC cada una — gestión/SLO, externa, interna/SLI |
+| Intercambio de rutas | un Azure Route Server, ASN `var.rs_asn`, dos direcciones de instancia |
+| Emparejamientos | uno por CE, denominado `<key>-bgp`, ASN del CE `var.ce_asn` |
+| VIP anunciado | `var.vip` como `/32`, originado de forma idéntica por cada CE |
+| Balanceador de carga | sirve `var.lb_domain`, respaldado por un grupo de origen en `var.origin_ip` |
+| Cliente de prueba | una VM dentro de la misma VNet, para dirigir tráfico al VIP |
+
+Nada de lo anterior es un literal que deba copiarse. Cada valor puede leerse del despliegue,
+y cada página lo lee en lugar de nombrarlo:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="El VIP debe situarse fuera de todos los CIDR de la VNet">
+`terraform/main.tf` incluye un bloque `check` que comprueba que el VIP está fuera de los CIDR tanto del hub
+como del spoke, y rechaza el plan en caso contrario. La razón declarada es que un VIP dentro de un
+CIDR de la VNet pierde frente a la propia ruta del sistema de la VNet, a pesar de que la ruta BGP sea más específica.
+
+Trate esa protección como el contrato: si reapunta esta demostración a un direccionamiento distinto, el
+VIP debe salir de los rangos de la VNet junto con él.
+</Aside>
+
+<Aside type="note" title="Observado el 2026-07-28: los objetos en vivo siguen conservando nombres provisionales">
+Los nombres de los objetos derivan de `var.component`, por lo que un despliegue sin fijar construye
+`<component>-<region>01`, `<component>-f5se`, `<component>-pool`, `<component>-rs` y
+`<component>-bastion`. La demostración actualmente en ejecución es anterior a eso y conserva sus nombres
+originales, fijados en un `terraform.tfvars` local para que no se reemplace nada mientras el entorno
+está en uso.
+
+Por eso la salida real de los comandos en estas páginas muestra nombres que no coinciden con el patrón
+anterior. Adoptar los nombres derivados reemplaza cada VM de CE, porque el nombre del sitio es el
+`ClusterName` incorporado en cloud-init y cloud-init solo se ejecuta en el primer arranque — de modo que es una
+reconstrucción deliberada, registrada en
+[la incidencia 700](https://github.com/f5-sales-demo/mcn/issues/700), no un cambio de nombre.
+</Aside>
+
+## Adónde ir a continuación
+
+<CardGrid>
+  <LinkCard
+    title="Despliéguelo"
+    description="Requisitos previos, los dos valores que debe proporcionar, por qué el primer apply consta de dos fases y cómo desmontarlo."
+    href="./deploy/"
+  />
+  <LinkCard
+    title="El Terraform"
+    description="La configuración en sí, leída de los archivos que la despliegan en lugar de reescrita."
+    href="./terraform/"
+  />
+  <LinkCard
+    title="Compruebe su estado"
+    description="Cuatro comprobaciones en orden, y los resultados de aspecto normal que se leen como una interrupción y no lo son."
+    href="./verify/"
+  />
+  <LinkCard
+    title="Preséntelo"
+    description="Lo que esta demostración puede mostrar, lo que todavía no puede mostrar y el único comando que hace visible ECMP."
+    href="./present/"
+  />
+</CardGrid>

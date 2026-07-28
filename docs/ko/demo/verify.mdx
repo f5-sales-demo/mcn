@@ -1,0 +1,224 @@
+---
+title: 정상 상태 입증
+description: >-
+  결함 위치를 점차 좁혀 나가는 네 가지 순차 점검, 그리고 장애처럼 보이지만 장애가 아닌 네 가지 정상적인 결과 — 단일 피어링 조회, 베어
+  IP 404, 새로 구축한 스택에서의 손실성 VIP, 그리고 잘못된 인터페이스나 잘못된 네트워크에서의 포트 프로브.
+sidebar:
+  order: 30
+  label: 검증
+i18n:
+  sourceHash: 4e5376ee9ecd
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+발표 전에 이 항목들을 실행하십시오. 각 점검은 결함이 있을 위치를 좁혀 주므로, 실패했을 때 단지 무언가 잘못되었다는 사실만이 아니라 무엇이 문제인지 알 수 있습니다.
+
+모든 명령은 배포에서 필요한 값을 읽어 옵니다. 다음을 한 번 설정하면 나머지는 그대로 따라갑니다:
+
+```bash
+cd terraform
+RG=$(terraform output -raw resource_group_name)
+RS=$(terraform output -raw route_server_name)
+CLIENT=$(terraform output -raw client_vm_name)
+DOMAIN=$(terraform output -raw lb_domain)
+VIP=$(terraform output -raw vip)
+NIC=$(terraform output -raw client_nic_name)
+```
+
+## 네 가지 점검, 이 순서대로
+
+<Steps>
+
+1. **모든 사이트가 `ONLINE`이다.** 이것이 참이 아니면 그 이후의 어떤 것도 참일 수 없습니다.
+
+   ```bash
+   for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
+     printf '%s -> ' "$s"
+     curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+       "$XCSH_API_URL/api/config/namespaces/system/sites/$s" | jq -r '.spec.site_state'
+   done
+   ```
+
+   2026-07-28 관측, CE 3대:
+
+   ```text
+   ar-bgp-eastus01 -> ONLINE
+   ar-bgp-eastus02 -> ONLINE
+   ar-bgp-eastus03 -> ONLINE
+   ```
+
+2. **모든 피어링이 해당 CE의 VIP 광고를 학습하고 있다.** 각 피어링을 개별적으로 조회하십시오 — 아래 첫 번째 함정을 참고하십시오. 데모가 고장난 것처럼 보이지만 실제로는 그렇지 않은 경우가 가장 많이 발생하는 지점입니다.
+
+   ```bash
+   for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
+     echo "--- ${k}-bgp"
+     az network routeserver peering list-learned-routes \
+       --name "${k}-bgp" --routeserver "$RS" -g "$RG" \
+       --query "RouteServiceRole_IN_0[?network=='${VIP}/32'].{net:network,nextHop:nextHop,asPath:asPath,origin:origin}" \
+       -o table
+   done
+   ```
+
+   2026-07-28 관측:
+
+   ```text
+   --- eastus01-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.4   64512     EBgp
+   --- eastus02-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.5   64512     EBgp
+   --- eastus03-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.6   64512     EBgp
+   ```
+
+   세 개의 피어링, 세 개의 서로 다른 넥스트 홉, 하나의 프리픽스. 이것이 ECMP의 광고 측면이 입증된 것입니다.
+
+3. **클라이언트의 유효 경로가 모든 넥스트 홉을 담고 있다.** 이것이 VNet이 프로그래밍한 대로의 ECMP 자체입니다 — CE가 주장하는 내용이 아니라 Azure가 그것으로 실제로 한 일입니다.
+
+   ```bash
+   az network nic show-effective-route-table -g "$RG" -n "$NIC" \
+     --query "value[?addressPrefix[0]=='${VIP}/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,type:nextHopType,state:state}" \
+     -o json
+   ```
+
+   2026-07-28 관측:
+
+   ```json
+   [
+     {
+       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+       "prefix": "10.250.0.10/32",
+       "state": "Active",
+       "type": "VirtualNetworkGateway"
+     }
+   ]
+   ```
+
+   `nh`에 CE별로 하나의 항목이 있으면서 `state: Active`인 것이 점검 기준입니다. **순서는 의미가 없으며 안정적이지도 않습니다** — Azure는 호출마다 다르게 반환하므로 이전 실행 결과와 비교하기보다는 개수를 세십시오. 세 개를 예상했는데 넥스트 홉이 하나뿐이라면 CE 하나가 광고를 멈춘 것이며, 어느 것인지는 2단계에서 확인됩니다.
+
+4. **VIP가 트래픽을 처리한다.** 클라이언트 VM에서, 그리고 **`Host` 헤더와 함께** 수행하십시오 — 두 번째 함정을 참고하십시오. 문제를 확인할 수 있을 만큼 충분한 요청을 샘플링하십시오. 아래에 설명된 수렴 구간 안에서도 수십 건 정도는 100 %로 읽힙니다.
+
+   ```bash
+   az vm run-command invoke -g "$RG" -n "$CLIENT" \
+     --command-id RunShellScript --query "value[0].message" -o tsv \
+     --scripts "ok=0; fail=0
+                for i in \$(seq 1 60); do
+                  c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                        -H 'Host: ${DOMAIN}' http://${VIP}/)
+                  [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
+                done
+                echo \"OK=\$ok FAIL=\$fail\""
+   ```
+
+   2026-07-28 관측:
+
+   ```text
+   VIP with Host header: OK=60 FAIL=0
+   bare IP (no Host): 404
+   ```
+
+</Steps>
+
+## 함정: 하나의 피어링이 하나의 경로만 보여 주는데, 그것이 정상이다
+
+`list-learned-routes`는 지정한 피어링에 한정됩니다. **그** 피어가 광고한 내용을 보고할 뿐, Route Server의 전체 테이블을 보고하지 않습니다.
+
+따라서 하나의 피어링만 조회하면 단일 넥스트 홉을 통한 단일 VIP `/32`가 반환되며, 이를 "CE 하나만 광고 중 — 나머지는 다운"으로 읽고 싶어집니다. 다운된 것은 없습니다. 다른 광고들은 각자의 피어링에서 볼 수 있으며, 2단계가 반복하는 것이 바로 그것입니다.
+
+단일 피어링 조회로 ECMP를 확인하는 것은 불가능합니다. 모든 피어링을 반복 조회하거나, 병합된 결과를 한 번의 호출로 보여 주는 클라이언트의 유효 경로 테이블을 읽으십시오.
+
+## 함정: 베어 IP 요청이 404를 반환한다
+
+로드 밸런서는 `Host`로 매칭합니다. VIP는 주소로 접속하는 누구에게나 무언가를 제공하는 가상 서버가 아닙니다.
+
+다음 두 결과는 정상 배포에 대한 동일한 실행에서 나온 것입니다:
+
+```text
+curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
+curl                     http://$VIP/   ->  404
+```
+
+**베어 IP 404는 경로가 동작한다는 증거입니다** — 요청이 CE에 도달했고, CE의 프록시가 응답했으며, 구성된 도메인과 일치하는 것이 없어 거부한 것입니다. 이를 장애로 읽으면 BGP를 들여다보게 되는데, 거기서는 아무 문제도 찾지 못할 것입니다.
+
+데모 중에도 같은 이야기가 적용됩니다. 도메인을 해석해 접속하는 대신 브라우저에 주소를 직접 입력하면 404를 받게 됩니다.
+
+## VIP가 처음 45분 동안 요청을 떨어뜨리다가 이후 멈춘다
+
+새로 구축한 스택에서는 CE가 `ONLINE`에 도달한 후 대략 첫 45분 동안 VIP가 소수의 요청을 잃고, 그 이후에는 깨끗하게 서비스합니다. 클라이언트 VM에서 모두 `Host` 헤더를 붙여 1,470건의 요청으로 측정했습니다:
+
+| 구간 | 요청 수 | 실패 수 | 비율 |
+| --- | --- | --- | --- |
+| ECMP가 올라온 후 첫 ~45분 | 570 | 12 | **2.11 %** |
+| 그 뒤 23분 | 900 | **0** | **0.00 %** |
+
+모든 실패는 `curl: (28)`, 즉 수신 바이트가 0인 타임아웃이었으며 HTTP 오류 상태가 아니었습니다. 마지막 실패는 ECMP가 올라온 후 약 43분 시점에 발생했습니다. 깨끗했던 900건의 요청 중 400건은 30초 타임아웃으로 실행했고 모두 2초 이내에 완료되었으므로, 짧은 타임아웃 때문에 무언가 가려진 것은 없습니다.
+
+**오리진이 원인은 아니었습니다.** 오리진으로 직접 보낸 대조 배치(`terraform output -raw origin_ip`, VIP 우회)는 실패하던 VIP 배치와 *동시에* 실행되어 120건 중 120건이 깨끗했습니다. 결함은 VIP, ECMP 또는 CE 경로 어딘가에 있습니다.
+
+이것을 의도적으로 이렇게 부르지 않는 두 가지:
+
+- **정상 상태의 결함이 아닙니다.** 완전히 해소되고 그 상태를 유지합니다. 한 시간 동안 올라와 있던 데모에는 이 문제가 없습니다 — 위 4단계 점검에서, 몇 시간 동안 올라와 있던 스택에서 60건 중 60건 성공했습니다.
+- **특정 CE에 귀속시킬 수 없습니다.** 이 토폴로지에는 노드별 HTTP 리스너를 제공하는 요소가 없으므로, 떨어진 요청을 그것을 떨어뜨린 노드에 결부시킬 방법이 없습니다. CE 외부 인터페이스에는 HTTP 리스너가 전혀 없습니다 — VIP `/32`만 응답합니다.
+
+다른 테넌트에서 깨끗하게 재구축했을 때도 재현되었으므로, 환경보다는 토폴로지를 따라갑니다.
+
+<Aside type="caution" title="40건만 샘플링하고 괜찮다고 결론 내리지 마십시오">
+40~50건 규모의 배치는 실패 구간 안에서도 대부분 100 %로 읽힙니다. 이 때문에 처음에는 지속적인 저비율 결함으로, 그다음에는 아무 결함도 없는 것으로 잘못 규정되었습니다. 시간 간격을 둔 배치로 100건 이상을 샘플링하십시오.
+</Aside>
+
+## 추가적인 두 가지 측정 함정
+
+둘 다 이 환경에서 확신에 찬 오답을 만들어 냈으며, 어느 쪽도 자명하지 않습니다.
+
+- **워크스테이션이 아니라 VNet 내부에서 프로브하십시오.** 기업 프록시는 일반적인 포트에 대해 TCP 핸드셰이크를 자체적으로 완료할 수 있으므로, 워크스테이션에서의 프로브는 실제로는 닫혀 있는 포트를 **열림**으로 보고합니다. 포트 80과 443은 워크스테이션에서 CE 공용 주소에 대해 열림으로 읽히지만, VNet 내부에서 프로브하면 닫혀 있습니다. 클라이언트 VM을 사용하십시오.
+- **CE의 22번 포트는 내부(SLI) 주소에서만 응답합니다.** 클라이언트 VM에서 프로브하면 각 CE의 내부 주소는 OpenSSH 배너를 반환하지만, 관리 주소와 외부 주소는 타임아웃됩니다 — 대조군으로 사용한 미사용 주소와 마찬가지입니다. eth0은 `a-i-eth0`으로 이름이 변경되어 있고 호스트 IP를 갖지 않으며, 데이터패스가 이를 소유하기 때문입니다. 따라서 여러분이 노드를 식별하는 데 사용하는 주소를 프로브해도 그 노드의 SSH 상태에 대해서는 아무것도 알 수 없습니다.
+
+<Aside type="danger" title="CE 내부 주소를 절대 하드코딩하지 마십시오 — 재구축마다 재할당됩니다">
+Azure는 내부 서브넷에서 어느 CE가 어느 주소를 받는지 보존하지 않습니다. 2026-07-28 관측 결과, 재구축 후 세 CE는 `10.0.3.7`, `10.0.3.5`, `10.0.3.4`를 보유했습니다. 노드 순서도 아니고, 연속적이지도 않으며, 이전에 보유했던 것과도 다릅니다. 테스트 클라이언트 자체의 NIC도 같은 서브넷에 있으며, 이전에 어떤 CE가 보유했던 주소를 갖게 된 적이 있습니다.
+
+기억하지 말고 읽어 오십시오:
+
+```bash
+terraform output -json ce_sli_private_ips
+```
+
+Terraform 상태를 손에 쥐고 있지 않다면, *실제로* 안정적인 NIC 이름으로 Azure에 질의하십시오:
+
+```bash
+az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
+  --query ipConfigurations[0].privateIPAddress -o tsv
+```
+
+기억한 주소로 접속하면 엉뚱한 노드로 가거나, CE가 아닌 VM으로 가거나, 아무 곳에도 도달하지 못합니다 — 그리고 마지막 경우는 "SSH가 활성화되지 않음"과 똑같이 보입니다.
+</Aside>
+
+## 온박스 명령 표면이 여전히 문서와 일치하는지 확인
+
+```bash
+bash scripts/capture-sitecli.sh --check \
+  --site "$(terraform output -json xc_site_names | jq -r '.eastus01')" \
+  --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
+```
+
+`--check`는 아무것도 기록하지 않으므로 라이브 데모에 대해 안전합니다.
+
+<CardGrid>
+  <LinkCard
+    title="Customer Edge 접속"
+    description="어떤 접근 경로가 적용되는지, 각 경로에 필요한 자격 증명, 그리고 그 선택이 취향의 문제가 아닌 이유."
+    href="../../customer-edge/access/"
+  />
+  <LinkCard
+    title="BGP 명령"
+    description="FRR에서 본 온박스 관점 — 피어링 상태, 전체 테이블, 그리고 이 노드가 광고하는 내용."
+    href="../../customer-edge/commands/network/bgp/"
+  />
+</CardGrid>

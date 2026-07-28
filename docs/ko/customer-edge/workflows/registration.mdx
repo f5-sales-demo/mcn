@@ -1,29 +1,33 @@
 ---
-title: 온라인 상태가 된 적 없는 사이트
-description: '등록에 실패한 CE에 대한 순차적 절차로, 디버그 API는 실패한 등록에 의존하기 때문에 도움이 되지 않습니다.'
+title: 온라인 상태가 된 적이 없는 사이트
+description: '등록에 실패한 CE를 위한 순차적 절차로, 디버그 API는 실패한 등록에 의존하기 때문에 도움이 되지 않습니다.'
 sidebar:
   order: 10
   label: 등록
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: 0bec51f79119
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
+이 배포의 CE 한 대에서 2026-07-28에 캡처되었습니다. `sitecli/capture-manifest.json`은
+어떤 노드였는지 기록하며, `scripts/capture-sitecli.sh --check`는 실제 운영 중인 CE를 대상으로
+명령 표면을 다시 검증합니다.
+
 <Aside type="danger" title="API로는 이 문제를 디버깅할 수 없습니다">
-디버그 API는 등록 과정에서 수립되는 터널을 통해 F5 Distributed Cloud 컨트롤 플레인을 거쳐
-노드에 도달합니다. 등록이 실패했다면 터널이 없으므로, 바로 이 실패 상황에서는 이 사이트의
-모든 명령을 사용할 수 없습니다. 노드에 아직 네트워크 경로가 남아 있다면
+디버그 API는 등록이 수립하는 터널을 통해 F5 Distributed Cloud 컨트롤 플레인을 거쳐 노드에
+도달합니다. 등록이 실패했다면 터널이 없으므로, 바로 이 유형의 장애에서는 이 사이트의 모든 명령을
+사용할 수 없습니다. 노드에 아직 네트워크 경로가 남아 있다면
 [Site Console](../../access/site-console/)에서, 그렇지 않다면
 [시리얼 콘솔](../../access/serial-console/)에서 작업하십시오.
 </Aside>
 
 <Steps>
 
-1. **올바른 테넌트에 질의하고 있는지 확인하십시오.** 명령 하나면 되는 작업이며, 이것을
-   틀리면 이후의 모든 단계가 잘못된 정보를 알려주기 때문에 가장 먼저 수행합니다. 즉,
-   여러분이 보고 있지 않은 테넌트에 있는 정상 플릿은 아예 등록되지 않은 플릿과 구별할 수 없습니다.
+1. **올바른 테넌트를 조회하고 있는지 확인하십시오.** 명령 하나면 되며, 이를 가장 먼저 두는 이유는
+   여기서 틀리면 이후의 모든 단계가 거짓을 말하게 되기 때문입니다. 지금 보고 있지 않은 테넌트에서
+   정상 동작하는 플릿은, 애초에 등록된 적이 없는 플릿과 구분할 수 없습니다.
 
    ```bash
    cd terraform
@@ -36,23 +40,23 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    f5-sales-demo
    ```
 
-   일치하지 않거나, 정상이라고 믿는 자격 증명이 단순한 `401`을 반환합니까? 그것은 다른
-   테넌트용으로 발급된 토큰의 증상이며, 이미 이 배포에서 전체 재구축 한 번을 초래한 적이
-   있습니다([이슈 696](https://github.com/f5-sales-demo/mcn/issues/696)).
+   값이 일치하지 않거나, 정상이라고 믿었던 자격 증명이 아무 정보 없는 `401`을 반환합니까? 그것은
+   다른 테넌트용으로 발급된 토큰의 증상이며, 이 배포에서는 이미 전체 재구축을 한 번 유발했습니다
+   ([이슈 696](https://github.com/f5-sales-demo/mcn/issues/696)).
 
-2. **테넌트가 어떻게 인식하는지 확인하십시오.** 사이트 목록에 없는 것과, 있지만
-   `ONLINE`이 아닌 것은 서로 다른 문제입니다.
+2. **테넌트가 무엇을 알고 있는지 확인하십시오.** 사이트 목록에 없는 것은 존재하지만
+   `ONLINE`이 아닌 것과는 다른 문제입니다.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
      "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
    ```
 
-   사이트가 존재하고 `ONLINE`으로 보고된다면 등록은 성공한 것이며, 여러분은 잘못된
-   워크플로에 있는 것입니다.
+   사이트가 존재하고 `ONLINE`으로 보고된다면 등록은 성공한 것이며, 잘못된 워크플로에 들어와 있는
+   것입니다.
 
-3. **사이트의 등록과 그 상태를 확인하십시오.** 노드는 등록한 후 승인을 기다릴 수 있는데,
-   이는 외부에서 보면 실패와 똑같아 보입니다.
+3. **사이트의 등록 및 그 상태를 찾으십시오.** 노드는 등록한 뒤 승인을 기다릴 수 있으며, 외부에서
+   보면 이는 실패와 똑같이 보입니다.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -64,11 +68,11 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
    ```
 
-   항목이 전혀 없다면 노드가 아직 등록되지 않은 것입니다 — 시리얼 콘솔로 이동하십시오.
-   `ONLINE` 이외의 상태인 항목이 있다면 등록은 되었고 그 이후에 무언가 실패한 것이며,
-   이는 별개의 조사 대상입니다.
+   항목이 전혀 없다면 노드가 아직 등록되지 않았다는 뜻이므로 시리얼 콘솔로 이동하십시오.
+   `ONLINE` 이외의 상태인 항목이 있다면 등록은 되었고 그 이후에 무언가가 실패한 것이며, 이는
+   별개의 조사 대상입니다.
 
-   승인을 기다리는 모든 것을 네임스페이스 전체에서 훑어보려면, `listregistrationsbystate`가
+   승인을 기다리는 항목이 있는지 네임스페이스 전체를 훑어보려면, `listregistrationsbystate`가
    상태를 **`POST` 본문**으로 받습니다.
 
    ```bash
@@ -78,7 +82,7 @@ import { Aside, Steps } from "@astrojs/starlight/components";
      "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
    ```
 
-   정상적인 플릿에서는 승인이 자동화되어 있으므로 아무것도 반환되지 않습니다.
+   정상적인 플릿에서는 승인이 자동화되어 있으므로 아무것도 반환하지 않습니다.
 
 4. 소프트웨어 결함을 가정하기 전에 **VM이 실제로 실행 중인지 확인하십시오.**
 
@@ -95,47 +99,47 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    f5-xc-ce-vm-03  VM running
    ```
 
-5. **시리얼 콘솔에 연결하십시오.** 대화형으로 사용하려면 실제 터미널이 필요하며, 연결
-   자체는 웹소켓을 통해 스크립트로 대체할 수 있습니다 —
+5. **시리얼 콘솔에 접속하십시오.** 대화형으로 사용하려면 실제 터미널이 필요하지만, 접속 자체는
+   웹소켓을 통해 스크립트로 처리할 수도 있습니다 —
    [시리얼 콘솔](../../access/serial-console/)을 참조하십시오.
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   거부된다면, 노드에 접근할 수 없다고 결론 내리기 전에 VM에서 부팅 진단이 활성화되어
-   있는지 확인하십시오. 해당 전제 조건과 그 실패 양상은
+   거부된다면 노드에 접근할 수 없다고 결론 내리기 전에 VM에서 부트 진단이 활성화되어 있는지
+   확인하십시오. 해당 전제 조건과 그 실패 유형은
    [시리얼 콘솔](../../access/serial-console/) 페이지에서 다룹니다.
 
-6. **콘솔에 표시되는 내용을 다음 순서로 읽으십시오.** 먼저 cloud-init — cloud-init이
-   완료되지 않은 노드는 등록에 사용할 구성이 없습니다. 그다음 등록 시도 자체, 그다음 DNS입니다.
-   노드가 `register.ves.volterra.io`를 확인(resolve)할 수 없다면 그 이후의 어떤 것도
-   동작할 수 없습니다.
+6. **콘솔이 보여주는 내용을 다음 순서로 읽으십시오.** 먼저 cloud-init입니다 — cloud-init이
+   완료되지 않은 노드에는 등록에 사용할 구성 자체가 없습니다. 그다음 등록 시도 자체,
+   그다음 DNS입니다. 노드가 `register.ves.volterra.io`를 해석할 수 없다면 그 이후의
+   어떤 것도 동작할 수 없습니다.
 
-7. **노드가 `ONLINE`이 되면**, [`health`](../../commands/system/health/)로 검증하고
+7. **노드가 `ONLINE`이 되면** [`health`](../../commands/system/health/)로 검증하고
    `state: PROVISIONED`를 확인하십시오.
 
 </Steps>
 
-<Aside type="caution" title="등록의 이름은 UUID를 따르며, 절대 사이트 이름을 따르지 않습니다">
+<Aside type="caution" title="등록의 이름은 UUID를 따르며, 결코 사이트 이름을 따르지 않습니다">
 등록은 `r-<uuid>` 형식으로 이름이 지정되며, 등록 이름이 필요한 자리에 사이트 이름을 받는
 엔드포인트는 없습니다.
 `GET .../registrations/<site>`는 `404`를 반환하는데, 이는 "이 사이트에는 등록이 없다"로
-읽히지만 실제로는 "그것은 등록 이름이 아니다"라는 의미입니다. 사이트와 등록의 매핑은
-3단계처럼 `registrations_by_site/<site>`를 통해서만, 또는 `registrations`를 나열하여
-`gc_spec.passport.cluster_name`으로 매칭해서만 얻을 수 있습니다.
+읽히지만 실제로는 "그것은 등록 이름이 아니다"라는 뜻입니다. 사이트와 등록의 매핑은 3단계에서처럼
+`registrations_by_site/<site>`를 통해서만 얻을 수 있으며, 또는 `registrations`를 나열한 뒤
+`gc_spec.passport.cluster_name`으로 매칭하여 얻을 수 있습니다.
 
-바로 이 함정 때문에 정상적인 플릿에 등록이 하나도 없는 것처럼 보이기도 했습니다.
+같은 함정 때문에 정상적인 플릿이 등록 수가 0인 것처럼 보이기도 했습니다.
 </Aside>
 
 ## 흔한 원인
 
 - **잘못된 테넌트를 가리키고 있어서**, 정상인 플릿이 없는 것처럼 보입니다. 1단계.
-- cloud-init이 완료되지 않아 `/etc/vpm/config.yaml`이 없거나 잘못되었습니다.
+- cloud-init이 완료되지 않아 `/etc/vpm/config.yaml`이 없거나 잘못되어 있습니다.
 - 등록 토큰이 만료되었거나, 이미 사용되었거나, 다른 테넌트의 것입니다.
 - `register.ves.volterra.io`로 나가는 이그레스 경로가 없습니다.
-- 인증서를 무효화할 정도로 큰 시간 오차 — 나중에
+- 인증서를 무효화할 만큼 큰 시간 편차 — 나중에
   [`chronyc-sources`](../../commands/network/chronyc-sources/)로 빠르게 배제할 수 있지만,
   노드가 온라인이 되기 전에는 접근할 수 없습니다. SSH를 사용할 수 있는 경우,
-  [SSH](../../access/ssh/) 로그인 배너가 어떤 명령을 실행하기 전에 `NTP: Synced`와
+  [SSH](../../access/ssh/) 로그인 배너는 아무 명령을 실행하기 전에 `NTP: Synced`와
   리졸버의 상태를 보고합니다.

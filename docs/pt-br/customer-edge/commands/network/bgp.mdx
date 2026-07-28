@@ -1,26 +1,30 @@
 ---
 title: BGP
 description: >-
-  Se o site está estabelecendo peering, o que ele anuncia e o que ele aprende.
-  Quatro comandos que cobrem o resumo, a tabela completa, os detalhes do vizinho
-  e as rotas anunciadas.
+  Se o site está fazendo peering, o que ele anuncia e o que ele aprende. Quatro
+  comandos que cobrem o resumo, a tabela completa, o detalhe do vizinho e as
+  rotas anunciadas.
 sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 8a6e8bdbb3fa
+  sourceHash: 91512c977f72
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-O CE executa o FRR para BGP. Nesta topologia, ele estabelece peering com as duas instâncias
-do Azure Route Server, anuncia o VIP e aprende o prefixo da VNet.
+Capturado em 28/07/2026 a partir de um CE desta implantação. `sitecli/capture-manifest.json`
+registra qual nó, e `scripts/capture-sitecli.sh --check` reverifica a superfície de comandos
+contra um CE ativo.
+
+O CE executa o FRR para BGP. Nesta topologia, ele faz peering com as duas instâncias do Azure
+Route Server, anuncia o VIP e aprende o prefixo da VNet.
 
 ## `show-ip-bgp-summary`
 
 Comece por aqui. Uma única tela informa se o peering está ativo e por quanto tempo ele tem
-se mantido estável.
+estado estável.
 
 ```bash
 {"command":["show-ip-bgp-summary"]}
@@ -29,21 +33,21 @@ se mantido estável.
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-Leia `State/PfxRcd` primeiro. Um número corresponde à quantidade de prefixos recebidos e
-significa que a sessão está estabelecida; qualquer outra coisa — `Active`, `Connect`, `Idle` — é
-uma sessão que não está ativa. `Up/Down` mostra por quanto tempo o estado atual tem durado,
-portanto uma sessão que fica reiniciando exibe um valor suspeitosamente pequeno.
+Leia `State/PfxRcd` primeiro. Um número é a contagem de prefixos recebidos e significa que a
+sessão está estabelecida; qualquer outra coisa — `Active`, `Connect`, `Idle` — é uma sessão
+que não está ativa. `Up/Down` mostra por quanto tempo o estado atual durou, portanto uma sessão
+que fica sendo reiniciada exibe um valor suspeitosamente pequeno.
 
 <Aside type="caution" title="O vrf id aqui não é o que o rt espera">
 Esta saída informa `vrf-id 3`. Essa é a numeração do FRR. O plano de dados Argo usa um
-table id separado, e passar o número do FRR para
+id de tabela separado, e passar o número do FRR para
 [`rt --dump`](../dataplane-forwarding/) retorna `No such file or directory`, o que
-parece um nó defeituoso em vez de um argumento incorreto.
+parece um nó quebrado em vez de um argumento errado.
 </Aside>
 
 ## `show-ip-bgp`
 
-A tabela completa, com a seleção de melhor caminho visível.
+A tabela completa, com a seleção do melhor caminho visível.
 
 ```bash
 {"command":["show-ip-bgp"]}
@@ -55,20 +59,20 @@ A tabela completa, com a seleção de melhor caminho visível.
 `*` é uma rota válida, `>` o melhor caminho selecionado, `=` um membro de multipath. Na captura
 acima, o prefixo aprendido da VNet `10.0.0.0/16` tem dois caminhos — um por cada instância do
 Route Server — marcados como `*=` e `*>`: um melhor caminho mais um membro de multipath, de modo
-que o nó distribui a carga do tráfego de retorno entre as duas instâncias. O VIP `10.250.0.10/32`
-tem um único caminho `*>` porque este nó é o originador dele.
+que o nó distribui a carga do seu tráfego de retorno entre as duas instâncias. O VIP `10.250.0.10/32`
+tem um único caminho `*>` porque este nó o origina.
 
-<Aside type="caution" title="O ECMP de três vias da demonstração não é visível nesta saída">
-`show-ip-bgp` é a tabela de um único nó. O ECMP que esta implantação demonstra são três CEs
-*diferentes* anunciando o mesmo `/32`, e ele é programado no lado do Azure — portanto nenhuma
+<Aside type="caution" title="O multipath de custo igual da demo não é visível nesta saída">
+`show-ip-bgp` é a tabela de um único nó. O ECMP que esta implantação demonstra são vários
+CEs *diferentes* anunciando o mesmo `/32`, e ele é programado do lado do Azure — portanto nenhuma
 tabela BGP de um único CE pode mostrá-lo, e a ausência de um marcador de multipath no VIP aqui
-não é uma falha. Comprove isso a partir dos peerings do Route Server ou da tabela de rotas
-efetiva do cliente; ambos estão na [página as-built](../../../../as-built/).
+não é uma falha. Comprove isso a partir dos peerings do Route Server ou da tabela de rotas efetiva
+do cliente; ambos estão na [página de verificação](../../../../demo/verify/).
 </Aside>
 
 ## `show-ip-bgp-neighbors`
 
-Detalhes por vizinho: capacidades negociadas, temporizadores, contadores de mensagens e o
+Detalhe por vizinho: capacidades negociadas, timers, contadores de mensagens e o
 motivo do último reset.
 
 ```bash
@@ -76,20 +80,20 @@ motivo do último reset.
 ```
 
 Recorra a ele quando o resumo mostrar uma sessão instável e você precisar saber o motivo.
-`Last reset` e seu motivo são as linhas úteis.
+`Last reset` e sua razão são as linhas úteis.
 
 <Aside type="note" title="Ainda não há saída capturada nesta página">
-Esta captura não pode ser incluída até que `f5-sales-demo/docs-control#795` seja concluído. O FRR
+Esta captura não pode ser comitada até que `f5-sales-demo/docs-control#795` seja mesclado. O FRR
 escreve uma palavra incorretamente em sua linha de Graceful Restart, e o `codespell` rejeita o arquivo.
 
-Corrigir o texto capturado faria com que esta documentação descrevesse uma saída que nunca
-ocorreu, então a correção está sendo feita upstream. Execute o comando no seu próprio
+Corrigir o texto capturado faria esta documentação descrever uma saída que nunca
+ocorreu, então isso está sendo corrigido no upstream. Execute o comando contra o seu próprio
 nó nesse meio-tempo.
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
 
-O que este nó está informando aos seus peers, em oposição ao que ele conhece.
+O que este nó está informando aos seus peers, em contraste com o que ele conhece.
 
 ```bash
 {"command":["show-ip-bgp-neighbors-advertised-route"]}
@@ -105,4 +109,4 @@ ajudar.
 A saída repete um bloco `bgp neighbor:` **por peer**, portanto nesta topologia você obtém os
 mesmos dois prefixos duas vezes — uma para cada instância do Route Server. Isso não é uma
 renderização duplicada: é o que confirma que o nó está anunciando para ambas. Um bloco presente para um
-peer e ausente ou incompleto para o outro é o caso interessante.
+peer e ausente ou curto para o outro é o caso interessante.

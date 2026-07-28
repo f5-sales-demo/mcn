@@ -1,22 +1,26 @@
 ---
 title: BGP
-description: 站點是否正在建立對等連線、通告了哪些路由、又學到了哪些路由。四個指令涵蓋摘要、完整路由表、鄰居詳細資訊與已通告的路由。
+description: 站點是否已建立對等連線、通告了什麼、學習到什麼。四個涵蓋摘要、完整路由表、鄰居詳細資訊與已通告路由的指令。
 sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 8a6e8bdbb3fa
+  sourceHash: 91512c977f72
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
+擷取自 2026-07-28，來源為本部署的其中一個 CE。`sitecli/capture-manifest.json`
+記錄了是哪一個節點，而 `scripts/capture-sitecli.sh --check` 會針對線上的 CE
+重新驗證指令介面。
+
 CE 使用 FRR 執行 BGP。在此拓撲中，它與兩個 Azure Route Server
-執行個體建立對等連線、通告 VIP，並學習 VNet 前綴。
+實例建立對等連線、通告 VIP，並學習 VNet 前綴。
 
 ## `show-ip-bgp-summary`
 
-從這裡開始。一個畫面就能告訴你對等連線是否已建立，以及它已穩定多久。
+從這裡開始。一個畫面就能告知對等連線是否已建立，以及維持穩定多久了。
 
 ```bash
 {"command":["show-ip-bgp-summary"]}
@@ -25,15 +29,15 @@ CE 使用 FRR 執行 BGP。在此拓撲中，它與兩個 Azure Route Server
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-先看 `State/PfxRcd`。若為數字，代表收到的前綴數量，也就是工作階段已建立；
-其他任何值 — `Active`、`Connect`、`Idle` — 都表示工作階段未建立。`Up/Down`
-顯示目前狀態持續了多久，因此不斷重置的工作階段會顯示一個異常偏小的數值。
+先看 `State/PfxRcd`。若為數字，代表接收到的前綴數量，也表示該工作階段已建立；
+其他任何值——`Active`、`Connect`、`Idle`——都代表工作階段尚未建立。`Up/Down`
+顯示目前狀態已持續多久，因此不斷重設的工作階段會顯示出可疑地偏小的數值。
 
-<Aside type="caution" title="這裡的 vrf id 不是 rt 想要的那個">
+<Aside type="caution" title="這裡的 vrf id 不是 rt 想要的那一個">
 此輸出報告 `vrf-id 3`。那是 FRR 的編號方式。Argo 資料平面使用另一組
-table id，若將 FRR 的編號傳給
-[`rt --dump`](../dataplane-forwarding/)，會回傳 `No such file or directory`，
-看起來像是節點壞了，而其實是參數用錯了。
+table id，而將 FRR 的編號傳給
+[`rt --dump`](../dataplane-forwarding/) 會回傳 `No such file or directory`，
+看起來像是節點損壞，而其實只是參數錯誤。
 </Aside>
 
 ## `show-ip-bgp`
@@ -47,42 +51,41 @@ table id，若將 FRR 的編號傳給
 ```text file=../../../../_data/sitecli-show-ip-bgp.txt
 ```
 
-`*` 表示有效路由，`>` 表示所選的最佳路徑，`=` 表示 multipath 成員。在上方擷取的內容中，
-學到的 VNet 前綴 `10.0.0.0/16` 有兩條路徑 — 各經由一個 Route Server
-執行個體 — 分別標記為 `*=` 與 `*>`：一條最佳路徑加上一個 multipath 成員，因此節點會將
-其回程流量在兩個執行個體之間做負載分擔。VIP `10.250.0.10/32` 只有單一 `*>` 路徑，
+`*` 表示有效路由，`>` 表示所選的最佳路徑，`=` 表示多路徑成員。在上方的擷取中，
+學習到的 VNet 前綴 `10.0.0.0/16` 有兩條路徑——各透過一個 Route Server
+實例——分別標記為 `*=` 與 `*>`：一條最佳路徑加上一個多路徑成員，因此該節點會將
+回程流量負載分擔到兩個實例上。VIP `10.250.0.10/32` 只有單一 `*>` 路徑，
 因為它是由此節點所發起的。
 
-<Aside type="caution" title="此示範的三路 ECMP 在這份輸出中看不到">
-`show-ip-bgp` 只是單一節點的路由表。此部署所展示的 ECMP 是三個*不同的*
-CE 通告相同的 `/32`，而且是在 Azure 端進行程式設定的 — 所以任何單一 CE 的
-BGP 表都無法顯示它，而此處 VIP 上沒有 multipath 標記並不是故障。
-請改從 Route Server 對等連線或用戶端的有效路由表來驗證；
-兩者都在[竣工頁面](../../../../as-built/)上。
+<Aside type="caution" title="此示範的等價多路徑在此輸出中看不到">
+`show-ip-bgp` 只是單一節點的路由表。本部署所示範的 ECMP 是由數個*不同*的 CE
+通告相同的 `/32`，並且是在 Azure 端進行編程的——因此沒有任何單一 CE 的 BGP
+路由表能顯示它，此處 VIP 上沒有多路徑標記也不是故障。請改由 Route Server
+對等連線或用戶端的有效路由表來證明；兩者都在[驗證頁面](../../../../demo/verify/)上。
 </Aside>
 
 ## `show-ip-bgp-neighbors`
 
-每個鄰居的詳細資訊：協商出的功能、計時器、訊息計數器，以及上次重置的原因。
+每個鄰居的詳細資訊：協商出的能力、計時器、訊息計數器，以及上次重設的原因。
 
 ```bash
 {"command":["show-ip-bgp-neighbors"]}
 ```
 
-當摘要顯示某個工作階段不斷跳動、而你需要知道原因時，就用這個指令。
-`Last reset` 及其原因是有用的幾行。
+當摘要顯示某個工作階段不斷震盪，而你需要知道原因時，就使用這個指令。
+`Last reset` 及其原因是有用的那幾行。
 
-<Aside type="note" title="此頁面尚無擷取輸出">
-在 `f5-sales-demo/docs-control#795` 合併之前，無法提交此擷取內容。FRR
-在其 Graceful Restart 那一行拼錯了一個字，而 `codespell` 會拒絕該檔案。
+<Aside type="note" title="本頁尚無擷取的輸出">
+在 `f5-sales-demo/docs-control#795` 合併之前，此擷取無法提交。FRR
+在其 Graceful Restart 行中拼錯了一個字，而 `codespell` 會拒絕該檔案。
 
-修正擷取到的文字會使這份文件描述從未實際出現過的輸出，因此改為在上游修正。
+修正擷取到的文字會使本文件描述從未實際出現過的輸出，因此改為在上游修正。
 在此期間，請針對你自己的節點執行該指令。
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
 
-此節點正在告知其對等節點的內容，而非它所知道的內容。
+此節點正在告知其對等節點什麼內容，而非它自己知道什麼。
 
 ```bash
 {"command":["show-ip-bgp-neighbors-advertised-route"]}
@@ -91,10 +94,10 @@ BGP 表都無法顯示它，而此處 VIP 上沒有 multipath 標記並不是故
 ```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 ```
 
-這是處理「VIP 從 VNet 無法連通」的指令。如果 VIP 在這裡不存在，
-問題就在此節點上，再怎麼查看對等節點也幫不上忙。
+這是處理「VIP 無法從 VNet 存取」的指令。如果 VIP 在此處缺席，問題就在此節點上，
+再怎麼檢視對等節點也幫不上忙。
 
-輸出會針對**每個對等節點**重複一個 `bgp neighbor:` 區塊，因此在此拓撲中，你會看到
-相同的兩個前綴出現兩次 — 每個 Route Server 執行個體各一次。那不是重複
-呈現：正是它確認了節點同時向兩者通告。若某個對等節點有區塊、
-而另一個缺少或內容偏短，那才是值得注意的情況。
+輸出會**針對每個對等節點**重複一個 `bgp neighbor:` 區塊，因此在此拓撲中，你會看到
+相同的兩個前綴出現兩次——每個 Route Server 實例各一次。那不是重複渲染：
+它正是確認該節點同時向兩者通告的證據。若某個區塊只出現在一個對等節點上，
+而另一個缺失或內容過短，那才是值得關注的情況。

@@ -1,25 +1,29 @@
 ---
 title: Schnittstellen
 description: >-
-  Linux-seitiger Schnittstellen- und Link-Status auf dem Knoten sowie der eine
-  privilegierte Befehl, der ihn ändert. Was Linux glaubt — dem die Datenebene
-  widersprechen kann.
+  Linux-seitiger Schnittstellen- und Link-Status auf dem Knoten sowie der
+  einzige privilegierte Befehl, der ihn verändert. Was Linux annimmt — dem die
+  Datenebene widersprechen kann.
 sidebar:
   order: 60
   label: Schnittstellen
 i18n:
-  sourceHash: 3d2e9fd4cf74
+  sourceHash: c5b78c1a0b8c
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-Diese geben die Sicht des Kernels wieder. Die Argo-Datenebene führt ihre eigene, sichtbar über
-[`vif`](../dataplane-forwarding/), und beide können voneinander abweichen.
+Erfasst am 28.07.2026 von einer CE dieses Deployments. `sitecli/capture-manifest.json`
+dokumentiert, welcher Knoten es war, und `scripts/capture-sitecli.sh --check` verifiziert die
+Befehlsoberfläche erneut gegen eine live betriebene CE.
+
+Diese Befehle geben die Sicht des Kernels wieder. Die Argo-Datenebene führt ihre eigene Sicht,
+sichtbar über [`vif`](../dataplane-forwarding/), und beide können voneinander abweichen.
 
 ## `ip`
 
-Erwartet einen `ip`-Unterbefehl. `addr` ist der gebräuchliche; `route`, `link` und `neigh` funktionieren
+Erwartet einen `ip`-Unterbefehl. `addr` ist der gebräuchlichste; `route`, `link` und `neigh` funktionieren
 ebenfalls.
 
 ```bash
@@ -29,33 +33,33 @@ ebenfalls.
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-Die CE besitzt konstruktionsbedingt drei Azure-NICs — Management/SLO, extern, intern/SLI —, aber das
-Gastsystem stellt sie nicht in der Weise dar, die diese Reihenfolge nahelegt, und genau hier kostet
+Die CE verfügt konstruktionsbedingt über drei Azure-NICs — Management/SLO, extern, intern/SLI —, aber das
+Gastsystem stellt sie nicht in der Weise dar, die diese Reihenfolge vermuten lässt, und genau hier kostet
 ein falsches Lesen der Ausgabe Zeit.
 
 | Im Gastsystem | Trägt |
 | --- | --- |
-| `a-i-eth0` | **überhaupt keine Adresse** — dies ist die umbenannte physische eth0, und die Argo-Datenebene besitzt sie |
-| `vhost0` | die Management-/SLO-Adresse, jene, von der BGP peert und die das Site-Objekt meldet |
-| `eth1` und `eth2` | die externen und internen/SLI-Adressen — aber **nicht in fester Reihenfolge** |
+| `a-i-eth0` | **überhaupt keine Adresse** — dies ist das umbenannte physische eth0, und die Argo-Datenebene besitzt es |
+| `vhost0` | die Management-/SLO-Adresse, von der BGP peert und die das Site-Objekt meldet |
+| `eth1` und `eth2` | die externe und die interne/SLI-Adresse — aber **nicht in fester Reihenfolge** |
 
 <Aside type="danger" title="Welche von eth1 und eth2 die interne Schnittstelle ist, unterscheidet sich zwischen den Knoten">
-Live von den drei CEs dieser einen Bereitstellung ausgelesen: auf `f5-xc-ce-vm-01` und
+Live von den drei CEs dieses einen Deployments abgelesen: auf `f5-xc-ce-vm-01` und
 `f5-xc-ce-vm-03` liegt die interne/SLI-Adresse auf `eth2`, auf `f5-xc-ce-vm-02` auf
-`eth1`. Nichts in der Konfiguration bestimmt dies.
+`eth1`. Nichts in der Konfiguration legt dies fest.
 
-Leiten Sie daher niemals ein Subnetz aus einem Schnittstellennamen ab und übertragen Sie niemals eine Zuordnung von einem Knoten
-auf einen anderen. Gleichen Sie stattdessen über die Adresse ab — das Subnetz, zu dem eine CE-Adresse gehört, ist stabil, auch
-wenn die Schnittstelle, die sie trägt, es nicht ist.
+Leiten Sie daher niemals ein Subnetz aus einem Schnittstellennamen ab und übertragen Sie niemals eine
+Zuordnung von einem Knoten auf einen anderen. Vergleichen Sie stattdessen anhand der Adresse — das Subnetz,
+zu dem eine CE-Adresse gehört, ist stabil, auch wenn die Schnittstelle, die sie trägt, es nicht ist.
 </Aside>
 
-Dass `a-i-eth0` keine Adresse trägt, ist auch der gesamte Grund dafür, dass `sshd` unter der
-Management-Adresse nicht erreichbar ist: Dort gibt es keinen Listener, keinen blockierten Port. Siehe
-[SSH](../../../access/ssh/).
+Dass `a-i-eth0` keine Adresse trägt, ist auch der ganze Grund dafür, dass `sshd` auf der
+Management-Adresse nicht erreichbar ist: dort gibt es keinen Listener, es handelt sich nicht um einen
+blockierten Port. Siehe [SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 
-Nur Sicherungsschicht: Status, MTU, Queueing-Discipline, MAC.
+Nur Link-Layer: Status, MTU, Queueing-Disziplin, MAC.
 
 ```bash
 {"command":["ip-link-show"]}
@@ -65,9 +69,10 @@ Nur Sicherungsschicht: Status, MTU, Queueing-Discipline, MAC.
 ```
 
 Schneller als `ip addr`, wenn die Frage lautet „Ist der Link aktiv und wie groß ist seine MTU“.
-MTU-Abweichungen sind eine wiederkehrende Ursache für Tunnel, die zwar aufgebaut werden, aber keinen Datenverkehr durchlassen.
+MTU-Fehlanpassungen sind eine häufig wiederkehrende Ursache für Tunnel, die zwar aufgebaut werden,
+aber keinen Datenverkehr durchlassen.
 
-## `ip-link-set` <Badge text="Exec-Stufe — verändernd" variant="danger" />
+## `ip-link-set` <Badge text="Exec tier — mutating" variant="danger" />
 
 Setzt eine Schnittstelle oder Gruppe auf up oder down.
 
@@ -77,10 +82,10 @@ ip-link-set (<device>||<group>) (up||down)
 
 <Aside type="danger" title="Hier nicht ausgeführt und nicht auf dem üblichen Weg erreichbar">
 Dies ist der einzige Befehl der `Exec`-Stufe in diesem Build. Er geht an den `exec`-Endpunkt
-statt an `exec-user`, und er verändert den Knoten: `eth0` auf einer entfernten CE herunterzufahren
-entfernt den Pfad, über den Sie sie verwalten, einschließlich der Debug-API selbst.
+statt an `exec-user` und verändert den Knoten: Wenn Sie `eth0` auf einer entfernten CE deaktivieren,
+entfernen Sie den Pfad, über den Sie sie verwalten — einschließlich der Debug-API selbst.
 
-Auf dieser Seite gibt es bewusst keine aufgezeichnete Ausgabe. Das Aufzeichnungsgerüst verweigert
+Auf dieser Seite gibt es absichtlich keine erfasste Ausgabe. Das Capture-Harness verweigert
 die gesamte `Exec`-Stufe und liest die Stufe aus dem Live-Katalog statt aus einer
-fest kodierten Liste, sodass dies auch dann gilt, wenn ein künftiger Build weitere Befehle dorthin hochstuft.
+fest verdrahteten Liste, sodass dies auch dann gilt, wenn ein künftiger Build weitere Befehle in diese Stufe aufnimmt.
 </Aside>

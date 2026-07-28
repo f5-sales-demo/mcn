@@ -1,0 +1,279 @@
+---
+title: Funktionsfähigkeit nachweisen
+description: >-
+  Vier Prüfungen in fester Reihenfolge, von denen jede den möglichen Fehlerort
+  weiter eingrenzt, und die vier normal aussehenden Ergebnisse, die wie ein
+  Ausfall wirken und keiner sind — eine Abfrage eines einzelnen Peerings, ein
+  404 bei reinem IP-Zugriff, eine VIP mit Paketverlusten auf einem frisch
+  erstellten Stack und eine Port-Prüfung von der falschen Schnittstelle oder dem
+  falschen Netzwerk.
+sidebar:
+  order: 30
+  label: Verifizieren
+i18n:
+  sourceHash: 4e5376ee9ecd
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Führen Sie diese Prüfungen aus, bevor Sie präsentieren. Jede Prüfung grenzt ein, wo ein Fehler liegen würde, sodass ein Fehlschlag Ihnen etwas sagt und nicht nur, dass etwas nicht stimmt.
+
+Jeder Befehl liest die benötigten Werte aus dem Deployment. Setzen Sie diese einmal, alles Weitere folgt daraus:
+
+```bash
+cd terraform
+RG=$(terraform output -raw resource_group_name)
+RS=$(terraform output -raw route_server_name)
+CLIENT=$(terraform output -raw client_vm_name)
+DOMAIN=$(terraform output -raw lb_domain)
+VIP=$(terraform output -raw vip)
+NIC=$(terraform output -raw client_nic_name)
+```
+
+## Vier Prüfungen, in dieser Reihenfolge
+
+<Steps>
+
+1. **Jede Site ist `ONLINE`.** Nichts weiter unten in der Kette kann zutreffen, wenn dies nicht der Fall ist.
+
+   ```bash
+   for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
+     printf '%s -> ' "$s"
+     curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+       "$XCSH_API_URL/api/config/namespaces/system/sites/$s" | jq -r '.spec.site_state'
+   done
+   ```
+
+   Beobachtet am 2026-07-28, drei CEs:
+
+   ```text
+   ar-bgp-eastus01 -> ONLINE
+   ar-bgp-eastus02 -> ONLINE
+   ar-bgp-eastus03 -> ONLINE
+   ```
+
+2. **Jedes Peering lernt die VIP-Ankündigung des jeweiligen CE.** Fragen Sie jedes Peering
+   einzeln ab — siehe die erste Falle weiter unten, denn genau hier sieht die Demo am
+   häufigsten kaputt aus, ohne es zu sein.
+
+   ```bash
+   for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
+     echo "--- ${k}-bgp"
+     az network routeserver peering list-learned-routes \
+       --name "${k}-bgp" --routeserver "$RS" -g "$RG" \
+       --query "RouteServiceRole_IN_0[?network=='${VIP}/32'].{net:network,nextHop:nextHop,asPath:asPath,origin:origin}" \
+       -o table
+   done
+   ```
+
+   Beobachtet am 2026-07-28:
+
+   ```text
+   --- eastus01-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.4   64512     EBgp
+   --- eastus02-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.5   64512     EBgp
+   --- eastus03-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.6   64512     EBgp
+   ```
+
+   Drei Peerings, drei unterschiedliche Next Hops, ein Präfix. Damit ist die Ankündigungsseite
+   von ECMP nachgewiesen.
+
+3. **Die effektiven Routen des Clients enthalten jeden Next Hop.** Das ist ECMP selbst, so wie
+   das VNet es programmiert hat — nicht was die CEs behaupten, sondern was Azure daraus gemacht hat.
+
+   ```bash
+   az network nic show-effective-route-table -g "$RG" -n "$NIC" \
+     --query "value[?addressPrefix[0]=='${VIP}/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,type:nextHopType,state:state}" \
+     -o json
+   ```
+
+   Beobachtet am 2026-07-28:
+
+   ```json
+   [
+     {
+       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+       "prefix": "10.250.0.10/32",
+       "state": "Active",
+       "type": "VirtualNetworkGateway"
+     }
+   ]
+   ```
+
+   `state: Active` mit einem Eintrag pro CE in `nh` ist das Prüfkriterium. **Die Reihenfolge ist
+   nicht bedeutsam und nicht stabil** — Azure gibt sie zwischen Aufrufen unterschiedlich zurück,
+   zählen Sie sie also, statt sie mit einem früheren Durchlauf zu vergleichen. Ein Next Hop, wo
+   Sie drei erwarten, bedeutet, dass ein CE aufgehört hat anzukündigen, und Schritt 2 zeigt,
+   welcher.
+
+4. **Die VIP bedient Datenverkehr.** Von der Client-VM aus und **mit dem `Host`-Header** — siehe
+   die zweite Falle. Nehmen Sie genügend Anfragen als Stichprobe, um ein Problem zu sehen: ein
+   paar Dutzend erscheinen selbst innerhalb des unten beschriebenen Konvergenzfensters als 100 %.
+
+   ```bash
+   az vm run-command invoke -g "$RG" -n "$CLIENT" \
+     --command-id RunShellScript --query "value[0].message" -o tsv \
+     --scripts "ok=0; fail=0
+                for i in \$(seq 1 60); do
+                  c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                        -H 'Host: ${DOMAIN}' http://${VIP}/)
+                  [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
+                done
+                echo \"OK=\$ok FAIL=\$fail\""
+   ```
+
+   Beobachtet am 2026-07-28:
+
+   ```text
+   VIP with Host header: OK=60 FAIL=0
+   bare IP (no Host): 404
+   ```
+
+</Steps>
+
+## Falle: Ein Peering zeigt eine Route, und das ist korrekt
+
+`list-learned-routes` ist auf das Peering beschränkt, das Sie benennen. Es berichtet, was
+**dieser** Peer angekündigt hat, nicht die gesamte Tabelle des Route Servers.
+
+Die Abfrage eines einzelnen Peerings liefert daher ein einzelnes VIP-`/32` über einen einzelnen
+Next Hop, und es ist verlockend, das als „nur ein CE kündigt an — die anderen sind ausgefallen“
+zu lesen. Nichts ist ausgefallen. Die anderen Ankündigungen sind auf ihren eigenen Peerings
+sichtbar, und genau darüber iteriert Schritt 2.
+
+ECMP aus der Abfrage eines einzelnen Peerings zu bestätigen ist nicht möglich. Iterieren Sie
+entweder über jedes Peering, oder lesen Sie die effektive Routentabelle des Clients, die das
+zusammengeführte Ergebnis in einem Aufruf zeigt.
+
+## Falle: Eine Anfrage mit reiner IP gibt 404 zurück
+
+Der Load Balancer trifft die Zuordnung über `Host`. Die VIP ist kein virtueller Server, der
+jedem, der sich mit der Adresse verbindet, irgendetwas ausliefert.
+
+Beides stammt aus demselben Durchlauf gegen das funktionsfähige Deployment:
+
+```text
+curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
+curl                     http://$VIP/   ->  404
+```
+
+**Ein 404 bei reinem IP-Zugriff ist der Beweis, dass der Pfad funktioniert** — die Anfrage hat
+den CE erreicht, der Proxy des CE hat geantwortet und sie abgelehnt, weil keine konfigurierte
+Domain passte. Dies als Ausfall zu lesen führt dazu, dass Sie BGP untersuchen, wo Sie nichts
+Fehlerhaftes finden werden.
+
+Dasselbe gilt während einer Demo: Wenn Sie die Adresse in einen Browser eingeben, statt die
+Domain darauf aufzulösen, erhalten Sie den 404.
+
+## Die VIP verwirft Anfragen für die erste Dreiviertelstunde, dann hört es auf
+
+Auf einem frisch erstellten Stack verliert die VIP für etwa die ersten 45 Minuten, nachdem die
+CEs `ONLINE` erreichen, einen kleinen Anteil der Anfragen und bedient danach fehlerfrei.
+Gemessen über 1.470 Anfragen von der Client-VM, alle mit `Host`-Header:
+
+| Zeitfenster | Anfragen | Fehlschläge | Rate |
+| --- | --- | --- | --- |
+| Erste ~45 Minuten nachdem ECMP aktiv wurde | 570 | 12 | **2,11 %** |
+| Die folgenden 23 Minuten | 900 | **0** | **0,00 %** |
+
+Jeder Fehlschlag war `curl: (28)` — ein Timeout mit null empfangenen Bytes — kein
+HTTP-Fehlerstatus. Der letzte trat etwa 43 Minuten nach dem Aktivwerden von ECMP auf. Von den
+900 fehlerfreien Anfragen liefen 400 mit einem Timeout von 30 Sekunden, und jede war in unter
+2 Sekunden abgeschlossen, sodass nichts durch ein kurzes Timeout verborgen wurde.
+
+**Der Ursprung war nicht die Ursache.** Ein Kontroll-Batch direkt zum Ursprung
+(`terraform output -raw origin_ip`, unter Umgehung der VIP) lief 120 von 120 fehlerfrei
+*gleichzeitig mit* fehlschlagenden VIP-Batches. Der Fehler liegt irgendwo im Pfad aus VIP,
+ECMP oder CE.
+
+Zwei Dinge, die dies bewusst nicht genannt wird:
+
+- **Es ist kein Dauerzustandsfehler.** Er verschwindet vollständig und bleibt verschwunden. Eine
+  Demo, die eine Stunde läuft, hat dieses Problem nicht — 60 von 60 bei Prüfung 4 oben, auf
+  einem Stack, der seit Stunden lief.
+- **Er ist keinem bestimmten CE zuzuordnen.** Nichts in dieser Topologie stellt einen
+  HTTP-Listener pro Knoten bereit, es gibt also keine Möglichkeit, eine verworfene Anfrage dem
+  Knoten zuzuordnen, der sie verworfen hat. Die äußeren Schnittstellen der CEs haben überhaupt
+  keinen HTTP-Listener — nur das VIP-`/32` antwortet.
+
+Es trat bei einem sauberen Neuaufbau in einem anderen Tenant erneut auf, folgt also der
+Topologie und nicht der Umgebung.
+
+<Aside type="caution" title="Nehmen Sie nicht 40 Anfragen als Stichprobe und schließen daraus, dass alles in Ordnung ist">
+Batches von 40 bis 50 erscheinen selbst innerhalb des Fehlerfensters meist als 100 %. So wurde
+dies zunächst als anhaltender Fehler mit niedriger Rate und dann als überhaupt kein Fehler
+falsch charakterisiert. Nehmen Sie 100 oder mehr als Stichprobe, in zeitlich getrennten Batches.
+</Aside>
+
+## Zwei weitere Messfallen
+
+Beide führten in dieser Umgebung zu selbstsicher falschen Antworten, und keine davon ist offensichtlich.
+
+- **Prüfen Sie von innerhalb des VNet, nicht von Ihrer Workstation.** Ein Unternehmens-Proxy
+  kann den TCP-Handshake auf gängigen Ports selbst abschließen, sodass eine Prüfung von der
+  Workstation einen Port als **offen** meldet, der tatsächlich geschlossen ist. Die Ports 80 und
+  443 erscheinen auf den öffentlichen Adressen der CEs von einer Workstation aus als offen und
+  sind geschlossen, wenn sie von innerhalb des VNet geprüft werden. Verwenden Sie die Client-VM.
+- **Port 22 auf einem CE antwortet nur auf der internen (SLI-)Adresse.** Von der Client-VM aus
+  geprüft, gibt die interne Adresse jedes CE ein OpenSSH-Banner zurück, während seine
+  Management- und externen Adressen in ein Timeout laufen — genau wie eine unbenutzte Adresse,
+  die als Kontrolle verwendet wird. eth0 wird in `a-i-eth0` umbenannt und trägt keine Host-IP,
+  weil der Datenpfad sie besitzt. Die Prüfung der Adresse, unter der Sie den Knoten kennen, sagt
+  Ihnen also nichts über den SSH-Zustand des Knotens.
+
+<Aside type="danger" title="Kodieren Sie niemals eine interne CE-Adresse fest — sie werden bei jedem Neuaufbau neu zugewiesen">
+Azure bewahrt nicht, welcher CE welche Adresse im internen Subnetz erhält. Beobachtet am
+2026-07-28, nach einem Neuaufbau, hielten die drei CEs `10.0.3.7`, `10.0.3.5` und `10.0.3.4`:
+nicht in Knotenreihenfolge, nicht zusammenhängend und anders als zuvor. Die eigene NIC des
+Test-Clients liegt im selben Subnetz und hat schon eine Adresse gehalten, die vorher ein CE hatte.
+
+Lesen Sie sie aus, statt sie sich zu merken:
+
+```bash
+terraform output -json ce_sli_private_ips
+```
+
+Ohne verfügbaren Terraform-State fragen Sie Azure über den NIC-Namen, der *stabil* ist:
+
+```bash
+az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
+  --query ipConfigurations[0].privateIPAddress -o tsv
+```
+
+Eine Verbindung zu einer erinnerten Adresse bringt Sie auf den falschen Knoten, auf eine VM,
+die kein CE ist, oder nirgendwohin — und Letzteres sieht identisch aus zu „SSH ist nicht
+aktiviert“.
+</Aside>
+
+## Prüfen, ob die Befehlsoberfläche auf dem Gerät noch mit der Dokumentation übereinstimmt
+
+```bash
+bash scripts/capture-sitecli.sh --check \
+  --site "$(terraform output -json xc_site_names | jq -r '.eastus01')" \
+  --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
+```
+
+`--check` schreibt nichts und ist daher gegenüber der laufenden Demo unbedenklich.
+
+<CardGrid>
+  <LinkCard
+    title="Ein Customer Edge erreichen"
+    description="Welcher Zugangsweg gilt, welche Zugangsdaten jeder benötigt und warum die Wahl keine Vorliebe ist."
+    href="../../customer-edge/access/"
+  />
+  <LinkCard
+    title="BGP-Befehle"
+    description="Die Sicht auf dem Gerät aus FRR — Peering-Zustand, die vollständige Tabelle und was dieser Knoten ankündigt."
+    href="../../customer-edge/commands/network/bgp/"
+  />
+</CardGrid>

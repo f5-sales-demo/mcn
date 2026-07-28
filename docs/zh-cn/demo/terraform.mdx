@@ -1,0 +1,182 @@
+---
+title: Terraform 配置
+description: 部署此演示的配置，直接从执行部署的文件中读取而非重新誊写——包括根模块及其六个子模块，并附上每个文件职责的说明。
+sidebar:
+  order: 20
+  label: Terraform
+i18n:
+  sourceHash: b8380b6bc381
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import { Code } from "@astrojs/starlight/components";
+import backend from "../../_includes/terraform/backend.tf?raw";
+import data from "../../_includes/terraform/data.tf?raw";
+import locals from "../../_includes/terraform/locals.tf?raw";
+import main from "../../_includes/terraform/main.tf?raw";
+import outputs from "../../_includes/terraform/outputs.tf?raw";
+import providers from "../../_includes/terraform/providers.tf?raw";
+import variables from "../../_includes/terraform/variables.tf?raw";
+import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
+import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
+import variablesXc from "../../_includes/terraform/variables_xc.tf?raw";
+import versions from "../../_includes/terraform/versions.tf?raw";
+import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
+import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
+import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
+import modulesAzureHubVersions from "../../_includes/terraform/modules/azure-hub/versions.tf?raw";
+import modulesAzureRouteServerBgpMain from "../../_includes/terraform/modules/azure-route-server-bgp/main.tf?raw";
+import modulesAzureRouteServerBgpVersions from "../../_includes/terraform/modules/azure-route-server-bgp/versions.tf?raw";
+import modulesCeNodeMain from "../../_includes/terraform/modules/ce-node/main.tf?raw";
+import modulesCeNodeOutputs from "../../_includes/terraform/modules/ce-node/outputs.tf?raw";
+import modulesCeNodeVariables from "../../_includes/terraform/modules/ce-node/variables.tf?raw";
+import modulesCeNodeVersions from "../../_includes/terraform/modules/ce-node/versions.tf?raw";
+import modulesCeTopologyMain from "../../_includes/terraform/modules/ce-topology/main.tf?raw";
+import modulesClientVmMain from "../../_includes/terraform/modules/client-vm/main.tf?raw";
+import modulesClientVmVariables from "../../_includes/terraform/modules/client-vm/variables.tf?raw";
+import modulesClientVmVersions from "../../_includes/terraform/modules/client-vm/versions.tf?raw";
+import modulesXcSiteMain from "../../_includes/terraform/modules/xc-site/main.tf?raw";
+import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outputs.tf?raw";
+import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
+import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
+
+下面的每个文件都是实际执行部署的文件，在构建时导入而非粘贴。
+可能产生偏差的副本终将产生偏差，因此 CI 中有一项检查：一旦此处发布的内容与
+`terraform/` 中的内容不同，检查即告失败。
+
+<Aside type="note" title="为什么配置是导入的而非内联展示">
+如果粘贴进代码块，这份配置就会成为页面源文件的一部分，而页面源文件会被翻译成十二种语言。
+其中的注释会随之被翻译，于是每个语言版本都会发布一份不同的、错误的配置。
+采用导入方式，它根本不会进入页面源文件。
+</Aside>
+
+## 根模块
+
+### `terraform/backend.tf`
+
+Azure 存储后端；其配置在 init 时提供，不提交到代码库。
+
+<Code code={backend} lang="hcl" title="terraform/backend.tf" />
+
+### `terraform/data.tf`
+
+只读查询，包括用于推导部署者身份的 Azure AD 身份。
+
+<Code code={data} lang="hcl" title="terraform/data.tf" />
+
+### `terraform/locals.tf`
+
+派生对象名称所在之处。Terraform 变量的默认值无法引用其他变量，因此每个名称变量默认为 null，并在此处解析。
+
+<Code code={locals} lang="hcl" title="terraform/locals.tf" />
+
+### `terraform/main.tf`
+
+顶层接线、租户守卫以及 VIP 位于 VNet 之外的检查。部署顺序记录在该文件顶部，那是权威版本。
+
+<Code code={main} lang="hcl" title="terraform/main.tf" />
+
+### `terraform/outputs.tf`
+
+文档所读取而非直接写死名称的全部内容。如果某个页面展示了一条命令，其背后就有此处的一个输出。
+
+<Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
+
+### `terraform/providers.tf`
+
+将 xcsh 端点固定到 var.expected_xc_tenant，正是这一点让租户成为配置的一个属性。
+
+<Code code={providers} lang="hcl" title="terraform/providers.tf" />
+
+### `terraform/variables.tf`
+
+组件、环境、部署者与标签。
+
+<Code code={variables} lang="hcl" title="terraform/variables.tf" />
+
+### `terraform/variables_azure.tf`
+
+订阅、区域、CIDR、Bastion 以及 Azure 对象名称。
+
+<Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
+
+### `terraform/variables_ce.tf`
+
+CE 数量、站点前缀、ASN、镜像版本与 VM 规格。
+
+<Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
+
+### `terraform/variables_xc.tf`
+
+租户、应用命名空间、负载均衡器、源站池以及 VIP。
+
+<Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
+
+### `terraform/versions.tf`
+
+Terraform 版本下限与 provider 约束。xcsh 的约束是一个开放式下限，且锁定文件被 gitignore，因此每次 init 都会取用最新发布的 provider。
+
+<Code code={versions} lang="hcl" title="terraform/versions.tf" />
+
+## 模块
+
+### `terraform/modules/azure-hub/`
+
+资源组、中心 VNet、四个子网、Azure Route Server 以及可选的 Bastion。RouteServerSubnet 有意不带任何 NSG 或路由表。
+
+<Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
+
+<Code code={modulesAzureHubOutputs} lang="hcl" title="terraform/modules/azure-hub/outputs.tf" />
+
+<Code code={modulesAzureHubVariables} lang="hcl" title="terraform/modules/azure-hub/variables.tf" />
+
+<Code code={modulesAzureHubVersions} lang="hcl" title="terraform/modules/azure-hub/versions.tf" />
+
+### `terraform/modules/azure-route-server-bgp/`
+
+每个 eBGP 会话的 Azure 侧——每个 CE 一个 bgpConnection，将 Route Server 与该 CE 的 eth0/SLO 地址建立对等。
+
+<Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
+
+<Code code={modulesAzureRouteServerBgpVersions} lang="hcl" title="terraform/modules/azure-route-server-bgp/versions.tf" />
+
+### `terraform/modules/ce-node/`
+
+每个节点一台 CE 虚拟机：三块启用 IP 转发的网卡、市场镜像的 plan 块，以及作为 custom_data 传入的 cloud-init。
+
+<Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
+
+<Code code={modulesCeNodeOutputs} lang="hcl" title="terraform/modules/ce-node/outputs.tf" />
+
+<Code code={modulesCeNodeVariables} lang="hcl" title="terraform/modules/ce-node/variables.tf" />
+
+<Code code={modulesCeNodeVersions} lang="hcl" title="terraform/modules/ce-node/versions.tf" />
+
+### `terraform/modules/ce-topology/`
+
+纯计算，无 provider、无数据源：将 ce_count 展开为驱动所有 for_each 的按 CE 映射。在任意 N 下都可在无凭据的情况下进行 plan 测试。
+
+<Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
+
+### `terraform/modules/client-vm/`
+
+VNet 内的测试客户端，用于读取有效路由并向 VIP 发起流量。
+
+<Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
+
+<Code code={modulesClientVmVariables} lang="hcl" title="terraform/modules/client-vm/variables.tf" />
+
+<Code code={modulesClientVmVersions} lang="hcl" title="terraform/modules/client-vm/versions.tf" />
+
+### `terraform/modules/xc-site/`
+
+XC 站点对象、其 BGP 对等，以及按站点名称解析 `r-<uuid>` 注册项的注册审批。
+
+<Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
+
+<Code code={modulesXcSiteOutputs} lang="hcl" title="terraform/modules/xc-site/outputs.tf" />
+
+<Code code={modulesXcSiteVariables} lang="hcl" title="terraform/modules/xc-site/variables.tf" />
+
+<Code code={modulesXcSiteVersions} lang="hcl" title="terraform/modules/xc-site/versions.tf" />

@@ -1,0 +1,114 @@
+---
+title: การสาธิตเครือข่ายมัลติคลาวด์ CE-HA
+description: >-
+  สิ่งที่ที่เก็บข้อมูลนี้ปรับใช้ — Customer Edge แบบโหนดเดียวจำนวน N
+  ตัวที่ประกาศ VIP หนึ่งรายการผ่าน eBGP เข้าสู่ Azure Route Server เพื่อทำ
+  equal-cost multipath โดยไม่มี Azure load balancer อยู่ด้านหน้า —
+  สิ่งที่การสาธิตนี้ต้องการพิสูจน์ และจะไปที่ใดเพื่อปรับใช้ พิสูจน์ความสมบูรณ์
+  และนำเสนอ
+sidebar:
+  order: 5
+  label: สาธิต
+i18n:
+  sourceHash: 924839aeeaf6
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+การปรับใช้นี้สาธิต **ความพร้อมใช้งานสูงของ Customer Edge แบบ active/active ใน Azure**
+โดยไม่มี Azure load balancer อยู่ด้านหน้า CE แต่ละ CE ประกาศ host route เดียวกันผ่าน
+eBGP และ Azure Route Server จะติดตั้งทั้งหมดเป็น next hop ที่มีต้นทุนเท่ากันภายใน VNet
+ดังนั้น โครงสร้างการกำหนดเส้นทาง (routing fabric) จึงเป็นจุดที่การกระจายทราฟฟิกและการนำโหนดที่ล้มเหลวออกเกิดขึ้น
+แทนที่จะเป็น load balancer
+
+ทุกอย่างในหน้าเหล่านี้ถูกรันกับการปรับใช้ที่ทำงานจริง และผลลัพธ์ที่แสดงคือผลลัพธ์ที่เกิดขึ้นจริง
+สิ่งที่ประโยคดังกล่าว *ไม่ได้* ครอบคลุม — การทำ failover และวิธีที่ทราฟฟิกแบ่งไปตาม next hop ต่าง ๆ —
+จะถูกระบุไว้อย่างชัดเจน แทนที่จะปล่อยให้เป็นการคาดเดา
+
+## สิ่งที่มันปรับใช้
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| ส่วนประกอบ | คืออะไร |
+| --- | --- |
+| F5 Distributed Cloud tenant | `var.expected_xc_tenant` — จุดเดียวที่มีการระบุชื่อ tenant |
+| Namespaces | CE sites อยู่ใน `system`; origin pool และ load balancer อยู่ใน `var.xc_app_namespace` |
+| Customer Edges | ไซต์ Secure Mesh v2 แบบโหนดเดียวจำนวน `var.ce_count` ตั้งแต่ 1 ถึง 3 หนึ่งตัวต่อหนึ่ง availability zone |
+| CE software | ตรึงเวอร์ชันด้วย `var.ce_sw_version` / `var.ce_os_version` |
+| Azure VMs | สาม NIC ต่อเครื่อง — management/SLO, external, internal/SLI |
+| Route exchange | Azure Route Server หนึ่งตัว, ASN `var.rs_asn`, สองที่อยู่อินสแตนซ์ |
+| Peerings | หนึ่งรายการต่อ CE ตั้งชื่อว่า `<key>-bgp`, CE ASN `var.ce_asn` |
+| VIP ที่ประกาศ | `var.vip` เป็น `/32` ประกาศเหมือนกันโดยทุก CE |
+| Load balancer | ให้บริการ `var.lb_domain` โดยมี origin pool ที่ `var.origin_ip` รองรับ |
+| Test client | VM ภายใน VNet เดียวกัน สำหรับส่งทราฟฟิกไปที่ VIP |
+
+ไม่มีสิ่งใดข้างต้นเป็นค่าตรงตัวที่คุณควรคัดลอกไปใช้ ทุกค่าสามารถอ่านได้จากการปรับใช้
+และแต่ละหน้าจะอ่านค่าเหล่านั้นแทนการระบุชื่อค่าไว้:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="VIP ต้องอยู่ภายนอกทุก CIDR ของ VNet">
+`terraform/main.tf` มี `check` block ที่ยืนยันว่า VIP อยู่ภายนอกทั้ง CIDR ของ hub
+และ spoke และจะปฏิเสธ plan หากไม่เป็นเช่นนั้น เหตุผลที่ระบุไว้คือ VIP ที่อยู่ภายใน
+CIDR ของ VNet จะแพ้ให้กับ system route ของ VNet เอง แม้ว่า BGP route จะเจาะจงมากกว่าก็ตาม
+
+จงถือว่าการป้องกันนี้เป็นข้อผูกพัน: หากคุณเปลี่ยนการสาธิตนี้ไปใช้การกำหนดที่อยู่แบบอื่น
+VIP ต้องย้ายออกไปนอกช่วงที่อยู่ของ VNet ตามไปด้วย
+</Aside>
+
+<Aside type="note" title="สังเกตเมื่อ 2026-07-28: อ็อบเจ็กต์ที่ทำงานจริงยังใช้ชื่อชั่วคราวอยู่">
+ชื่ออ็อบเจ็กต์มาจาก `var.component` ดังนั้นการปรับใช้ที่ไม่ได้ตรึงค่าจะสร้าง
+`<component>-<region>01`, `<component>-f5se`, `<component>-pool`, `<component>-rs` และ
+`<component>-bastion` การสาธิตที่กำลังทำงานอยู่ในปัจจุบันเกิดขึ้นก่อนหน้านั้นและยังคงใช้ชื่อเดิม
+ซึ่งตรึงไว้ใน `terraform.tfvars` ในเครื่อง เพื่อไม่ให้มีสิ่งใดถูกแทนที่ขณะที่สภาพแวดล้อมกำลังถูกใช้งาน
+
+นั่นคือเหตุผลที่ผลลัพธ์คำสั่งจริงในหน้าเหล่านี้แสดงชื่อที่ไม่ตรงกับรูปแบบข้างต้น
+การเปลี่ยนไปใช้ชื่อที่ได้มาจากตัวแปรจะแทนที่ CE VM ทุกเครื่อง เพราะชื่อไซต์คือ
+`ClusterName` ที่ฝังอยู่ใน cloud-init และ cloud-init จะทำงานเฉพาะตอนบูตครั้งแรกเท่านั้น —
+ดังนั้นจึงเป็นการสร้างใหม่โดยเจตนา ซึ่งติดตามอยู่ใน
+[issue 700](https://github.com/f5-sales-demo/mcn/issues/700) ไม่ใช่การเปลี่ยนชื่อ
+</Aside>
+
+## ไปที่ใดต่อไป
+
+<CardGrid>
+  <LinkCard
+    title="ปรับใช้"
+    description="ข้อกำหนดเบื้องต้น สองค่าที่คุณต้องระบุ เหตุใดการ apply ครั้งแรกจึงมีสองเฟส และวิธีรื้อถอน"
+    href="./deploy/"
+  />
+  <LinkCard
+    title="Terraform"
+    description="ตัวการกำหนดค่าเอง อ่านจากไฟล์ที่ปรับใช้จริงแทนการพิมพ์ซ้ำ"
+    href="./terraform/"
+  />
+  <LinkCard
+    title="พิสูจน์ความสมบูรณ์"
+    description="สี่การตรวจสอบตามลำดับ และผลลัพธ์ที่ดูเหมือนปกติแต่อ่านได้ว่าเป็นเหตุขัดข้อง ซึ่งจริง ๆ แล้วไม่ใช่"
+    href="./verify/"
+  />
+  <LinkCard
+    title="นำเสนอ"
+    description="สิ่งที่การสาธิตนี้แสดงได้ สิ่งที่ยังแสดงไม่ได้ และคำสั่งเดียวที่ทำให้เห็น ECMP"
+    href="./present/"
+  />
+</CardGrid>

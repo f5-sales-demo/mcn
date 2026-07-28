@@ -2,17 +2,20 @@
 title: diagnosis
 description: >-
   Sondes de connectivité et DNS que le nœud exécute contre lui-même, renvoyées
-  en JSON. Vous indique ce que le nœud croit au sujet de sa propre
-  accessibilité.
+  au format JSON. Vous indique ce que le nœud pense de sa propre accessibilité.
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: fe68c321f801
+  sourceHash: 6bd26ad47105
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+
+Capturé le 28/07/2026 depuis un CE de ce déploiement. `sitecli/capture-manifest.json`
+indique de quel nœud il s'agit, et `scripts/capture-sitecli.sh --check` revérifie la surface
+de commande sur un CE actif.
 
 ## `diagnosis`
 
@@ -29,29 +32,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-Les résultats sont rapportés par nœud, de sorte que sur un site multi-nœuds vous obtenez un bloc pour chacun.
-`gateway_connectivity` et `dns_connectivity` contiennent chacun un résumé de ping — `dest_ip`, `sent`,
+Les résultats sont rapportés par nœud, donc sur un site multi-nœuds vous obtenez un bloc pour chacun.
+`gateway_connectivity` et `dns_connectivity` comportent chacun un résumé de ping — `dest_ip`, `sent`,
 `received`, `lost` et les temps d'aller-retour.
 
 <Aside type="danger" title="Les deux sondes ping signalent 100 % de perte sur un nœud parfaitement sain">
 Sur cette topologie, **les deux** sondes `gateway_connectivity` (vers `10.0.1.1`) et `dns_connectivity` (vers
 `168.63.129.16`) signalent `sent: 5, received: 0, lost: 100` alors que le site est `ONLINE`,
-qu'il transmet le trafic et que `registration_status: OK` — vérifié à nouveau lors de la rédaction de ces lignes. Deux
-blocs `lost: 100` dans une même réponse constituent l'élément le plus alarmant en apparence de cette page, et
-c'est l'état normal.
+transmet du trafic et affiche `registration_status: OK` — vérifié à nouveau au moment de la rédaction. Deux
+blocs `lost: 100` dans une seule réponse constituent la chose la plus alarmante en apparence de cette page,
+et c'est l'état normal.
 
-`dns_connectivity` est le plus trompeur des deux, car le DNS fonctionne de façon démontrable : le
+`dns_connectivity` est la plus trompeuse des deux, car le DNS fonctionne de manière démontrable : le
 `dns_query_result` de la même réponse contient dix résolutions réussies, `NOERROR`, contre ce
-résolveur exact. La sonde mesure l'accessibilité ICMP, à laquelle les adresses de la plateforme Azure ne
-répondent pas ; elle ne mesure pas le DNS.
+résolveur exact. La sonde mesure l'accessibilité ICMP, à laquelle les adresses de la plateforme Azure
+ne répondent pas ; elle ne mesure pas le DNS.
 
-Ne considérez l'un ou l'autre champ comme un signal que lorsque vous disposez déjà d'autres preuves d'un problème, ou
+Ne considérez l'un ou l'autre de ces champs comme un signal que si vous disposez déjà d'autres preuves d'un problème, ou
 lorsqu'il change.
 </Aside>
 
-Les champs qu'il vaut la peine de lire en premier se trouvent ailleurs dans la réponse : `registration_status`,
+Les champs qu'il vaut mieux lire en premier se trouvent ailleurs dans la réponse : `registration_status`,
 `curl_response` (une entrée par point de terminaison F5 dont le nœud a besoin, chacune `OK` ou non),
 `dns_query_result` et `ntp_sync_status`.
 
-`resolv_conf` indique le résolveur que le nœud utilisera réellement, ce qu'il vaut la peine de comparer avec
+`resolv_conf` indique le résolveur que le nœud utilisera réellement, ce qui mérite d'être comparé à
 ce que vous attendez avant de passer du temps dans [`dig`](../../network/dig/).

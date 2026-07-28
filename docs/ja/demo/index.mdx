@@ -1,0 +1,111 @@
+---
+title: マルチクラウドネットワーク CE-HA デモ
+description: >-
+  このリポジトリがデプロイするもの ── eBGP 経由で 1 つの VIP を Azure Route Server
+  にアドバタイズしてイコールコストマルチパスを実現する N 台のシングルノード Customer Edge（前段に Azure ロードバランサーは配置しない）
+  ── そしてこのデモが証明しようとしていること、デプロイ・正常性の確認・プレゼンテーションの手順への案内。
+sidebar:
+  order: 5
+  label: デモ
+i18n:
+  sourceHash: 924839aeeaf6
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+このデプロイメントは、CE の前段に Azure ロードバランサーを配置せずに
+**Azure における Customer Edge のアクティブ/アクティブ高可用性**を実証します。各 CE は eBGP で
+同一のホストルートをアドバタイズし、Azure Route Server はそれらすべてを VNet 内のイコールコストネクストホップとして
+インストールします。したがって、トラフィック分散と障害ノードの除去が行われるのは、ロードバランサーではなく
+ルーティングファブリックです。
+
+これらのページに記載された内容はすべて実稼働中のデプロイメントに対して実行されたものであり、示されている出力はその実行結果です。
+その説明が *カバーしていない* 部分 ── フェイルオーバー、およびネクストホップ間でトラフィックがどのように分割されるか ──
+については、暗黙の前提とせず明示的に取り上げています。
+
+## デプロイされるもの
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| 構成要素 | 内容 |
+| --- | --- |
+| F5 Distributed Cloud テナント | `var.expected_xc_tenant` — テナント名が記述される唯一の場所 |
+| ネームスペース | CE サイトは `system`、オリジンプールとロードバランサーは `var.xc_app_namespace` |
+| Customer Edge | `var.ce_count` 台のシングルノード Secure Mesh v2 サイト（1〜3 台）、アベイラビリティゾーンごとに 1 台 |
+| CE ソフトウェア | `var.ce_sw_version` / `var.ce_os_version` で固定 |
+| Azure VM | それぞれ 3 つの NIC ── 管理/SLO、外部、内部/SLI |
+| ルート交換 | Azure Route Server 1 台、ASN `var.rs_asn`、2 つのインスタンスアドレス |
+| ピアリング | CE ごとに 1 つ、名前は `<key>-bgp`、CE ASN は `var.ce_asn` |
+| アドバタイズされる VIP | `var.vip` を `/32` として、すべての CE が同一にアドバタイズ |
+| ロードバランサー | `var.lb_domain` を提供し、`var.origin_ip` のオリジンプールをバックエンドとする |
+| テストクライアント | 同一 VNet 内の VM。VIP に対してトラフィックを流すために使用 |
+
+上記はコピーすべきリテラル値ではありません。すべての値はデプロイメントから読み取り可能であり、
+各ページは値を直接記述するのではなく読み取っています。
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="VIP はすべての VNet CIDR の外側に配置する必要があります">
+`terraform/main.tf` には、VIP がハブおよびスポークの両方の CIDR の外側にあることをアサートし、そうでなければプランを拒否する
+`check` ブロックが含まれています。その理由として挙げられているのは、VNet CIDR 内の VIP は、BGP ルートの方がより具体的であるにもかかわらず
+VNet 自身のシステムルートに負けてしまうという点です。
+
+このガードを契約として扱ってください。このデモを別のアドレッシングに向け直す場合、VIP もそれに合わせて
+VNet の範囲外へ移動させる必要があります。
+</Aside>
+
+<Aside type="note" title="2026-07-28 に確認: 稼働中のオブジェクトは依然として暫定的な名前を保持しています">
+オブジェクト名は `var.component` から導出されるため、固定されていないデプロイメントでは
+`<component>-<region>01`、`<component>-f5se`、`<component>-pool`、`<component>-rs`、
+`<component>-bastion` が構築されます。現在稼働中のデモはその変更より前のもので、元の名前を保持しており、
+環境が使用中の間に何も置き換えられないようローカルの `terraform.tfvars` で固定されています。
+
+そのため、これらのページに掲載されている実際のコマンド出力には、上記のパターンに一致しない名前が表示されます。
+導出された名前を採用するとすべての CE VM が置き換えられます。サイト名は cloud-init に埋め込まれた
+`ClusterName` であり、cloud-init は初回ブート時にのみ実行されるためです ── したがってこれはリネームではなく意図的な再構築であり、
+[issue 700](https://github.com/f5-sales-demo/mcn/issues/700) で追跡されています。
+</Aside>
+
+## 次に読むページ
+
+<CardGrid>
+  <LinkCard
+    title="デプロイする"
+    description="前提条件、指定が必須となる 2 つの値、最初の apply が 2 フェーズになる理由、そして削除方法。"
+    href="./deploy/"
+  />
+  <LinkCard
+    title="Terraform 構成"
+    description="構成そのもの。書き写したものではなく、デプロイに使用されるファイルから読み取ったもの。"
+    href="./terraform/"
+  />
+  <LinkCard
+    title="正常性を確認する"
+    description="順を追って行う 4 つのチェックと、障害のように見えるが実際はそうではない正常な結果。"
+    href="./verify/"
+  />
+  <LinkCard
+    title="プレゼンテーションする"
+    description="このデモで示せること、まだ示せないこと、そして ECMP を可視化する唯一のコマンド。"
+    href="./present/"
+  />
+</CardGrid>

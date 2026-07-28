@@ -1,0 +1,110 @@
+---
+title: 多雲網路 CE-HA 示範
+description: >-
+  本儲存庫部署了什麼 — N 個單節點 Customer Edge，透過 eBGP 將同一個 VIP 原始通告至 Azure Route Server
+  以達成等價多路徑，且前方不放置任何 Azure 負載平衡器 — 此示範意圖證明什麼，以及要到何處部署、驗證其健康狀態並進行演示。
+sidebar:
+  order: 5
+  label: 示範
+i18n:
+  sourceHash: 924839aeeaf6
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+此部署示範 **Azure 中的 active/active Customer Edge 高可用性**，
+且 CE 前方不放置任何 Azure 負載平衡器。每個 CE 透過 eBGP 原始通告相同的主機路由，
+而 Azure Route Server 會將它們全部安裝為 VNet 中的等價下一跳。
+因此，流量分配與故障節點的移除是預期在路由網狀結構中發生，而非由負載平衡器負責。
+
+這些頁面中的所有內容都是針對實際運作中的部署執行的，所顯示的輸出即為它實際產生的
+輸出。而該句話*未*涵蓋的部分 — 容錯移轉，以及流量如何在各下一跳之間分配 —
+會被明確指出，而不是留待假設。
+
+## 它部署了什麼
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| 元件 | 內容說明 |
+| --- | --- |
+| F5 Distributed Cloud 租戶 | `var.expected_xc_tenant` — 唯一指名租戶的地方 |
+| 命名空間 | CE 站點位於 `system`；來源池與負載平衡器位於 `var.xc_app_namespace` |
+| Customer Edge | `var.ce_count` 個單節點 Secure Mesh v2 站點，1 至 3 個，每個可用區一個 |
+| CE 軟體 | 由 `var.ce_sw_version` / `var.ce_os_version` 固定版本 |
+| Azure VM | 每台三張 NIC — 管理/SLO、外部、內部/SLI |
+| 路由交換 | 一個 Azure Route Server，ASN `var.rs_asn`，兩個實例位址 |
+| 對等連線 | 每個 CE 一個，命名為 `<key>-bgp`，CE ASN 為 `var.ce_asn` |
+| 通告的 VIP | `var.vip` 以 `/32` 形式，由每個 CE 以相同方式原始通告 |
+| 負載平衡器 | 提供 `var.lb_domain` 服務，後端為位於 `var.origin_ip` 的來源池 |
+| 測試用戶端 | 同一 VNet 內的一台 VM，用於將流量導向 VIP |
+
+以上內容都不是應該照抄的字面值。每個值都可從部署中讀取，
+而每個頁面都是讀取它們而非直接指名：
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="VIP 必須位於所有 VNet CIDR 之外">
+`terraform/main.tf` 內含一個 `check` 區塊，斷言 VIP 位於 hub 與 spoke CIDR
+兩者之外，否則拒絕該 plan。其陳述的理由是：位於 VNet CIDR 內的 VIP，即使 BGP
+路由更為明確，仍會敗給 VNet 自身的系統路由。
+
+請將此防護視為契約：如果你將此示範重新指向不同的定址規劃，VIP 必須隨之移出
+VNet 範圍。
+</Aside>
+
+<Aside type="note" title="觀察於 2026-07-28：實際物件仍沿用過渡期名稱">
+物件名稱衍生自 `var.component`，因此未固定的部署會建立
+`<component>-<region>01`、`<component>-f5se`、`<component>-pool`、`<component>-rs` 與
+`<component>-bastion`。目前運作中的示範早於此規則，並保留其原始名稱，
+固定在本機的 `terraform.tfvars` 中，以便在環境使用期間不會有任何項目被取代。
+
+這就是為什麼這些頁面上的實際命令輸出所顯示的名稱與上述模式不符。
+採用衍生名稱會取代每一台 CE VM，因為站點名稱就是烘焙進 cloud-init 的
+`ClusterName`，而 cloud-init 只在首次開機時執行 — 所以這是刻意的重建，
+追蹤於
+[issue 700](https://github.com/f5-sales-demo/mcn/issues/700)，而非更名。
+</Aside>
+
+## 接下來前往何處
+
+<CardGrid>
+  <LinkCard
+    title="部署它"
+    description="先決條件、你必須提供的兩個值、為什麼第一次 apply 分為兩階段，以及如何拆除。"
+    href="./deploy/"
+  />
+  <LinkCard
+    title="Terraform 內容"
+    description="配置本身，直接從部署它的檔案讀取，而非重新打字謄寫。"
+    href="./terraform/"
+  />
+  <LinkCard
+    title="驗證健康狀態"
+    description="依序四項檢查，以及看似正常卻會被誤讀為中斷、實際上並非中斷的結果。"
+    href="./verify/"
+  />
+  <LinkCard
+    title="進行演示"
+    description="此示範能展示什麼、還無法展示什麼，以及讓 ECMP 現形的那一道命令。"
+    href="./present/"
+  />
+</CardGrid>

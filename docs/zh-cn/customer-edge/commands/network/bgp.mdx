@@ -1,21 +1,26 @@
 ---
 title: BGP
-description: 站点是否已建立对等、通告了什么、学习到了什么。四条命令分别涵盖摘要、完整路由表、邻居详情和已通告的路由。
+description: 站点是否已建立对等、它通告了什么、以及它学习到了什么。四条命令覆盖摘要、完整路由表、邻居详情和已通告路由。
 sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 8a6e8bdbb3fa
+  sourceHash: 91512c977f72
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure Route Server 实例建立对等，通告 VIP，并学习 VNet 前缀。
+采集于 2026-07-28，来自本次部署的一台 CE。`sitecli/capture-manifest.json`
+记录了具体是哪个节点，而 `scripts/capture-sitecli.sh --check` 会针对一台在线 CE
+重新校验命令接口。
+
+CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure Route Server
+实例建立对等，通告 VIP，并学习 VNet 前缀。
 
 ## `show-ip-bgp-summary`
 
-从这里开始。一屏即可告知对等是否已建立，以及它保持稳定了多久。
+从这里开始。一屏即可告知你对等是否已建立，以及它已稳定多久。
 
 ```bash
 {"command":["show-ip-bgp-summary"]}
@@ -24,16 +29,19 @@ CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure Route Server 实
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-首先查看 `State/PfxRcd`。数字表示收到的前缀数量，意味着会话已建立；其他任何内容——`Active`、`Connect`、`Idle`——都表示会话未建立。`Up/Down` 显示当前状态已持续多久，因此不断重置的会话会显示一个可疑的小数值。
+首先看 `State/PfxRcd`。数字表示已接收的前缀数量，意味着会话已建立；其他任何内容——`Active`、`Connect`、`Idle`——都表示会话未建立。`Up/Down`
+显示当前状态已持续多长时间，因此一个不断重置的会话会显示出一个可疑的极小值。
 
 <Aside type="caution" title="这里的 vrf id 不是 rt 需要的那个">
-此输出报告 `vrf-id 3`。那是 FRR 的编号。Argo 数据平面使用另一套表 id，将 FRR 的编号传给
-[`rt --dump`](../dataplane-forwarding/) 会返回 `No such file or directory`，看起来像是节点故障，而实际上只是参数用错了。
+此输出报告 `vrf-id 3`。那是 FRR 自己的编号。Argo 数据平面使用另一套表 id，把 FRR
+的编号传给
+[`rt --dump`](../dataplane-forwarding/) 会返回 `No such file or directory`，这
+看起来像是节点故障，而实际上只是参数用错了。
 </Aside>
 
 ## `show-ip-bgp`
 
-完整的路由表，可以看到最佳路径选择。
+完整的路由表，可以看到最佳路径的选择结果。
 
 ```bash
 {"command":["show-ip-bgp"]}
@@ -42,34 +50,42 @@ CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure Route Server 实
 ```text file=../../../../_data/sitecli-show-ip-bgp.txt
 ```
 
-`*` 表示有效路由，`>` 表示选中的最佳路径，`=` 表示多路径成员。在上面的抓取中，学习到的 VNet 前缀 `10.0.0.0/16` 有两条路径——分别经由每个 Route Server 实例——标记为 `*=` 和 `*>`：一条最佳路径加一个多路径成员，因此该节点会在两个实例之间对其回程流量进行负载分担。VIP `10.250.0.10/32` 只有一条 `*>` 路径，因为它是由该节点发起通告的。
+`*` 表示有效路由，`>` 表示所选的最佳路径，`=` 表示多路径成员。在上面的采集中，学习到的 VNet 前缀 `10.0.0.0/16` 有两条路径——分别经由每个 Route Server
+实例——分别标记为 `*=` 和 `*>`：一条最佳路径加一个多路径成员，因此该节点会将其
+返回流量在两个实例之间负载分担。VIP `10.250.0.10/32` 只有一条 `*>` 路径，
+因为该节点是其起源节点。
 
-<Aside type="caution" title="演示中的三路 ECMP 在此输出中不可见">
-`show-ip-bgp` 只是一个节点的路由表。本部署所演示的 ECMP 是三个*不同*的 CE 通告同一个 `/32`，且它是在 Azure 侧编程的——因此任何单个 CE 的 BGP 表都无法显示它，而此处 VIP 上没有多路径标记也并非故障。
-应改为从 Route Server 对等或客户端的有效路由表来验证；
-两者都在[竣工文档页面](../../../../as-built/)上。
+<Aside type="caution" title="该演示中的等价多路径在此输出中看不到">
+`show-ip-bgp` 只是单个节点的路由表。本部署所演示的 ECMP 是多个*不同的* CE
+通告同一个 `/32`，并且它是在 Azure 侧编程的——因此
+任何单台 CE 的 BGP 表都无法显示它，此处 VIP 上没有多路径标记
+并不是故障。请改为从 Route Server 对等关系或客户端的有效路由表来验证；
+两者都在[验证页面](../../../../demo/verify/)上。
 </Aside>
 
 ## `show-ip-bgp-neighbors`
 
-逐邻居的详细信息：协商的能力、定时器、消息计数器以及上次重置的原因。
+每个邻居的详情：协商的能力、定时器、消息计数器以及
+上次重置的原因。
 
 ```bash
 {"command":["show-ip-bgp-neighbors"]}
 ```
 
-当摘要显示某个会话在抖动、而你需要知道原因时，就用它。`Last reset` 及其原因是有用的几行。
+当摘要显示某个会话在抖动而你需要知道原因时，就用它。
+`Last reset` 及其原因是有用的行。
 
-<Aside type="note" title="此页面尚无抓取的输出">
-在 `f5-sales-demo/docs-control#795` 合并之前无法提交此抓取内容。FRR
+<Aside type="note" title="本页尚无采集输出">
+在 `f5-sales-demo/docs-control#795` 合入之前，无法提交此采集内容。FRR
 在其 Graceful Restart 行中拼错了一个单词，而 `codespell` 会拒绝该文件。
 
-修改抓取到的文本会让本文档描述从未真实出现过的输出，因此改为在上游修复。在此期间，请在你自己的节点上运行该命令。
+修改采集到的文本会使本文档描述从未真实出现过的输出，
+因此该问题正在上游修复。在此期间，请在你自己的节点上运行该命令。
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
 
-该节点正在告知其对等体的内容，与它所知道的内容相对。
+该节点正在告诉其对等体什么，而不是它自己知道什么。
 
 ```bash
 {"command":["show-ip-bgp-neighbors-advertised-route"]}
@@ -78,6 +94,11 @@ CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure Route Server 实
 ```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 ```
 
-这是用于排查“VIP 无法从 VNet 访问”的命令。如果这里没有 VIP，问题就出在该节点上，再怎么查看对等体也无济于事。
+这是用于排查"VIP 从 VNet 不可达"的命令。如果 VIP 在这里
+缺失，问题就在这个节点上，再怎么去看对等体也
+无济于事。
 
-该输出会**为每个对等体**重复一个 `bgp neighbor:` 块，因此在此拓扑中你会看到相同的两个前缀出现两次——每个 Route Server 实例各一次。这不是重复渲染：正是它确认了该节点在向两者通告。真正值得关注的情况是：某个对等体有该块，而另一个缺失或内容偏少。
+输出会**为每个对等体**重复一个 `bgp neighbor:` 块，因此在此拓扑上你会看到
+相同的两个前缀出现两次——每个 Route Server 实例一次。这不是重复
+渲染：正是它确认了该节点向两者都进行了通告。如果某个块对一个
+对等体存在，而对另一个缺失或内容偏少，那才是值得关注的情况。
