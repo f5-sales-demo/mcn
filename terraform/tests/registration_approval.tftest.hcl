@@ -23,13 +23,14 @@ run "no_approval_before_the_ce_registers" {
   }
 
   variables {
-    site_name      = "ar-bgp-eastus01"
-    hostname       = "f5-xc-ce-vm-01"
-    interface_name = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
-    mgmt_nic_mac   = "7c:1e:52:18:c1:77"
-    rs_peer_ips    = ["10.0.4.4", "10.0.4.5"]
-    ce_asn         = 64512
-    rs_asn         = 65515
+    site_name         = "ar-bgp-eastus01"
+    hostname          = "f5-xc-ce-vm-01"
+    interface_name    = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    mgmt_nic_mac      = "7c:1e:52:18:c1:77"
+    ce_vm_instance_id = "89e6c538-6bc2-4c2c-a37e-d6149c1708ce"
+    rs_peer_ips       = ["10.0.4.4", "10.0.4.5"]
+    ce_asn            = 64512
+    rs_asn            = 65515
     # Not under test here; the real 71-char interface name is covered by bgp.tftest.hcl.
     enable_bgp           = false
     approve_registration = true
@@ -74,6 +75,7 @@ run "approval_uses_the_resolved_registration_name" {
     hostname             = "f5-xc-ce-vm-01"
     interface_name       = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     mgmt_nic_mac         = "7c:1e:52:18:c1:77"
+    ce_vm_instance_id    = "89e6c538-6bc2-4c2c-a37e-d6149c1708ce"
     rs_peer_ips          = ["10.0.4.4", "10.0.4.5"]
     ce_asn               = 64512
     rs_asn               = 65515
@@ -135,6 +137,7 @@ run "approve_registration_false_plans_no_approval" {
     hostname             = "f5-xc-ce-vm-01"
     interface_name       = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     mgmt_nic_mac         = "7c:1e:52:18:c1:77"
+    ce_vm_instance_id    = "89e6c538-6bc2-4c2c-a37e-d6149c1708ce"
     rs_peer_ips          = ["10.0.4.4", "10.0.4.5"]
     ce_asn               = 64512
     rs_asn               = 65515
