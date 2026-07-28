@@ -26,6 +26,30 @@ output "route_server_id" {
   value       = module.azure_hub.route_server_id
 }
 
+# The four outputs below exist so the documentation can name nothing. Every
+# operational value a reader needs has to be readable from the deployment rather
+# than copied out of prose, because prose goes stale silently and a reader cannot
+# tell. Anything documented as a command therefore needs an output behind it.
+output "route_server_name" {
+  description = "Azure Route Server name — the --routeserver argument of `az network routeserver peering list-learned-routes`."
+  value       = local.route_server_name
+}
+
+output "client_vm_name" {
+  description = "Test client VM name — the -n argument of `az vm run-command invoke` when driving traffic at the VIP from inside the VNet."
+  value       = local.client_vm_name
+}
+
+output "lb_domain" {
+  description = "Domain the HTTP load balancer matches on. Requests to the VIP MUST send it as the Host header; without it the load balancer has no matching domain and answers 404."
+  value       = var.lb_domain
+}
+
+output "origin_ip" {
+  description = "Origin the pool targets. Useful as a control: a batch straight to the origin, bypassing the VIP, separates an origin fault from a VIP/ECMP/CE fault."
+  value       = var.origin_ip
+}
+
 output "route_server_peer_ips" {
   description = "Route Server BGP peer IPs (the CE external BGP peer addresses)."
   value       = module.azure_hub.rs_peer_ips

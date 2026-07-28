@@ -56,6 +56,29 @@ run "root_plans_end_to_end" {
     error_message = "Origin pool name should be mcn-ce-ha-pool."
   }
 
+  # The documentation names no operational value; it reads each one from an output.
+  # These four are what the demo pages call, so a rename or removal has to fail here
+  # rather than silently leaving a documented command with nothing behind it.
+  assert {
+    condition     = output.route_server_name == "mcn-ce-ha-rs"
+    error_message = "Route Server name should derive to mcn-ce-ha-rs; the verify page reads it for --routeserver."
+  }
+
+  assert {
+    condition     = output.client_vm_name == "mcn-ce-ha-client"
+    error_message = "Client VM name should derive to mcn-ce-ha-client; the verify page reads it for az vm run-command."
+  }
+
+  assert {
+    condition     = output.lb_domain == "mcn-ce-ha.f5-sales-demo.com"
+    error_message = "lb_domain must be surfaced as an output; every VIP request has to send it as the Host header."
+  }
+
+  assert {
+    condition     = output.origin_ip == "203.0.113.10"
+    error_message = "origin_ip must be surfaced as an output; it is the control batch that separates an origin fault from a VIP fault."
+  }
+
   assert {
     condition     = output.ce_count == 2
     error_message = "ce_count=2 should deploy two CE nodes."

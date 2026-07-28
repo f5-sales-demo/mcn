@@ -142,6 +142,27 @@ else
   printf '         run: scripts/sync-terraform-includes.sh && git add docs/_includes\n'
 fi
 
+# Syncing a file and publishing it are two different things. Without this, adding a
+# .tf would copy it into docs/_includes and leave the page that is supposed to show
+# it silently incomplete — the drift gate above would pass, because the copy really
+# does match its source.
+echo "9. every synced Terraform file is actually imported by the page that shows them"
+PAGE="${REPO_ROOT}/docs/en/demo/terraform.mdx"
+if [ ! -f "$PAGE" ]; then
+  bad "missing ${PAGE}"
+else
+  MISSING=""
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    grep -q "terraform/${rel}?raw" "$PAGE" || MISSING="${MISSING}${rel} "
+  done < <(cd "${REPO_ROOT}/docs/_includes/terraform" && find . -name '*.tf' -type f | sed 's|^\./||' | sort)
+  if [ -z "$MISSING" ]; then
+    ok "all $(find "${REPO_ROOT}/docs/_includes/terraform" -name '*.tf' | wc -l | tr -d ' ') files are imported"
+  else
+    bad "synced but never shown: ${MISSING}"
+  fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "PASS: terraform includes sync"
 else
