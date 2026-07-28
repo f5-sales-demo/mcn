@@ -112,8 +112,31 @@ resource "xcsh_securemesh_site_v2" "this" {
     geo_proximity {}
   }
 
-  # Pin OS/SW versions to avoid the fresh-image force-upgrade (9.2024.6 -> latest)
-  # whose churn stalls CE provisioning. Empty vars = use the server default (latest).
+  # CE software/OS version. Re-validated live 2026-07-28, and three things previously
+  # believed about this block are wrong:
+  #
+  # 1. PINNING DOES NOT AVOID AN UPGRADE. The marketplace image is always `latest`
+  #    (see modules/ce-node), it ships an older XC build, and the node upgrades on
+  #    first boot either way — `volterra_software_status.deployment_state.phase` reads
+  #    UPGRADE_COMPLETED with `last_installed_version` equal to the pin. The pin
+  #    chooses the DESTINATION of that upgrade, nothing more.
+  #
+  # 2. EMPTY VARS DO NOT MEAN "LATEST". They emit the default_* marker arms, which the
+  #    API interprets as "no preference" — and XC then advertises
+  #    `available_version` and waits rather than upgrading. A tenant site left
+  #    unpinned sat on a build nine months older than the version it advertised as
+  #    available. Unpinned means "whatever the node came up with", not "newest".
+  #
+  # 3. software_settings IS EFFECTIVELY CREATE-ONLY. Any PUT touching it is rejected
+  #    with `[BAD_REQUEST] Invalid request parameters` — verified in BOTH directions,
+  #    un-pinning and pinning forward, on all three sites. Worse, the first rejected
+  #    request still cleared the field server-side while the provider's Read does not
+  #    surface it, so Terraform's state disagrees with the live object and re-proposes
+  #    the same failing change forever (xcsh#1387).
+  #
+  # CONSEQUENCE FOR OPERATORS: moving a CE to a different version means RECREATING the
+  # site and its CE VM with the new value, not editing it. That is a fleet rebuild.
+  # Choose the version deliberately at deploy time.
   software_settings {
     os {
       dynamic "default_os_version" {

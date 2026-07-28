@@ -217,10 +217,20 @@ Both produced confident wrong answers in this environment, and neither is obviou
   you know the node by tells you nothing about the node's SSH state.
 
 <Aside type="danger" title="Never hardcode a CE internal address — they are reassigned on every rebuild">
-Azure does not preserve which CE gets which address in the internal subnet. Observed
-2026-07-28, after a rebuild, the three CEs held `10.0.3.7`, `10.0.3.5` and `10.0.3.4`: not
-in node order, not contiguous, and different from what they held before. The test client's
-own NIC sits in the same subnet and has held an address a CE held previously.
+Azure does not preserve which CE gets which address in the internal subnet, and the
+addresses are not in node order. Observed 2026-07-28 the three CEs held `10.0.3.7`,
+`10.0.3.5` and `10.0.3.4` — not sequential, and different from what they held before that
+rebuild.
+
+What decides whether they move is the **NIC**, not the VM. Replacing the CE VMs alone
+leaves the NICs in place and every address survives: verified the same day, when adopting
+the derived object names replaced all three CE VMs and the three internal addresses came
+back identical. A teardown that removes the NICs reassigns them from the subnet's free
+pool, in whatever order Azure fills it.
+
+The test client's NIC sits in that same subnet, so an address you remember as a CE's may
+now be the client's — on this deployment it holds `10.0.3.6`, which a CE held before an
+earlier rebuild.
 
 Read them instead of remembering them:
 

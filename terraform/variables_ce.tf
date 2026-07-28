@@ -63,13 +63,13 @@ variable "registration_token" {
 }
 
 variable "ce_os_version" {
-  description = "Pin CE OS version (e.g. 9.2024.6) to avoid force-upgrade churn; empty = latest."
+  description = "CE OS version, set at CREATE time (e.g. 9.2026.14). Empty leaves it to the server, which means whatever the node boots with — NOT the newest: XC advertises an available version and waits. This cannot be changed on a running site (any update is rejected 400, xcsh#1387), so changing it recreates the site and its CE VM."
   type        = string
   default     = ""
 }
 
 variable "ce_sw_version" {
-  description = "Pin CE F5XC software version (e.g. crt-20250613-3382) to avoid force-upgrade churn; empty = latest."
+  description = "CE F5XC software version, set at CREATE time (e.g. crt-20260201-0179). The node upgrades to this on first boot; the marketplace image is always latest and ships something older, so an upgrade happens either way and this only chooses its destination. Empty is NOT latest, and this cannot be changed on a running site (xcsh#1387) — changing it recreates the site and its CE VM."
   type        = string
   default     = ""
 }
