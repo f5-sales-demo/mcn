@@ -21,14 +21,36 @@ ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> admin@10.0.3.5
 Every part of that command line is load-bearing, and the next three sections explain
 which failure each one prevents.
 
-<Aside type="caution" title="Enabling this on a running deployment replaces the VMs">
-The key is written by cloud-init, and cloud-init `write_files` runs **only on first
-boot**. Turning this on for existing nodes means replacing them, which currently wedges
-registration: the stale registration holds the unique `(tenant, cluster_name, hostname)`
-index, the replacement node can never register, and `terraform plan` reports
-"No changes" throughout. See
+<Aside type="caution" title="Bootstrap-only — an existing CE cannot gain SSH without being recreated">
+cloud-init `write_files` runs **once, on first boot**. Afterwards a
+`/etc/cloud/cloud-init.disabled` marker exists on the node and cloud-init does not run
+again.
+
+So there is no in-place path onto a running CE. `custom_data` is replace-only in Azure,
+which means adopting this on an existing deployment **replaces every CE VM**. Granting
+operator SSH to nodes that are already up is a rebuild, not a configuration change — and
+the next warning is what that rebuild currently costs.
+</Aside>
+
+<Aside type="danger" title="Replacing a CE VM wedges registration, and terraform plan reports 'No changes' while the fleet is down">
+This is the heaviest thing on the page. Read
 [issue 674](https://github.com/f5-sales-demo/mcn/issues/674) before you plan the change,
 not after.
+
+The stale registration holds the unique `(tenant, cluster_name, hostname)` index, so the
+replacement node's registration is refused with `UniqueSecondaryIndexViolationError` and it
+retries forever. Deleting the registration is not sufficient on its own: a leftover
+`StatusObject` then returns `500` for the workload request, and by that point each node has
+persisted a `registration-obj.yml` pinning it to the registration you deleted, so it loops
+on `404` with no self-recovery.
+
+Recovery required deleting the registrations, recreating the site objects, **replacing the
+VMs a second time**, and then applying the approvals — two full rebuilds to absorb one
+`custom_data` change.
+
+Throughout all of it `terraform plan` reported **"No changes"**, because from Terraform's
+point of view the desired state had been reached. The fleet was down and the plan was
+clean. Do not treat absorbing this change as a routine apply.
 </Aside>
 
 ## Why cloud-init writes the key, and not the API
@@ -122,6 +144,19 @@ which fails in a way that looks like a different problem:
 `ssh host 'some-command'` therefore does not work: the argument is ignored and the
 interactive prompt starts anyway. Drive it as a terminal or not at all.
 `scripts/sitecli_ssh_harvest.py` is the reference implementation.
+
+<Aside type="caution" title="A panic reading 'no such device or address' means authentication SUCCEEDED">
+`vpmu` emits it **after** login, when it finds no terminal to attach to. Read as a crash it
+looks like the worst possible outcome, and it is in fact the last error before success. Add
+`-tt` and connect again.
+</Aside>
+
+<Aside type="caution" title="Replacing a CE changes its host key">
+The replacement node presents a different host key at the same address, so the next
+connection warns `REMOTE HOST IDENTIFICATION HAS CHANGED` and refuses. Clear the old entry
+for that address and reconnect. Since granting SSH replaces the VMs at all, expect this on
+the very first connection after adopting it.
+</Aside>
 
 The login banner reports the node's registration state, which is the quickest way to tell
 a node that is still coming up from one that is broken:

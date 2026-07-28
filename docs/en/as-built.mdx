@@ -217,8 +217,8 @@ This affects a freshly built demo, not a running one.
 
 ## Reaching the Site CLI
 
-On-box diagnostics go through the debug API, which is already scripted here. Confirm the
-command surface still matches what the documentation describes:
+Routine on-box diagnostics go through the debug API, which is already scripted here.
+Confirm the command surface still matches what the documentation describes:
 
 ```bash
 bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
@@ -229,6 +229,32 @@ catalog matches the live CE (build crt-20250613-3382, 34 commands)
 ```
 
 `--check` writes nothing, so it is safe against the live demo.
+
+For the commands that API does not relay, this deployment also has **operator SSH to the
+appliance `admin` account**, whose login shell is the Site CLI. It is verified on all
+three CEs. Connect to the internal (SLI) address from a host inside the VNet, with a
+terminal allocated:
+
+```bash
+ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<vm-in-vnet> admin@10.0.3.5
+```
+
+```text
+WELCOME IN SITE CLI
+Registration Status: PROVISIONED
+```
+
+<Aside type="caution" title="That access exists because these CEs were built with it — it cannot be added later">
+The operator key is written by cloud-init `write_files`, which runs once on first boot.
+`custom_data` is replace-only, so adopting this on CEs that are already running replaces
+every CE VM — and replacing one currently wedges registration while `terraform plan`
+reports "No changes" ([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)).
+Recovery took two full rebuilds.
+
+For this deployment the change is already applied and the fleet is healthy. Anyone
+adopting it elsewhere should read the
+[SSH page](../customer-edge/access/ssh/) first.
+</Aside>
 
 <CardGrid>
   <LinkCard
@@ -255,8 +281,9 @@ obvious.
 - **Port 22 on a CE answers on the internal (SLI) address only.** Probed from
   `ar-ecmp-client` against the three CEs, `10.0.3.5`, `10.0.3.6` and `10.0.3.7` all return
   `SSH-2.0-OpenSSH_8.7`, while the management and external addresses time out — as does an
-  unused address used as a control. Probing the address you know the node by therefore
-  tells you nothing about the node's SSH state.
+  unused address used as a control. eth0 is renamed `a-i-eth0` and carries no host IP,
+  because the datapath owns it. So probing the address you know the node by tells you
+  nothing about the node's SSH state, and the SLI address is the one to connect to.
 
 <Aside type="note" title="What this page does not claim">
 Two things a reader could reasonably expect here are deliberately absent, because they were

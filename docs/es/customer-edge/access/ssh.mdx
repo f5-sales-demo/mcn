@@ -1,59 +1,87 @@
 ---
 title: SSH
 description: >-
-  SSH del operador a la cuenta de administrador del Customer Edge, cuyo shell de
-  inicio es la CLI del sitio. Explica por qué el campo de la API que parece
-  habilitarlo no hace nada, por qué sshd responde únicamente en la dirección
-  interna, la mecánica de terminal que requiere la CLI del sitio, y qué costo
-  tiene habilitarlo en un despliegue en ejecución.
+  SSH del operador a la cuenta admin del Customer Edge, cuyo shell de inicio de
+  sesión es la Site CLI. Cubre por qué el campo de la API que parece habilitarlo
+  no hace nada, por qué sshd responde únicamente en la dirección interna, la
+  mecánica de terminal que exige la Site CLI y qué cuesta habilitarlo en un
+  despliegue en funcionamiento.
 sidebar:
   order: 25
   label: SSH
 i18n:
-  sourceHash: f986c2b5d440
+  sourceHash: 8cfff7cccc3d
   translator: machine
 ---
 
 import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-SSH accede a la cuenta `admin` del dispositivo, cuyo shell de inicio es la CLI del sitio
-(`/opt/bin/vpmu`). Esta es la única ruta hacia la **superficie completa de comandos en el dispositivo** — la
-[API de depuración](../debug-api/) expone 34 comandos, y el dispositivo en sí ofrece muchos más
-que no están en esa API en absoluto.
+SSH alcanza la cuenta `admin` del appliance, cuyo shell de inicio de sesión es la Site CLI
+(`/opt/bin/vpmu`). Esta es la única vía hacia la **superficie completa de comandos en el
+dispositivo**: la [API de depuración](../debug-api/) expone 34 comandos, y el propio
+appliance ofrece muchos más que no están en esa API en absoluto.
 
 ```bash
 ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> admin@10.0.3.5
 ```
 
-Cada parte de esa línea de comandos tiene una función esencial, y las tres secciones siguientes explican
-qué fallo previene cada una.
+Cada parte de esa línea de comandos cumple una función, y las tres secciones siguientes
+explican qué fallo evita cada una.
 
-<Aside type="caution" title="Habilitar esto en un despliegue en ejecución reemplaza las VMs">
-La clave es escrita por cloud-init, y `write_files` de cloud-init se ejecuta **solo en el
-primer arranque**. Activar esto para nodos existentes implica reemplazarlos, lo que actualmente bloquea
-el registro: el registro obsoleto retiene el índice único `(tenant, cluster_name, hostname)`,
-el nodo de reemplazo nunca puede registrarse, y `terraform plan` reporta
-"No changes" en todo momento. Consulte el
-[issue 674](https://github.com/f5-sales-demo/mcn/issues/674) antes de planificar el cambio,
-no después.
+<Aside type="caution" title="Solo en el arranque inicial — un CE existente no puede obtener SSH sin ser recreado">
+`write_files` de cloud-init se ejecuta **una sola vez, en el primer arranque**. Después
+existe un marcador `/etc/cloud/cloud-init.disabled` en el nodo y cloud-init no vuelve a
+ejecutarse.
+
+Por tanto, no hay una vía in situ hacia un CE en funcionamiento. `custom_data` es de
+solo reemplazo en Azure, lo que significa que adoptar esto en un despliegue existente
+**reemplaza todas las VM de CE**. Conceder SSH de operador a nodos que ya están en marcha
+es una reconstrucción, no un cambio de configuración — y la siguiente advertencia describe
+lo que cuesta actualmente esa reconstrucción.
+</Aside>
+
+<Aside type="danger" title="Reemplazar una VM de CE atasca el registro, y terraform plan informa 'No changes' mientras la flota está caída">
+Esto es lo más grave de esta página. Lea
+[la incidencia 674](https://github.com/f5-sales-demo/mcn/issues/674) antes de planificar el
+cambio, no después.
+
+El registro obsoleto retiene el índice único `(tenant, cluster_name, hostname)`, de modo que
+el registro del nodo de reemplazo se rechaza con `UniqueSecondaryIndexViolationError` y
+reintenta indefinidamente. Eliminar el registro no basta por sí solo: un `StatusObject`
+residual devuelve entonces `500` para la solicitud de carga de trabajo, y a esas alturas cada
+nodo ha persistido un `registration-obj.yml` que lo fija al registro que usted eliminó, por lo
+que entra en bucle con `404` sin recuperación automática.
+
+La recuperación requirió eliminar los registros, recrear los objetos de sitio, **reemplazar las
+VM por segunda vez** y luego aplicar las aprobaciones: dos reconstrucciones completas para
+absorber un cambio de `custom_data`.
+
+Durante todo el proceso, `terraform plan` informó **"No changes"**, porque desde el punto de
+vista de Terraform el estado deseado ya se había alcanzado. La flota estaba caída y el plan
+estaba limpio. No trate la absorción de este cambio como un apply rutinario.
 </Aside>
 
 ## Por qué cloud-init escribe la clave, y no la API
 
-`admin_user_credentials.ssh_key` en el objeto del sitio parece exactamente el campo para
-esto. Es aceptado, sobrevive una lectura posterior, y no configura nada. `vpm` es el propietario de
-los usuarios locales del nodo y se niega a modificar este — según el propio registro del nodo, tres veces
-durante un solo arranque:
+`admin_user_credentials.ssh_key` en el objeto de sitio parece exactamente el campo
+adecuado para esto. Se acepta, sobrevive a una relectura y no configura nada. `vpm` es
+propietario de los usuarios locales del nodo y se niega a tocar este — según el propio log
+del nodo, tres veces en un solo arranque:
 
 ```text
 vpm  users.go:165: Won't do any change for user admin (internal skip)
 ```
 
-Todo lo demás se desprende de esa única línea. `/var/home/admin/.ssh` nunca existe, ni antes ni
-después de que el sitio alcance el estado `ONLINE`. La fecha de último cambio en el shadow de `admin` permanece en la fecha de construcción de la imagen mientras `vesbkp` y `vesopcon` muestran la fecha actual, porque `vpm` configuró esos dos y omitió `admin`. Y `vpm` no registra nada sobre `ssh_key` ni `authorized_keys` en ningún momento.
+Todo lo demás se deriva de esa única línea. `/var/home/admin/.ssh` nunca existe, ni antes ni
+después de que el sitio alcance el estado `ONLINE`. La fecha de último cambio de shadow de
+`admin` permanece en la fecha de compilación de la imagen, mientras que `vesbkp` y `vesopcon`
+muestran la fecha actual, porque `vpm` configuró esos dos y omitió `admin`. Y `vpm` no
+registra nada sobre `ssh_key` ni `authorized_keys` en ningún momento.
 
-Por lo tanto, el archivo debe escribirse fuera de `vpm`. `admin` tiene uid 2202, incorporado en la imagen del nodo, por lo que existe antes de que cloud-init se ejecute y `owner: admin:admin` se resuelve en el momento de la escritura — sin `runcmd`, sin corrección de propiedad:
+Así que el archivo debe escribirse fuera de `vpm`. `admin` es el uid 2202, integrado en la
+imagen del nodo, por lo que existe antes de que se ejecute cloud-init y `owner: admin:admin`
+se resuelve en el momento de la escritura — sin `runcmd`, sin corrección de propiedad:
 
 ```yaml
 - path: /var/home/admin/.ssh/authorized_keys
@@ -63,25 +91,26 @@ Por lo tanto, el archivo debe escribirse fuera de `vpm`. `admin` tiene uid 2202,
     ${ssh_public_key}
 ```
 
-`sshd` siempre estuvo dispuesto a responder. `sshd -T` reporta `pubkeyauthentication yes`, y `admin`
-aparece en `AllowUsers` en ambos archivos `sshd_config` que vienen en el nodo. Nunca hubo
-nada que habilitar — solo faltaba el archivo.
+`sshd` siempre estuvo dispuesto. `sshd -T` informa `pubkeyauthentication yes`, y `admin`
+aparece en `AllowUsers` en ambos archivos `sshd_config` que se incluyen en el nodo. Nunca
+hubo nada que habilitar — solo un archivo ausente.
 
-<Aside type="danger" title="No vuelva a agregar admin_user_credentials ni edite sshd_config">
-`admin_user_credentials` estaba integrado en `terraform/modules/xc-site` y fue revertido una vez que se
-recopiló esta evidencia (#660, PR #663). No es una brecha pendiente de rellenar.
+<Aside type="danger" title="No vuelva a añadir admin_user_credentials, y no edite sshd_config">
+`admin_user_credentials` se conectó a `terraform/modules/xc-site` y se revirtió una vez
+recopilada esta evidencia (#660, PR #663). No es una carencia pendiente de cubrir.
 
-`sshd_config` es reemplazado durante el registro, por lo que cualquier edición será descartada en el
+`sshd_config` se reemplaza durante el registro, por lo que cualquier edición se descarta en el
 momento menos conveniente.
 </Aside>
 
-## Por qué responde solo en una dirección
+## Por qué responde en una sola dirección
 
-`sshd` enlaza `0.0.0.0:22`, pero solo la dirección **interna (SLI)** está en la pila de red del host.
-eth0 se renombra `a-i-eth0` y no tiene IP de host — el plano de datos de Argo es propietario de esa
-interfaz — mientras que eth1 y eth2 permanecen en la pila del host, donde `sshd` está escuchando.
+`sshd` se enlaza a `0.0.0.0:22`, pero solo la dirección **interna (SLI)** está en la pila de
+red del host. eth0 se renombra a `a-i-eth0` y no lleva IP de host — el plano de datos de Argo
+es propietario de esa interfaz — mientras que eth1 y eth2 permanecen en la pila del host,
+donde `sshd` está escuchando.
 
-Sondeo desde una VM dentro de la VNet:
+Sondeado desde una VM dentro de la VNet:
 
 ```text
 10.0.1.4     timed out             CE mgmt/SLO  (eth0)
@@ -91,54 +120,71 @@ Sondeo desde una VM dentro de la VNet:
 10.0.3.7     OPEN
 ```
 
-Un sondeo contra la dirección por la que conoce el nodo devuelve exactamente lo mismo que un grupo de
-seguridad cerrado. No hay nada bloqueando; simplemente no hay ningún oyente en esa dirección.
+Por tanto, un sondeo contra la dirección por la que usted conoce el nodo devuelve exactamente
+lo mismo que devolvería un grupo de seguridad cerrado. Nada lo está bloqueando; simplemente no
+hay ningún proceso escuchando en esa dirección.
 
-Las direcciones públicas del CE tampoco tienen ningún oyente en el puerto 22, razón por la cual el comando
-anterior utiliza `-J`: una VM operadora dentro de la VNet, en la misma subred que las
-direcciones SLI.
+Las direcciones públicas del CE tampoco tienen ningún proceso escuchando en el puerto 22, y por
+eso el comando anterior pasa por `-J`: una VM de operador dentro de la VNet, en la misma
+subred que las direcciones SLI.
 
-<Aside type="caution" title="Dos errores de medición que producen respuestas incorrectas con apariencia de certeza">
-Sondear eth0, la interfaz externa, o la dirección pública en el puerto 22 reporta cerrado
-independientemente del estado SSH del nodo, por lo que no puede indicarle nada en absoluto. Solo la dirección SLI responde.
+<Aside type="caution" title="Dos errores de medición que producen respuestas erróneas con total seguridad">
+Sondear eth0, la interfaz externa o la dirección pública en busca del puerto 22 informa
+"cerrado" sea cual sea el estado de SSH del nodo, así que no puede decirle absolutamente nada.
+Solo la dirección SLI responde.
 
-Y un sondeo desde un equipo corporativo puede reportar un puerto **abierto** que está cerrado:
-Netskope completa el handshake TCP por sí mismo en puertos comunes. Los puertos 80 y 443 se leen como
-abiertos en las direcciones públicas del CE desde un equipo de trabajo y están cerrados cuando se sondean desde dentro
-de la VNet. Sondee desde una VM en la VNet.
+Y un sondeo desde una estación de trabajo corporativa puede informar un puerto como **abierto**
+cuando está cerrado: Netskope completa el handshake TCP por su cuenta en puertos comunes. Los
+puertos 80 y 443 aparecen como abiertos en las direcciones públicas del CE desde una estación de
+trabajo y están cerrados cuando se sondean desde dentro de la VNet. Sondee desde una VM en la
+VNet.
 </Aside>
 
-## La CLI del sitio necesita una terminal y un retorno de carro
+## La Site CLI necesita un terminal, y un retorno de carro
 
-El shell de inicio de `admin` no es un shell. Es una aplicación `go-prompt`, que pone la
-terminal en modo raw y lee pulsaciones de teclas en lugar de líneas. Cuatro consecuencias, cada una
-de las cuales falla de una manera que parece un problema diferente:
+El shell de inicio de sesión de `admin` no es un shell. Es una aplicación `go-prompt`, que pone
+el terminal en modo raw y lee pulsaciones de teclas en lugar de líneas. Cuatro consecuencias,
+cada una de las cuales falla de una forma que parece un problema distinto:
 
 | Mecánica | Qué ocurre sin ella |
 | --- | --- |
-| Asignar una terminal (`ssh -tt`) | `panic: no such device or address` de `go-prompt.NewStandardInputParser`, que parece un dispositivo caído |
-| Enviar un retorno de carro, no un salto de línea, para Enter | La línea nunca se envía, y la sesión se cierra al final de la entrada sin haber impreso nada |
+| Asignar un terminal (`ssh -tt`) | `panic: no such device or address` desde `go-prompt.NewStandardInputParser`, que se interpreta como un appliance caído |
+| Enviar un retorno de carro, no un salto de línea, para Intro | La línea nunca se envía y la sesión se cierra al llegar al fin de entrada sin haber impreso nada |
 | Mantener la entrada estándar abierta | La conexión termina antes de que el comando se haya renderizado, por lo que un comando que funciona parece silencioso |
-| Escribir el texto del comando y el byte Enter **por separado** | El salto de línea aterriza en el búfer como un carácter literal y la CLI responde `unknown command`, lo que parece indicar que el comando no existe |
+| Escribir el texto del comando y el byte de Intro **por separado** | El salto de línea llega al búfer como carácter literal y la CLI responde `unknown command`, lo que se interpreta como si el comando no existiera |
 
-`ssh host 'some-command'` por lo tanto no funciona: el argumento es ignorado y el prompt
-interactivo se inicia de todas formas. Úselo como terminal o no lo use en absoluto.
+Por tanto, `ssh host 'some-command'` no funciona: el argumento se ignora y el prompt
+interactivo se inicia de todos modos. Manéjelo como un terminal o no lo use.
 `scripts/sitecli_ssh_harvest.py` es la implementación de referencia.
 
-El banner de inicio de sesión reporta el estado de registro del nodo, que es la forma más rápida de distinguir
-un nodo que aún está arrancando de uno que está defectuoso:
+<Aside type="caution" title="Un panic que dice 'no such device or address' significa que la autenticación TUVO ÉXITO">
+`vpmu` lo emite **después** del inicio de sesión, cuando no encuentra ningún terminal al que
+acoplarse. Interpretado como una caída, parece el peor resultado posible, y en realidad es el
+último error antes del éxito. Añada `-tt` y conéctese de nuevo.
+</Aside>
+
+<Aside type="caution" title="Reemplazar un CE cambia su clave de host">
+El nodo de reemplazo presenta una clave de host distinta en la misma dirección, por lo que la
+siguiente conexión advierte `REMOTE HOST IDENTIFICATION HAS CHANGED` y se rechaza. Elimine la
+entrada antigua correspondiente a esa dirección y vuelva a conectarse. Dado que conceder SSH
+reemplaza las VM de todas formas, espere que esto ocurra en la primerísima conexión tras
+adoptarlo.
+</Aside>
+
+El banner de inicio de sesión informa del estado de registro del nodo, que es la forma más
+rápida de distinguir un nodo que aún está arrancando de uno que está averiado:
 
 ```text
 Registration Status: PROVISIONING
 SLO IP: 10.0.1.4/26
 ```
 
-## Proporcionar el par de claves
+## Suministro del par de claves
 
 <Steps>
 
-1. Genere un par de claves, si aún no tiene uno. Ed25519 en lugar de RSA: más corto,
-   y aceptado por el `sshd` del dispositivo.
+1. Genere un par de claves, si aún no tiene uno. Ed25519 en lugar de RSA: más corto y
+   aceptado por el `sshd` del appliance.
 
    ```bash
    ssh-keygen -t ed25519 -C "ce-operator" -f ~/.ssh/id_ed25519
@@ -152,63 +198,64 @@ SLO IP: 10.0.1.4/26
    ssh_public_key_path = "~/.ssh/id_ed25519.pub"
    ```
 
-   `ssh_public_key` acepta el material en línea, que es lo que usan las pruebas del plan.
-   La mitad privada nunca abandona su equipo de trabajo.
+   `ssh_public_key` toma el material en línea en su lugar, que es lo que usan las pruebas
+   de plan. La mitad privada nunca sale de su estación de trabajo.
 
-3. Aplique. Lea la advertencia al inicio de esta página primero — en un despliegue existente esto
-   reemplaza las VMs del CE.
+3. Aplique. Lea antes la advertencia al principio de esta página — en un despliegue
+   existente esto reemplaza las VM de CE.
 
 </Steps>
 
-<Aside type="note" title="El admin_ssh_key propio de la VM es algo diferente">
-`azurerm_linux_virtual_machine.admin_ssh_key` en `modules/ce-node` autoriza al administrador de la VM
-de Azure, no a la cuenta `admin` del dispositivo. No otorga acceso a la CLI del sitio, y
-tenerlo configurado no es evidencia de que SSH del CE esté configurado.
+<Aside type="note" title="El admin_ssh_key propio de la VM es algo distinto">
+`azurerm_linux_virtual_machine.admin_ssh_key` en `modules/ce-node` autoriza al administrador
+de la VM de Azure, no a la cuenta `admin` del appliance. No otorga acceso a la Site CLI, y
+tenerlo configurado no es prueba de que el SSH del CE esté configurado.
 </Aside>
 
 ## Lo que esto no es
 
-Cada uno de estos fue probado y descartado mientras aún se creía que la ruta era imposible.
-Cada uno es lo suficientemente plausible como para costar un día de trabajo.
+Cada uno de estos casos se probó y se descartó mientras aún se creía que la vía era
+imposible. Cada uno resulta lo bastante plausible como para costar un día.
 
-| No es la causa | Cómo fue descartado |
+| No es la causa | Cómo se descartó |
 | --- | --- |
-| La credencial solo aplica en el momento de la creación | `sshd` arranca aproximadamente 90 segundos después del primer arranque, antes de que el objeto del sitio exista. `admin_user_credentials` también está presente en `ReplaceSpecType` y aplica en su lugar. |
-| `block_all_services` | El cierre del puerto 22 en la dirección de gestión es idéntico independientemente de si los servicios están bloqueados o no. |
-| Un salto de línea al final de la clave | Probado de ambas formas, sin cambios. Cloud-init aún lo elimina, porque un bloque literal de lo contrario renderizaría una segunda línea vacía. |
-| Software de CE antiguo fijado a una versión anterior | Reproducido en tres compilaciones, incluida una que ejecuta OpenSSH 9.9. |
-| La ausencia de `admin_password` | Configurar `admin_password` junto con `ssh_key` en un CE desde cero no cambió nada. |
+| La credencial solo se aplica en el momento de la creación | `sshd` arranca unos 90 segundos después del primer arranque, antes de que exista el objeto de sitio. `admin_user_credentials` también está presente en `ReplaceSpecType` y se aplica in situ. |
+| `block_all_services` | El cierre del puerto 22 en la dirección de gestión es idéntico tanto si los servicios están bloqueados como si no. |
+| Un salto de línea final en la clave | Probado de ambas formas, sin cambios. Cloud-init lo elimina igualmente, porque de lo contrario un bloque literal renderizaría una segunda línea vacía. |
+| Software de CE fijado a una versión anterior | Reproducido en tres compilaciones, incluida una que ejecuta OpenSSH 9.9. |
+| Un `admin_password` ausente | Establecer `admin_password` junto con `ssh_key` en un CE creado desde cero no cambió nada. |
 
-<Aside type="caution" title="Dos campos de la API que parecen discriminadores y no lo son">
+<Aside type="caution" title="Dos campos de la API que parecen discriminantes y no lo son">
 `gc_spec.admin_ssh_key` está vacío en **los 88 sitios del tenant**, incluidos los 20 que
-configuran `admin_password`. Compararlo entre un sitio que funciona y uno que no funciona no
-le dice nada, porque está vacío en todos lados.
+establecen `admin_password`. Compararlo entre un sitio que funciona y uno que no funciona no le
+dice nada, porque está vacío en todas partes.
 
-`registrations_by_site` omite el campo por completo y devuelve `None` para él, lo que se lee
-como "no configurado" en lugar de "no reportado".
+`registrations_by_site` omite el campo por completo y devuelve `None` para él, lo que se
+interpreta como "no configurado" en lugar de "no informado".
 </Aside>
 
-## Las otras rutas
+## Las otras vías
 
 <CardGrid>
   <LinkCard
-    title="API de depuración"
-    description="Con scripts, no necesita acceso dentro de la VNet, y es la opción correcta para evidencia repetible. Cubre 34 comandos y requiere que el sitio esté <code>ONLINE</code>."
+    title="Debug API"
+    description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Covers 34 commands and needs the site <code>ONLINE</code>."
     href="../debug-api/"
   />
   <LinkCard
-    title="Consola serie"
-    description="Para un nodo que nunca se registró, o que no tiene una ruta de red funcional. Necesita una terminal, o el arnés websocket."
+    title="Serial console"
+    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
     href="../serial-console/"
   />
 </CardGrid>
 
-<Aside type="caution" title="Un sitio recién creado necesita aproximadamente media hora antes de que la API de operación responda">
-Durante aproximadamente 25 a 30 minutos después de que un nuevo sitio reporta `ONLINE`, los endpoints
-`vpm/debug` devuelven una página `503` de BIG-IP que dice `The requested URL was rejected`. Eso parece
-un bloqueo del firewall de aplicaciones web, o un token revocado, y no es ninguno de los dos: el sitio aún no
-está listo para retransmitir. Espere y reintente en lugar de cambiar algo.
+<Aside type="caution" title="Un sitio recién creado necesita alrededor de media hora antes de que la API de operación responda">
+Durante aproximadamente 25 a 30 minutos después de que un sitio nuevo informe `ONLINE`, los
+endpoints `vpm/debug` devuelven una página `503` de BIG-IP que dice `The requested URL was
+rejected`. Eso parece un bloqueo de firewall de aplicaciones web, o un token revocado, y no es
+ninguna de las dos cosas: el sitio aún no está listo para retransmitir. Espere y reintente en
+lugar de cambiar nada.
 
-SSH no tiene ese período de calentamiento. Responde tan pronto como `sshd` está activo, razón por la cual
-es la ruta que funciona mientras un nodo aún se está registrando.
+SSH no tiene ese periodo de calentamiento. Responde en cuanto `sshd` está en marcha, y por eso
+es la vía que funciona mientras un nodo aún se está registrando.
 </Aside>
