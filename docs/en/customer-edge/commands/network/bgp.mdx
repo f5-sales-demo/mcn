@@ -46,9 +46,19 @@ The full table, with best-path selection visible.
 ```text file=../../../../_data/sitecli-show-ip-bgp.txt
 ```
 
-`*` is a valid route, `>` the selected best path, `=` a multipath member. Two
-entries for one prefix both marked `*=` means ECMP is in effect, which is the
-intended state on this topology.
+`*` is a valid route, `>` the selected best path, `=` a multipath member. In the capture
+above the learned VNet prefix `10.0.0.0/16` has two paths — one via each Route Server
+instance — marked `*=` and `*>`: a best path plus a multipath member, so the node load-shares
+its return traffic over both instances. The VIP `10.250.0.10/32` has a single `*>` path
+because this node originates it.
+
+<Aside type="caution" title="The demo's three-way ECMP is not visible in this output">
+`show-ip-bgp` is one node's table. The ECMP this deployment demonstrates is three *different*
+CEs advertising the same `/32`, and it is programmed on the Azure side — so no single CE's
+BGP table can show it, and the absence of a multipath marker on the VIP here is not a fault.
+Prove that from the Route Server peerings or the client's effective route table instead;
+both are on the [as-built page](../../../../as-built/).
+</Aside>
 
 ## `show-ip-bgp-neighbors`
 
@@ -85,3 +95,8 @@ What this node is telling its peers, as opposed to what it knows.
 This is the command for "the VIP is not reachable from the VNet". If the VIP is
 absent here, the problem is on this node and no amount of looking at the peer will
 help.
+
+The output repeats one `bgp neighbor:` block **per peer**, so on this topology you get the
+same two prefixes twice — once for each Route Server instance. That is not a duplicated
+render: it is what confirms the node is advertising to both. A block that is present for one
+peer and missing or short for the other is the interesting case.

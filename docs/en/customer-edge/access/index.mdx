@@ -14,7 +14,7 @@ are connecting from, and by what you need to reach — rather than by preference
 | Route | Needs node `ONLINE` | Needs network reachability | Limits | Covers |
 | --- | --- | --- | --- | --- |
 | [Debug API](./debug-api/) | **yes** | yes | about 25–30 minutes of warm-up on a new site | 34 commands |
-| [Site Console](./site-console/) | no | via Azure Bastion, no jump host needed | Bastion must be Standard SKU with tunneling | F5's node troubleshooting UI |
+| [Site Console](./site-console/) | no | via Azure Bastion, no jump host needed | Bastion must be Standard SKU with tunneling, and is not deployed by default | F5's node troubleshooting UI |
 | [SSH](./ssh/) | no | from inside the VNet, to the internal address only | key must be present from first boot | The full on-box Site CLI |
 | [Serial console](./serial-console/) | no | no | one session per VM; 2,048-character paste cap | The full on-box Site CLI |
 
@@ -25,15 +25,16 @@ The [Site Console](./site-console/) is usually the one to try first. It asks lea
 no SSH key to distribute, no jump host, no public IP on the node, and no VM replacement —
 because access becomes an Azure RBAC decision instead of a credential-distribution problem.
 It gives you F5's own troubleshooting UI rather than the command surface, so reach past it
-when you need to run specific commands or script anything.
+when you need to run specific commands or script anything. Its one prerequisite is Azure
+Bastion, which this deployment makes opt-in (`enable_bastion`, default `false`) because a
+Standard-SKU host bills whether or not anyone opens a tunnel.
 
 SSH is the one to reach for when the debug API is not enough, because the appliance offers
 substantially more commands than the 34 that API exposes. It has two costs. The key is
 written by cloud-init and so must be present at **first boot**, which means enabling it on
-running nodes replaces them — and that currently wedges registration
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). And `sshd` answers on the
-node's internal address only, so it needs a host inside the VNet; probing the address you
-know the node by will always report closed.
+running nodes replaces every CE VM — a fleet rebuild rather than a configuration change. And
+`sshd` answers on the node's internal address only, so it needs a host inside the VNet;
+probing the address you know the node by will always report closed.
 
 ## Why the split is not a preference
 
@@ -63,6 +64,13 @@ Each route uses different credentials, and none of them belongs on a command lin
   tenant URL as `XCSH_API_URL`. The `xcsh` context file at
   `~/.config/xcsh/contexts/<tenant>.json` holds both, which is what
   `scripts/capture-sitecli.sh` reads when the environment does not supply them.
+  This deployment's tenant is **`f5-sales-demo`**; a token minted for another tenant
+  returns a bare `401` that reads as an expired credential.
+- **Site Console** — two credentials, at different layers. Your interactive Azure login
+  opens the Bastion tunnel, and the appliance's own `admin` account signs in to the console
+  behind it over HTTP Basic. The Azure side is stated by Microsoft to need **Reader** on the
+  VM, its NIC and the Bastion host; that requirement is **not verified here**, because every
+  test ran as the subscription owner.
 - **SSH** — the private half of the keypair whose public half the deployment wrote into
   `/var/home/admin/.ssh/authorized_keys` at first boot, plus a host inside the VNet to
   reach the internal address through. Connect as `admin`, not `azureuser`.

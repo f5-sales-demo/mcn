@@ -136,6 +136,15 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '[.service[].node] | unique'
 ```
 
+```json
+["", "f5-xc-ce-vm-01"]
+```
+
+Some services report an empty node name, so an empty string in that list is an artefact of
+the response rather than a second node. `list-service` is also not in the 34-command catalog:
+it is a `global` endpoint the catalog does not advertise, which is why it is documented here
+and not in the [command reference](../../commands/).
+
 ## Reproducing this repository's captures
 
 Every command page embeds output captured by `scripts/capture-sitecli.sh`, which
