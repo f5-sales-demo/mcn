@@ -19,8 +19,22 @@ output "vm_name" {
 }
 
 output "vm_id" {
-  description = "CE VM resource ID."
+  description = "CE VM ARM resource ID. Addresses the VM (this is what `az network bastion tunnel --target-resource-id` wants) — it is NOT a per-instance identity: see vm_instance_id."
   value       = azurerm_linux_virtual_machine.this.id
+}
+
+# The two ids above and below are easy to confuse and are not interchangeable.
+# vm_id is the ARM resource id, ".../virtualMachines/<hostname>" — derived from
+# the VM name and therefore byte-identical before and after a replacement, which
+# makes it the right handle for ADDRESSING the VM (Bastion tunnels) and useless
+# as a "this node was rebuilt" signal. This one is regenerated for every new
+# instance, and it is the same value the CE reports to F5 XC as the
+# registration's infra.instance_id — so it is the identity that binds an XC site
+# object to a specific node. modules/xc-site keys the site's replace_triggered_by
+# on it (see issue #674).
+output "vm_instance_id" {
+  description = "128-bit unique id of the CE VM INSTANCE (regenerated on replacement; equals the XC registration's infra.instance_id). Not the ARM resource id, which is name-derived and survives a replacement."
+  value       = azurerm_linux_virtual_machine.this.virtual_machine_id
 }
 
 output "identity_id" {

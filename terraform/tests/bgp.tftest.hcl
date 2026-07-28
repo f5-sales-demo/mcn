@@ -13,14 +13,15 @@ run "bgp_two_peers" {
   }
 
   variables {
-    site_name      = "ar-bgp-eastus02"
-    hostname       = "f5-xc-ce-vm-02"
-    interface_name = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
-    mgmt_nic_mac   = "60:45:bd:ef:07:9f"
-    rs_peer_ips    = ["10.0.4.4", "10.0.4.5"]
-    ce_asn         = 64512
-    rs_asn         = 65515
-    enable_bgp     = true
+    site_name         = "ar-bgp-eastus02"
+    hostname          = "f5-xc-ce-vm-02"
+    interface_name    = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    mgmt_nic_mac      = "60:45:bd:ef:07:9f"
+    ce_vm_instance_id = "d6c33249-b85d-4936-a994-f971d4b2cdb9"
+    rs_peer_ips       = ["10.0.4.4", "10.0.4.5"]
+    ce_asn            = 64512
+    rs_asn            = 65515
+    enable_bgp        = true
   }
 
   assert {
