@@ -1,0 +1,171 @@
+>>> execcli vegactl-configuration-list
+List configuration objects
+
+Usage:
+  vegactl configuration list [command]
+
+Examples:
+vegactl configuration list ves.io.examplesvc.objectone.Object
+
+Available Commands:
+  ves.io.stdlib.metastatus.Object                                        List ves.io.stdlib.metastatus.Object
+  ves.io.vega.cfg.adc.advertise_policy.Object                            List ves.io.vega.cfg.adc.advertise_policy.Object
+  ves.io.vega.cfg.adc.api_sec.api_crawler.Object                         List ves.io.vega.cfg.adc.api_sec.api_crawler.Object
+  ves.io.vega.cfg.adc.api_sec.api_testing.Object                         List ves.io.vega.cfg.adc.api_sec.api_testing.Object
+  ves.io.vega.cfg.adc.api_sec.code_base_integration.Object               List ves.io.vega.cfg.adc.api_sec.code_base_integration.Object
+  ves.io.vega.cfg.adc.app_firewall.Object                                List ves.io.vega.cfg.adc.app_firewall.Object
+  ves.io.vega.cfg.adc.authentication.Object                              List ves.io.vega.cfg.adc.authentication.Object
+  ves.io.vega.cfg.adc.certificate.Object                                 List ves.io.vega.cfg.adc.certificate.Object
+  ves.io.vega.cfg.adc.certificate_chain.Object                           List ves.io.vega.cfg.adc.certificate_chain.Object
+  ves.io.vega.cfg.adc.cluster.Object                                     List ves.io.vega.cfg.adc.cluster.Object
+  ves.io.vega.cfg.adc.crl.Object                                         List ves.io.vega.cfg.adc.crl.Object
+  ves.io.vega.cfg.adc.discovered_endpoint.Object                         List ves.io.vega.cfg.adc.discovered_endpoint.Object
+  ves.io.vega.cfg.adc.discovered_vip.Object                              List ves.io.vega.cfg.adc.discovered_vip.Object
+  ves.io.vega.cfg.adc.discovery.Object                                   List ves.io.vega.cfg.adc.discovery.Object
+  ves.io.vega.cfg.adc.downstream_cos.Object                              List ves.io.vega.cfg.adc.downstream_cos.Object
+  ves.io.vega.cfg.adc.endpoint.Object                                    List ves.io.vega.cfg.adc.endpoint.Object
+  ves.io.vega.cfg.adc.health_check.Object                                List ves.io.vega.cfg.adc.health_check.Object
+  ves.io.vega.cfg.adc.js_script_cfg.Object                               List ves.io.vega.cfg.adc.js_script_cfg.Object
+  ves.io.vega.cfg.adc.jse.Object                                         List ves.io.vega.cfg.adc.jse.Object
+  ves.io.vega.cfg.adc.jwt.Object                                         List ves.io.vega.cfg.adc.jwt.Object
+  ves.io.vega.cfg.adc.jwt_provider.Object                                List ves.io.vega.cfg.adc.jwt_provider.Object
+  ves.io.vega.cfg.adc.l7_acl.Object                                      List ves.io.vega.cfg.adc.l7_acl.Object
+  ves.io.vega.cfg.adc.listener.Object                                    List ves.io.vega.cfg.adc.listener.Object
+  ves.io.vega.cfg.adc.malicious_user_mitigation.Object                   List ves.io.vega.cfg.adc.malicious_user_mitigation.Object
+  ves.io.vega.cfg.adc.ocsp_response.Object                               List ves.io.vega.cfg.adc.ocsp_response.Object
+  ves.io.vega.cfg.adc.route.Object                                       List ves.io.vega.cfg.adc.route.Object
+  ves.io.vega.cfg.adc.shape_bot_defense_instance.Object                  List ves.io.vega.cfg.adc.shape_bot_defense_instance.Object
+  ves.io.vega.cfg.adc.source_service_mapper.Object                       List ves.io.vega.cfg.adc.source_service_mapper.Object
+  ves.io.vega.cfg.adc.trusted_ca_list.Object                             List ves.io.vega.cfg.adc.trusted_ca_list.Object
+  ves.io.vega.cfg.adc.virtual_host.Object                                List ves.io.vega.cfg.adc.virtual_host.Object
+  ves.io.vega.cfg.adc.virtual_host_dns_info.Object                       List ves.io.vega.cfg.adc.virtual_host_dns_info.Object
+  ves.io.vega.cfg.adc.virtual_ip.Object                                  List ves.io.vega.cfg.adc.virtual_ip.Object
+  ves.io.vega.cfg.adc.waf_signatures_changelog.Object                    List ves.io.vega.cfg.adc.waf_signatures_changelog.Object
+  ves.io.vega.cfg.adc.waf_violations.Object                              List ves.io.vega.cfg.adc.waf_violations.Object
+  ves.io.vega.cfg.address_allocator.Object                               List ves.io.vega.cfg.address_allocator.Object
+  ves.io.vega.cfg.api_group.Object                                       List ves.io.vega.cfg.api_group.Object
+  ves.io.vega.cfg.api_group_element.Object                               List ves.io.vega.cfg.api_group_element.Object
+  ves.io.vega.cfg.bgp.Object                                             List ves.io.vega.cfg.bgp.Object
+  ves.io.vega.cfg.bgp_asn_set.Object                                     List ves.io.vega.cfg.bgp_asn_set.Object
+  ves.io.vega.cfg.bgp_routing_policy.Object                              List ves.io.vega.cfg.bgp_routing_policy.Object
+  ves.io.vega.cfg.cloud_connect.Object                                   List ves.io.vega.cfg.cloud_connect.Object
+  ves.io.vega.cfg.cloud_credentials.Object                               List ves.io.vega.cfg.cloud_credentials.Object
+  ves.io.vega.cfg.cloud_elastic_ip.Object                                List ves.io.vega.cfg.cloud_elastic_ip.Object
+  ves.io.vega.cfg.cloud_elastic_ip_info.Object                           List ves.io.vega.cfg.cloud_elastic_ip_info.Object
+  ves.io.vega.cfg.cminstance.Object                                      List ves.io.vega.cfg.cminstance.Object
+  ves.io.vega.cfg.cni.Object                                             List ves.io.vega.cfg.cni.Object
+  ves.io.vega.cfg.data_type.Object                                       List ves.io.vega.cfg.data_type.Object
+  ves.io.vega.cfg.dc_cluster_group.Object                                List ves.io.vega.cfg.dc_cluster_group.Object
+  ves.io.vega.cfg.dhcp.Object                                            List ves.io.vega.cfg.dhcp.Object
+  ves.io.vega.cfg.fast_acl.Object                                        List ves.io.vega.cfg.fast_acl.Object
+  ves.io.vega.cfg.fast_acl_rule.Object                                   List ves.io.vega.cfg.fast_acl_rule.Object
+  ves.io.vega.cfg.fast_acl_set.Object                                    List ves.io.vega.cfg.fast_acl_set.Object
+  ves.io.vega.cfg.fleet.Object                                           List ves.io.vega.cfg.fleet.Object
+  ves.io.vega.cfg.flow_anomaly.Object                                    List ves.io.vega.cfg.flow_anomaly.Object
+  ves.io.vega.cfg.flow_exporter.Object                                   List ves.io.vega.cfg.flow_exporter.Object
+  ves.io.vega.cfg.global_config.Object                                   List ves.io.vega.cfg.global_config.Object
+  ves.io.vega.cfg.ike1.Object                                            List ves.io.vega.cfg.ike1.Object
+  ves.io.vega.cfg.ike2.Object                                            List ves.io.vega.cfg.ike2.Object
+  ves.io.vega.cfg.instance_nat_pool.Object                               List ves.io.vega.cfg.instance_nat_pool.Object
+  ves.io.vega.cfg.ip_prefix_set.Object                                   List ves.io.vega.cfg.ip_prefix_set.Object
+  ves.io.vega.cfg.ipsec.Object                                           List ves.io.vega.cfg.ipsec.Object
+  ves.io.vega.cfg.known_label.Object                                     List ves.io.vega.cfg.known_label.Object
+  ves.io.vega.cfg.known_label_key.Object                                 List ves.io.vega.cfg.known_label_key.Object
+  ves.io.vega.cfg.logical_intf.Object                                    List ves.io.vega.cfg.logical_intf.Object
+  ves.io.vega.cfg.namespace.Object                                       List ves.io.vega.cfg.namespace.Object
+  ves.io.vega.cfg.nat.Object                                             List ves.io.vega.cfg.nat.Object
+  ves.io.vega.cfg.nat_policy.Object                                      List ves.io.vega.cfg.nat_policy.Object
+  ves.io.vega.cfg.network_connector.Object                               List ves.io.vega.cfg.network_connector.Object
+  ves.io.vega.cfg.network_firewall.Object                                List ves.io.vega.cfg.network_firewall.Object
+  ves.io.vega.cfg.network_interface.Object                               List ves.io.vega.cfg.network_interface.Object
+  ves.io.vega.cfg.network_loadbalancer.Object                            List ves.io.vega.cfg.network_loadbalancer.Object
+  ves.io.vega.cfg.network_policy.enhanced_firewall_policy.Object         List ves.io.vega.cfg.network_policy.enhanced_firewall_policy.Object
+  ves.io.vega.cfg.network_policy.network_policy.Object                   List ves.io.vega.cfg.network_policy.network_policy.Object
+  ves.io.vega.cfg.network_policy.network_policy_rule.Object              List ves.io.vega.cfg.network_policy.network_policy_rule.Object
+  ves.io.vega.cfg.network_policy.network_policy_set.Object               List ves.io.vega.cfg.network_policy.network_policy_set.Object
+  ves.io.vega.cfg.nfv_service.Object                                     List ves.io.vega.cfg.nfv_service.Object
+  ves.io.vega.cfg.nfv_service_index.Object                               List ves.io.vega.cfg.nfv_service_index.Object
+  ves.io.vega.cfg.node_isolation.Object                                  List ves.io.vega.cfg.node_isolation.Object
+  ves.io.vega.cfg.observability.synthetic_monitor.v1_dns_monitor.Object  List ves.io.vega.cfg.observability.synthetic_monitor.v1_dns_monitor.Object
+  ves.io.vega.cfg.observability.synthetic_monitor.v1_http_monitor.Object List ves.io.vega.cfg.observability.synthetic_monitor.v1_http_monitor.Object
+  ves.io.vega.cfg.panoramix.app_setting.Object                           List ves.io.vega.cfg.panoramix.app_setting.Object
+  ves.io.vega.cfg.panoramix.app_type.Object                              List ves.io.vega.cfg.panoramix.app_type.Object
+  ves.io.vega.cfg.panoramix.learnt_app_profile.Object                    List ves.io.vega.cfg.panoramix.learnt_app_profile.Object
+  ves.io.vega.cfg.panoramix.learnt_models.Object                         List ves.io.vega.cfg.panoramix.learnt_models.Object
+  ves.io.vega.cfg.physical_intf.Object                                   List ves.io.vega.cfg.physical_intf.Object
+  ves.io.vega.cfg.policer.Object                                         List ves.io.vega.cfg.policer.Object
+  ves.io.vega.cfg.protocol_policer.Object                                List ves.io.vega.cfg.protocol_policer.Object
+  ves.io.vega.cfg.public_ip.Object                                       List ves.io.vega.cfg.public_ip.Object
+  ves.io.vega.cfg.rate_limiter.Object                                    List ves.io.vega.cfg.rate_limiter.Object
+  ves.io.vega.cfg.secret_management_access.Object                        List ves.io.vega.cfg.secret_management_access.Object
+  ves.io.vega.cfg.segment_connection.Object                              List ves.io.vega.cfg.segment_connection.Object
+  ves.io.vega.cfg.sensitive_data_policy.Object                           List ves.io.vega.cfg.sensitive_data_policy.Object
+  ves.io.vega.cfg.site.Object                                            List ves.io.vega.cfg.site.Object
+  ves.io.vega.cfg.site_mesh_group.Object                                 List ves.io.vega.cfg.site_mesh_group.Object
+  ves.io.vega.cfg.srv6_network_slice.Object                              List ves.io.vega.cfg.srv6_network_slice.Object
+  ves.io.vega.cfg.static_route.Object                                    List ves.io.vega.cfg.static_route.Object
+  ves.io.vega.cfg.static_route_list.Object                               List ves.io.vega.cfg.static_route_list.Object
+  ves.io.vega.cfg.subnet.Object                                          List ves.io.vega.cfg.subnet.Object
+  ves.io.vega.cfg.svc_pol.service_policy.Object                          List ves.io.vega.cfg.svc_pol.service_policy.Object
+  ves.io.vega.cfg.svc_pol.service_policy_rule.Object                     List ves.io.vega.cfg.svc_pol.service_policy_rule.Object
+  ves.io.vega.cfg.svc_pol.service_policy_set.Object                      List ves.io.vega.cfg.svc_pol.service_policy_set.Object
+  ves.io.vega.cfg.tenant.Object                                          List ves.io.vega.cfg.tenant.Object
+  ves.io.vega.cfg.tenant_relationship.Object                             List ves.io.vega.cfg.tenant_relationship.Object
+  ves.io.vega.cfg.tmm.dns_compliance_checks.Object                       List ves.io.vega.cfg.tmm.dns_compliance_checks.Object
+  ves.io.vega.cfg.tmm.protocol_inspection.Object                         List ves.io.vega.cfg.tmm.protocol_inspection.Object
+  ves.io.vega.cfg.tmm.uztna.application.uztna_application.Object         List ves.io.vega.cfg.tmm.uztna.application.uztna_application.Object
+  ves.io.vega.cfg.tmm.uztna.uztna_domain.Object                          List ves.io.vega.cfg.tmm.uztna.uztna_domain.Object
+  ves.io.vega.cfg.tmm.uztna.uztna_flow.Object                            List ves.io.vega.cfg.tmm.uztna.uztna_flow.Object
+  ves.io.vega.cfg.tmm.uztna.uztna_leasepool.Object                       List ves.io.vega.cfg.tmm.uztna.uztna_leasepool.Object
+  ves.io.vega.cfg.tmm.uztna.uztna_policy_template.Object                 List ves.io.vega.cfg.tmm.uztna.uztna_policy_template.Object
+  ves.io.vega.cfg.tunnel.Object                                          List ves.io.vega.cfg.tunnel.Object
+  ves.io.vega.cfg.user_identification.Object                             List ves.io.vega.cfg.user_identification.Object
+  ves.io.vega.cfg.user_membership.Object                                 List ves.io.vega.cfg.user_membership.Object
+  ves.io.vega.cfg.user_roles.Object                                      List ves.io.vega.cfg.user_roles.Object
+  ves.io.vega.cfg.ver_cluster_cfg.Object                                 List ves.io.vega.cfg.ver_cluster_cfg.Object
+  ves.io.vega.cfg.ver_instance.Object                                    List ves.io.vega.cfg.ver_instance.Object
+  ves.io.vega.cfg.views.api_definition.Object                            List ves.io.vega.cfg.views.api_definition.Object
+  ves.io.vega.cfg.views.k8s_manifest_params.Object                       List ves.io.vega.cfg.views.k8s_manifest_params.Object
+  ves.io.vega.cfg.views.terraform_parameters.Object                      List ves.io.vega.cfg.views.terraform_parameters.Object
+  ves.io.vega.cfg.virtual_network.Object                                 List ves.io.vega.cfg.virtual_network.Object
+  ves.io.vega.cfg.virtual_site.Object                                    List ves.io.vega.cfg.virtual_site.Object
+  ves.io.vega.cfg.vrf.Object                                             List ves.io.vega.cfg.vrf.Object
+  ves.io.vega.cfg.waf_suppression_rule.Object                            List ves.io.vega.cfg.waf_suppression_rule.Object
+  ves.io.vega.cloud_connector.cloud_attrs.Object                         List ves.io.vega.cloud_connector.cloud_attrs.Object
+  ves.io.vega.cloud_connector.nfv_ep.Object                              List ves.io.vega.cloud_connector.nfv_ep.Object
+  ves.io.vega.tmm.data_group.Object                                      List ves.io.vega.tmm.data_group.Object
+  ves.io.vega.tmm.irule.Object                                           List ves.io.vega.tmm.irule.Object
+
+Flags:
+  -h, --help               help for list
+  -n, --namespace string   Namespace in which to list objects (default "default")
+      --public-api         Use Public API to list
+      --tenant string      List in tenant (TODO - replace with mTLS)
+
+Global Flags:
+  -a, --cacert string                    Server CA cert file path (default "file:////volterra/secrets/identity/server_ca.crt")
+  -c, --cert string                      Client cert file path (default "file:////volterra/secrets/identity/client.crt")
+      --config string                    A configuration file to use for API gateway URL and credentials (default "/home/<user>/.vesconfig")
+      --cookie string                    To be sent to api-gateway (TODO - replace with api-token/cert)
+      --force                            Proceed in case of intermediate errors/don't optimize(e.g. replace even with no diff)
+      --grpc-maxmsg-size int             Maximum GRPC response message size accepted (default 25165824)
+      --introspect-cacert string         Server CA cert file path for IPP
+      --introspect-cert string           Client cert file path for IPP
+      --introspect-key string            Client key file path for IPP
+      --introspect-p12-bundle string     Client P12 bundle (key+cert) file path for introspect. Any password for this file should be in environment variable INTROSPECT_P12_PASSWORD
+      --introspect-server-cn string      Common Name to expect in server cert for IPP
+      --introspect-server-urls strings   Server URL for introspection
+  -k, --key string                       Client key file path (default "file:////volterra/secrets/identity/client.key")
+  -t, --no-tls                           Use mTLS based connection
+      --outfmt string                    Output format for command
+  -o, --output string                    Output dir for command (default "./")
+      --p12-bundle string                Client P12 bundle (key+cert) file path. Any password for this file should be in environment variable VES_P12_PASSWORD
+      --server-cn string                 Common Name to expect in server cert for Prism (default "ver.ar-bgp-eastus01.<tenant>.tenant.int.ves.io")
+  -u, --server-urls strings              Server URLs (Full url for REST, <server>:<port> for gRPC) (default [localhost:9505])
+      --show-curl                        Emit requests from program in CURL format
+      --timeout int                      Timeout (in seconds) for command to finish (default 5)
+  -r, --use-rest                         Use REST API instead of gRPC
+      --via-apigw                        Do URI remapping as expected by API gateway
+
+Use "vegactl configuration list [command] --help" for more information about a command.
+>>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

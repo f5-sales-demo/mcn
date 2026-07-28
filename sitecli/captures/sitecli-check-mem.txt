@@ -1,0 +1,31 @@
+>>> execcli check-mem
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi       7.7Gi       6.8Gi        38Mi        17Gi        23Gi
+Swap:             0B          0B          0B
+     32854452 K total memory
+      8077004 K used memory
+      1663356 K active memory
+     21805348 K inactive memory
+      7121312 K free memory
+         2668 K buffer memory
+     18166500 K swap cache
+            0 K total swap
+            0 K used swap
+            0 K free swap
+      5367517 non-nice user cpu ticks
+            1 nice user cpu ticks
+       902944 system cpu ticks
+     12957377 idle cpu ticks
+        82308 IO-wait cpu ticks
+       205637 IRQ cpu ticks
+        86142 softirq cpu ticks
+            0 stolen cpu ticks
+       603985 pages paged in
+     29552914 pages paged out
+            0 pages swapped in
+            0 pages swapped out
+    235427203 interrupts
+   1102877193 CPU context switches
+   1785216417 boot time
+      2221313 forks
+>>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node
