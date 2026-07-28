@@ -1,6 +1,6 @@
 ---
 title: Reaching a Customer Edge
-description: Read this tier before running any command. Covers the three routes onto a Customer Edge — the debug API, SSH to the on-box Site CLI, and serial console — with authentication for each, the tier-to-endpoint rule that decides where a debug API command is sent, and the break-glass path for an unregistered node. Start here to choose a route, because only SSH and serial console reach the full on-box command surface.
+description: Read this tier before running any command. Covers the four routes onto a Customer Edge — the debug API, the Site Console web UI over an Azure Bastion tunnel, SSH to the on-box Site CLI, and serial console — with authentication for each, the tier-to-endpoint rule that decides where a debug API command is sent, and the break-glass path for an unregistered node. Start here to choose a route, because the routes differ in what they can reach and in what they require of you.
 sidebar:
   order: 10
   label: Access
@@ -8,17 +8,24 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
-Three routes work, and which one applies is decided by the state of the node and where
-you are connecting from, rather than by preference.
+Four routes work, and which one applies is decided by the state of the node, by where you
+are connecting from, and by what you need to reach — rather than by preference.
 
 | Route | Needs node `ONLINE` | Needs network reachability | Limits | Covers |
 | --- | --- | --- | --- | --- |
 | [Debug API](./debug-api/) | **yes** | yes | about 25–30 minutes of warm-up on a new site | 34 commands |
+| [Site Console](./site-console/) | no | via Azure Bastion, no jump host needed | Bastion must be Standard SKU with tunneling | F5's node troubleshooting UI |
 | [SSH](./ssh/) | no | from inside the VNet, to the internal address only | key must be present from first boot | The full on-box Site CLI |
 | [Serial console](./serial-console/) | no | no | one session per VM; 2,048-character paste cap | The full on-box Site CLI |
 
 Serial console is the last resort, and the only route that survives a node with no working
 network path.
+
+The [Site Console](./site-console/) is usually the one to try first. It asks least of you —
+no SSH key to distribute, no jump host, no public IP on the node, and no VM replacement —
+because access becomes an Azure RBAC decision instead of a credential-distribution problem.
+It gives you F5's own troubleshooting UI rather than the command surface, so reach past it
+when you need to run specific commands or script anything.
 
 SSH is the one to reach for when the debug API is not enough, because the appliance offers
 substantially more commands than the 34 that API exposes. It has two costs. The key is
