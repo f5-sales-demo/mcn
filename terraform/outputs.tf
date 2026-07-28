@@ -67,6 +67,30 @@ output "client_nic_name" {
 }
 
 # ---------------------------------------------------------
+# XC tenant
+# ---------------------------------------------------------
+
+output "xc_tenant" {
+  description = "F5 XC tenant this deployment writes to. Config-controlled (var.expected_xc_tenant), not taken from XCSH_API_URL."
+  value       = var.expected_xc_tenant
+}
+
+output "xc_api_url" {
+  description = "F5 XC API endpoint the xcsh provider is pinned to, derived from var.expected_xc_tenant."
+  value       = local.xc_api_url
+}
+
+# The other half of the tenant guard's comparison, published so an operator can
+# see what their shell is claiming without having to trip the guard to find out —
+# `terraform output xc_env_tenant` answers "which tenant am I sourced for?".
+# Empty means XCSH_API_URL is unset, which is the CI case and which the guard
+# treats as no opinion rather than as a mismatch.
+output "xc_env_tenant" {
+  description = "F5 XC tenant named by XCSH_API_URL in the environment this ran in, or empty when unset. Diagnostic only: xc_tenant is what the deployment actually targets."
+  value       = data.external.xc_env_tenant.result.tenant
+}
+
+# ---------------------------------------------------------
 # XC data-plane
 # ---------------------------------------------------------
 
