@@ -223,6 +223,20 @@ resource "xcsh_origin_pool" "this" {
 }
 
 resource "xcsh_http_loadbalancer" "this" {
+  # The advertise_custom block below names each CE site, but it takes those names from
+  # module.ce_topology — a pure computation module that only derives strings. The
+  # objects themselves come from module.xc_site, and nothing in this resource
+  # references them, so Terraform sees NO dependency and is free to create the load
+  # balancer before any site exists. XC then rejects the dangling site reference with
+  # `[BAD_REQUEST] Invalid request parameters` on POST .../http_loadbalancers.
+  #
+  # The bug is invisible while the sites already exist under the names being
+  # referenced, which is why it stayed latent until the demo was renamed: that
+  # destroyed every site and created new ones, and the load balancer raced ahead of
+  # them. Making the dependency explicit is the fix; there is no cycle, because
+  # xc-site does not reference the load balancer.
+  depends_on = [module.xc_site]
+
   name        = local.lb_name
   namespace   = data.xcsh_namespace.mcn.name
   description = "BGP/ECMP HA: custom VIP ${var.vip} advertised from every CE site."

@@ -53,7 +53,16 @@ done
 # output behind it: resource_group_name, route_server_name, bastion_name,
 # client_vm_name, xc_site_names, ce_vm_names, lb_domain, origin_ip, vip,
 # ce_sli_private_ips, ce_mgmt_private_ips.
-PATTERNS='rmordasiewicz|bankexample|wsp-demo|ce-ha-lab-|ar-ecmp-|ar-bgp-|f5-xc-ce-vm-0[0-9]|10\.0\.[0-9]+\.[0-9]+|10\.250\.0\.10|20\.98\.232\.135'
+#
+# The CURRENT names come first, and they matter most. A denylist of names the
+# deployment used to have decays into uselessness the moment it is renamed: it keeps
+# passing while every command in the docs hardcodes the new name instead. `mcn-ce-ha-`
+# is the derived prefix (var.component), so it covers the sites, load balancer, origin
+# pool, Route Server, Bastion and test client in one pattern.
+#
+# The retired names are kept so a stale value cannot come back unnoticed — a copied
+# snippet or a reverted edit reintroducing `wsp-demo-pool` should fail here.
+PATTERNS='mcn-ce-ha-|rmordasiewicz|bankexample|wsp-demo|ce-ha-lab-|ar-ecmp-|ar-bgp-|f5-xc-ce-vm-0[0-9]|10\.0\.[0-9]+\.[0-9]+|10\.250\.0\.10|20\.98\.232\.135|203\.0\.113\.'
 
 scan() {
   # Emits "path:line:text" for every offending line: a match that is NOT inside a

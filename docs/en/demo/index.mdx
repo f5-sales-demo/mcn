@@ -67,18 +67,17 @@ Treat the guard as the contract: if you re-point this demo at different addressi
 VIP has to move out of the VNet ranges with it.
 </Aside>
 
-<Aside type="note" title="Observed 2026-07-28: the live objects still carry interim names">
-Object names derive from `var.component`, so an unpinned deployment builds
-`<component>-<region>01`, `<component>-f5se`, `<component>-pool`, `<component>-rs` and
-`<component>-bastion`. The currently-running demo predates that and keeps its original
-names, pinned in a local `terraform.tfvars` so nothing is replaced while the environment
-is in use.
+<Aside type="caution" title="Renaming is a rebuild, not a rename">
+Because every name derives from `var.component`, changing it renames the whole
+deployment — but `site_prefix` is not a cosmetic change. It becomes the `ClusterName`
+in each CE's cloud-init, `custom_data` is replace-only, and cloud-init runs only on a
+CE's first boot. So changing it **replaces every CE VM and its XC site**, and the VIP is
+then briefly lossy while ECMP reconverges.
 
-That is why real command output on these pages shows names that do not match the pattern
-above. Adopting the derived names replaces every CE VM, because the site name is the
-`ClusterName` baked into cloud-init and cloud-init only runs on first boot — so it is a
-deliberate rebuild, tracked in
-[issue 700](https://github.com/f5-sales-demo/mcn/issues/700), not a rename.
+That is not theoretical: adopting these derived names on the running demo replaced three
+CE VMs, three sites, three BGP objects, the load balancer, the origin pool, the Azure
+Route Server, the Bastion and the test client — `23 to add, 3 to change, 26 to destroy`.
+Pin `site_prefix` to the current value when you need existing sites to stay put.
 </Aside>
 
 ## Where to go next

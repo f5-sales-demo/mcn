@@ -158,6 +158,6 @@
   },
   "source": {
     "node": "f5-xc-ce-vm-01",
-    "site": "ar-bgp-eastus01"
+    "site": "mcn-ce-ha-eastus01"
   }
 }

@@ -164,6 +164,15 @@ resource "xcsh_securemesh_site_v2" "this" {
   # references lazily: deleting a site that both of them reference returns HTTP
   # 200 and leaves them intact, and re-creating it under the same name re-binds
   # them (verified against the live tenant with a throwaway site).
+  #
+  # THAT LAZINESS DOES NOT EXTEND TO CREATION, and the difference has bitten once.
+  # An EXISTING load balancer tolerates a dangling site reference; POSTing a NEW one
+  # whose advertise_where names a site that does not exist yet is rejected outright
+  # with `[BAD_REQUEST] Invalid request parameters`. Renaming the deployment does
+  # exactly that — every site is destroyed and re-created under a different name, so
+  # the load balancer is created fresh — which is why the root resource now carries
+  # an explicit `depends_on = [module.xc_site]`. Do not remove it on the strength of
+  # the paragraph above: it is about deletion, not creation.
   lifecycle {
     replace_triggered_by = [terraform_data.ce_vm]
   }
