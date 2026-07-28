@@ -18,6 +18,16 @@ variable "mgmt_nic_mac" {
   type        = string
 }
 
+variable "ce_vm_instance_id" {
+  description = "128-bit unique id of the CE VM instance this site's node runs on (azurerm_linux_virtual_machine.virtual_machine_id — the same value the CE reports as the registration's infra.instance_id). Required, and deliberately NOT the ARM resource id, which is name-derived and identical after a replacement. The site object's lifecycle is coupled to it so that rebuilding the node rebuilds the site instead of leaving a registration bound to a destroyed instance (issue #674)."
+  type        = string
+
+  validation {
+    condition     = trimspace(var.ce_vm_instance_id) != ""
+    error_message = "ce_vm_instance_id must be the CE VM's virtual_machine_id; an empty value would couple every node's site to the same key."
+  }
+}
+
 variable "rs_peer_ips" {
   description = "List of Azure Route Server BGP peer IPs (virtual_router_ips), e.g. [10.0.4.4, 10.0.4.5]. Values may be unknown until apply; the count of peers comes from rs_peer_count so the peers block expands at plan time."
   type        = list(string)

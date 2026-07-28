@@ -75,6 +75,17 @@ output "xc_site_names" {
   value       = { for k, m in module.xc_site : k => m.site_name }
 }
 
+# Makes the site-to-node binding that closes #674 observable from the CLI. Each
+# value is the CE VM instance id its XC site object is coupled to; the matching
+# registration reports the same value as infra.instance_id. When the two disagree
+# the site is bound to a node that no longer exists — the state in which a
+# rebuilt CE can never register. (The registration side is not on the
+# xcsh_site_registration data source yet: provider issue #1376.)
+output "ce_bound_instance_ids" {
+  description = "Per-CE VM instance id each XC site object is bound to. Compare with the registration's infra.instance_id to spot a site still bound to a destroyed node."
+  value       = { for k, m in module.xc_site : k => m.bound_vm_instance_id }
+}
+
 output "xc_interface_names" {
   description = "Per-CE auto-derived network_interface object names (BGP peer bind target)."
   value       = { for k, m in module.xc_site : k => m.interface_name }

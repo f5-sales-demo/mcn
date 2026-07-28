@@ -100,10 +100,15 @@ module "xc_site" {
   source   = "./modules/xc-site"
   for_each = module.ce_topology.ce_nodes
 
-  site_name            = each.value.site_name
-  hostname             = each.value.hostname
-  interface_name       = each.value.interface_name
-  mgmt_nic_mac         = module.ce_node[each.key].mgmt_nic_mac
+  site_name      = each.value.site_name
+  hostname       = each.value.hostname
+  interface_name = each.value.interface_name
+  mgmt_nic_mac   = module.ce_node[each.key].mgmt_nic_mac
+  # Couples the site object's lifecycle to the CE VM INSTANCE (issue #674):
+  # replacing the VM replaces the site, which takes the registration bound to the
+  # destroyed instance with it. Must be virtual_machine_id, not the ARM resource
+  # id — the latter is name-derived and identical after a replacement.
+  ce_vm_instance_id    = module.ce_node[each.key].vm_instance_id
   rs_peer_ips          = module.azure_hub.rs_peer_ips
   ce_asn               = var.ce_asn
   rs_asn               = var.rs_asn
