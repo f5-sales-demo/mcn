@@ -1,31 +1,33 @@
 ---
 title: Envoy
 description: >-
-  Los cuatro contenedores alrededor de la interfaz de administración de Envoy en
+  Los cuatro envoltorios alrededor de la interfaz de administración de Envoy en
   un Customer Edge — listeners, clusters y dos volcados de configuración.
-  Explica por qué cada uno de ellos empieza con un medidor de progreso de curl,
-  y qué le indica la salida de listeners sobre el VIP anunciado.
+  Explica por qué cada uno de ellos comienza con un medidor de progreso de curl,
+  y qué indica la salida de listeners sobre el VIP anunciado.
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 7b786fa58fb2
+  sourceHash: ddca96e880a1
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Capturado el 2026-07-28 desde un CE de esta implementación. Son comandos ejecutados en el propio equipo, por lo que llegan
-a través del Site CLI en lugar de la API de depuración; `sitecli/exec-catalog.json` registra la
-superficie y `sitecli/capture-manifest.json` registra qué nodo.
+Capturado el 2026-07-28 desde un CE de este despliegue. Estos son comandos ejecutados en el
+propio nodo, por lo que pasan por el Site CLI en lugar de la API de depuración;
+`sitecli/exec-catalog.json` registra la superficie y `sitecli/capture-manifest.json` registra
+el nodo.
 
-Envoy termina y actúa como proxy del tráfico de aplicaciones en el Customer Edge. Estos cuatro comandos
-consultan su interfaz de administración, y ninguno de ellos está en la
+Envoy termina y actúa como proxy del tráfico de aplicaciones en el Customer Edge. Estos cuatro
+comandos consultan su interfaz de administración, y ninguno de ellos forma parte de la
 [API de depuración](../../../access/debug-api/).
 
-<Aside type="note" title="Cada uno de estos empieza con un medidor de progreso de curl">
-Son contenedores `curl` alrededor del endpoint de administración de Envoy, invocados sin `-s`, por lo que las primeras
-dos o tres líneas de cada captura que se muestra a continuación son el progreso de transferencia de curl escrito en stderr:
+<Aside type="note" title="Cada uno de estos comienza con un medidor de progreso de curl">
+Son envoltorios de `curl` alrededor del endpoint de administración de Envoy, invocados sin
+`-s`, por lo que las primeras dos o tres líneas de cada captura a continuación son el progreso
+de transferencia de curl escrito en stderr:
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -33,14 +35,14 @@ dos o tres líneas de cada captura que se muestra a continuación son el progres
   0     0    0     0 …
 ```
 
-Eso no es salida de Envoy ni un error. También es útil: el recuento de bytes de `% Received`
-indica si Envoy devolvió algo en absoluto, lo que distingue «no hay listeners
-configurados» de «la interfaz de administración no respondió».
+Eso no es salida de Envoy ni es un error. También es útil: el conteo de bytes en `% Received`
+indica si Envoy devolvió algo, lo que permite distinguir entre "no hay listeners configurados"
+y "la interfaz de administración no respondió".
 </Aside>
 
 ## `envoy-listeners`
 
-Cada listener que Envoy ha instalado, como `name:address:port`.
+Cada listener que Envoy tiene instalado, en formato `nombre:dirección:puerto`.
 
 ```bash
 execcli envoy-listeners
@@ -49,21 +51,21 @@ execcli envoy-listeners
 ```text file=../../../../_data/sitecli-envoy-listeners.txt
 ```
 
-**Qué buscar.** En esta implementación el listener lleva `10.250.0.10:80` — el VIP que el
-CE anuncia en BGP. Esa única línea vincula tres capas: si
-[`show-ip-bgp-summary`](../../network/bgp/) muestra que el prefijo se está anunciando pero este
-listener no existe, la ruta está atrayendo tráfico hacia un nodo que no lo servirá, lo cual es
-el peor modo de fallo en un conjunto ECMP porque el tráfico se reparte hacia un agujero negro.
+**Qué buscar.** En este despliegue el listener contiene `10.250.0.10:80` — el VIP que el CE
+anuncia en BGP. Esa única línea une tres capas: si
+[`show-ip-bgp-summary`](../../network/bgp/) muestra el prefijo siendo anunciado pero este
+listener está ausente, la ruta está siendo atraída hacia un nodo que no la servirá, que es el
+peor modo de fallo en un conjunto ECMP porque el tráfico se distribuye en un agujero negro.
 
-El `[fe80:…]:80` final es la dirección link-local de la interfaz a la que está enlazado el
-listener.
+El `[fe80:…]:80` al final es la dirección link-local de la interfaz a la que está vinculado
+el listener.
 
-**Qué no le indica.** Nada sobre la salud del upstream — un listener existe independientemente de
-que haya algo alcanzable detrás de él. Utilice `envoy-clusters` para eso.
+**Lo que no indica.** Nada sobre el estado del upstream — un listener existe independientemente
+de si algo detrás de él es accesible. Use `envoy-clusters` para eso.
 
 ## `envoy-clusters`
 
-Cada cluster, con sus límites de conexiones y peticiones por prioridad.
+Cada cluster, con sus límites de conexiones y solicitudes por prioridad.
 
 ```bash
 execcli envoy-clusters
@@ -72,15 +74,16 @@ execcli envoy-clusters
 ```text file=../../../../_data/sitecli-envoy-clusters.txt
 ```
 
-**Qué buscar.** Las líneas tienen el formato `cluster::scope::key::value`. La entrada `observability_name`
-identifica cada cluster, y el trío `default_priority::max_connections`,
-`max_pending_requests` y `max_requests` es donde aparecen los límites de peticiones — un cluster
-fijado en su `max_pending_requests` está siendo limitado por la configuración y no por el
-upstream.
+**Qué buscar.** Las líneas tienen el formato `cluster::ámbito::clave::valor`. La entrada
+`observability_name` identifica cada cluster, y la combinación
+`default_priority::max_connections`, `max_pending_requests` y `max_requests` es donde
+aparecen los límites de solicitudes — un cluster fijado en su `max_pending_requests` está
+siendo limitado por configuración y no por el upstream.
 
 ## `envoy-config-dump`
 
-La configuración completa de Envoy en formato JSON. Grande: 126 KB en un nodo de demostración por lo demás inactivo.
+La configuración completa de Envoy en formato JSON. Es grande: 126 KB en un nodo de
+demostración inactivo.
 
 ```bash
 execcli envoy-config-dump
@@ -89,13 +92,14 @@ execcli envoy-config-dump
 ```text file=../../../../_data/sitecli-envoy-config-dump.txt
 ```
 
-**Qué buscar.** El array `configs` de nivel superior contiene un objeto por tipo de configuración —
-bootstrap, clusters, listeners, rutas, secretos. Recurra a esto cuando un listener o cluster
-exista pero se comporte de forma inesperada, y búsquelo en lugar de leerlo por completo.
+**Qué buscar.** El array `configs` de nivel superior contiene un objeto por tipo de
+configuración — bootstrap, clusters, listeners, rutas, secretos. Recurra a este cuando un
+listener o cluster existe pero se comporta de forma inesperada, y búsquelo en lugar de leerlo
+completo.
 
 ## `envoy-hc-config-dump`
 
-La configuración de comprobación de estado específicamente.
+La configuración de health-check específicamente.
 
 ```bash
 execcli envoy-hc-config-dump
@@ -104,7 +108,7 @@ execcli envoy-hc-config-dump
 ```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
 ```
 
-**Qué buscar.** En esta implementación devuelve un **único byte** — visible como `100 1`
-en el medidor de curl — lo que significa que no hay ninguna configuración de comprobación de estado instalada. Ese es el estado esperado
-para un CE sin pools de origen con comprobación de estado, y merece la pena reconocerlo: un resultado vacío
-aquí no es una consulta fallida.
+**Qué buscar.** En este despliegue devuelve **un único byte** — visible como `100 1` en el
+medidor de `curl` — lo que significa que no hay configuración de health-check instalada. Ese
+es el estado esperado para un CE sin origin pools con health-check, y vale la pena
+reconocerlo: un resultado vacío aquí no indica una consulta fallida.

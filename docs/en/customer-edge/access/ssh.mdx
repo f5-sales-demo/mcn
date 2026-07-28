@@ -27,6 +27,10 @@ ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> "admin@$SLI"
 Every part of that command line is load-bearing, and the next three sections explain
 which failure each one prevents.
 
+There is no shell prompt to land on: `admin`'s login shell **is** the Site CLI, so you arrive
+at its `>>>` prompt. Run on-box commands as `execcli <name>` there — see
+[on-box commands](../../commands/on-box/).
+
 <Aside type="danger" title="Look the internal address up — never carry one over from a previous session">
 Azure reassigns the internal subnet on every rebuild, and not in node order. After the most
 recent one `f5-xc-ce-vm-01`, `-02` and `-03` hold `10.0.3.7`, `10.0.3.5` and `10.0.3.4`; a
@@ -332,7 +336,7 @@ as "not configured" rather than "not reported".
   />
 </CardGrid>
 
-<Aside type="caution" title="A newly created site needs about half an hour before the operate API answers">
+<Aside type="caution" title="A newly created site needs about half an hour before the debug API answers">
 For roughly 25 to 30 minutes after a new site reports `ONLINE`, the `vpm/debug` endpoints
 return a BIG-IP `503` page reading `The requested URL was rejected`. That looks like a web
 application firewall block, or a revoked token, and is neither: the site is not ready to

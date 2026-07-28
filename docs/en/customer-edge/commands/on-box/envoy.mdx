@@ -98,6 +98,6 @@ execcli envoy-hc-config-dump
 ```
 
 **What to look for.** On this deployment it returns a **single byte** — visible as `100 1`
-in the curl meter — meaning no health-check configuration is installed. That is the expected
+in the `curl` meter — meaning no health-check configuration is installed. That is the expected
 state for a CE with no health-checked origin pools, and it is worth recognising: an empty
 result here is not a failed query.
