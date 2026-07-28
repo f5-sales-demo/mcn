@@ -1,33 +1,33 @@
 ---
 title: Diagnostica Customer Edge
 description: >-
-  Leggere prima questo livello quando un Customer Edge presenta anomalie.
-  Stabilisce quale dei due percorsi di accesso è applicabile, perché quello
-  sbagliato non restituisce nulla in modo silenzioso.
+  Leggere per prima cosa questo livello quando un Customer Edge presenta
+  anomalie. Stabilisce quale dei quattro percorsi di accesso è applicabile,
+  perché quello sbagliato non restituisce silenziosamente nulla.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: f6d78e1c7066
+  sourceHash: e7a23e4a0f12
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Un Customer Edge (CE) è il nodo F5 Distributed Cloud che questo repository esegue il provisioning
-in Azure — `terraform/modules/ce-node`, costruito a partire dall'immagine marketplace
+Un Customer Edge (CE) è il nodo F5 Distributed Cloud che questo repository effettua il provisioning in
+Azure — `terraform/modules/ce-node`, costruito a partire dall'immagine del marketplace
 `volterraedgeservices/volterra-node`.
 
 Esegue il data plane (Argo), il control plane (Vega), un proxy Envoy, uno stack
 Kubernetes e `vpm`, l'agente che registra il nodo e gestisce tutto il resto su
 di esso.
 
-Quando un CE presenta anomalie, la Site CLI è lo strumento da usare. La prima decisione riguarda quale
-percorso di accesso è applicabile, e sbagliarla comporta una perdita di tempo che sembra
-un nodo guasto.
+Quando un CE presenta anomalie, la Site CLI è lo strumento adatto. La prima decisione riguarda quale
+percorso di accesso sia applicabile: sbagliarlo comporta una perdita di tempo che sembra un
+nodo guasto.
 
-## Due percorsi di accesso, e non sono interscambiabili
+## Quattro percorsi di accesso, non interscambiabili
 
 <CardGrid>
   <LinkCard
@@ -36,32 +36,49 @@ un nodo guasto.
     href="./access/debug-api/"
   />
   <LinkCard
+    title="Site Console"
+    description="F5's own per-node troubleshooting UI, over an Azure Bastion tunnel. No SSH key, no jump host."
+    href="./access/site-console/"
+  />
+  <LinkCard
+    title="SSH"
+    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
+    href="./access/ssh/"
+  />
+  <LinkCard
     title="Serial console"
-    description="For a node that never registered. The only route when the API cannot answer."
+    description="For a node that never registered. The only route when the node has no network path."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-L'API di debug raggiunge il nodo **attraverso il control plane di F5 Distributed Cloud**.
-Questo è l'intero motivo per cui la distinzione è rilevante: l'API può rispondere solo dopo che il nodo si è
+La debug API raggiunge il nodo **attraverso il control plane di F5 Distributed Cloud**.
+È questa l'intera ragione per cui la distinzione conta: l'API può rispondere solo quando il nodo si è
 registrato e riporta `ONLINE`.
 
-Un nodo che non è riuscito a registrarsi — cloud-init errato, un token scaduto, nessuna route verso
+Un nodo che non è riuscito a registrarsi — cloud-init errato, token scaduto, nessuna rotta verso
 `register.ves.volterra.io` — è esattamente il caso in cui serve la diagnostica, ed
 esattamente il caso che l'API non può gestire.
 
-[SSH](./access/ssh/) è la terza opzione, e la sola che raggiunge l'intera superficie di comandi
-dell'appliance — l'API di debug espone 34 comandi mentre il nodo stesso ne offre molti
-di più. Due elementi la limitano. `sshd` risponde solo sull'indirizzo interno (SLI) del nodo,
-quindi richiede un host all'interno della VNet; e la chiave viene scritta da cloud-init al primo avvio,
-perché il campo `ssh_key` sull'oggetto site è inerte — `vpm` salta l'utente `admin` e
-non lo applica mai. Abilitarlo su nodi in esecuzione comporta quindi la loro sostituzione.
+[Site Console](./access/site-console/) è la prima opzione da provare quando si desidera l'interfaccia
+di troubleshooting di F5 anziché comandi specifici. È quella che richiede meno — nessuna chiave, nessun jump
+host, nessun IP pubblico sul nodo — perché chi può connettersi diventa una decisione di RBAC di Azure, e
+risponde indipendentemente dal fatto che il sito sia registrato o no. Richiede Azure Bastion, che in questa
+distribuzione è subordinato a `enable_bastion` e che non viene distribuito per impostazione predefinita.
 
-Quindi: se il site è `ONLINE` e 34 comandi sono sufficienti, usare l'API di debug. Se serve il
-resto della superficie e si può raggiungere la VNet, usare SSH. Se il problema è la registrazione,
-la console seriale è l'unica via d'accesso.
+[SSH](./access/ssh/) è l'unico percorso che raggiunge l'intera superficie di comandi dell'appliance —
+la debug API espone 34 comandi, mentre il nodo stesso ne offre molti di più. Due elementi lo vincolano.
+`sshd` risponde solo sull'indirizzo interno (SLI) del nodo, quindi serve un host all'interno della
+VNet; e la chiave viene scritta da cloud-init al primo avvio, perché il campo `ssh_key` sull'oggetto
+site è inerte — `vpm` salta l'utente `admin` e non lo applica mai. Abilitarlo su
+nodi in esecuzione comporta quindi la loro sostituzione.
 
-<Aside type="caution" title="Verificare prima lo stato del site">
+Quindi: se il sito è `ONLINE` e 34 comandi sono sufficienti, usare la debug API. Per un'interfaccia grafica, o per un
+nodo che non si è mai registrato ma ha ancora un percorso di rete, usare Site Console. Se serve il
+resto della superficie di comandi e si può raggiungere la VNet, usare SSH. Se il nodo non ha alcun percorso
+di rete funzionante, la console seriale è l'unica via d'accesso.
+
+<Aside type="caution" title="Verificare prima lo stato del sito — e verificare di interrogare il tenant corretto">
 Una sola richiesta indica quale percorso si sta seguendo:
 
 ```bash
@@ -70,44 +87,49 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` significa che l'API di debug funzionerà. Qualsiasi altro valore — o un site che non
-esiste — significa console seriale.
+`ONLINE` significa che la debug API funzionerà. Qualsiasi altro valore significa Site Console o console seriale.
+
+Un sito che **non esiste** ha una seconda spiegazione prima di «non si è mai registrato»:
+si sta puntando al tenant sbagliato. Questa distribuzione risiede in `f5-sales-demo`
+(`https://f5-sales-demo.console.ves.volterra.io`), fissata da `var.expected_xc_tenant` —
+`cd terraform && terraform output -raw xc_tenant` lo conferma senza modificare nulla. Una
+credenziale emessa per un altro tenant restituisce un semplice `401`, che appare come un token scaduto.
 </Aside>
 
 ## Regole di sicurezza
 
-Valgono per ogni comando in ognuna delle pagine seguenti.
+Queste valgono per ogni comando in ognuna delle pagine seguenti.
 
-- **Sola lettura, a meno che non si sia certi.** La superficie di comandi è suddivisa in due
-  livelli di privilegio, e il livello `Exec` altera il nodo oppure legge un marcatore di
-  stato. Nessun elemento di queste pagine esegue un comando `Exec`, e nemmeno lo fa
+- **Solo in lettura, a meno di assoluta certezza.** La superficie di comandi è suddivisa in due
+  livelli di privilegio e il livello `Exec` modifica il nodo oppure legge un marcatore
+  di stato. Nulla in queste pagine esegue un comando `Exec`, e nemmeno lo fa
   l'harness di acquisizione.
-- **Non presumere mai che un comando sia sicuro in base al nome.** `ip-link-set` sembra una
-  query e invece disattiva un'interfaccia. `systemctl-restart-crio` riavvia il
+- **Non presumere mai che un comando sia sicuro dal suo nome.** `ip-link-set` sembra una
+  query e disattiva un'interfaccia. `systemctl-restart-crio` riavvia il
   runtime dei container sotto un data plane attivo.
 - **Preferire il comando più circoscritto che risponda alla domanda.** `health` e
-  `diagnosis` riassumono lo stato del nodo a costo ridotto; `flow-l` scarica una tabella di flusso
-  con 629.760 voci.
-- **Un CE serve traffico reale.** Si tratta di ambienti demo condivisi. Presupporre che qualcuno
-  stia effettuando una presentazione dal site che si sta analizzando.
+  `diagnosis` riassumono lo stato del nodo a basso costo; `flow-l` scarica ogni flusso attivo, mentre
+  `flow-l-match` risponde alla stessa domanda per una singola connessione.
+- **Un CE gestisce traffico reale.** Si tratta di ambienti demo condivisi. Presumere che qualcuno
+  stia presentando dal sito che si sta analizzando.
 
 ## Cosa è documentato qui
 
-Ogni comando raggiungibile tramite l'API di debug sulla build software eseguita da questo tenant,
+Ogni comando raggiungibile tramite la debug API sulla build software eseguita da questo tenant,
 ciascuno con l'output acquisito da un nodo reale anziché trascritto da altre fonti.
 
-Il [riferimento dei comandi](./commands/) li elenca tutti con la relativa categoria, livello di
-privilegio e trasporto; i [flussi di lavoro](./workflows/) li concatenano nelle sequenze che
-si utilizzano effettivamente quando qualcosa non funziona.
+Il [riferimento dei comandi](./commands/) li elenca tutti con la relativa categoria, livello
+di privilegio e trasporto; i [workflow](./workflows/) li concatenano nelle sequenze che si
+utilizzano effettivamente quando qualcosa non funziona.
 
 Le parti della Site CLI disponibili solo sul dispositivo — `configure`, `configure-network`,
-`factory-reset`, `upgrade` e circa sessanta ulteriori comandi `ExecCLI` — non sono
-trattate, perché il loro output non è stato acquisito da un nodo reale come è avvenuto per ogni
+`factory-reset`, `upgrade` e circa altri sessanta comandi `ExecCLI` — non sono
+trattate, perché il loro output non è stato acquisito da un nodo reale come per ogni
 pagina seguente.
 
-Non sono però più inaccessibili. `scripts/sitecli_ssh_harvest.py` pilota il
+Non sono però più fuori portata. `scripts/sitecli_ssh_harvest.py` pilota il
 menu di completamento dell'appliance tramite [SSH](./access/ssh/) e registra la descrizione che
-l'appliance fornisce per ciascun comando, così che la superficie possa essere misurata anziché ipotizzata.
+l'appliance fornisce per ciascun comando, così la superficie può essere misurata invece che ipotizzata.
 La sua esecuzione è negata per impostazione predefinita — enumera tutto ed esegue solo una allow-list —
-perché una sintassi di comando non verificata, e degli *effetti* di comando non verificati, sono proprio il difetto che questa
+perché la sintassi dei comandi non verificata, e gli *effetti* non verificati dei comandi, sono il difetto che questa
 documentazione esiste per evitare di ripetere.

@@ -1,18 +1,18 @@
 ---
 title: 路由与下一跳
-description: Argo 数据平面实际转发所依据的内容（不一定与 Linux 的认知一致）。涵盖 vRouter 路由表、下一跳表和虚拟接口。
+description: Argo 数据平面实际用于转发的内容，而这不一定与 Linux 所认为的一致。涵盖 vRouter 路由表、下一跳表和虚拟接口。
 sidebar:
   order: 50
   label: 路由与下一跳
 i18n:
-  sourceHash: 79de27e2024e
+  sourceHash: 80785e30393a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 Argo 将转发状态与 Linux 内核分开维护。当
-[`ip`](../ip/) 命令与以下命令的结果不一致时，以下命令所呈现的内容才是实际流量转发的依据。
+[`ip`](../ip/) 与这些命令的输出不一致时，真正决定流量走向的是这些命令。
 
 ## `rt`
 
@@ -25,19 +25,19 @@ vRouter 路由表，按 VRF 划分。
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="VRF id 并非 BGP 报告的那个">
-`show-ip-bgp-summary` 打印的是 `vrf-id 3`，这是 FRR 的编号，与 vRouter 表 id 属于不同的命名空间。将其传入此处会导致失败，表现为节点异常：
+<Aside type="danger" title="此处的 VRF id 并不是 BGP 报告的那个">
+`show-ip-bgp-summary` 输出 `vrf-id 3`。那是 FRR 的编号，与 vRouter 表 id 属于不同的命名空间。在此处传入该值会以一种看起来像节点故障的方式失败：
 
 ```
 vRouter(Response):  [No such file or directory (2)]
 ```
 
-`--dump 0` 也会返回相同的错误。在此拓扑中，**VRF 2** 是已填充的 inet4 表，VRF 1 持有两条路由。如果不确定 id，请从 1 开始逐步向上探测，而不要轻信 BGP 的输出结果。
+`--dump 0` 也会返回同样的结果。在此拓扑中，**VRF 2** 才是已填充的 inet4 表，而 VRF 1 中有两条路由。如果你不知道 id，请从 1 开始向上探测，而不要相信 BGP 的输出。
 </Aside>
 
 ## `nh`
 
-下一跳表。每条路由都指向一个下一跳 id，该表用于对其进行解析。
+下一跳表。每条路由都指向一个下一跳 id，此命令用于解析它们。
 
 ```bash
 {"command":["nh","--list"]}
@@ -46,11 +46,21 @@ vRouter(Response):  [No such file or directory (2)]
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-每个条目包含一个 `Type` 字段——`Drop`、`Encap`、`Tunnel`、`Composite`——以及该条目所属的 VRF。解析到 `Drop` 下一跳的路由即为黑洞路由。当某个前缀存在于 `rt` 中但流量仍然消失时，应重点排查这种组合。
+每个条目都带有一个 `Type` 以及所属的 VRF。这些节点上出现了八种类型，比例如下——统计后在三台 CE 上完全一致：
+
+```text
+Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
+```
+
+解析到 `Drop` 下一跳的路由就是黑洞，每当某个前缀存在于 `rt` 中但流量仍然消失时，都值得检查这一组合。
+
+<Aside type="caution" title="上面的抓取内容经过截断，因此并不包含所有类型">
+它只是 3,849 行中的前 60 行。`Tunnel` 是数量遥遥领先的最常见类型，却完全没有出现在这 60 行中——所以不要把该抓取内容当作完整的类型清单，也不要因为某个类型未出现在截断的抓取中就断定该节点上不存在这种类型。上面的计数来自未截断的响应。
+</Aside>
 
 ## `vif`
 
-虚拟接口表：数据平面绑定的接口及各接口的计数器。
+虚拟接口表：数据平面绑定了哪些接口，以及每个接口的计数器。
 
 ```bash
 {"command":["vif","--list"]}
@@ -59,4 +69,4 @@ vRouter(Response):  [No such file or directory (2)]
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-顶部的标志说明值得仔细阅读——`Vp` 标记 vhost 物理接口，`Dpdk` 标记由 DPDK 管理的接口。使用此命令可确认数据平面已接管预期的接口，并查看 Linux 不会显示的 RX 和 TX 计数器（因为相关流量从未到达内核）。
+顶部的标志位图例值得读一遍——`Vp` 标记 vhost 物理接口，`Dpdk` 标记由 DPDK 管理的接口。用它来确认数据平面已经接管了你预期的接口，并查看 Linux 不会显示的 RX 与 TX 计数器（因为这些流量从未到达内核）。

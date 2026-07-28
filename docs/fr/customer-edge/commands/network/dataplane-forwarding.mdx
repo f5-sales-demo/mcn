@@ -1,25 +1,25 @@
 ---
 title: Routes et sauts suivants
 description: >-
-  Ce que le plan de données Argo transfère réellement, ce qui ne correspond pas
-  nécessairement à ce que Linux croit. Couvre la table de routes du vRouter, la
+  Ce sur quoi le plan de données Argo achemine réellement, ce qui n'est pas
+  nécessairement ce que Linux croit. Couvre la table de routage du vRouter, la
   table des sauts suivants et les interfaces virtuelles.
 sidebar:
   order: 50
   label: Routes et sauts suivants
 i18n:
-  sourceHash: 79de27e2024e
+  sourceHash: 80785e30393a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo maintient l'état de transfert séparé du noyau Linux. Lorsque
-[`ip`](../ip/) et ces commandes divergent, ce sont ces commandes qui déterminent le routage du trafic.
+Argo conserve l'état de transfert séparément du noyau Linux. Lorsque
+[`ip`](../ip/) et ces commandes divergent, ce sont ces commandes qui déterminent le trafic.
 
 ## `rt`
 
-La table de routes du vRouter, par VRF.
+La table de routage du vRouter, par VRF.
 
 ```bash
 {"command":["rt","--dump","2"]}
@@ -28,10 +28,10 @@ La table de routes du vRouter, par VRF.
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="L'identifiant VRF n'est pas celui rapporté par BGP">
-`show-ip-bgp-summary` affiche `vrf-id 3`. Il s'agit de la numérotation de FRR, qui appartient à un
-espace de nommage différent de l'identifiant de table du vRouter. Le passer ici échoue d'une manière qui
-s'apparente à un nœud défaillant :
+<Aside type="danger" title="L'identifiant de VRF n'est pas celui que rapporte BGP">
+`show-ip-bgp-summary` affiche `vrf-id 3`. Il s'agit de la numérotation de FRR, qui relève d'un
+espace de noms différent de celui de l'identifiant de table du vRouter. Le transmettre ici échoue d'une manière
+qui laisse penser à un nœud défaillant :
 
 ```
 vRouter(Response):  [No such file or directory (2)]
@@ -39,12 +39,12 @@ vRouter(Response):  [No such file or directory (2)]
 
 La même réponse est renvoyée pour `--dump 0`. Sur cette topologie, **VRF 2** est la
 table inet4 renseignée, VRF 1 contenant deux routes. Si vous ne connaissez pas l'identifiant,
-sondez en partant de 1 vers le haut plutôt que de vous fier à la sortie BGP.
+sondez à partir de 1 en montant plutôt que de vous fier à la sortie BGP.
 </Aside>
 
 ## `nh`
 
-La table des sauts suivants. Chaque route pointe vers un identifiant de saut suivant, et cette table permet de les résoudre.
+La table des sauts suivants. Chaque route pointe vers un identifiant de saut suivant, et cette commande les résout.
 
 ```bash
 {"command":["nh","--list"]}
@@ -53,13 +53,26 @@ La table des sauts suivants. Chaque route pointe vers un identifiant de saut sui
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-Chaque entrée comporte un `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — ainsi que le VRF auquel
-elle appartient. Une route résolvant vers un saut suivant `Drop` est un trou noir, et cette
-combinaison mérite d'être vérifiée chaque fois qu'un préfixe est présent dans `rt` mais que le trafic disparaît quand même.
+Chaque entrée porte un `Type` et la VRF à laquelle elle appartient. Huit types apparaissent sur ces nœuds, dans
+ces proportions — identiques sur les trois CE lorsqu'on les dénombre :
+
+```text
+Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
+```
+
+Une route qui se résout vers un saut suivant `Drop` est un trou noir, et cette combinaison mérite d'être vérifiée
+dès qu'un préfixe est présent dans `rt` alors que le trafic disparaît malgré tout.
+
+<Aside type="caution" title="La capture ci-dessus est tronquée, elle ne contient donc pas tous les types">
+Il s'agit des 60 premières lignes sur 3 849. `Tunnel`, de loin le type le plus courant, n'apparaît
+pas du tout dans ces 60 lignes — ne considérez donc pas la capture comme l'inventaire complet des types, et n'en
+concluez pas qu'un type est absent d'un nœud parce qu'il est absent d'une capture tronquée. Les décomptes
+ci-dessus proviennent de la réponse non tronquée.
+</Aside>
 
 ## `vif`
 
-La table des interfaces virtuelles : ce à quoi le plan de données se lie, ainsi que les
+La table des interfaces virtuelles : ce à quoi le plan de données se rattache, ainsi que les
 compteurs par interface.
 
 ```bash
@@ -69,7 +82,7 @@ compteurs par interface.
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-La légende des indicateurs en haut de la table mérite d'être lue une fois — `Vp` désigne l'interface
-physique vhost, `Dpdk` une interface gérée par DPDK. Utilisez-la pour confirmer que le plan de données a bien pris en charge
-l'interface attendue, et pour consulter les compteurs RX et TX que Linux n'affiche pas
-car le trafic n'atteint jamais le noyau.
+La légende des indicateurs en haut mérite d'être lue une fois — `Vp` désigne l'interface physique
+vhost, `Dpdk` une interface gérée par DPDK. Utilisez-la pour confirmer que le plan de données a bien pris
+en charge l'interface attendue, et pour consulter les compteurs RX et TX que Linux n'affiche pas
+parce que le trafic n'atteint jamais le noyau.

@@ -1,21 +1,21 @@
 ---
 title: curl
-description: 从节点上两种不同网络上下文进行可达性测试。您使用哪种方式决定了失败实际证明了什么。
+description: 在节点上从两种不同的网络上下文进行可达性测试。你选择使用哪一个，决定了一次失败究竟能证明什么。
 sidebar:
   order: 80
   label: curl
 i18n:
-  sourceHash: 6ab13d8c3593
+  sourceHash: 6525a6aa3a90
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-两个命令，它们之间的区别就是全部价值所在。
+两条命令，而它们之间的区别就是全部价值所在。
 
 ## `curl-host`
 
-在主机网络命名空间中运行——即节点自身的连接性，在数据平面介入之前。
+在主机网络命名空间中运行 —— 即节点自身的连通性，尚未涉及数据平面。
 
 ```bash
 {"command":["curl-host","-v","cloud.f5.com"]}
@@ -26,7 +26,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 ## `curl-vega`
 
-在 Kubernetes 集群上下文内部运行，因此会经过集群的 DNS 和网络路径。
+在 Vega（控制平面）上下文中运行，而非主机上下文。可观察到的差异，也是此处唯一确定的差异，是它所继承的环境：`curl-vega` 报告的 `NO_PROXY` 列表涵盖了各私有地址段、`int.ves.io`、`int.volterra.us` 以及站点自身的 `.tenant.local` 域，而 `curl-host` 则不报告任何内容。这对 DNS 路径意味着什么，并未经过实测。
 
 ```bash
 {"command":["curl-vega","-v","cloud.f5.com"]}
@@ -35,8 +35,10 @@ import { Aside } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-curl-vega.txt
 ```
 
-<Aside type="tip" title="这对命令是一种二分法">
-两者都运行。如果 `curl-host` 成功而 `curl-vega` 失败，说明节点具有连接性，问题在于集群网络或其 DNS。如果两者都失败，问题位于节点上游——路由、防火墙或出口路径。如果仅 `curl-host` 失败，则说明出现了不寻常的情况，应首先检查主机路由表。
+<Aside type="tip" title="这一对命令构成一次二分定位">
+两者都运行。如果 `curl-host` 成功而 `curl-vega` 失败，说明节点具备连通性，而控制平面上下文中的某些东西不具备 —— 可能是其代理设置或其解析器。如果两者都失败，问题出在节点上游：路由、防火墙或出口路径。如果只有 `curl-host` 失败，你遇到了不寻常的情况，应先检查主机路由表。
+
+在健康的节点上两者都会成功并到达同一地址，因此一对干净的结果无法证明当前正在使用哪个上下文 —— 承载信息的是二者之间的*差异*。
 </Aside>
 
-两者均接受普通的 `curl` 参数，以独立数组元素的形式传入。建议保留 `-v` 参数，因为连接和 TLS 握手行通常是故障显现的位置。
+两者都接受作为独立数组元素传入的常规 `curl` 参数。值得保留 `-v`，因为连接与 TLS 握手相关的输出行通常正是故障显现之处。

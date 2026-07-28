@@ -1,14 +1,14 @@
 ---
 title: diagnosis
 description: >-
-  Konnektivitäts- und DNS-Prüfungen, die der Knoten gegen sich selbst ausführt,
-  werden als JSON zurückgegeben. Zeigt an, was der Knoten über seine eigene
-  Erreichbarkeit glaubt.
+  Konnektivitäts- und DNS-Prüfungen, die der Knoten gegen sich selbst ausführt
+  und als JSON zurückgibt. Zeigt, was der Knoten über seine eigene
+  Erreichbarkeit annimmt.
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: 2c9fe6fab17a
+  sourceHash: fe68c321f801
   translator: machine
 ---
 
@@ -16,8 +16,8 @@ import { Aside } from "@astrojs/starlight/components";
 
 ## `diagnosis`
 
-<Aside type="caution" title="GLOBAL-Geltungsbereich — ein anderer Transport">
-Wie `health` ein `GET`-Aufruf auf den `global`-Pfad, der nicht über `exec-user` erreichbar ist.
+<Aside type="caution" title="GLOBAL-Scope — ein anderer Transportweg">
+Wie bei `health` ein `GET` auf den `global`-Pfad und nicht über `exec-user` erreichbar.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -29,17 +29,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-Der Knoten überprüft sein eigenes Gateway und meldet das Ergebnis pro Knoten — auf einem
-Multi-Knoten-Standort erhält man daher jeweils einen Block. `gateway_connectivity` enthält
-eine Ping-Zusammenfassung mit `sent`, `received`, `lost` sowie Roundtrip-Zeiten.
+Die Ergebnisse werden pro Knoten ausgegeben, an einem Standort mit mehreren Knoten erhalten Sie also jeweils einen Block.
+`gateway_connectivity` und `dns_connectivity` enthalten jeweils eine Ping-Zusammenfassung — `dest_ip`, `sent`,
+`received`, `lost` sowie Laufzeiten.
 
-<Aside type="note" title="100 % Verlust zum Gateway ist nicht zwangsläufig ein Fehler">
-In dieser Topologie antwortet das Gateway nicht auf ICMP-Anfragen, sodass `lost: 100` der
-Normalzustand ist, während der Standort `ONLINE` ist und Datenverkehr weiterleitet. Dieses
-Feld sollte nur dann als Signal gewertet werden, wenn bereits andere Hinweise auf ein Problem
-vorliegen oder sich der Wert ändert.
+<Aside type="danger" title="Beide Ping-Prüfungen melden 100 % Verlust auf einem völlig gesunden Knoten">
+In dieser Topologie melden **beide**, `gateway_connectivity` (an `10.0.1.1`) und `dns_connectivity` (an
+`168.63.129.16`), `sent: 5, received: 0, lost: 100`, während der Standort `ONLINE` ist,
+Datenverkehr weiterleitet und `registration_status: OK` lautet — beim Schreiben dieses Textes erneut überprüft. Zwei
+`lost: 100`-Blöcke in einer Antwort sind das alarmierendste Erscheinungsbild auf dieser Seite und
+gleichzeitig der Normalzustand.
+
+`dns_connectivity` ist von beiden das irreführendere Feld, denn DNS funktioniert nachweislich: Das
+`dns_query_result` derselben Antwort enthält zehn erfolgreiche Abfragen mit `NOERROR` gegen genau
+diesen Resolver. Die Prüfung misst die ICMP-Erreichbarkeit, die von den Azure-Plattformadressen
+nicht beantwortet wird; sie misst nicht DNS.
+
+Betrachten Sie beide Felder nur dann als Signal, wenn Sie bereits andere Hinweise auf ein Problem haben oder
+wenn sich der Wert ändert.
 </Aside>
 
-`resolv_conf` ist das konsistentere und nützlichere Feld: Es zeigt den Resolver an, den der
-Knoten tatsächlich verwenden wird. Es lohnt sich, diesen Wert mit den Erwartungen abzugleichen,
-bevor Zeit in [`dig`](../../network/dig/) investiert wird.
+Die Felder, die zuerst gelesen werden sollten, finden sich an anderer Stelle in der Antwort: `registration_status`,
+`curl_response` (ein Eintrag pro F5-Endpunkt, den der Knoten benötigt, jeweils `OK` oder nicht),
+`dns_query_result` und `ntp_sync_status`.
+
+`resolv_conf` zeigt den Resolver, den der Knoten tatsächlich verwenden wird — es lohnt sich, diesen mit
+Ihren Erwartungen zu vergleichen, bevor Sie Zeit in [`dig`](../../network/dig/) investieren.

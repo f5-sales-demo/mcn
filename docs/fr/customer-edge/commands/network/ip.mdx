@@ -1,20 +1,20 @@
 ---
 title: Interfaces
 description: >-
-  Vue côté Linux de l'interface et de l'état du lien sur le nœud, ainsi que la
-  seule commande privilégiée permettant de le modifier. Ce que Linux perçoit,
-  que le plan de données peut contredire.
+  État des interfaces et des liens côté Linux sur le nœud, ainsi que l'unique
+  commande privilégiée qui le modifie. Ce que Linux croit, ce que le plan de
+  données peut contredire.
 sidebar:
   order: 60
   label: Interfaces
 i18n:
-  sourceHash: 7ad734b3a357
+  sourceHash: 3d2e9fd4cf74
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-Ces informations reflètent la vue du noyau. Le plan de données Argo maintient la sienne, visible via
+Ces commandes rapportent la vue du noyau. Le plan de données Argo conserve la sienne, visible via
 [`vif`](../dataplane-forwarding/), et les deux peuvent diverger.
 
 ## `ip`
@@ -29,10 +29,29 @@ Prend une sous-commande `ip`. `addr` est la plus courante ; `route`, `link` et `
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-Le CE dispose de trois cartes réseau par conception, et l'ordre est important : `eth0` est l'interface
-de gestion et SLO portant l'adresse BGP locale du site, suivie des interfaces externe et interne.
-Notez `a-i-eth0` dans la sortie — le plan de données a pris le contrôle de l'interface physique et
-présente la sienne.
+Le CE dispose de trois cartes réseau Azure par conception — gestion/SLO, externe, interne/SLI — mais
+l'invité ne les présente pas selon l'ordre que cette énumération suggère, et c'est là qu'une mauvaise
+lecture de la sortie coûte du temps.
+
+| Dans l'invité | Porte |
+| --- | --- |
+| `a-i-eth0` | **aucune adresse** — il s'agit de l'eth0 physique renommé, et le plan de données Argo en est propriétaire |
+| `vhost0` | l'adresse de gestion/SLO, celle depuis laquelle BGP s'appaire et celle que l'objet site rapporte |
+| `eth1` et `eth2` | les adresses externe et interne/SLI — mais **pas dans un ordre fixe** |
+
+<Aside type="danger" title="Laquelle de eth1 et eth2 est l'interface interne diffère selon les nœuds">
+Relevé en direct sur les trois CE de ce même déploiement : sur `f5-xc-ce-vm-01` et
+`f5-xc-ce-vm-03`, l'adresse interne/SLI est sur `eth2`, et sur `f5-xc-ce-vm-02` elle est sur
+`eth1`. Rien dans la configuration ne détermine cela.
+
+Ne déduisez donc jamais un sous-réseau à partir d'un nom d'interface, et ne transposez jamais une
+correspondance d'un nœud à un autre. Faites plutôt correspondre sur l'adresse — le sous-réseau
+auquel appartient une adresse CE est stable, même si l'interface qui la porte ne l'est pas.
+</Aside>
+
+Le fait que `a-i-eth0` ne porte aucune adresse est aussi toute la raison pour laquelle `sshd` est
+injoignable sur l'adresse de gestion : il n'y a pas d'écouteur à cet endroit, et non un port bloqué. Voir
+[SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 
@@ -46,10 +65,9 @@ Couche liaison uniquement : état, MTU, discipline de mise en file d'attente, MA
 ```
 
 Plus rapide que `ip addr` lorsque la question est « le lien est-il actif et quel est son MTU ».
-Les incompatibilités de MTU sont une cause récurrente de tunnels qui s'établissent mais ne transmettent
-aucun trafic.
+Les incohérences de MTU sont une cause récurrente de tunnels qui s'établissent mais ne transmettent aucun trafic.
 
-## `ip-link-set` <Badge text="Niveau Exec — mutation" variant="danger" />
+## `ip-link-set` <Badge text="Niveau Exec — mutatif" variant="danger" />
 
 Active ou désactive une interface ou un groupe.
 
@@ -57,12 +75,12 @@ Active ou désactive une interface ou un groupe.
 ip-link-set (<device>||<group>) (up||down)
 ```
 
-<Aside type="danger" title="Non exécuté ici, et non accessible par la voie habituelle">
-Il s'agit de la seule commande de niveau `Exec` dans cette version. Elle est adressée au point de
-terminaison `exec` plutôt qu'à `exec-user`, et elle modifie le nœud : désactiver `eth0` sur un CE
-distant supprime le chemin par lequel vous le gérez, y compris l'API de débogage elle-même.
+<Aside type="danger" title="Non exécutée ici, et non accessible par la voie habituelle">
+Il s'agit de la seule commande de niveau `Exec` sur cette version. Elle s'adresse au point de terminaison `exec`
+plutôt qu'à `exec-user`, et elle modifie le nœud : désactiver `eth0` sur un CE distant
+supprime le chemin par lequel vous l'administrez, y compris l'API de débogage elle-même.
 
-Il n'y a délibérément aucune sortie capturée sur cette page. Le dispositif de capture refuse
-l'intégralité du niveau `Exec`, et lit le niveau depuis le catalogue en direct plutôt qu'une liste
-codée en dur, ce qui restera vrai si une future version promeut d'autres commandes dans ce niveau.
+Il n'y a délibérément aucune sortie capturée sur cette page. Le harnais de capture refuse
+l'intégralité du niveau `Exec`, et lit le niveau depuis le catalogue en direct plutôt que depuis une
+liste codée en dur, de sorte que cela reste vrai si une version future y promeut d'autres commandes.
 </Aside>

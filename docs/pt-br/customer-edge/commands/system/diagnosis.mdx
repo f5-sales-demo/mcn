@@ -2,12 +2,12 @@
 title: diagnosis
 description: >-
   Sondagens de conectividade e DNS que o nó executa contra si mesmo, retornadas
-  como JSON. Indica o que o nó acredita sobre sua própria acessibilidade.
+  como JSON. Informa o que o nó acredita sobre sua própria acessibilidade.
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: 2c9fe6fab17a
+  sourceHash: fe68c321f801
   translator: machine
 ---
 
@@ -16,7 +16,7 @@ import { Aside } from "@astrojs/starlight/components";
 ## `diagnosis`
 
 <Aside type="caution" title="Escopo GLOBAL — um transporte diferente">
-Como `health`, uma requisição `GET` para o caminho `global` e não acessível através do `exec-user`.
+Assim como `health`, um `GET` para o caminho `global` e não acessível através de `exec-user`.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -28,17 +28,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-O nó sonda seu próprio gateway e reporta o resultado por nó, portanto em um site
-com múltiplos nós você obtém um bloco para cada um. `gateway_connectivity` traz um
-resumo de ping — `sent`, `received`, `lost` e tempos de ida e volta.
+Os resultados são reportados por nó, portanto, em um site com múltiplos nós você obtém um bloco para cada um.
+`gateway_connectivity` e `dns_connectivity` carregam, cada um, um resumo de ping — `dest_ip`, `sent`,
+`received`, `lost` e tempos de ida e volta.
 
-<Aside type="note" title="100% de perda para o gateway não é necessariamente uma falha">
-Nesta topologia o gateway não responde a ICMP, portanto `lost: 100` é o estado
-estável enquanto o site está `ONLINE` e encaminhando tráfego. Trate este campo como
-um sinal apenas quando você já tiver outras evidências de um problema, ou quando ele
-mudar.
+<Aside type="danger" title="Ambas as sondagens de ping reportam 100% de perda em um nó perfeitamente saudável">
+Nesta topologia, **ambos** `gateway_connectivity` (para `10.0.1.1`) e `dns_connectivity` (para
+`168.63.129.16`) reportam `sent: 5, received: 0, lost: 100` enquanto o site está `ONLINE`,
+encaminhando tráfego, e com `registration_status: OK` — verificado novamente durante a redação deste texto. Dois
+blocos `lost: 100` em uma única resposta são a coisa de aparência mais alarmante nesta página e
+esse é o estado normal.
+
+`dns_connectivity` é o mais enganoso dos dois, porque o DNS comprovadamente funciona: o
+`dns_query_result` da mesma resposta contém dez consultas bem-sucedidas, `NOERROR`, contra exatamente
+esse resolvedor. A sondagem mede a acessibilidade ICMP, que os endereços da plataforma Azure não
+respondem; ela não mede DNS.
+
+Trate qualquer um desses campos como um sinal apenas quando você já tiver outras evidências de um problema, ou
+quando ele mudar.
 </Aside>
 
-`resolv_conf` é o campo mais consistentemente útil: ele mostra o resolvedor que o nó
-efetivamente utilizará, o que vale a pena comparar com o que você espera antes de
-gastar tempo no [`dig`](../../network/dig/).
+Os campos que vale a pena ler primeiro estão em outra parte da resposta: `registration_status`,
+`curl_response` (uma entrada por endpoint F5 que o nó precisa, cada um `OK` ou não),
+`dns_query_result` e `ntp_sync_status`.
+
+`resolv_conf` mostra o resolvedor que o nó realmente usará, o que vale a pena comparar com
+o que você espera antes de gastar tempo no [`dig`](../../network/dig/).

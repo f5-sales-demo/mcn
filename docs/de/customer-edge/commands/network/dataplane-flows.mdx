@@ -1,24 +1,34 @@
 ---
 title: Flow-Tabelle
 description: >-
-  Verbindungsstatus pro Verbindung in der Argo-Datenebene. Verwenden Sie das
-  Match-Formular, um eine einzelne Verbindung zu finden; der vollständige Dump
-  ist enorm groß.
+  Verbindungsbezogener Zustand in der Argo-Datenebene. Verwenden Sie die
+  Match-Form, um eine einzelne Verbindung zu finden; der vollständige Dump ist
+  enorm.
 sidebar:
   order: 40
   label: Flow-Tabelle
 i18n:
-  sourceHash: c654c4d3ca8c
+  sourceHash: 8619021a68e3
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo verfolgt jede Verbindung. Die Tabelle auf diesem Knoten hat 629.760 Einträge, daher ist die Art der Abfrage wichtiger als der Inhalt.
+Argo verfolgt jede Verbindung. Wie Sie die Tabelle abfragen, ist wichtiger als ihr Inhalt,
+denn der vollständige Dump ist im Prinzip unbegrenzt und in der Praxis unhandlich.
+
+<Aside type="caution" title="629.760 ist die Kapazität der Tabelle, nicht die Anzahl der Flows">
+Die Kopfzeile `Flow table(size 161218560, entries 629760)` gibt an, wie viele Plätze die
+Datenebene zugewiesen hat, und sie ist hier auf jedem Knoten unabhängig von der Last identisch.
+Die tatsächliche Anzahl der Flows steht nicht in dieser Zeile. `Entries: Created … Added … Deleted …`
+einige Zeilen darunter sind Lebenszeitzähler, und die tatsächlich belegten Flows sind die
+Datensätze, die nach der Legende ausgegeben werden — 73 davon in einem Durchlauf, der beim
+Schreiben dieses Textes erfolgte, innerhalb einer Antwort mit 542 Zeilen.
+</Aside>
 
 ## `flow-l-match`
 
-Fast immer die bevorzugte Wahl. Akzeptiert eine Adresse oder eine Adresse mit Port.
+Fast immer der Befehl, den Sie benötigen. Erwartet eine Adresse oder eine Adresse und einen Port.
 
 ```bash
 {"command":["flow-l-match","100.127.192.10:53"]}
@@ -27,7 +37,9 @@ Fast immer die bevorzugte Wahl. Akzeptiert eine Adresse oder eine Adresse mit Po
 ```text file=../../../../_data/sitecli-flow-l-match.txt
 ```
 
-Die Aktion bei jedem Flow ist entscheidend: `F` für Weiterleitung (forward), `D` für Verwerfen (drop), `N` für NAT. Ein Flow mit der Aktion `D` bedeutet, dass die Datenebene eine bewusste Entscheidung getroffen hat, was Sie zur Richtlinienkonfiguration statt zur Konnektivität weiterleitet.
+Entscheidend ist die Aktion bei jedem Flow: `F` weiterleiten, `D` verwerfen, `N` NAT. Ein Flow
+mit der Aktion `D` bedeutet, dass die Datenebene eine bewusste Entscheidung getroffen hat, was
+Sie zur Richtlinie und nicht zur Konnektivität führt.
 
 ## `flow-l`
 
@@ -40,6 +52,9 @@ Der vollständige Dump.
 ```text file=../../../../_data/sitecli-flow-l.txt
 ```
 
-<Aside type="caution" title="Gekürzt und enorm groß">
-Die obige Aufzeichnung ist auf die ersten 60 von 1057 Zeilen gekürzt, wobei 1057 selbst das Limit der API war und nicht die gesamte Tabelle. Verwenden Sie `flow-l-match`, sofern Sie nicht wirklich die gesamte Tabelle durchsuchen müssen, und rechnen Sie damit, dass bei einer solchen Abfrage nur die Kopfzeileninformationen — Tabellengröße und Eintragsanzahl — wirklich relevant sind.
+<Aside type="caution" title="Gekürzt, und die Größe schwankt">
+Die obige Erfassung ist auf die ersten 60 Zeilen einer Antwort mit 1.186 Zeilen gekürzt. Ein
+Durchlauf beim Schreiben dieses Textes ergab 542 Zeilen — die Antwortlänge richtet sich danach,
+wie viele Flows aktiv sind, sodass keine der beiden Zahlen eine Eigenschaft des Befehls ist.
+Verwenden Sie `flow-l-match`, sofern Sie nicht wirklich die gesamte Tabelle überblicken müssen.
 </Aside>

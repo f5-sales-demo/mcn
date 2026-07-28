@@ -1,78 +1,142 @@
 ---
-title: Un site qui n'est jamais venu en ligne
+title: Un site qui n'est jamais passé en ligne
 description: >-
-  Séquence ordonnée pour un CE dont l'enregistrement a échoué, où l'API de
+  Séquence ordonnée pour un CE qui n'a pas réussi à s'enregistrer, où l'API de
   débogage ne peut pas aider car elle dépend de l'enregistrement qui a échoué.
 sidebar:
   order: 10
   label: Enregistrement
 i18n:
-  sourceHash: 4b54a905730d
+  sourceHash: fb8362ea5f14
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-<Aside type="danger" title="L'API ne peut pas déboguer ceci">
-L'API de débogage atteint le nœud via le plan de contrôle F5 Distributed Cloud, par le
-tunnel établi lors de l'enregistrement. Si l'enregistrement a échoué, il n'y a pas de tunnel,
-donc chaque commande de ce site est indisponible pour cette panne précise. Travaillez depuis
-la [console série](../../access/serial-console/).
+<Aside type="danger" title="L'API ne peut pas déboguer ce cas">
+L'API de débogage atteint le nœud via le plan de contrôle F5 Distributed Cloud, à travers
+le tunnel que l'enregistrement établit. Si l'enregistrement a échoué, il n'y a pas de tunnel,
+donc toutes les commandes de ce site sont indisponibles pour cette panne précise. Travaillez depuis
+la [Console du site](../../access/site-console/) si le nœud dispose encore d'un chemin réseau, et depuis
+la [console série](../../access/serial-console/) si ce n'est pas le cas.
 </Aside>
 
 <Steps>
 
-1. **Confirmez ce que le locataire observe.** Absent de la liste des sites est un problème
-   différent de présent mais non `ONLINE`.
+1. **Vérifiez que vous interrogez le bon tenant.** Cela coûte une seule commande et vient
+   en premier car se tromper fausse toutes les étapes suivantes : une flotte en bonne santé dans le tenant
+   que vous ne regardez pas est indiscernable d'une flotte qui ne s'est jamais enregistrée.
+
+   ```bash
+   cd terraform
+   terraform output -raw xc_tenant       # the tenant this deployment belongs to
+   terraform output -raw xc_env_tenant   # the tenant your shell is exporting
+   ```
+
+   ```text
+   f5-sales-demo
+   f5-sales-demo
+   ```
+
+   Valeurs différentes, ou un identifiant que vous croyez valide renvoyant un simple `401` ? C'est le
+   symptôme d'un jeton émis pour un autre tenant, et cela a déjà coûté à ce déploiement une
+   reconstruction complète ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
+
+2. **Vérifiez ce que pense le tenant.** Être absent de la liste des sites est un problème
+   différent d'être présent mais pas `ONLINE`.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
      "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
    ```
 
-   Si le site existe et indique `ONLINE`, l'enregistrement a réussi et vous vous trouvez
-   dans le mauvais flux de travail.
+   Si le site existe et signale `ONLINE`, l'enregistrement a réussi et vous êtes dans le
+   mauvais workflow.
 
-2. **Vérifiez s'il y a un enregistrement en attente.** Un nœud peut s'enregistrer puis
-   attendre une approbation, ce qui ressemble de l'extérieur à un échec.
+3. **Trouvez l'enregistrement du site et son état.** Un nœud peut s'enregistrer puis attendre
+   une approbation, ce qui, vu de l'extérieur, ressemble exactement à un échec.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
-     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+     "$XCSH_API_URL/api/register/namespaces/system/registrations_by_site/<site>" \
+     | jq -r '.items[] | "\(.name)  \(.object.status.current_state)  \(.object.spec.gc_spec.infra.hostname)"'
    ```
 
-3. **Confirmez que la VM est bien en cours d'exécution**, avant de supposer une
-   défaillance logicielle.
+   ```text
+   r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
+   ```
+
+   Aucun élément signifie que le nœud ne s'est pas encore enregistré — passez à la console série. Un élément
+   dans un état autre que `ONLINE` signifie qu'il s'est enregistré et que quelque chose a échoué après, ce qui
+   relève d'une autre investigation.
+
+   Pour balayer l'ensemble de l'espace de noms à la recherche de tout ce qui attend une approbation, `listregistrationsbystate`
+   prend l'état dans un **corps `POST`** :
+
+   ```bash
+   curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"namespace":"system","state":"PENDING"}' \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
+   ```
+
+   Sur une flotte en bonne santé, cela ne renvoie rien, car l'approbation est automatisée.
+
+4. **Vérifiez que la VM fonctionne réellement**, avant de supposer un défaut logiciel.
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
    ```
 
-4. **Attachez la console série.** Cela nécessite un terminal — cela ne peut pas être scripté.
+   ```text
+   Name            Power
+   --------------  ----------
+   ar-ecmp-client  VM running
+   f5-xc-ce-vm-01  VM running
+   f5-xc-ce-vm-02  VM running
+   f5-xc-ce-vm-03  VM running
+   ```
+
+5. **Attachez la console série.** En mode interactif, cela nécessite un vrai terminal ; l'attachement
+   lui-même peut être scripté via le websocket — voir
+   [console série](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   En cas de refus, vérifiez que les diagnostics de démarrage sont activés sur la VM avant
-   de conclure que le nœud est inaccessible ; ce prérequis et ses modes de défaillance sont
-   couverts sur la page [console série](../../access/serial-console/).
+   En cas de refus, vérifiez que les diagnostics de démarrage sont activés sur la VM avant de conclure que
+   le nœud est injoignable ; ce prérequis et ses modes de défaillance sont traités sur la page
+   [console série](../../access/serial-console/).
 
-5. **Lisez ce qu'affiche la console, dans cet ordre.** cloud-init en premier — un nœud
-   dont cloud-init ne s'est jamais terminé ne dispose d'aucune configuration avec laquelle
-   s'enregistrer. Ensuite les tentatives d'enregistrement elles-mêmes, puis le DNS : si le
-   nœud ne peut pas résoudre `register.ves.volterra.io`, rien en aval ne peut fonctionner.
+6. **Lisez ce qu'affiche la console, dans cet ordre.** cloud-init d'abord — un nœud dont
+   cloud-init ne s'est jamais terminé n'a aucune configuration avec laquelle s'enregistrer. Puis les
+   tentatives d'enregistrement elles-mêmes, puis le DNS : si le nœud ne peut pas résoudre
+   `register.ves.volterra.io`, rien en aval ne peut fonctionner.
 
-6. **Une fois le nœud `ONLINE`**, vérifiez avec [`health`](../../commands/system/health/)
-   et attendez `state: PROVISIONED`.
+7. **Une fois le nœud `ONLINE`**, vérifiez avec [`health`](../../commands/system/health/)
+   et attendez-vous à `state: PROVISIONED`.
 
 </Steps>
 
+<Aside type="caution" title="Un enregistrement porte le nom d'un UUID, jamais celui de son site">
+Les enregistrements sont nommés `r-<uuid>`, et aucun endpoint n'accepte un nom de site là où un
+nom d'enregistrement est attendu.
+`GET .../registrations/<site>` renvoie `404`, ce qui se lit comme « ce site n'a aucun
+enregistrement » alors que cela signifie en réalité « ce n'est pas un nom d'enregistrement ». La correspondance
+site-vers-enregistrement ne provient que de `registrations_by_site/<site>`, comme à l'étape 3, ou en listant
+`registrations` et en faisant correspondre `gc_spec.passport.cluster_name`.
+
+Ce même piège a donné l'impression qu'une flotte en bonne santé n'avait aucun enregistrement.
+</Aside>
+
 ## Les causes habituelles
 
+- **Vous pointez vers le mauvais tenant**, si bien qu'une flotte qui va bien semble absente. Étape 1.
 - cloud-init ne s'est pas terminé, donc `/etc/vpm/config.yaml` est absent ou incorrect.
-- Le jeton d'enregistrement est expiré, déjà consommé ou provient d'un autre locataire.
+- Le jeton d'enregistrement est expiré, déjà consommé, ou provient d'un autre tenant.
 - Aucune route de sortie vers `register.ves.volterra.io`.
-- Dérive d'horloge suffisamment importante pour invalider les certificats — facile à
-  exclure par la suite avec [`chronyc-sources`](../../commands/network/chronyc-sources/),
-  mais inaccessible tant que le nœud n'est pas en ligne.
+- Un décalage d'horloge suffisamment important pour invalider les certificats — rapide à écarter plus tard avec
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), mais inaccessible
+  tant que le nœud n'est pas en ligne. La bannière de connexion [SSH](../../access/ssh/) indique `NTP: Synced`
+  et l'état du résolveur avant même que vous n'exécutiez quoi que ce soit, lorsque SSH est disponible.

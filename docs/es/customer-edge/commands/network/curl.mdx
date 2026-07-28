@@ -1,13 +1,13 @@
 ---
 title: curl
 description: >-
-  Pruebas de alcanzabilidad desde dos contextos de red distintos en el nodo.
-  Cuál se utilice determina qué prueba un fallo en realidad.
+  Pruebas de alcanzabilidad desde dos contextos de red distintos en el nodo. El
+  que utilice determina qué demuestra realmente un fallo.
 sidebar:
   order: 80
   label: curl
 i18n:
-  sourceHash: 6ab13d8c3593
+  sourceHash: 6525a6aa3a90
   translator: machine
 ---
 
@@ -17,7 +17,8 @@ Dos comandos, y la distinción entre ellos es todo el valor.
 
 ## `curl-host`
 
-Se ejecuta en el espacio de nombres de red del host — la conectividad propia del nodo, antes de que el plano de datos esté involucrado.
+Se ejecuta en el espacio de nombres de red del host: la conectividad propia del nodo, antes de que
+el plano de datos entre en juego.
 
 ```bash
 {"command":["curl-host","-v","cloud.f5.com"]}
@@ -28,7 +29,11 @@ Se ejecuta en el espacio de nombres de red del host — la conectividad propia d
 
 ## `curl-vega`
 
-Se ejecuta dentro del contexto del clúster de Kubernetes, por lo que atraviesa el DNS y la ruta de red del clúster.
+Se ejecuta en el contexto de Vega (plano de control) en lugar del del host. La diferencia observable,
+y la única establecida aquí, es el entorno que hereda: `curl-vega` informa de una
+lista `NO_PROXY` que cubre los rangos privados, `int.ves.io`, `int.volterra.us` y el propio
+dominio `.tenant.local` del site, y `curl-host` no informa de ninguna. Lo que eso implica sobre la ruta
+DNS no se mide.
 
 ```bash
 {"command":["curl-vega","-v","cloud.f5.com"]}
@@ -38,7 +43,15 @@ Se ejecuta dentro del contexto del clúster de Kubernetes, por lo que atraviesa 
 ```
 
 <Aside type="tip" title="El par es una bisección">
-Ejecute ambos. Si `curl-host` tiene éxito y `curl-vega` falla, el nodo tiene conectividad y la red del clúster o su DNS está roto. Si ambos fallan, el problema es anterior al nodo — enrutamiento, un firewall, o la ruta de salida. Si solo `curl-host` falla, ha encontrado algo inusual y debe verificar primero la tabla de enrutamiento del host.
+Ejecute ambos. Si `curl-host` tiene éxito y `curl-vega` falla, el nodo tiene conectividad y
+algo en el contexto del plano de control no la tiene: su configuración de proxy o su resolutor. Si ambos
+fallan, el problema está aguas arriba del nodo: enrutamiento, un firewall o la ruta de salida. Si solo
+falla `curl-host`, ha encontrado algo inusual y debería revisar primero la tabla de enrutamiento
+del host.
+
+En un nodo saludable ambos tienen éxito y alcanzan la misma dirección, por lo que un par correcto no demuestra nada
+sobre qué contexto está en uso: es la *divergencia* la que aporta la información.
 </Aside>
 
-Ambos aceptan argumentos normales de `curl` como elementos de arreglo separados. `-v` vale la pena mantenerlo porque las líneas de conexión y del protocolo de enlace TLS son usualmente donde se muestra el fallo.
+Ambos aceptan argumentos normales de `curl` como elementos independientes del array. Merece la pena conservar `-v`
+porque las líneas de la conexión y del handshake TLS son normalmente donde se manifiesta el fallo.
