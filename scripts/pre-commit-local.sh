@@ -38,6 +38,15 @@ else
   printf 'CE Site CLI checks skipped (no related paths staged)\n'
 fi
 
+# The tenant guard's extraction logic (issue #696). Sub-second, and the branch it
+# covers — XCSH_API_URL naming the WRONG tenant — is unreachable from
+# `terraform test`, which cannot set an environment variable. Nothing else runs it.
+if staged | grep -qE '^(terraform/scripts/xc-env-tenant\.sh|tests/test-xc-env-tenant\.sh|scripts/pre-commit-local\.sh)$'; then
+  run "XC tenant guard extraction tests" bash tests/test-xc-env-tenant.sh
+else
+  printf 'XC tenant guard checks skipped (no related paths staged)\n'
+fi
+
 # shfmt is enforced by the Lint Code Base gate (super-linter SHELL_SHFMT) but is
 # absent from .pre-commit-config.yaml, which is governance-managed. Without this,
 # a formatting-only failure is only discoverable after pushing — which is exactly

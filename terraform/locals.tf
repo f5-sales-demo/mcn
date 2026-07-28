@@ -1,4 +1,11 @@
 locals {
+  # --- F5 XC tenant endpoint ---
+  # Every F5 XC tenant is served at https://<tenant>.console.ves.volterra.io, so
+  # naming the tenant is enough to name the API. providers.tf feeds this to the
+  # xcsh provider's api_url, which is what makes the TENANT A PROPERTY OF THE
+  # CONFIGURATION rather than of whatever XCSH_API_URL the shell happens to hold.
+  xc_api_url = "https://${var.expected_xc_tenant}.console.ves.volterra.io"
+
   # --- Deployer resolution (4-tier fallback) ---
   # 1. Explicit override via var.deployer
   # 2a. Azure AD: given_name initial + surname

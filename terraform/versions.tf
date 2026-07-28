@@ -37,5 +37,12 @@ terraform {
       source  = "hashicorp/azuread"
       version = "~> 3.0"
     }
+    # Runs scripts/xc-env-tenant.sh at plan time so the tenant guard in main.tf can
+    # see XCSH_API_URL. Terraform cannot read the environment itself, and the guard
+    # has to work with no credentials of any kind, which rules out asking the API.
+    external = {
+      source  = "hashicorp/external"
+      version = "~> 2.3"
+    }
   }
 }
