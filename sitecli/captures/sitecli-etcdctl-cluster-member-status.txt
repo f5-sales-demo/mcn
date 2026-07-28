@@ -1,0 +1,7 @@
+>>> execcli etcdctl-cluster-member-status
++--------------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+|         ENDPOINT         |        ID        | VERSION | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |
++--------------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+| https://etcd-0.etcd:2379 | dc946acaf076bc59 |  3.5.11 |  2.8 MB |      true |      false |         3 |       2084 |               2084 |        |
++--------------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+>>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

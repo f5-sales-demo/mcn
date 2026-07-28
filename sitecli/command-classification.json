@@ -38,7 +38,7 @@
         "vegactl-introspect-show-tracebuffer"
       ],
       "envoy-wrappers": ["envoy-clusters", "envoy-config-dump", "envoy-hc-config-dump", "envoy-listeners"],
-      "node-summary": ["health", "diagnosis", "collect-debug-info", "collect-database-stats"],
+      "node-summary": ["health", "diagnosis"],
       "kubelet-params": ["kubelet-add-param", "kubelet-get-params", "kubelet-remove-param"],
       "ce-config-files": [
         "edit-app-env-file",
@@ -47,24 +47,8 @@
         "edit-udev-10-nic-name"
       ],
       "root-access": ["get-auxilary-root-access-to-node", "remove-auxilary-root-access-to-node"],
-      "vpm-service": [
-        "systemctl-status-vpm",
-        "systemctl-restart-vpm",
-        "marker-exists-NetworkManager",
-        "marker-exists-crio",
-        "marker-exists-kubelet"
-      ],
-      "sitecli-toplevel": [
-        "configure",
-        "configure-generic-hardware",
-        "configure-http-proxy",
-        "configure-network",
-        "factory-reset",
-        "upgrade",
-        "reboot",
-        "show",
-        "clear"
-      ]
+      "vpm-service": ["systemctl-status-vpm", "systemctl-restart-vpm"],
+      "sitecli-toplevel": ["configure", "configure-generic-hardware", "configure-http-proxy", "configure-network"]
     },
     "ce-specific-interpretation": {
       "bgp-frr": {
@@ -107,7 +91,7 @@
     },
     "passthrough": {
       "_treatment": "Listed as available with a pointer upstream. Not documented.",
-      "networking": ["ping", "netstat", "lsof", "nmcli", "ip", "ip-link-show", "ip-link-set", "dig", "iptables-lv"],
+      "networking": ["dig", "ip", "ip-link-set", "ip-link-show", "lsof", "netstat", "nmcli", "ping", "tracepath"],
       "system": [
         "top",
         "check-mem",
@@ -130,10 +114,56 @@
         "systemctl-restart-iscsid",
         "systemctl-status-multipathd",
         "systemctl-restart-multipathd",
-        "systemctl-restart-NetworkManager",
-        "systemctl-start-crio-prune",
         "etcdctl-cluster-member-status"
       ]
     }
+  },
+  "not_on_this_build": {
+    "_note": [
+      "Commands that are NOT on build crt-20250613-3382. Kept because they are real,",
+      "but separated so nothing here is mistaken for something a reader can run."
+    ],
+    "newer_build_debug_api": {
+      "_seen_on": "crt-20260201-0179, via the vpm/debug catalog on a different tenant",
+      "commands": [
+        "collect-database-stats",
+        "iptables-lv",
+        "marker-exists-NetworkManager",
+        "marker-exists-crio",
+        "marker-exists-kubelet",
+        "systemctl-restart-NetworkManager",
+        "systemctl-start-crio-prune"
+      ]
+    },
+    "unverified": {
+      "_note": [
+        "collect-debug-info was carried in this file with no provenance. It is in",
+        "neither the on-box completion menu nor the debug API catalog. The Site CLI",
+        "welcome text does say the CLI 'allows to ... collect debug information for",
+        "support', so the name was probably derived from that prose rather than",
+        "observed. Deliberately NOT probed: if it exists it collects a support",
+        "bundle, and running an unknown command speculatively on a live node is how",
+        "a vifdump packet capture got started on a registering CE."
+      ],
+      "commands": ["collect-debug-info"]
+    },
+    "debug_api_only": {
+      "_note": [
+        "In the vpm/debug catalog but absent from the on-box completion menu, so it",
+        "is reachable over the API and not from the Site CLI."
+      ],
+      "commands": ["dig"]
+    }
+  },
+  "_provenance": {
+    "measured_on": "f5-xc-ce-vm-01, build crt-20250613-3382",
+    "method": "Site CLI completion menu over SSH, plus the vpm/debug catalog",
+    "observations": [
+      "Enumerated twice, at site_state PROVISIONING and PROVISIONED. Both runs",
+      "returned an identical set: 6 top-level and 82 execcli commands. The surface",
+      "is therefore not registration-state dependent between those two states, and",
+      "an absent command is genuinely absent rather than not yet offered."
+    ],
+    "on_box_only": "55 of the 82 execcli commands have no vpm/debug equivalent."
   }
 }
