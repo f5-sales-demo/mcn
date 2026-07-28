@@ -1,24 +1,25 @@
 ---
 title: Envoy
 description: >-
-  Customer Edge 上 Envoy 管理介面的四個包裝命令 — listeners、clusters 與兩份 config
-  dump。說明為何每一個命令都以 curl 進度表開頭，以及 listener 輸出能告訴你關於所宣告 VIP 的哪些資訊。
+  圍繞 Customer Edge 上 Envoy 管理介面的四個包裝器——監聽器、叢集及兩個設定傾印。說明為何每一個都以 curl
+  進度計開頭，以及監聽器輸出如何呈現已公告的 VIP。
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 7b786fa58fb2
+  sourceHash: ddca96e880a1
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-擷取自 2026-07-28，來源為此部署中的一個 CE。這些是節點上的本機命令，因此透過 Site CLI 而非 debug API 取得；`sitecli/exec-catalog.json` 記錄了介面範圍，而 `sitecli/capture-manifest.json` 記錄了取自哪一個節點。
+於 2026-07-28 從此部署的一個 CE 擷取。這些為節點上的指令，因此透過 Site CLI 而非 debug API 執行；`sitecli/exec-catalog.json` 記錄介面，`sitecli/capture-manifest.json` 記錄節點資訊。
 
-Envoy 在 Customer Edge 上終結並代理應用程式流量。以下四個命令會查詢它的管理介面，且沒有任何一個屬於 [debug API](../../../access/debug-api/)。
+Envoy 在 Customer Edge 上終止並代理應用程式流量。以下四個指令查詢其管理介面，且均不在
+[debug API](../../../access/debug-api/) 之列。
 
-<Aside type="note" title="每一個命令都以 curl 進度表開頭">
-它們都是針對 Envoy 管理端點的 `curl` 包裝，呼叫時未加上 `-s`，因此下方每份擷取結果的前兩三行都是 curl 寫入 stderr 的傳輸進度：
+<Aside type="note" title="每一個都以 curl 進度計開頭">
+這些是對 Envoy 管理端點的 `curl` 包裝器，呼叫時未加 `-s`，因此以下每個擷取內容的前兩三行均為 curl 將傳輸進度寫入 stderr 的輸出：
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -26,12 +27,12 @@ Envoy 在 Customer Edge 上終結並代理應用程式流量。以下四個命�
   0     0    0     0 …
 ```
 
-那不是 Envoy 的輸出，也不是錯誤。它同時也很有用：`% Received` 的位元組計數會告訴你 Envoy 是否有回傳任何內容，這能區分「沒有設定任何 listener」與「管理介面沒有回應」。
+這不是 Envoy 的輸出，也不是錯誤訊息。它同時具有實用價值：`% Received` 的位元組計數可讓您判斷 Envoy 是否有任何回應，從而區分「未設定監聽器」與「管理介面未回應」兩種情況。
 </Aside>
 
 ## `envoy-listeners`
 
-Envoy 已安裝的每一個 listener，格式為 `name:address:port`。
+Envoy 已安裝的每個監聽器，格式為 `name:address:port`。
 
 ```bash
 execcli envoy-listeners
@@ -40,15 +41,15 @@ execcli envoy-listeners
 ```text file=../../../../_data/sitecli-envoy-listeners.txt
 ```
 
-**要注意什麼。** 在此部署中，listener 帶有 `10.250.0.10:80` — 也就是 CE 向 BGP 宣告的 VIP。這一行把三個層次連結起來：如果 [`show-ip-bgp-summary`](../../network/bgp/) 顯示該前綴正在被宣告，但這個 listener 卻不存在，代表路由被吸引到一個不會提供服務的節點，這在 ECMP 集合中是最糟的故障模式，因為流量會被分攤進黑洞。
+**應注意的事項。** 在此部署中，監聽器包含 `10.250.0.10:80`——即 CE 向 BGP 公告的 VIP。這單一行將三個層次串聯在一起：若 [`show-ip-bgp-summary`](../../network/bgp/) 顯示前綴正在被公告，但此監聽器不存在，則路由正被吸引至一個不會提供服務的節點，這是 ECMP 集合中最嚴重的故障模式，因為流量會被負載分散至黑洞。
 
-結尾的 `[fe80:…]:80` 是該 listener 所綁定介面的 link-local 位址。
+尾端的 `[fe80:…]:80` 是監聽器所綁定介面的鏈路本地位址。
 
-**它不會告訴你什麼。** 完全不會提供上游健康狀態的資訊 — 不論後端是否可達，listener 都會存在。這部分請使用 `envoy-clusters`。
+**它無法告訴您的事項。** 與上游健康狀態無關——無論其後方是否可達，監聽器均會存在。如需相關資訊，請使用 `envoy-clusters`。
 
 ## `envoy-clusters`
 
-每一個 cluster，以及其各優先權層級的連線與請求限制。
+每個叢集及其每優先級的連線與請求限制。
 
 ```bash
 execcli envoy-clusters
@@ -57,11 +58,11 @@ execcli envoy-clusters
 ```text file=../../../../_data/sitecli-envoy-clusters.txt
 ```
 
-**要注意什麼。** 每一行的格式為 `cluster::scope::key::value`。`observability_name` 項目用於識別各個 cluster，而 `default_priority::max_connections`、`max_pending_requests` 與 `max_requests` 這三個值則是請求限制出現的位置 — 若某個 cluster 卡在其 `max_pending_requests` 上限，表示它是被組態設定節流，而不是被上游節流。
+**應注意的事項。** 各行格式為 `cluster::scope::key::value`。`observability_name` 項目可識別每個叢集，而 `default_priority::max_connections`、`max_pending_requests` 及 `max_requests` 這三項則顯示請求限制——若某叢集持續達到其 `max_pending_requests`，表示其正受到設定的節流，而非上游的限制。
 
 ## `envoy-config-dump`
 
-Envoy 的完整組態，以 JSON 呈現。檔案很大：在一個原本閒置的示範節點上為 126 KB。
+Envoy 的完整設定，以 JSON 格式呈現。檔案較大：在閒置的示範節點上為 126 KB。
 
 ```bash
 execcli envoy-config-dump
@@ -70,11 +71,11 @@ execcli envoy-config-dump
 ```text file=../../../../_data/sitecli-envoy-config-dump.txt
 ```
 
-**要注意什麼。** 最上層的 `configs` 陣列中，每種組態類型各有一個物件 — bootstrap、clusters、listeners、routes、secrets。當某個 listener 或 cluster 存在但行為不如預期時，就該取用這份輸出，而且應該用搜尋而非逐行閱讀的方式處理它。
+**應注意的事項。** 頂層的 `configs` 陣列中，每種設定類型各有一個物件——包括 bootstrap、叢集、監聽器、路由及密鑰。當監聽器或叢集存在但行為異常時，可查閱此項目，建議以搜尋方式使用而非逐行閱讀。
 
 ## `envoy-hc-config-dump`
 
-專門針對健康檢查的組態。
+專門針對健康檢查的設定。
 
 ```bash
 execcli envoy-hc-config-dump
@@ -83,4 +84,4 @@ execcli envoy-hc-config-dump
 ```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
 ```
 
-**要注意什麼。** 在此部署中它只回傳**單一位元組** — 在 curl 進度表中顯示為 `100 1` — 表示沒有安裝任何健康檢查組態。對於沒有健康檢查來源池（origin pool）的 CE 而言，這是預期的狀態，值得認清這一點：這裡的空結果並不代表查詢失敗。
+**應注意的事項。** 在此部署中，它回傳**單一位元組**——在 `curl` 進度計中顯示為 `100 1`——表示未安裝任何健康檢查設定。對於未設定健康檢查來源池的 CE 而言，這是預期狀態，值得特別留意：此處的空白結果並非查詢失敗。

@@ -1,24 +1,25 @@
 ---
 title: Envoy
 description: >-
-  客户边缘节点上围绕 Envoy 管理接口的四个封装命令 —— 侦听器、集群以及两个配置转储。解释为何每一个命令都以 curl
-  进度条开头，以及侦听器输出能告诉你关于所通告 VIP 的哪些信息。
+  围绕客户边缘节点 Envoy 管理接口的四个封装命令——监听器、集群和两个配置转储。解释为何每个命令都以 curl
+  进度计开头，以及监听器输出如何反映已通告的 VIP。
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 7b786fa58fb2
+  sourceHash: ddca96e880a1
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-于 2026-07-28 从本部署的某个 CE 上采集。这些是本机命令，因此它们通过 Site CLI 而非调试 API 执行；`sitecli/exec-catalog.json` 记录了命令接口，`sitecli/capture-manifest.json` 记录了采集自哪个节点。
+本文内容于 2026-07-28 从该部署的某一 CE 节点采集。这些均为节点本地命令，通过 Site CLI 执行，而非调试 API；`sitecli/exec-catalog.json` 记录了命令列表，`sitecli/capture-manifest.json` 记录了对应节点信息。
 
-Envoy 在客户边缘节点上终结并代理应用流量。以下四个命令查询其管理接口，且它们都不在[调试 API](../../../access/debug-api/) 上。
+Envoy 在客户边缘节点上终结并代理应用流量。以下四个命令用于查询其管理接口，且均不属于
+[调试 API](../../../access/debug-api/)。
 
-<Aside type="note" title="这些命令都以 curl 进度条开头">
-它们是围绕 Envoy 管理端点的 `curl` 封装，调用时未加 `-s`，因此下面每份采集输出的前两三行都是 curl 写入 stderr 的传输进度：
+<Aside type="note" title="每个命令都以 curl 进度计开头">
+这些命令是对 Envoy 管理端点的 `curl` 封装，调用时未加 `-s` 参数，因此以下每个采集输出的前两三行均为 curl 将传输进度写入 stderr 的内容：
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -26,12 +27,12 @@ Envoy 在客户边缘节点上终结并代理应用流量。以下四个命令�
   0     0    0     0 …
 ```
 
-那不是 Envoy 的输出，也不是错误。它同样有用：`% Received` 的字节数会告诉你 Envoy 是否返回了任何内容，从而区分“未配置任何侦听器”与“管理接口没有响应”。
+这不是 Envoy 的输出，也不是错误信息。它同样具有参考价值：`% Received` 的字节数可以告诉你 Envoy 是否返回了任何内容，从而区分"未配置监听器"与"管理接口无响应"这两种情况。
 </Aside>
 
 ## `envoy-listeners`
 
-Envoy 已安装的每个侦听器，格式为 `name:address:port`。
+Envoy 已安装的所有监听器，格式为 `name:address:port`。
 
 ```bash
 execcli envoy-listeners
@@ -40,15 +41,16 @@ execcli envoy-listeners
 ```text file=../../../../_data/sitecli-envoy-listeners.txt
 ```
 
-**关注要点。** 在本部署中，侦听器承载 `10.250.0.10:80` —— 即 CE 向 BGP 通告的 VIP。这一行将三个层次联系在一起：如果 [`show-ip-bgp-summary`](../../network/bgp/) 显示该前缀正在被通告，但此侦听器不存在，则路由正把流量吸引到一个不会提供服务的节点上，这在 ECMP 组中是最糟糕的故障模式，因为流量会被负载分担进一个黑洞。
+**关注要点。** 在本部署中，监听器包含 `10.250.0.10:80`——即 CE 向 BGP 通告的 VIP。这一行将三个层次串联在一起：如果
+[`show-ip-bgp-summary`](../../network/bgp/) 显示该前缀正在被通告，但此监听器不存在，则说明路由被引导到了一个不会处理该流量的节点。这是 ECMP 场景下最严重的故障模式，因为流量会被负载分担至黑洞。
 
-末尾的 `[fe80:…]:80` 是侦听器所绑定接口的链路本地地址。
+末尾的 `[fe80:…]:80` 是该监听器所绑定接口的链路本地地址。
 
-**它不能告诉你什么。** 它不涉及上游健康状况 —— 无论其后端是否可达，侦听器都会存在。为此请使用 `envoy-clusters`。
+**不能反映的信息。** 监听器的存在与否与上游健康状态无关——无论其后端是否可达，监听器都会存在。如需了解上游状态，请使用 `envoy-clusters`。
 
 ## `envoy-clusters`
 
-每个集群，及其按优先级划分的连接与请求限制。
+所有集群的信息，包含各优先级的连接数和请求数限制。
 
 ```bash
 execcli envoy-clusters
@@ -57,11 +59,11 @@ execcli envoy-clusters
 ```text file=../../../../_data/sitecli-envoy-clusters.txt
 ```
 
-**关注要点。** 各行格式为 `cluster::scope::key::value`。`observability_name` 条目标识每个集群，而 `default_priority::max_connections`、`max_pending_requests` 和 `max_requests` 这三项则是请求限制的体现之处 —— 一个卡在 `max_pending_requests` 上限的集群是受配置限流，而非受上游限制。
+**关注要点。** 每行格式为 `cluster::scope::key::value`。`observability_name` 条目用于标识各集群，`default_priority::max_connections`、`max_pending_requests` 和 `max_requests` 三元组是请求限制的体现——若某集群的 `max_pending_requests` 持续达到上限，说明该集群正受配置限速而非上游瓶颈的影响。
 
 ## `envoy-config-dump`
 
-Envoy 的完整配置，以 JSON 形式输出。体积很大：在一个原本空闲的演示节点上为 126 KB。
+Envoy 的完整配置，以 JSON 格式输出。内容较大：在一个近乎空闲的演示节点上约为 126 KB。
 
 ```bash
 execcli envoy-config-dump
@@ -70,11 +72,11 @@ execcli envoy-config-dump
 ```text file=../../../../_data/sitecli-envoy-config-dump.txt
 ```
 
-**关注要点。** 顶层的 `configs` 数组中每种配置类型对应一个对象 —— bootstrap、clusters、listeners、routes、secrets。当某个侦听器或集群存在但行为异常时使用它，并且应当搜索而非通读。
+**关注要点。** 顶层 `configs` 数组中每种配置类型对应一个对象——包括 bootstrap、clusters、listeners、routes 和 secrets。当某个监听器或集群存在但行为异常时，可查阅此文件，建议使用搜索而非逐行阅读。
 
 ## `envoy-hc-config-dump`
 
-专门针对健康检查的配置。
+专门针对健康检查的配置信息。
 
 ```bash
 execcli envoy-hc-config-dump
@@ -83,4 +85,4 @@ execcli envoy-hc-config-dump
 ```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
 ```
 
-**关注要点。** 在本部署中它返回**单个字节** —— 在 curl 进度条中显示为 `100 1` —— 意味着未安装任何健康检查配置。对于没有启用健康检查的源站池的 CE 而言，这是预期状态，值得留意：这里的空结果并不代表查询失败。
+**关注要点。** 在本部署中，该命令返回**单字节**内容——在 `curl` 进度计中显示为 `100 1`——表示未安装任何健康检查配置。对于没有配置健康检查源池的 CE 节点而言，这是预期状态，值得特别注意：此处的空结果并不意味着查询失败。

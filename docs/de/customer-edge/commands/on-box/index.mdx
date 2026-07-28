@@ -1,77 +1,91 @@
 ---
-title: On-box-Befehle
+title: Befehle auf dem Gerät
 description: >-
-  Die 82 Befehle, die die eigene Site CLI des Geräts bietet, von denen 55 über
-  die Debug-API nicht erreichbar sind. Erklärt den versteckten execcli-Befehl,
-  der sie ausführt, warum diese Oberfläche größer als die der API ist, welche
-  Befehle vollständig dokumentiert sind und welche nur aufgelistet werden, und
-  wie die Menge gemessen wurde.
+  Der eigene Befehlssatz der Site CLI — 6 Befehle der obersten Ebene und 82
+  execcli-Unterbefehle — und wie er sich mit dem separaten Katalog der Debug-API
+  mit 34 Befehlen überschneidet, ohne dass einer den anderen enthält. Erläutert
+  den versteckten execcli-Befehl, der sie ausführt, welche Befehle vollständig
+  dokumentiert und welche nur aufgelistet sind, und wie der Satz gemessen wurde.
 sidebar:
   order: 40
-  label: On-box
+  label: Auf dem Gerät
 i18n:
-  sourceHash: 1f8259efff3f
+  sourceHash: da52a578a40b
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Die [Debug-API](../../access/debug-api/) stellt **34 Befehle** bereit. Das Gerät selbst
-bietet **82**, und **55 davon haben kein API-Äquivalent** — die gesamte Vega-Kontrollebene,
-die Envoy-Wrapper, die Paketerfassung, den kubelet-Parametersatz, die `edit-*`-Dateien und das
-zusätzliche Root-Zugriffspaar sind nur vom Gerät aus erreichbar.
+Zwei separate Befehlssätze erreichen einen Customer Edge, und keiner enthält den anderen.
 
-Um auf sie zuzugreifen, wird [SSH](../../access/ssh/) oder die
-[serielle Konsole](../../access/serial-console/) benötigt, sowie eine Sache, die nirgendwo dokumentiert ist:
+- **Auf dem Gerät** verfügt die Site CLI über **6 Befehle der obersten Ebene** und **82 `execcli`-Unterbefehle**.
+- **Über das Netzwerk** verfügt die [Debug-API](../../access/debug-api/) über einen eigenen Katalog mit **34** Befehlen.
+
+Der größte Teil der On-Box-Oberfläche hat kein API-Äquivalent: Die gesamte Vega-Steuerungsebene, die Envoy-Wrapper, die Paketerfassung, der Kubelet-Parametersatz, die `edit-*`-Dateien und das zusätzliche Root-Zugriffspaar sind nur vom Gerät aus erreichbar.
+
+Der Zugang dazu erfordert [SSH](../../access/ssh/) oder die
+[serielle Konsole](../../access/serial-console/), und eine Sache, die nirgendwo dokumentiert ist:
 
 <Aside type="tip" title="execcli ist ein versteckter Befehl">
-`execcli` erscheint nicht im interaktiven Menü der Site CLI. Er nimmt einen Befehlsnamen als
+`execcli` erscheint nicht im interaktiven Menü der Site CLI. Es nimmt einen Befehlsnamen als
 Argument entgegen, und die Eingabe von `execcli ` gefolgt von **Tab** listet alle 82 mit der
-eigenen einzeiligen Beschreibung des Geräts für jeden auf. Dieses Vervollständigungsmenü ist der
-maßgebliche Katalog für einen Build, und er ist es, was `sitecli/exec-catalog.json` aufzeichnet.
+eigenen einzeiligen Beschreibung der Appliance für jeden auf. Dieses Vervollständigungsmenü ist der
+maßgebliche Katalog für einen Build, und das ist es, was `sitecli/exec-catalog.json` aufzeichnet.
 </Aside>
 
-## Wie dies gemessen wurde
+## Wie dies gemessen wurde und wie sich die Sätze überschneiden
 
-Die nachfolgende Menge wurde nicht aus einem Herstellerdokument übertragen. Sie wurde von zwei
-Live-Knoten abgelesen und in `sitecli/exec-catalog.json` mit ihrer Herkunft festgehalten:
+Der nachfolgende Satz wurde nicht aus einem Herstellerdokument abgeschrieben. Er wurde von Live-Knoten mit
+`scripts/sitecli_ssh_harvest.py` ausgelesen und mit seiner Herkunft in `sitecli/exec-catalog.json` eingecheckt. Drei Durchläufe in drei Registrierungszuständen:
 
-| | Oberste Ebene | `execcli` |
+| Gemessen bei | Oberste Ebene | `execcli` |
 | --- | --- | --- |
-| Gemessen bei `site_state: PROVISIONING` | 6 | 82 |
-| Gemessen bei `site_state: PROVISIONED` | 6 | 82 |
+| `site_state: PROVISIONING` | 6 | 82 |
+| `site_state: PROVISIONED` | 6 | 82 |
+| `site_state: ONLINE` | 6 | 82 |
 
-Die beiden Durchläufe ergaben **identische Mengen**. Das ist wichtiger als die Anzahl: Es bedeutet,
-dass sich die Befehlsoberfläche nicht mit dem Registrierungsstatus ändert, sodass ein fehlender
-Befehl tatsächlich fehlt und nicht nur noch nicht angeboten wird.
+Alle drei lieferten **identische Sätze** — dieselben Namen, nicht nur dieselben Gesamtzahlen, und der
+letzte war eine andere Bereitstellung mit anderen Site- und Ressourcennamen. Die Befehlsoberfläche ändert sich also nicht mit dem Registrierungsstatus, und ein fehlender Befehl ist tatsächlich nicht vorhanden und wird nicht nur noch nicht angeboten.
+
+Im Vergleich mit den 34 Befehlen der Debug-API ergeben sich zwei Zahlen, die es wert sind, auseinanderzuhalten:
+
+- **51** `execcli`-Unterbefehle haben kein API-Äquivalent.
+- **55** ist dieselbe Zahl, über die gesamte On-Box-Oberfläche gezählt, da sie auch die
+  vier `configure*`-Befehle einschließt, die auf der obersten Ebene und nicht unter `execcli` liegen.
+
+Beide sind korrekt; ein Leser, der eine berechnet und die andere findet, hat keinen Fehler gemacht.
+Jede Zahl hier leitet sich aus `sitecli/catalog.json` und `sitecli/exec-catalog.json` ab.
 
 <Aside type="caution" title="Fünf Befehle, die nicht existieren">
-`factory-reset`, `upgrade`, `reboot`, `show` und `clear` sind **nicht** in diesem Build vorhanden.
-Sie sind die Art von Dingen, die eine Site CLI plausiblerweise haben könnte, sie wurden eine Weile
-in der Klassifizierung dieses Repositories auf dieser Annahme basierend geführt, und keine der
-Enumerationen fand sie. Die oberste Ebene hat genau sechs Einträge: `configure`,
-`configure-generic-hardware`, `configure-network`, `configure-http-proxy`, `diagnosis` und `health`.
+`factory-reset`, `upgrade`, `reboot`, `show` und `clear` sind **nicht** in diesem Build vorhanden. Es
+sind die Art von Befehlen, die eine Site CLI plausiblerweise hat, sie wurden eine Zeit lang auf dieser Grundlage in der Klassifizierung dieses Repositorys geführt, und keine Aufzählung hat sie gefunden. Die oberste Ebene hat genau sechs Einträge: `configure`, `configure-generic-hardware`, `configure-network`,
+`configure-http-proxy`, `diagnosis` und `health`.
+</Aside>
+
+<Aside type="caution" title="Drei API-Befehle sind keine execcli-Unterbefehle">
+Die Suche nach diesen unter `execcli` ergibt nichts, was als „der Befehl fehlt" gelesen wird:
+
+- **`health`** und **`diagnosis`** sind **Befehle der obersten Ebene** der Site CLI. Geben Sie sie direkt an der `>>>`-Eingabeaufforderung ein, ohne `execcli`-Präfix.
+- **`dig`** ist über die Debug-API erreichbar und erscheint in **keinem** der On-Box-Menüs, daher fehlt er in der nachstehenden Passthrough-Auflistung. Er ist ausschließlich über die API verfügbar.
+
 </Aside>
 
 ## Was dokumentiert ist und was nur aufgelistet wird
 
-Ein Customer Edge führt Linux und eine Reihe von Drittanbieter-Daemons aus. Die Dokumentation ihrer
-Befehle würde deren eigene Referenzen duplizieren und implizieren, dass F5 sie besitzt, daher gilt
-die Regel: **F5s Software dokumentieren, und für alles andere nur das dokumentieren, was spezifisch
-für einen CE ist.**
+Ein Customer Edge betreibt Linux und eine Reihe von Drittanbieter-Daemons. Die Dokumentation ihrer Befehle würde deren eigene Referenzen duplizieren und implizieren, dass F5 sie besitzt, daher gilt die Regel: **F5s Software dokumentieren, und für alles andere nur das dokumentieren, was spezifisch für einen CE ist.**
 
-Drei Stufen, weil „unsere" und „ihre" keine saubere Trennung ergibt. Die Trennung ist in
-`sitecli/command-classification.json` festgehalten.
+Drei Stufen, weil „unsere" und „ihre" keine saubere Trennung ist. Die Aufteilung ist in
+`sitecli/command-classification.json` aufgezeichnet.
 
 | Stufe | Behandlung |
 | --- | --- |
-| **F5-Software** | Vollständige Dokumentation — Zweck, Syntax, Argumente, erfasste Ausgabe, worauf zu achten ist. Argo, Vega, `vpm`, `vifdump`, `configure*`, der `edit-*`-Satz, kubelet-Parameter, Root-Zugriff. |
-| **CE-spezifische Interpretation** | Ein Drittanbieter-Werkzeug, dessen Ausgabe auf einem CE eine besondere Bedeutung hat. Die CE-spezifische Lesart wird dokumentiert und die eigene Semantik des Werkzeugs bleibt beim Upstream. |
-| **Durchleitung** | Einfaches Linux oder Drittanbieter ohne CE-spezifisches zu sagen. Als verfügbar aufgelistet, mit einem Verweis auf Upstream. Kein Prosatext. |
+| **F5-Software** | Vollständige Dokumentation — Zweck, Syntax, Argumente, erfasste Ausgabe, worauf zu achten ist. Argo, Vega, `vpm`, `vifdump`, `configure*`, der `edit-*`-Satz, Kubelet-Parameter, Root-Zugriff. |
+| **CE-spezifische Interpretation** | Ein Drittanbieter-Werkzeug, dessen Ausgabe auf einem CE eine besondere Bedeutung hat. Die CE-spezifische Lesart wird dokumentiert und die eigene Semantik des Werkzeugs wird vorgelagert belassen. |
+| **Passthrough** | Einfaches Linux oder Drittanbieter ohne CE-spezifisches zu sagen. Als verfügbar aufgelistet, mit einem Verweis auf vorgelagerte Quellen. Kein Fließtext. |
 
 Diese Unterscheidung entscheidet, ob eine Seite überhaupt existiert, und sie verhindert, dass diese
-Dokumentation zu einer schlechteren Kopie der Man-Pages verkommt.
+Dokumentation zu einer schlechteren Kopie der Man-Pages verrottet.
 
 ## F5-Software
 
@@ -118,36 +132,28 @@ Dokumentation zu einer schlechteren Kopie der Man-Pages verkommt.
   />
 </CardGrid>
 
-## Durchleitung
+## Passthrough
 
-Auf dem Gerät verfügbar und **hier nicht dokumentiert** — dies sind das Betriebssystem und
-Drittanbieter-Daemons, nicht F5s Software, und deren eigene Referenzen sind besser als alles,
-was diese Seite wiederholen könnte.
+Auf dem Gerät verfügbar und **hier nicht dokumentiert** — dabei handelt es sich um das Betriebssystem und
+Drittanbieter-Daemons, nicht um F5s Software, und deren eigene Referenzen sind besser als alles, was
+diese Seite wiederholen könnte.
 
-| Befehle | Upstream |
+| Befehle | Vorgelagerte Quelle |
 | --- | --- |
-| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, BIND-Hilfsprogramme |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath` | iproute2, NetworkManager |
 | `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
 | `edit-etc-hosts`, `edit-sysctl-conf` | Die Dateien gehören zum Betriebssystem |
 | `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
 | `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — jeder dieser Befehle unterbricht Workloads auf dem Knoten |
 
-Zwei davon sind es wert, bekannt zu sein, auch wenn sie keine eigene Seite erhalten. `files` führt
-Dateioperationen durch und schreibt ausschließlich unterhalb von `/tmp`. Und jeder
-`systemctl-restart-*`-Befehl ist per Definition störend — das Neustarten von `crio` oder `kubelet`
-unterbricht die Workloads auf diesem Knoten.
+Zwei davon sind es wert, bekannt zu sein, auch wenn sie keine eigene Seite erhalten. `files` führt Dateioperationen durch und schreibt nur unterhalb von `/tmp`. Und jeder `systemctl-restart-*`-Befehl ist per Definition störend — der Neustart von `crio` oder `kubelet` unterbricht die Workloads auf diesem Knoten.
 
 <Aside type="note" title="Sieben Befehle existieren in neueren Builds und nicht in diesem">
 `collect-database-stats`, `iptables-lv`, die drei `marker-exists-*`-Befehle,
-`systemctl-restart-NetworkManager` und `systemctl-start-crio-prune` wurden über die Debug-API
-im Build `crt-20260201-0179` beobachtet. Sie sind unter
-`not_on_this_build.newer_build_debug_api` in der Klassifizierung erfasst, damit nichts hier
-mit etwas verwechselt wird, das auf `crt-20250613-3382` ausgeführt werden kann.
+`systemctl-restart-NetworkManager` und `systemctl-start-crio-prune` wurden über die
+Debug-API auf Build `crt-20260201-0179` beobachtet. Sie sind unter
+`not_on_this_build.newer_build_debug_api` in der Klassifizierung aufgezeichnet, damit nichts hier
+für etwas gehalten wird, das Sie auf `crt-20250613-3382` ausführen können.
 
-`collect-debug-info` ist ein Sonderfall: Er erscheint in keinem Menü und keinem Katalog. Der
-Site-CLI-Begrüßungstext besagt, dass die CLI „ermöglicht … Debug-Informationen für den Support
-zu sammeln", sodass der Name höchstwahrscheinlich aus diesem Prosatext abgeleitet wurde und
-nicht beobachtet wurde. Er ist als ungeprüft markiert und wird absichtlich nicht untersucht —
-das spekulative Ausführen eines unbekannten Befehls auf einem Live-Knoten ist der Grund, warum
-eine `vifdump`-Paketerfassung auf einem CE gestartet wurde, das sich noch registrierte.
+`collect-debug-info` ist ein Sonderfall: Er erscheint in keinem Menü und keinem Katalog. Der Willkommenstext der Site CLI besagt, dass die CLI „allows to … collect debug information for support", daher wurde der Name höchstwahrscheinlich aus diesem Fließtext abgeleitet und nicht beobachtet. Er ist als nicht verifiziert markiert und wird absichtlich nicht untersucht — das spekulative Ausführen eines unbekannten Befehls auf einem Live-Knoten ist der Grund, warum eine `vifdump`-Paketerfassung auf einem CE gestartet wurde, der sich noch registrierte.
 </Aside>

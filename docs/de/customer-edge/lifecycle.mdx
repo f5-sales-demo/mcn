@@ -1,0 +1,104 @@
+---
+title: Softwareversionen und Neuaufbau
+description: >-
+  Was ce_sw_version und ce_os_version an einem Customer Edge bewirken und was
+  nicht — warum der Knoten sich selbst aktualisiert, egal ob diese Werte gesetzt
+  sind, warum ein leeres Feld nicht den neuesten Build liefert, und warum die
+  Änderung eines der Felder einen geplanten Flottenumbau bedeutet, den Terraform
+  nicht eigenständig durchführt.
+sidebar:
+  order: 50
+  label: Versionen und Neuaufbau
+i18n:
+  sourceHash: 6c0be3179303
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Zwei Terraform-Variablen legen die Software eines Customer Edge fest: `ce_os_version` für das
+Betriebssystem und `ce_sw_version` für den F5 Distributed Cloud-Build. Beide verhalten sich
+auf eine Weise, die dem naheliegenden Verständnis widerspricht — und ein falsches Vorgehen
+zieht einen Flottenumbau nach sich.
+
+## Was die Versionsfelder bewirken – in zwei Phasen
+
+Die Trennung der Phasen ist der eigentliche Kern des Themas. Werden sie vermischt, wirkt das
+Verhalten widersprüchlich.
+
+**Beim ersten Start führt ein Knoten stets ein Upgrade durch.** `terraform/modules/ce-node`
+stellt das Marketplace-Image mit `version = "latest"` bereit, und dieses Image enthält einen
+Build, der **älter** ist als der im Tenant betriebene. Das Upgrade findet also statt,
+unabhängig davon, ob das Feld gesetzt ist. `ce_sw_version` bestimmt nur das **Ziel** des
+Upgrades — ein leeres Feld bedeutet, dass der Server die Wahl trifft, nicht dass nichts
+passiert. Dasselbe gilt für `ce_os_version`.
+
+**Danach wird nichts automatisch aktualisiert.** F5 Distributed Cloud kündigt einen neueren
+Build an und wartet. Ein leeres Feld bedeutet daher kein „Tracking des neuesten Stands": Der
+Knoten verbleibt auf dem Build, auf dem er erstmals gestartet wurde.
+
+Beide Phasen sind am Site-Objekt erkennbar. `Beobachtet am 28.07.2026`, diese Flotte:
+
+```text
+volterra_software_status.available_version   crt-20260201-0179
+operating_system_status.available_version    9.2026.14
+```
+
+während die Knoten `crt-20250613-3382` und Betriebssystem `9.2024.6` ausführen. Ein neuerer
+Build liegt bereit und wurde nicht übernommen — das ist der stabile Zustand, kein
+blockiertes Upgrade.
+
+## Eine Versionsänderung erfordert einen Neuaufbau, den Terraform nicht selbst durchführt
+
+`ce_os_version` und `ce_sw_version` sind beide **nur zum Erstellungszeitpunkt** wirksam, und
+die Fehlerfolge ist schlimmer als ein abgewiesenes Apply. Im Einzelnen:
+
+1. Sie ändern den Wert und führen Apply aus. Terraform schlägt eine In-Place-Aktualisierung
+   vor.
+2. Die API **weist sie ab** — `[BAD_REQUEST] Invalid request parameters`.
+3. Diese abgewiesene Anfrage löscht dennoch das Feld auf dem Server, und der Provider-Read
+   meldet das nicht. Der Terraform-State stimmt nun nicht mehr mit dem live-Objekt überein.
+4. Jeder nachfolgende Plan schlägt **dieselbe fehlschlagende Änderung** vor — dauerhaft.
+
+Terraform fällt also nicht auf einen Ersatz der Site zurück. Es bleibt stecken und verbleibt
+in diesem Zustand, bis Sie die Site und die zugehörige CE-VM bewusst ersetzen. Eine Flotte
+auf eine andere Version umzustellen ist ein **geplanter Umbau**, keine Änderung, die Sie
+einfach anwenden.
+
+<Aside type="danger" title="Alle Konsequenzen des CE-Ersatzes gelten">
+Neue SSH-Host-Keys, neu zugewiesene interne Adressen, eine neue Registrierung sowie der
+Verlust aller Daten, die nur auf dem Knoten vorhanden waren. Cloud-init läuft auf der neuen
+VM erneut, sodass SSH-Zugriff, der auf diesem Weg konfiguriert wurde, erhalten bleibt —
+allerdings läuft Cloud-init *nur* beim ersten Start, sodass alles, was manuell auf dem alten
+Knoten hinzugefügt wurde, verloren ist.
+
+Lesen Sie [SSH](./access/ssh/) zu den Auswirkungen auf Host-Keys und Adressen, bevor Sie
+diesen Schritt einplanen.
+</Aside>
+
+<Aside type="note" title="Dokumentiert, hier nicht reproduziert">
+Die Ablehnung und die State-Abweichung sind in den Kommentaren dieses Repositories unter
+`terraform/modules/xc-site` festgehalten — dort in beide Richtungen verifiziert, mit und
+ohne Pinning, auf allen drei Sites — sowie im Provider-Issue `xcsh#1387`. Diese Seite hat
+den Sachverhalt nicht erneut getestet, da der Test die Deployments so zurücklässt, dass bei
+jedem Plan eine fehlschlagende Änderung vorgeschlagen wird.
+</Aside>
+
+## Welchen Build die Dokumentation beschreibt
+
+Die Befehlsreferenz auf dieser Site beschreibt **`crt-20250613-3382`**, den Build, den diese
+Flotte ausführt. Befehle, die nur auf neueren Builds beobachtet wurden, sind namentlich in
+`sitecli/command-classification.json` unter `not_on_this_build` verzeichnet und werden nicht
+als ausführbar dokumentiert. Siehe [On-Box-Befehle](./commands/on-box/).
+
+<Aside type="caution" title="Keinen Neuaufbau zur Erreichung neuerer Befehle einplanen">
+Ein neuerer Build ist verfügbar, und ob er auf dieser Topologie sauber installiert werden
+kann, ist ungeklärt — es gibt einen Bericht über Fehler auf Single-Node Azure Secure Mesh
+v2-Sites sowie eine Gegenmeldung über einen Customer Edge, auf dem er läuft. Keines von
+beidem lässt sich anhand der vorhandenen Tenant-Informationen bestätigen.
+
+Da eine Versionsänderung einen Flottenumbau bedeutet, ist diese Ungewissheit der
+entscheidende Faktor: Die Erreichbarkeit dieser Befehle sollte als unbewiesen gelten, nicht
+als geplantes Upgrade. Die Belege und das Experiment, das die Frage klären würde, sind in
+`sitecli/README.md` festgehalten.
+</Aside>

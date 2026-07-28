@@ -1,145 +1,139 @@
 ---
-title: オンボックスコマンド
+title: ボックス上のコマンド
 description: >-
-  アプライアンス自身のSite
-  CLIが提供する82コマンドのうち、デバッグAPIでは一切到達できない55コマンドを解説。それらを実行する隠しexeccliコマンド、APIよりもこのサーフェスが広い理由、完全ドキュメント化されているコマンドと一覧のみのコマンド、および計測方法について説明します。
+  Site CLI 独自のコマンドセット（6つのトップレベルコマンドと82の execcli サブコマンド）、およびそれがデバッグ API
+  の独立したカタログ（34コマンド）とどのように重複するか。これらを実行する非表示の execcli
+  コマンド、完全にドキュメント化されているコマンドと一覧のみのコマンド、およびセットの測定方法について説明します。
 sidebar:
   order: 40
-  label: オンボックス
+  label: ボックス上
 i18n:
-  sourceHash: 1f8259efff3f
+  sourceHash: da52a578a40b
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-[デバッグAPI](../../access/debug-api/)が公開するのは**34コマンド**です。アプライアンス自体は
-**82コマンド**を提供しており、**そのうち55コマンドにはAPIの対応物がありません** — Vegaコントロールプレーン全体、
-Envoyラッパー、パケットキャプチャ、kubeletパラメーターセット、`edit-*`ファイル、および
-補助ルートアクセスペアは、ボックスからのみ到達可能です。
+Customer Edge に到達するコマンドセットは2つあり、どちらかがもう一方を含むことはありません。
 
-これらにアクセスするには[SSH](../../access/ssh/)または
-[シリアルコンソール](../../access/serial-console/)が必要であり、どこにもドキュメント化されていない点が1つあります：
+- **ボックス上**では、Site CLI に **6つのトップレベルコマンド**と **82の `execcli` サブコマンド**があります。
+- **ネットワーク越し**では、[デバッグ API](../../access/debug-api/) が独自の **34コマンド**のカタログを持ちます。
 
-<Aside type="tip" title="execcliは隠しコマンドです">
-`execcli`はSite CLIのインタラクティブメニューには表示されません。コマンド名を引数として受け取り、
-`execcli ` に続けて**Tab**を入力すると、アプライアンス自身の各コマンドの1行説明とともに82コマンドすべてが一覧表示されます。
-この補完メニューがビルドに対する正式なカタログであり、`sitecli/exec-catalog.json`に記録されているものです。
+ボックス上の大部分には API に相当するものがありません。Vega コントロールプレーン全体、Envoy ラッパー、パケットキャプチャ、kubelet パラメーターセット、`edit-*` ファイル、補助ルートアクセスペアはボックスからのみ到達可能です。
+
+これらにアクセスするには [SSH](../../access/ssh/) または[シリアルコンソール](../../access/serial-console/)が必要であり、どこにも記載されていないことが1点あります。
+
+<Aside type="tip" title="execcli は非表示コマンドです">
+`execcli` は Site CLI のインタラクティブメニューには表示されません。コマンド名を引数として受け取り、`execcli ` に続けて **Tab** キーを押すと、アプライアンス独自の各コマンドの1行説明とともに82個すべてが表示されます。この補完メニューがビルドの公式カタログであり、`sitecli/exec-catalog.json` に記録されています。
 </Aside>
 
-## 計測方法
+## 測定方法とセットの重複について
 
-以下のセットはベンダードキュメントから転記したものではありません。2台の稼働中ノードから読み取り、
-その出所とともに`sitecli/exec-catalog.json`にコミットされました：
+以下のセットはベンダードキュメントから転記したものではありません。`scripts/sitecli_ssh_harvest.py` を使ってライブノードから読み取り、その出所とともに `sitecli/exec-catalog.json` にコミットされています。3つの登録状態で3回実行しました。
 
-| | トップレベル | `execcli` |
+| 測定時点 | トップレベル | `execcli` |
 | --- | --- | --- |
-| `site_state: PROVISIONING`で計測 | 6 | 82 |
-| `site_state: PROVISIONED`で計測 | 6 | 82 |
+| `site_state: PROVISIONING` | 6 | 82 |
+| `site_state: PROVISIONED` | 6 | 82 |
+| `site_state: ONLINE` | 6 | 82 |
 
-2回の実行は**同一のセット**を返しました。これは件数よりも重要です：つまり、コマンドサーフェスは
-登録状態によって変化しないため、存在しないコマンドは本当に存在しないのであり、
-まだ提供されていないわけではありません。
+3回すべてで**同一のセット**が返されました。同じ合計数だけでなく、同じ名前であり、最後の実行は異なるサイト名とリソース名を持つ別のデプロイメントでした。つまり、コマンドサーフェスは登録状態によって変化せず、存在しないコマンドは「まだ提供されていない」のではなく、本当に存在しないことを意味します。
+
+デバッグ API の34コマンドと比較すると、2つの数字を明確に区別する必要があります。
+
+- **51**の `execcli` サブコマンドには API に相当するものがありません。
+- **55**は、ボックス上のサーフェス全体でカウントした場合の同じ数字です。`execcli` の下ではなくトップレベルに存在する4つの `configure*` コマンドも含まれるためです。
+
+どちらも正しい数字です。一方を再計算してもう一方が出ても、間違いではありません。ここに記載されるすべての数字は `sitecli/catalog.json` および `sitecli/exec-catalog.json` から導出されています。
 
 <Aside type="caution" title="存在しない5つのコマンド">
-`factory-reset`、`upgrade`、`reboot`、`show`、`clear`は**このビルドには存在しません**。
-これらはSite CLIが持っていそうなコマンドであり、その前提でしばらくこのリポジトリの分類に含まれていましたが、
-どちらの列挙でも見つかりませんでした。トップレベルには正確に6つのエントリがあります：
-`configure`、`configure-generic-hardware`、`configure-network`、`configure-http-proxy`、
-`diagnosis`、`health`です。
+`factory-reset`、`upgrade`、`reboot`、`show`、`clear` はこのビルドには**存在しません**。これらは Site CLI が持っていそうなコマンドであり、そのような想定のもとでしばらくこのリポジトリの分類に含まれていましたが、列挙では一度も見つかりませんでした。トップレベルには正確に6つのエントリがあります。`configure`、`configure-generic-hardware`、`configure-network`、`configure-http-proxy`、`diagnosis`、`health` です。
+</Aside>
+
+<Aside type="caution" title="3つの API コマンドは execcli サブコマンドではありません">
+`execcli` の下でこれらを検索しても何も見つからず、「コマンドが存在しない」と読み取れます。
+
+- **`health`** と **`diagnosis`** は Site CLI の**トップレベル**コマンドです。`execcli` プレフィックスなしで `>>>` プロンプトから直接入力します。
+- **`dig`** はデバッグ API 経由で到達可能であり、ボックス上のどちらのメニューにも**表示されません**。そのため、以下のパススルー一覧には含まれていません。API 専用です。
+
 </Aside>
 
 ## ドキュメント化されているものと一覧のみのもの
 
-Customer EdgeはLinuxおよびいくつかのサードパーティデーモンで動作しています。それらのコマンドをドキュメント化すると
-独自のリファレンスと重複し、F5がそれらを所有しているかのような印象を与えてしまいます。そのためルールは次のとおりです：
-**F5のソフトウェアはドキュメント化し、それ以外については、CEに固有の内容のみをドキュメント化する。**
+Customer Edge は Linux と複数のサードパーティデーモンを実行しています。それらのコマンドをドキュメント化すると、それぞれのリファレンスと重複し、F5 がそれらを所有しているかのような印象を与えてしまいます。そのため、ルールは次のとおりです。**F5 のソフトウェアをドキュメント化し、それ以外については CE 固有のものだけをドキュメント化する。**
 
-「自社のもの」と「他社のもの」は明確に分けられないため、3段階に分けています。この分類は
-`sitecli/command-classification.json`に記録されています。
+「自社のもの」と「他社のもの」は明確に分けられないため、3つの階層があります。この分類は `sitecli/command-classification.json` に記録されています。
 
-| 段階 | 扱い |
+| 階層 | 扱い |
 | --- | --- |
-| **F5ソフトウェア** | 完全ドキュメント化 — 目的、構文、引数、キャプチャした出力、確認すべき内容。Argo、Vega、`vpm`、`vifdump`、`configure*`、`edit-*`セット、kubeletパラメーター、ルートアクセス。 |
-| **CE固有の解釈** | CE上で特定の意味を持つサードパーティツール。CE固有の読み方をドキュメント化し、ツール自体のセマンティクスは上流に委ねます。 |
-| **パススルー** | CE固有の説明がない、純粋なLinuxまたはサードパーティ。利用可能なものとして一覧表示し、上流へのポインターを示します。解説文はなし。 |
+| **F5 ソフトウェア** | 完全なドキュメント — 目的、構文、引数、キャプチャされた出力、確認すべき点。Argo、Vega、`vpm`、`vifdump`、`configure*`、`edit-*` セット、kubelet パラメーター、ルートアクセス。 |
+| **CE 固有の解釈** | CE 上で特定の意味を持つサードパーティツール。CE 固有の読み方をドキュメント化し、ツール自体のセマンティクスはアップストリームに委ねます。 |
+| **パススルー** | CE 固有の補足事項がない、純粋な Linux またはサードパーティ。利用可能として一覧表示し、アップストリームへのポインターを記載。説明文なし。 |
 
-この区別がページが存在するかどうかを決定し、このドキュメントがmanページの劣化コピーに成り下がらないようにするための仕組みです。
+この区別がページを作成するかどうかを決定するものであり、このドキュメントがマンページの劣化コピーに成り下がらないようにするための仕組みです。
 
-## F5ソフトウェア
+## F5 ソフトウェア
 
 <CardGrid>
   <LinkCard
-    title="Vegaコントロールプレーン"
-    description="6つの<code>vegactl</code>コマンド：設定オブジェクト、イントロスペクションテーブル、トレースバッファー、プライマリロールを持つノードの確認。"
+    title="Vega control plane"
+    description="Six <code>vegactl</code> commands: configuration objects, introspection tables, trace buffers, and which node holds the primary role."
     href="./vega/"
   />
   <LinkCard
     title="Envoy"
-    description="EnvoyのAdminインターフェースをラップする4つのコマンド — リスナー、クラスター、2種類の設定ダンプ。"
+    description="Four wrappers around Envoy's admin interface — listeners, clusters, and two config dumps."
     href="./envoy/"
   />
   <LinkCard
-    title="パケットキャプチャ"
-    description="5つの<code>vifdump</code>コマンド。ドキュメント化済みですが、ここでは実行しません：これらはキャプチャファイルをノードに書き込みます。"
+    title="Packet capture"
+    description="The five <code>vifdump</code> commands. Documented, never run here: they write capture files onto the node."
     href="./packet-capture/"
   />
   <LinkCard
-    title="Kubeletパラメーター"
-    description="カスタムkubeletパラメーターの読み取り、追加、削除。サポート指示のもとで使用。"
+    title="Kubelet parameters"
+    description="Read, add and remove custom kubelet parameters. Support-directed."
     href="./kubelet/"
   />
   <LinkCard
-    title="vpmサービス"
-    description="ノードを登録してプラットフォームコンテナを実行するエージェント。"
+    title="vpm service"
+    description="The agent that registers the node and runs the platform containers."
     href="./vpm/"
   />
   <LinkCard
-    title="設定ファイル"
-    description="ノード上のF5所有ファイルを開く4つの<code>edit-*</code>コマンド。"
+    title="Configuration files"
+    description="The four <code>edit-*</code> commands that open F5-owned files on the node."
     href="./config-files/"
   />
   <LinkCard
-    title="補助ルートアクセス"
-    description="<code>xuser</code>ルートアカウントの作成と削除。サポート指示のもとで使用し、ノードに変更を残します。"
+    title="Auxiliary root access"
+    description="Creating and removing the <code>xuser</code> root account. Support-directed, and it leaves the node modified."
     href="./root-access/"
   />
   <LinkCard
-    title="ノード設定"
-    description="Site CLIトップレベルにある4つの<code>configure*</code>コマンド。"
+    title="Node configuration"
+    description="The four <code>configure*</code> commands at the Site CLI top level."
     href="./configure/"
   />
 </CardGrid>
 
 ## パススルー
 
-ボックス上で利用可能ですが、**ここではドキュメント化しません** — これらはF5のソフトウェアではなく、
-オペレーティングシステムおよびサードパーティデーモンであり、それら自身のリファレンスのほうが
-このページで記述できる内容より優れています。
+ボックス上で利用可能であり、**ここではドキュメント化されていません** — これらはオペレーティングシステムおよびサードパーティデーモンであり、F5 のソフトウェアではないため、それぞれのリファレンスのほうがこのページで再述するより優れています。
 
-| コマンド | 上流 |
+| コマンド | アップストリーム |
 | --- | --- |
-| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, BINDユーティリティ |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath` | iproute2, NetworkManager |
 | `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
 | `edit-etc-hosts`, `edit-sysctl-conf` | これらのファイルはオペレーティングシステムのものです |
 | `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
-| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — これらのコマンドはすべてノード上のワークロードを中断します |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — これらはすべてノード上のワークロードを中断します |
 
-これらのうち2つは、専用ページがなくても知っておく価値があります。`files`はファイル操作を実行し、
-`/tmp`以下にのみ書き込みます。また、`systemctl-restart-*`はすべて定義上破壊的です —
-`crio`や`kubelet`を再起動すると、そのノード上のワークロードが中断されます。
+これらのうち2つは、ページが存在しなくても知っておく価値があります。`files` はファイル操作を実行し、`/tmp` 配下にのみ書き込みます。そして `systemctl-restart-*` はすべて定義上破壊的です — `crio` または `kubelet` を再起動すると、そのノード上のワークロードが中断されます。
 
 <Aside type="note" title="新しいビルドには存在するがこのビルドには存在しない7つのコマンド">
-`collect-database-stats`、`iptables-lv`、3つの`marker-exists-*`コマンド、
-`systemctl-restart-NetworkManager`、`systemctl-start-crio-prune`は、
-ビルド`crt-20260201-0179`のデバッグAPIを通じて確認されました。これらは分類内の
-`not_on_this_build.newer_build_debug_api`に記録されており、
-`crt-20250613-3382`で実行できるものと誤解されないようにしています。
+`collect-database-stats`、`iptables-lv`、3つの `marker-exists-*` コマンド、`systemctl-restart-NetworkManager`、`systemctl-start-crio-prune` は、ビルド `crt-20260201-0179` のデバッグ API を通じて確認されました。これらは分類内の `not_on_this_build.newer_build_debug_api` に記録されており、`crt-20250613-3382` で実行できるものと混同されないようにしています。
 
-`collect-debug-info`は別のケースです：どのメニューにもカタログにも表示されません。
-Site CLIのウェルカムテキストには、CLIが「サポートのためのデバッグ情報収集を…可能にする」と書かれているため、
-この名前はおそらく実際の観測ではなくその文章から派生したものです。未検証とマークされており、
-意図的にプローブしていません — 稼働中のノードに対して未知のコマンドを試験的に実行することは、
-まだ登録中のCEで`vifdump`パケットキャプチャが開始されてしまった原因でもあります。
+`collect-debug-info` は別のケースです。どのメニューにもカタログにも表示されません。Site CLI のウェルカムテキストには CLI が「サポート向けのデバッグ情報を収集できる」と記載されており、この名前はそのテキストから派生したものと考えられます。未確認としてマークされており、意図的にプローブは行いません — ライブノード上で未知のコマンドを試験的に実行することが、まだ登録中の CE で `vifdump` パケットキャプチャが起動してしまったきっかけでした。
 </Aside>
