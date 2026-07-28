@@ -9,6 +9,10 @@ sidebar:
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
+Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
+records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
+surface against a live CE.
+
 Every Customer Edge serves F5's Site Console on `https://<sli-ip>:65500`. On this
 deployment it is usually the route to try first.
 
@@ -67,14 +71,14 @@ month. Turn it off again when the demo does not need console access.
    IP-based connection, so `Standard` and `True` here are both load-bearing.
 
    ```bash
-   az network bastion list -g rg-mcn-ce-ha-rmordasiewicz \
+   az network bastion list -g "$(terraform output -raw resource_group_name)" \
      --query "[].{name:name, sku:sku.name, tunneling:enableTunneling}" -o table
    ```
 
    ```text
    Name               Sku       Tunneling
    -----------------  --------  -----------
-   ce-ha-lab-bastion  Standard  True
+   mcn-ce-ha-bastion  Standard  True
    ```
 
 </Steps>
@@ -96,7 +100,7 @@ something to assemble by hand.
    ```
 
    ```text
-   ce-ha-lab-bastion
+   mcn-ce-ha-bastion
    rg-mcn-ce-ha-rmordasiewicz
    /subscriptions/…/providers/Microsoft.Compute/virtualMachines/f5-xc-ce-vm-01
    ```

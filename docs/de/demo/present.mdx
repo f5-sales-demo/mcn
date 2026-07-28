@@ -1,0 +1,142 @@
+---
+title: Die Demo präsentieren
+description: >-
+  Was diese Bereitstellung demonstrieren kann und wie Sie sie mit einem einzigen
+  Befehl zeigen — Equal-Cost-Multipath, programmiert durch das Routing-Fabric
+  statt durch einen Load Balancer — sowie die drei Dinge, die sie noch nicht
+  zeigen kann, klar benannt, damit eine Probe sie nicht erst vor Publikum
+  entdeckt.
+sidebar:
+  order: 40
+  label: Präsentieren
+i18n:
+  sourceHash: 5e23dca1c815
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Die Aussage, die diese Demo stützt, ist eng gefasst und sollte präzise formuliert werden, denn
+eine weiter gefasste würde Rückfragen nicht überstehen:
+
+> Mehrere Customer Edges kündigen jeweils dieselbe Host-Route per eBGP an, und Azure
+> installiert sie alle als Next Hops mit gleichen Kosten. Datenverkehrsverteilung und
+> Knotenentfernung sind daher Eigenschaften des Routing-Fabrics — es gibt keinen
+> Azure-Load-Balancer vor den CEs.
+
+Führen Sie zuerst [die vier Health-Checks](../verify/) aus. Alles Folgende setzt voraus, dass
+sie erfolgreich waren.
+
+## Der eine Befehl, der es sichtbar macht
+
+Effektive Routen sind das stärkste Einzelartefakt: Sie zeigen, was Azure tatsächlich
+programmiert hat, nicht was die CEs behaupten.
+
+```bash
+cd terraform
+az network nic show-effective-route-table \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_nic_name)" \
+  --query "value[?addressPrefix[0]=='$(terraform output -raw vip)/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,state:state}" \
+  -o json
+```
+
+Beobachtet am 28.07.2026:
+
+```json
+[
+  {
+    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+    "prefix": "10.250.0.10/32",
+    "state": "Active"
+  }
+]
+```
+
+Ein Prefix, drei Next Hops, `Active`. Das ist der gesamte Sinn der Demo in einer einzigen
+Ausgabe, und es lohnt sich, hier zu verweilen: Nichts in diesem Bild ist ein Load Balancer.
+
+Zeigen Sie dann, dass er ausliefert — aus dem VNet heraus und mit dem `Host`-Header:
+
+```bash
+az vm run-command invoke \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_vm_name)" \
+  --command-id RunShellScript --query "value[0].message" -o tsv \
+  --scripts "curl -s -o /dev/null -w '%{http_code}\n' \
+               -H 'Host: $(terraform output -raw lb_domain)' \
+               http://$(terraform output -raw vip)/"
+```
+
+<Aside type="caution" title="Führen Sie die Demo nicht durch, indem Sie die Adresse in einen Browser eingeben">
+Der Load Balancer entscheidet anhand von `Host`, daher gibt eine Anfrage mit reiner IP **404**
+zurück — bei einer völlig gesunden Bereitstellung. Senden Sie entweder den Header, oder lösen
+Sie die Domain zuvor auf die VIP auf. Ein 404 vor Publikum lässt sich schwer wieder einfangen,
+auch wenn nichts falsch ist.
+</Aside>
+
+## Vorgeschlagene Reihenfolge
+
+<Steps>
+
+1. **Rahmen setzen.** Eine VIP, mehrere CEs, kein Load Balancer. Das Routing-Fabric ist der
+   HA-Mechanismus.
+2. **Die Ankündigungsseite zeigen.** Gehen Sie die Peerings durch ([Check 2](../verify/)) —
+   jede CE kündigt dasselbe Prefix mit ihrem eigenen Next Hop an, alle mit demselben AS-Pfad,
+   sodass keine bevorzugt wird.
+3. **Zeigen, was Azure daraus gemacht hat.** Die effektive Routing-Tabelle oben: ein Prefix,
+   N Next Hops, `Active`.
+4. **Zeigen, dass er ausliefert.** Das `curl` von oben, mit dem Header.
+5. **Die Konfiguration zeigen.** [Das Terraform](../terraform/) ist hier veröffentlicht,
+   gelesen aus den Dateien, die es bereitstellen — nützlich, wenn jemand fragt, ob dies
+   reproduzierbar ist.
+
+</Steps>
+
+## Was diese Demo noch nicht zeigen kann
+
+Hier benannt, statt live entdeckt. Alle drei sind fehlende Belege, keine bekannten Fehler.
+
+<Aside type="danger" title="Proben Sie anhand dieser Seiten keine Failover-Geschichte">
+**Failover wurde nicht getestet.** Die installierten Next Hops mit gleichen Kosten sind
+verifiziert; was mit der Routing-Tabelle passiert, wenn eine CE gestoppt wird oder ihre
+Ankündigung einstellt, wurde gegen diese Bereitstellung nicht erprobt. Der vorgesehene
+Mechanismus ist, die Ankündigung einer CE zurückzuziehen und zu beobachten, wie die Anzahl der
+Next Hops sinkt — aber solange dies nicht tatsächlich ausgeführt und gemessen wurde, ist es
+ein Plan, kein Ergebnis. Versprechen Sie es also nicht, und improvisieren Sie es nicht vor
+Publikum.
+
+Verfolgt in [Issue 700](https://github.com/f5-sales-demo/mcn/issues/700). Es braucht ein
+Zeitfenster, in dem niemand sonst die Umgebung nutzt, da es den aktiven Ankündigungszustand
+verändert.
+</Aside>
+
+- **Die Datenverkehrsverteilung über die Next Hops wurde nicht gemessen.** 1.470 Anfragen an
+  die VIP sind auf der [Verifizierungsseite](../verify/) dokumentiert, was belegt, dass der
+  Pfad funktioniert und wie er sich über die Zeit verhält. Nichts davon zeigt, wie sich die
+  Anfragen über die Next Hops verteilt haben, und diese Topologie bietet keinen HTTP-Listener
+  pro Knoten, um sie zuzuordnen. Auf die Frage „ist es gleichmäßig?" lautet die ehrliche
+  Antwort, dass dies hier nicht gemessen wurde.
+- **Die Ursache des Konvergenz-Transienten bei einem frischen Build ist nicht geklärt.** Er
+  ist charakterisiert — wann er auftritt, wie lange, und dass der Ursprung durchgehend sauber
+  ist — aber nicht erklärt.
+
+<Aside type="note" title="Wenn Sie auf einem frisch gebauten Stack präsentieren, warten Sie">
+Die VIP verliert einen kleinen Anteil der Anfragen für etwa die ersten 45 Minuten, nachdem die
+CEs `ONLINE` erreichen. Das verschwindet vollständig. Bauen Sie die Demo deutlich vor dem
+Zeitpunkt auf, an dem Sie sie benötigen, und führen Sie Check 4 unmittelbar davor erneut aus.
+</Aside>
+
+<CardGrid>
+  <LinkCard
+    title="Gesundheit nachweisen"
+    description="Die vier Checks und die normal aussehenden Ergebnisse, die wie ein Ausfall wirken, aber keiner sind."
+    href="../verify/"
+  />
+  <LinkCard
+    title="Das Terraform"
+    description="Die Konfiguration selbst, für die Frage, ob dies reproduzierbar ist."
+    href="../terraform/"
+  />
+</CardGrid>

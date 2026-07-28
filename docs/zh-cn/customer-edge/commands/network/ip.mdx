@@ -1,22 +1,27 @@
 ---
 title: 接口
-description: 节点上 Linux 侧的接口与链路状态，以及唯一可改变它的特权命令。Linux 所认为的状态，数据平面可能并不认同。
+description: 节点上 Linux 侧的接口与链路状态，以及唯一一条会修改它的特权命令。Linux 所认为的状态，可能与数据平面的认知相矛盾。
 sidebar:
   order: 60
   label: 接口
 i18n:
-  sourceHash: 3d2e9fd4cf74
+  sourceHash: c5b78c1a0b8c
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-这些命令报告的是内核视角的状态。Argo 数据平面维护着自己的一套状态，可通过
+采集于 2026-07-28，来自本部署中的一台 CE。`sitecli/capture-manifest.json`
+记录了具体是哪个节点，`scripts/capture-sitecli.sh --check` 会针对实时 CE 重新校验命令
+面。
+
+这些命令报告的是内核的视角。Argo 数据平面维护着自己的视角，可通过
 [`vif`](../dataplane-forwarding/) 查看，两者可能并不一致。
 
 ## `ip`
 
-接受一个 `ip` 子命令。`addr` 是最常用的；`route`、`link` 和 `neigh` 同样可用。
+接受一个 `ip` 子命令。`addr` 是最常用的；`route`、`link` 和 `neigh` 也
+可用。
 
 ```bash
 {"command":["ip","addr"]}
@@ -25,27 +30,29 @@ import { Aside, Badge } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-CE 在设计上有三块 Azure 网卡——管理/SLO、外部、内部/SLI——但客户机中呈现的方式
-并不符合该顺序所暗示的样子，而这正是误读输出会浪费时间的地方。
+按设计，CE 拥有三块 Azure 网卡——管理/SLO、外部、内部/SLI——但
+guest 并不会按照该顺序所暗示的方式呈现它们，而误读这些
+输出正是浪费时间的地方。
 
-| 客户机中 | 承载 |
+| 在 guest 中 | 承载 |
 | --- | --- |
 | `a-i-eth0` | **完全没有地址**——这是被重命名的物理 eth0，由 Argo 数据平面接管 |
-| `vhost0` | 管理/SLO 地址，即 BGP 对等所使用的地址，也是站点对象所报告的地址 |
-| `eth1` 和 `eth2` | 外部和内部/SLI 地址——但**顺序并不固定** |
+| `vhost0` | 管理/SLO 地址，即 BGP 建立对等的地址，也是站点对象上报的地址 |
+| `eth1` 和 `eth2` | 外部与内部/SLI 地址——但**顺序并不固定** |
 
-<Aside type="danger" title="eth1 和 eth2 中哪一个是内部接口，各节点之间并不相同">
-从该部署中的三台 CE 实时读取的结果：在 `f5-xc-ce-vm-01` 和
+<Aside type="danger" title="eth1 和 eth2 中哪一个是内部接口，在不同节点上并不相同">
+从本次部署中三台 CE 上实时读取的结果：在 `f5-xc-ce-vm-01` 和
 `f5-xc-ce-vm-03` 上，内部/SLI 地址位于 `eth2`；而在 `f5-xc-ce-vm-02` 上它位于
 `eth1`。配置中没有任何内容决定这一点。
 
-因此，切勿根据接口名称推断子网，也切勿把某个节点上的映射关系照搬到另一个节点。
-应改为按地址匹配——CE 地址所属的子网是稳定的，即便承载它的接口并不稳定。
+因此，永远不要从接口名推断子网，也永远不要把某个节点上的映射关系照搬到
+另一个节点。改为按地址匹配——CE 地址所属的子网是稳定的，即使承载该地址的
+接口并不稳定。
 
 </Aside>
 
-`a-i-eth0` 不承载任何地址，也正是无法通过管理地址访问 `sshd` 的全部原因：
-那里根本没有监听器，而不是端口被阻断。参见
+`a-i-eth0` 不承载地址，也正是无法通过管理地址访问 `sshd` 的全部原因：
+那里根本没有监听程序，而不是端口被阻断。参见
 [SSH](../../../access/ssh/)。
 
 ## `ip-link-show`
@@ -59,23 +66,23 @@ CE 在设计上有三块 Azure 网卡——管理/SLO、外部、内部/SLI—�
 ```text file=../../../../_data/sitecli-ip-link-show.txt
 ```
 
-当问题是"链路是否已启用，其 MTU 是多少"时，这比 `ip addr` 更快。
-MTU 不匹配是隧道能建立却不通流量的常见原因。
+当问题是“链路是否已启用，以及它的 MTU 是多少”时，这比 `ip addr` 更快。
+MTU 不匹配是隧道能够建立但无法通过流量的常见原因。
 
-## `ip-link-set` <Badge text="Exec 层级 — 变更类" variant="danger" />
+## `ip-link-set` <Badge text="Exec 层级 —— 会产生变更" variant="danger" />
 
-启用或禁用某个接口或接口组。
+将某个接口或组置为 up 或 down。
 
 ```
 ip-link-set (<device>||<group>) (up||down)
 ```
 
-<Aside type="danger" title="此处不会执行，也无法通过常规方式访问">
+<Aside type="danger" title="此处未执行，且无法通过常规方式访问">
 这是本版本中唯一的 `Exec` 层级命令。它发往 `exec` 端点
-而非 `exec-user`，并且会改变节点状态：在远程 CE 上禁用 `eth0`
-会切断你管理它所依赖的路径，包括调试 API 本身。
+而非 `exec-user`，并且会改变节点状态：在远端 CE 上将 `eth0` 置为 down 会
+移除你用于管理它的路径，包括调试 API 本身。
 
-本页面刻意没有提供捕获的输出。捕获工具会拒绝整个 `Exec` 层级，
-并且是从实时目录而非硬编码列表中读取层级信息，因此即使未来版本
-将其他命令提升到该层级，这一点依然成立。
+本页有意不包含任何采集到的输出。采集工具会拒绝整个
+`Exec` 层级，并且是从实时目录而非硬编码列表读取层级信息，因此即使未来
+版本将其他命令提升到该层级，这一点仍然成立。
 </Aside>

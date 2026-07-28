@@ -1,0 +1,181 @@
+---
+title: Deploy the demo
+description: Prerequisites, the two variables that have no default and why, how the tenant is pinned by configuration rather than by your shell, why the first apply plans no registration approval and a second one creates them, and how to tear the deployment down.
+sidebar:
+  order: 10
+  label: Deploy
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+## Prerequisites
+
+- **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.8`, for
+  provider-defined functions and the `check` block that guards the VIP.
+- **The `xcsh` provider.** Nothing pins a version: `.terraform.lock.hcl` is gitignored and
+  the constraint is an open-ended floor, so every `init` resolves the latest published
+  release. That is deliberate for a prerelease project — the demo should fail on a
+  provider regression rather than sit on a stale version that hides it.
+- **An F5 XC API credential** for the tenant in `var.expected_xc_tenant`, exported as
+  `XCSH_API_TOKEN` (or the P12/PEM pair). Export the credential only, never a URL — see
+  below.
+- **Azure credentials** with rights to create a resource group, VNet, Route Server and VMs.
+- **A pre-existing F5 XC namespace** for the app tier. The deployment *reads* it and never
+  creates or destroys it, so a namespace holding unrelated demos can never land on this
+  stack's destroy list.
+
+<Aside type="caution" title="dev_overrides silently replaces the provider you think you are testing">
+If `~/.terraformrc` contains a `dev_overrides` block for `xcsh`, every local Terraform
+command uses the binary in that directory and **ignores both the version constraint and the
+lock file**. A build a few days old is enough to fail with `Blocks of type "…" are not
+expected here` on configuration that is perfectly valid against the published provider.
+
+Keep it out of the default path and opt in only when you are developing the provider:
+
+```bash
+mv ~/.terraformrc ~/.terraformrc.provider-dev
+TF_CLI_CONFIG_FILE=~/.terraformrc.provider-dev terraform plan   # when you mean it
+```
+
+</Aside>
+
+## Supply the two values that have no default
+
+Every other variable has a working default, and every object name derives from
+`var.component`. Two are deliberately left without one:
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+```
+
+| Variable | Why it has no default |
+| --- | --- |
+| `origin_ip` | Any default is one specific machine. A stale one sends a fresh deployment's traffic to somebody else's host instead of failing. |
+| `lb_domain` | The load balancer matches on `Host`, so this is what every request must send. It belongs to whoever runs the deployment. |
+
+Both are format-validated, so a typo fails the plan rather than the demo.
+
+`terraform.tfvars` is gitignored, and must stay that way: it carries a subscription id and
+per-engineer values.
+
+## The tenant is configuration, not whatever your shell is exporting
+
+`var.expected_xc_tenant` names the tenant and is the only place it is named.
+`providers.tf` derives the `xcsh` provider's `api_url` from it, which deliberately
+overrides any `XCSH_API_URL` in the environment, and a `postcondition` in
+`terraform/main.tf` fails the **plan** when the environment names a different tenant.
+
+Read either half without running anything that changes state:
+
+```bash
+terraform output -raw xc_tenant       # what the deployment targets
+terraform output -raw xc_env_tenant   # what your shell claims — diagnostic only
+```
+
+```text
+f5-sales-demo
+f5-sales-demo
+```
+
+<Aside type="danger" title="This guardrail exists because the demo silently re-homed itself into the wrong tenant">
+The demo was built in one tenant. A credential file later began exporting a *different*
+tenant's `XCSH_API_URL`; subsequent applies minted a token for that tenant, the CE VMs
+re-registered there, and their original registrations were abandoned. Every plan in between
+was clean, because nothing in the configuration had an opinion about the tenant
+([issue 696](https://github.com/f5-sales-demo/mcn/issues/696), fixed in
+[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). Recovering it meant destroying the
+stack in the wrong tenant and rebuilding it in the right one.
+
+The symptom to recognise, because it is not self-describing: a token minted for another
+tenant fails the pinned endpoint with a bare `401`, which reads exactly like an expired
+credential. If a credential you believe is good returns `401`, compare the two outputs
+above before you mint another token.
+</Aside>
+
+## Apply
+
+<Steps>
+
+1. **Initialise.** The backend config is not committed; supply your own.
+
+   ```bash
+   terraform init -backend-config=backend.hcl
+   ```
+
+2. **First apply.** This builds Azure, the CE sites and the registration token, and boots
+   the CEs.
+
+   ```bash
+   terraform apply
+   ```
+
+3. **Apply again once the CEs have registered.** This is not optional, and the reason is
+   below rather than being something you discover.
+
+   ```bash
+   terraform apply
+   ```
+
+</Steps>
+
+Then go to [prove it healthy](../verify/) before showing it to anyone.
+
+## Registration approval is automated, and the apply is still two-phase
+
+Registration approval no longer needs a human in the console: the
+`xcsh_registration_approval` resource performs it, and the site module resolves which
+registration to approve.
+
+That still does not make the deployment a single hands-off `apply`, and the reason is worth
+understanding before you watch a first run and conclude it failed:
+
+- A CE's registration object is named **`r-<uuid>`**. It is never named after the site, so
+  nothing can predict the name at plan time.
+- The registration only exists after the VM has booted and `vpm` has registered.
+- So the **first apply plans no approval at all**. Re-apply once the CEs have registered
+  and the approvals are created.
+
+`terraform/main.tf` documents this ordering at the top of the file, which is the
+authoritative version — the deploy sequence lives with the code that implements it.
+
+<Aside type="caution" title="A brand-new site is not immediately reachable over the operate API">
+For roughly 25 to 30 minutes after a new site reports `ONLINE`, the `vpm/debug` endpoints
+answer with a BIG-IP `503` page reading `The requested URL was rejected`. It looks like a
+web application firewall block or a revoked token and is neither. Wait, then retry.
+
+This affects a freshly built demo, not a running one.
+</Aside>
+
+## Operator SSH is a build-time decision
+
+The deployment writes an operator key to the appliance `admin` account, whose login shell
+is the Site CLI. It is written by cloud-init `write_files`, which runs once on first boot.
+
+<Aside type="caution" title="It cannot be added to CEs that are already running">
+`custom_data` is replace-only, so adopting this on running CEs **replaces every CE VM**.
+That is a fleet rebuild, not a configuration change. The same is true of anything else in
+the cloud-init template — including a comment, because `custom_data` is
+`base64encode` of the rendered file.
+
+It used to be worse: a replaced CE could never re-register, because the destroyed node's
+registration still held the control plane's unique `(tenant, cluster_name, hostname)`
+index — and `terraform plan` reported "No changes" for the whole time the fleet was down.
+Recovery took two full rebuilds. That is fixed
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674), closed by
+[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)): the site object's lifecycle is now
+coupled to the CE VM instance, so replacing the VM replaces the site, and deleting the site
+takes its registrations with it before the replacement node boots.
+
+Anyone adopting this elsewhere should read the
+[SSH page](../../customer-edge/access/ssh/) first.
+</Aside>
+
+## Tear it down
+
+```bash
+terraform destroy
+```
+
+The app namespace survives: it is read, never managed, so `destroy` cannot take a namespace
+holding unrelated demos with it. Everything else in the resource group goes.

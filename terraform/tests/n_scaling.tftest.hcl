@@ -12,6 +12,7 @@ run "n_equals_1" {
     ce_count           = 1
     region_short       = "eastus"
     mgmt_subnet_prefix = "10.0.1.0/26"
+    site_prefix        = "mcn-ce-ha"
   }
 
   assert {
@@ -30,8 +31,8 @@ run "n_equals_1" {
   }
 
   assert {
-    condition     = output.ce_nodes["eastus01"].site_name == "ar-bgp-eastus01"
-    error_message = "CE-01 site name must be ar-bgp-eastus01."
+    condition     = output.ce_nodes["eastus01"].site_name == "mcn-ce-ha-eastus01"
+    error_message = "CE-01 site name must be mcn-ce-ha-eastus01."
   }
 
   assert {
@@ -45,7 +46,7 @@ run "n_equals_1" {
   }
 
   assert {
-    condition     = output.ce_nodes["eastus01"].interface_name == "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    condition     = output.ce_nodes["eastus01"].interface_name == "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     error_message = "CE-01 interface name must match the XC auto-derived object name."
   }
 }
@@ -61,6 +62,7 @@ run "n_equals_3" {
     ce_count           = 3
     region_short       = "eastus"
     mgmt_subnet_prefix = "10.0.1.0/26"
+    site_prefix        = "mcn-ce-ha"
   }
 
   assert {
@@ -86,7 +88,7 @@ run "n_equals_3" {
   }
 
   assert {
-    condition     = output.ce_nodes["eastus03"].interface_name == "ves-io-securemesh-site-v2-ar-bgp-eastus03-network-f5-xc-ce-vm-03-eth0-0"
+    condition     = output.ce_nodes["eastus03"].interface_name == "ves-io-securemesh-site-v2-mcn-ce-ha-eastus03-network-f5-xc-ce-vm-03-eth0-0"
     error_message = "CE-03 interface name must match the XC auto-derived object name."
   }
 }

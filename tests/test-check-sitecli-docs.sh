@@ -264,6 +264,20 @@ assert_reject "unparseable catalog" "$t"
 t=$(new_tree exec-needs-nothing)
 assert_pass "Exec-tier command documented with neither manifest entry nor capture" "$t"
 
+# --- and finally: THIS repository ----------------------------------------------
+# Everything above builds throwaway trees, which proves the checker behaves but says
+# nothing about whether the real catalog, manifest, captures and documentation still
+# agree. Without this case CI would merge a command added to the catalog and never
+# documented, or a capture whose site was renamed, while the suite reported success on
+# synthetic input. CI runs tests/test-*.sh and nothing else, so the real gate lives here.
+printf '\n## this repository\n'
+if OUT=$(bash "$SCRIPT" 2>&1); then
+  printf '[OK] %s\n' "$(printf '%s' "$OUT" | tail -1)"
+else
+  printf '[FAIL] the real catalog, captures and documentation disagree:\n%s\n' "$OUT"
+  FAIL=1
+fi
+
 if [ "$FAIL" -ne 0 ]; then
   echo "check-sitecli-docs tests FAILED"
   exit 1

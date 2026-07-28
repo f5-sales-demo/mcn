@@ -1,24 +1,28 @@
 ---
 title: SSH
 description: >-
-  운영자가 Customer Edge admin 계정으로 SSH 접속하며, 이 계정의 로그인 셸은 Site CLI입니다. 이 기능을 활성화하는
-  것처럼 보이는 API 필드가 아무 동작도 하지 않는 이유, sshd가 내부 주소에서만 응답하는 이유, Site CLI가 요구하는 터미널 동작
-  방식, 그리고 실행 중인 배포에서 이를 활성화하는 비용을 다룹니다.
+  Customer Edge의 admin 계정으로 운영자 SSH 접속하기 — 이 계정의 로그인 셸은 Site CLI입니다. 이를 활성화하는
+  것처럼 보이는 API 필드가 실제로는 아무 일도 하지 않는 이유, sshd가 내부 주소에서만 응답하는 이유, Site CLI가 요구하는
+  터미널 동작 방식, 그리고 실행 중인 배포에서 이를 활성화하는 데 드는 비용을 다룹니다.
 sidebar:
   order: 25
   label: SSH
 i18n:
-  sourceHash: 0b30669de4ec
+  sourceHash: d548e61de069
   translator: machine
 ---
 
 import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
+2026-07-28에 이 배포의 CE 한 대에서 캡처했습니다. `sitecli/capture-manifest.json`에
+어느 노드였는지 기록되어 있으며, `scripts/capture-sitecli.sh --check`로 실제 CE에 대해
+명령 표면을 다시 검증할 수 있습니다.
+
 SSH는 어플라이언스의 `admin` 계정에 접속하며, 이 계정의 로그인 셸은 Site CLI
 (`/opt/bin/vpmu`)입니다. 이는 **온박스 전체 명령 표면**에 접근하는 유일한 경로입니다 —
-[debug API](../debug-api/)는 34개 명령을 노출하지만, 어플라이언스 자체는 그 API에 전혀
-포함되지 않은 훨씬 많은 명령을 제공합니다.
+[디버그 API](../debug-api/)는 34개 명령을 노출하고, 어플라이언스 자체는 그 API에 전혀
+없는 명령을 훨씬 더 많이 제공합니다.
 
 ```bash
 cd terraform
@@ -26,92 +30,92 @@ SLI=$(terraform output -json ce_sli_private_ips | jq -r '.eastus01')
 ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> "admin@$SLI"
 ```
 
-이 명령줄의 모든 요소가 필수적이며, 다음 세 섹션에서 각 요소가 어떤 실패를 방지하는지
-설명합니다.
+이 명령줄의 모든 부분이 필수적이며, 이어지는 세 개 섹션에서 각 부분이 어떤 실패를
+방지하는지 설명합니다.
 
-<Aside type="danger" title="내부 주소는 직접 조회하십시오 — 이전 세션의 주소를 그대로 가져오지 마십시오">
-Azure는 재빌드마다 내부 서브넷을 재할당하며, 노드 순서대로 할당하지도 않습니다. 가장
-최근 재빌드 후 `f5-xc-ce-vm-01`, `-02`, `-03`은 각각 `10.0.3.7`, `10.0.3.5`, `10.0.3.4`를
-보유하고 있습니다. 이전 빌드에서는 순서가 완전히 달랐고, 테스트 클라이언트의 NIC도 동일한
-서브넷에 있으며 이전에 CE가 사용했던 주소를 보유한 적이 있습니다. 따라서 기억하고 있던
-주소로 접속하면 잘못된 노드, CE가 아닌 VM, 또는 아무것도 없는 곳으로 연결됩니다 — 그리고
-마지막 경우는 "SSH가 활성화되지 않음"과 완전히 동일하게 보입니다.
+<Aside type="danger" title="내부 주소는 직접 조회하십시오 — 이전 세션의 주소를 절대 재사용하지 마십시오">
+Azure는 재구축마다 내부 서브넷을 재할당하며, 노드 순서대로 하지도 않습니다. 가장 최근
+재구축 이후 `f5-xc-ce-vm-01`, `-02`, `-03`은 각각 `10.0.3.7`, `10.0.3.5`, `10.0.3.4`를
+갖습니다. 이전 빌드에서는 순서가 완전히 달랐고, 테스트 클라이언트의 NIC도 같은 서브넷에
+있으며 이전에 CE가 사용했던 주소를 갖고 있던 적이 있습니다. 따라서 기억하고 있던 주소로
+연결하면 잘못된 노드에 도달하거나, CE가 아닌 VM에 도달하거나, 아무 곳에도 도달하지 못합니다
+— 그리고 마지막 경우는 "SSH가 활성화되지 않았다"와 완전히 똑같이 보입니다.
 
-`terraform output -json ce_sli_private_ips`가 매핑을 제공합니다. state를 사용할 수 없는
-경우, 주소는 변하더라도 NIC 이름은 안정적입니다:
+`terraform output -json ce_sli_private_ips`가 그 매핑입니다. 상태 파일이 없을 때는 주소는
+변하지만 NIC 이름은 안정적입니다:
 
 ```bash
-az network nic show -g rg-mcn-ce-ha-rmordasiewicz \
-  -n f5-xc-ce-vm-01-internal-nic \
+az network nic show -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -json ce_vm_names | jq -r '.eastus01')-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
 </Aside>
 
-<Aside type="caution" title="부트스트랩 전용 — 기존 CE는 재생성 없이는 SSH를 획득할 수 없습니다">
-cloud-init `write_files`는 **최초 부팅 시 한 번만** 실행됩니다. 그 후에는 노드에
+<Aside type="caution" title="부트스트랩 전용 — 기존 CE는 재생성 없이 SSH를 얻을 수 없습니다">
+cloud-init `write_files`는 **첫 부팅 시 한 번만** 실행됩니다. 그 이후에는 노드에
 `/etc/cloud/cloud-init.disabled` 마커가 존재하며 cloud-init은 다시 실행되지 않습니다.
 
-따라서 실행 중인 CE에 대해 인플레이스 경로는 존재하지 않습니다. Azure에서 `custom_data`는
+따라서 실행 중인 CE에 인플레이스로 적용할 경로는 없습니다. Azure에서 `custom_data`는
 교체 전용이므로, 기존 배포에 이를 도입하면 **모든 CE VM이 교체됩니다**. 이미 가동 중인
-노드에 운영자 SSH를 부여하는 것은 구성 변경이 아니라 재빌드입니다 — 그리고 다음 경고는
-그 재빌드가 과거에 어떤 비용을 초래했는지, 그리고 이제는 왜 그렇지 않은지에 관한 것입니다.
+노드에 운영자 SSH를 부여하는 것은 구성 변경이 아니라 재구축입니다 — 그리고 다음 경고는
+그 재구축이 예전에 어떤 비용을 초래했고, 왜 더 이상 그렇지 않은지에 관한 것입니다.
 </Aside>
 
-<Aside type="caution" title="CE VM 교체는 과거에 등록을 영구적으로 막았습니다 — 이제 수정되었으며, 그것이 사이트 객체가 VM에 결합된 이유입니다">
-재빌드를 계획하기 전에 알아둘 만한 내용입니다. 이 실패의 형태가 플랜에서 보게 될 결합
+<Aside type="caution" title="CE VM 교체는 예전에 등록을 영구적으로 막았습니다 — 지금은 수정되었고, 그것이 사이트 객체가 VM에 결합된 이유입니다">
+재구축을 계획하기 전에 알아둘 만한 내용입니다. 실패의 형태가 플랜에서 보게 될 결합
 관계를 설명해 주기 때문입니다.
 
-과거에는 파괴된 노드의 등록이 컨트롤 플레인의 고유
+예전에는 삭제된 노드의 등록이 컨트롤 플레인의 고유
 `(tenant, cluster_name, hostname)` 인덱스를 계속 점유했기 때문에, 교체 노드의 등록이
 `UniqueSecondaryIndexViolationError`로 거부되고 무한히 재시도되었습니다. 등록을 삭제하는
-것만으로는 충분하지 않았습니다. 남아 있는 `StatusObject`가 워크로드 요청에 대해 `500`을
-반환하고, 그 시점에는 이미 각 노드가 삭제된 등록에 고정된 `registration-obj.yml`을
-유지하고 있어서 자체 복구 없이 `404`로 루프를 돌았습니다. 복구에는 두 번의 완전한 재빌드가
-필요했습니다. 그 모든 과정에서 `terraform plan`은 **"No changes"**를 보고했습니다.
+것만으로는 충분하지 않았습니다: 남아 있는 `StatusObject`가 워크로드 요청에 `500`을
+반환했고, 그 시점에 각 노드는 이미 삭제한 등록에 자신을 고정하는 `registration-obj.yml`을
+영속화해 두었기 때문에 자체 복구 없이 `404`를 반복했습니다. 복구에는 두 번의 완전한
+재구축이 필요했습니다. 그 모든 과정 동안 `terraform plan`은 **"No changes"**를 보고했습니다.
 Terraform 관점에서는 원하는 상태에 도달했기 때문입니다.
 
 [Issue 674](https://github.com/f5-sales-demo/mcn/issues/674)는
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)으로 종료되었습니다. 이제
-`modules/xc-site`가 `replace_triggered_by`에 CE VM 인스턴스를 지정하므로, VM을 교체하면
-사이트 객체도 교체되고, 사이트를 삭제하면 그에 딸린 등록도 함께 삭제됩니다 — 교체 노드가
-부팅되기 전에 인덱스 키가 해제됩니다. 이후 전체 플릿을 처음부터 재빌드했고 세 사이트 모두
-개입 없이 `ONLINE`이 되었습니다.
+[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)으로 종료되었습니다. `modules/xc-site`는
+이제 `replace_triggered_by`에 CE VM 인스턴스를 명시하므로, VM을 교체하면 사이트 객체도
+교체되고, 사이트를 삭제하면 그 등록도 함께 삭제됩니다 — 교체 노드가 부팅되기 전에 인덱스
+키가 해제됩니다. 이후 플릿을 처음부터 재구축했고 세 사이트 모두 개입 없이 `ONLINE`이
+되었습니다.
 
-이 결합 관계는 가정이 아니라 관찰 가능합니다. 각 사이트는 VM *인스턴스* id에 바인딩되며,
-대응하는 등록은 `infra.instance_id`로 동일한 값을 보고합니다:
+이 결합은 가정이 아니라 관측 가능합니다. 각 사이트는 VM *인스턴스* id에 바인딩되며,
+대응하는 등록은 동일한 값을 `infra.instance_id`로 보고합니다:
 
 ```bash
 cd terraform && terraform output -json ce_bound_instance_ids
 ```
 
-둘이 일치하지 않으면 사이트가 더 이상 존재하지 않는 노드에 여전히 바인딩되어 있다는
-의미이며, 이는 재빌드된 CE가 결코 등록을 벗어날 수 없는 상태입니다. 등록 측 값을 읽는
-것은 여전히 직접 API 호출이 필요합니다 — 프로바이더 이슈
-[1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376)이 이를 데이터
-소스에 추가할 항목입니다.
+두 값이 일치하지 않는다면 사이트가 더 이상 존재하지 않는 노드에 여전히 바인딩되어 있다는
+뜻이며, 이는 재구축된 CE가 결코 등록에서 벗어날 수 없는 상태입니다. 등록 측 값을 읽는
+것은 아직 직접 API 호출이 필요합니다 — 프로바이더 이슈
+[1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376)이 이를
+데이터 소스에 추가할 예정입니다.
 </Aside>
 
-## API가 아니라 cloud-init이 키를 기록하는 이유
+## API가 아니라 cloud-init이 키를 쓰는 이유
 
 사이트 객체의 `admin_user_credentials.ssh_key`는 정확히 이 용도의 필드처럼 보입니다.
-값이 수락되고, 읽기 시에도 유지되지만, 아무것도 구성하지 않습니다. `vpm`이 노드의 로컬
+받아들여지고, 다시 읽어도 남아 있지만, 아무것도 구성하지 않습니다. `vpm`이 노드의 로컬
 사용자를 소유하며 이 사용자만은 건드리지 않습니다 — 노드 자체 로그에서, 단일 부팅 동안
-세 번 반복됩니다:
+세 번:
 
 ```text
 vpm  users.go:165: Won't do any change for user admin (internal skip)
 ```
 
-그 한 줄에서 다른 모든 것이 따라옵니다. `/var/home/admin/.ssh`는 사이트가 `ONLINE`이
-되기 전이나 후에도 결코 존재하지 않습니다. `admin`의 shadow 마지막 변경 날짜는 이미지
-빌드 날짜에 머물러 있고 `vesbkp`와 `vesopcon`은 현재 날짜를 표시하는데, `vpm`이 그 두
-계정만 설정하고 `admin`은 건너뛰었기 때문입니다. 또한 `vpm`은 어느 시점에도 `ssh_key`나
-`authorized_keys`에 대해 아무것도 로깅하지 않습니다.
+나머지 모든 것이 그 한 줄에서 따라옵니다. `/var/home/admin/.ssh`는 사이트가 `ONLINE`이
+되기 전에도, 후에도 결코 존재하지 않습니다. `admin`의 shadow 최종 변경 날짜는 이미지 빌드
+날짜에 머물러 있고 `vesbkp`와 `vesopcon`은 현재 날짜를 표시하는데, 이는 `vpm`이 그 두
+계정을 설정하고 `admin`은 건너뛰었기 때문입니다. 그리고 `vpm`은 어느 시점에도 `ssh_key`나
+`authorized_keys`에 대해 아무것도 기록하지 않습니다.
 
-따라서 파일은 `vpm` 외부에서 기록되어야 합니다. `admin`은 노드 이미지에 내장된 uid
-2202이므로 cloud-init 실행 전에 이미 존재하며, `owner: admin:admin`이 기록 시점에
-해석됩니다 — `runcmd`도, 소유권 사후 수정도 필요 없습니다:
+따라서 파일은 `vpm` 외부에서 작성되어야 합니다. `admin`은 노드 이미지에 내장된 uid
+2202이므로 cloud-init이 실행되기 전에 이미 존재하고 `owner: admin:admin`이 작성 시점에
+해석됩니다 — `runcmd`도, 소유권 후처리도 필요 없습니다:
 
 ```yaml
 - path: /var/home/admin/.ssh/authorized_keys
@@ -121,26 +125,26 @@ vpm  users.go:165: Won't do any change for user admin (internal skip)
     ${ssh_public_key}
 ```
 
-`sshd`는 처음부터 준비되어 있었습니다. `sshd -T`는 `pubkeyauthentication yes`를 보고하며,
-노드에 함께 제공되는 두 개의 `sshd_config` 파일 모두에서 `admin`이 `AllowUsers`에
-포함되어 있습니다. 활성화할 것은 애초에 없었습니다 — 없는 것은 파일 하나뿐이었습니다.
+`sshd`는 언제나 준비되어 있었습니다. `sshd -T`는 `pubkeyauthentication yes`를 보고하며,
+노드에 함께 제공되는 두 `sshd_config` 파일 모두에서 `admin`이 `AllowUsers`에 나타납니다.
+활성화할 것은 애초에 없었습니다 — 없던 것은 파일뿐이었습니다.
 
 <Aside type="danger" title="admin_user_credentials를 다시 추가하지 말고, sshd_config를 편집하지 마십시오">
-`admin_user_credentials`는 `terraform/modules/xc-site`에 연결되었다가 이 증거가 수집된
-후 되돌려졌습니다(#660, PR #663). 채워야 할 빈틈이 아닙니다.
+`admin_user_credentials`는 `terraform/modules/xc-site`에 연결되었다가 이 증거가 수집된 후
+되돌려졌습니다(#660, PR #663). 채워지기를 기다리는 공백이 아닙니다.
 
-`sshd_config`는 등록 과정에서 교체되므로, 편집한 내용은 가장 불편한 시점에 폐기됩니다.
+`sshd_config`는 등록 과정에서 교체되므로, 편집한 내용은 가장 불편한 순간에 폐기됩니다.
 </Aside>
 
 ## 하나의 주소에서만 응답하는 이유
 
 `sshd`는 `0.0.0.0:22`에 바인딩하지만, `sshd`가 응답할 수 있는 방식으로 호스트 네트워크
 스택에 올라와 있는 것은 **내부(SLI)** 주소뿐입니다. eth0은 `a-i-eth0`으로 이름이 바뀌고
-호스트 IP를 전혀 갖지 않습니다 — Argo 데이터 플레인이 그 인터페이스를 소유하며, 원래
-그 인터페이스가 가졌을 관리/SLO 주소는 대신 `vhost0`에 나타납니다. 나머지 두 NIC은 각자의
-이름으로 호스트 스택에 남습니다.
+호스트 IP를 전혀 갖지 않습니다 — Argo 데이터 플레인이 그 인터페이스를 소유하며, 그
+인터페이스가 가졌을 관리/SLO 주소는 대신 `vhost0`에 나타납니다. 나머지 두 NIC는 각자의
+이름으로 호스트 스택에 남아 있습니다.
 
-VNet 내부 VM에서 하나의 CE에 대해 프로브한 결과:
+VNet 내부의 VM에서 CE 한 대를 대상으로 프로브한 결과:
 
 ```text
 management/SLO address    timed out
@@ -149,13 +153,13 @@ internal/SLI address      OPEN     SSH-2.0-OpenSSH_8.7
 an unused address         timed out    (control)
 ```
 
-따라서 노드를 식별하는 데 사용하는 주소로 프로브하면 닫힌 보안 그룹이 반환하는 것과
-정확히 동일한 결과가 나옵니다. 아무것도 차단하고 있지 않습니다. 그 주소에 리스너가 없는
-것입니다.
+따라서 노드를 식별할 때 알고 있는 주소로 프로브하면, 닫힌 보안 그룹이 반환하는 것과
+정확히 동일한 결과가 돌아옵니다. 아무것도 차단하고 있지 않습니다. 그 주소에 리스너가
+없는 것입니다.
 
-<Aside type="caution" title="어느 서브넷에 있는지 판단하기 위해 게스트 인터페이스 이름을 읽지 마십시오">
-`eth1`과 `eth2` 중 어느 쪽이 내부 주소를 갖는지는 **같은 배포 내 노드 간에도 다릅니다**.
-세 CE 모두에서 실시간으로 읽은 값:
+<Aside type="caution" title="어느 서브넷에 있는지 알아내려고 게스트 인터페이스 이름을 읽지 마십시오">
+`eth1`과 `eth2` 중 어느 쪽이 내부 주소를 갖는지는 **같은 배포 내의 노드들 사이에서도
+다릅니다**. 세 CE 모두에서 실시간으로 읽은 결과:
 
 ```text
 f5-xc-ce-vm-01    eth1 -> external      eth2 -> internal/SLI
@@ -164,19 +168,19 @@ f5-xc-ce-vm-03    eth1 -> external      eth2 -> internal/SLI
 ```
 
 모든 노드에서 성립하는 것은 두 가지뿐입니다: `a-i-eth0`에는 주소가 없고, `vhost0`이
-관리/SLO 주소를 갖습니다. 그 외의 경우에는 인터페이스 이름이 아니라
+관리/SLO 주소를 갖습니다. 그 외에는 인터페이스 이름이 아니라
 [`ip addr`](../../commands/network/ip/) 출력의 주소로 매칭하십시오.
 </Aside>
 
-CE 공용 주소에도 22번 포트 리스너가 없으며, 그래서 위 명령이 `-J`를 경유합니다. SLI
-주소와 동일한 서브넷에 있는 VNet 내부 운영자 VM을 사용합니다. 이 배포에서는
-`ar-ecmp-client`가 그 VM입니다.
+CE 공용 주소에도 22번 포트에 리스너가 없으며, 이것이 위 명령이 `-J`를 거치는 이유입니다:
+SLI 주소와 같은 서브넷에 있는 VNet 내부의 운영자 VM입니다. 이 배포는 그 목적을 위해 하나를
+만듭니다 — `terraform output -raw client_vm_name`이 그 이름을 알려줍니다.
 
 <Aside type="caution" title="-J는 점프 구간에 옵션을 전달하지 않습니다">
-명령줄에 지정한 옵션은 최종 홉에 적용됩니다. 따라서 `-J`와 함께 사용한
+명령줄에 지정한 옵션은 마지막 홉에 적용됩니다. 따라서 `-J`와 함께 쓴
 `-o UserKnownHostsFile=/dev/null`은 *점프* 호스트에 대해서는 여전히 실제 `known_hosts`를
-참조하고 기록합니다. 재빌드된 플릿을 거기서 제외하려 한다면 예상 밖의 결과입니다. 그것이
-중요하다면 첫 번째 홉을 명시적으로 작성하십시오:
+참조하고 기록하는데, 재구축된 플릿을 그 파일에서 배제하려 할 때 뜻밖의 문제가 됩니다.
+그것이 중요할 때는 첫 홉을 명시적으로 지정하십시오:
 
 ```bash
 ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@<operator-vm>" \
@@ -186,49 +190,50 @@ ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@
 </Aside>
 
 <Aside type="caution" title="확신에 찬 오답을 만들어내는 두 가지 측정 실수">
-eth0, 외부 인터페이스, 또는 공용 주소의 22번 포트를 프로브하면 노드의 SSH 상태와 무관하게
-닫힘으로 보고되므로, 아무것도 알려주지 못합니다. SLI 주소만 응답합니다.
+eth0, 외부 인터페이스, 또는 공용 주소에 대해 22번 포트를 프로브하면 노드의 SSH 상태와
+무관하게 닫혀 있다고 보고되므로, 아무것도 알려주지 못합니다. SLI 주소만 응답합니다.
 
-또한 회사 워크스테이션에서의 프로브는 닫혀 있는 포트를 **열림**으로 보고할 수 있습니다.
-Netskope가 일반적인 포트에서 TCP 핸드셰이크를 자체적으로 완료하기 때문입니다. 80번과
-443번 포트는 워크스테이션에서 CE 공용 주소에 대해 열림으로 읽히지만, VNet 내부에서
-프로브하면 닫혀 있습니다. VNet 내 VM에서 프로브하십시오.
+그리고 회사 워크스테이션에서 프로브하면 닫힌 포트가 **열려 있다**고 보고될 수 있습니다:
+Netskope가 일반적인 포트에서 TCP 핸드셰이크를 직접 완료합니다. 워크스테이션에서는 CE 공용
+주소의 80번과 443번 포트가 열린 것으로 읽히지만, VNet 내부에서 프로브하면 닫혀 있습니다.
+VNet 내의 VM에서 프로브하십시오.
 </Aside>
 
 ## Site CLI는 터미널과 캐리지 리턴을 필요로 합니다
 
 `admin`의 로그인 셸은 셸이 아닙니다. `go-prompt` 애플리케이션이며, 터미널을 raw 모드로
-전환하고 줄 단위가 아니라 키 입력을 읽습니다. 네 가지 결과가 있으며, 각각 다른 문제처럼
-보이는 방식으로 실패합니다:
+전환하고 줄 단위가 아니라 키 입력을 읽습니다. 결과적으로 네 가지 결과가 따르며, 각각은
+서로 다른 문제처럼 보이는 방식으로 실패합니다:
 
-| 동작 방식 | 없을 때 발생하는 일 |
+| 동작 요건 | 없을 때 발생하는 일 |
 | --- | --- |
-| 터미널 할당 (`ssh -tt`) | `go-prompt.NewStandardInputParser`에서 `panic: no such device or address`가 발생하며, 어플라이언스가 크래시한 것처럼 보입니다 |
-| Enter에 대해 라인 피드가 아니라 캐리지 리턴 전송 | 줄이 제출되지 않으며, 아무것도 출력하지 않은 채 입력 종료 시 세션이 닫힙니다 |
-| 표준 입력을 열어 둠 | 명령이 렌더링되기 전에 연결이 종료되므로, 정상 동작하는 명령이 아무 출력도 없는 것처럼 보입니다 |
-| 명령 텍스트와 Enter 바이트를 **따로** 전송 | 개행이 버퍼에 리터럴 문자로 들어가 CLI가 `unknown command`로 응답하며, 해당 명령이 존재하지 않는 것처럼 보입니다 |
+| 터미널 할당 (`ssh -tt`) | `go-prompt.NewStandardInputParser`에서 `panic: no such device or address` 발생 — 어플라이언스가 죽은 것처럼 보입니다 |
+| Enter로 라인 피드가 아니라 캐리지 리턴 전송 | 라인이 결코 제출되지 않고, 아무것도 출력하지 않은 채 입력 종료 시점에 세션이 닫힙니다 |
+| 표준 입력을 열어 둠 | 명령이 출력을 렌더링하기 전에 연결이 종료되므로, 정상 동작하는 명령이 아무 응답도 없는 것처럼 보입니다 |
+| 명령 텍스트와 Enter 바이트를 **따로** 전송 | 개행이 버퍼에 리터럴 문자로 들어가 CLI가 `unknown command`로 응답하며, 마치 그 명령이 존재하지 않는 것처럼 보입니다 |
 
-따라서 `ssh host 'some-command'`는 동작하지 않습니다. 인자는 무시되고 대화형 프롬프트가
-그대로 시작됩니다. 터미널로서 구동하거나 아예 사용하지 마십시오.
+따라서 `ssh host 'some-command'`는 동작하지 않습니다: 인자는 무시되고 대화형 프롬프트가
+그대로 시작됩니다. 터미널로 구동하거나 아예 하지 마십시오.
 `scripts/sitecli_ssh_harvest.py`가 참조 구현입니다.
 
-<Aside type="caution" title="'no such device or address'라는 panic은 인증이 성공했음을 의미합니다">
-`vpmu`는 로그인 **후**, 연결할 터미널을 찾지 못했을 때 이를 발생시킵니다. 크래시로 읽으면
-최악의 결과처럼 보이지만, 실제로는 성공 직전의 마지막 오류입니다. `-tt`를 추가하고 다시
-연결하십시오.
+<Aside type="caution" title="'no such device or address' 패닉은 인증이 성공했다는 뜻입니다">
+`vpmu`는 로그인 **이후**에, 연결할 터미널을 찾지 못했을 때 이 오류를 냅니다. 크래시로
+읽으면 최악의 결과처럼 보이지만, 실제로는 성공 직전의 마지막 오류입니다. `-tt`를 추가하고
+다시 연결하십시오.
 </Aside>
 
 <Aside type="caution" title="CE를 교체하면 호스트 키가 변경됩니다">
-교체 노드는 동일한 주소에서 다른 호스트 키를 제시하므로, 다음 연결에서
+교체된 노드는 같은 주소에서 다른 호스트 키를 제시하므로, 다음 연결에서
 `REMOTE HOST IDENTIFICATION HAS CHANGED` 경고와 함께 거부됩니다. 해당 주소의 기존 항목을
-삭제하고 다시 연결하십시오. SSH를 부여하는 것 자체가 VM을 교체하므로, 이를 도입한 직후
-최초 연결에서 이 상황이 발생할 것으로 예상하십시오.
+지우고 다시 연결하십시오. SSH를 부여하는 것 자체가 VM을 교체하므로, 이를 도입한 직후 첫
+연결에서 이 상황을 예상하십시오.
 </Aside>
 
 ## 배너는 무료 상태 점검입니다
 
-무엇을 입력하기도 전에, 로그인 배너가 이미 명령으로 확인해야 할 여러 질문에 답을 해
-줍니다. `f5-xc-ce-vm-01`에서, ASCII 아트와 공용 IP는 생략했습니다:
+무엇을 입력하기도 전에, 로그인 배너는 그러지 않았다면 명령을 써서 확인해야 했을 여러
+질문에 이미 답해 줍니다. `f5-xc-ce-vm-01`에서 가져온 것으로, ASCII 아트와 공용 IP는
+생략했습니다:
 
 ```text
 UNAUTHORIZED ACCESS TO THIS DEVICE IS PROHIBITED
@@ -248,26 +253,26 @@ SLO IP: 10.0.1.4/26
 WELCOME IN SITE CLI
 ```
 
-`Registration Status`는 아직 기동 중인 노드(`PROVISIONING`)와 완료된 노드(`PROVISIONED`)를
-구분합니다. `Software`는 어떤 명령이 존재하는지 결정하는 빌드 문자열입니다.
-`DNS`와 `NTP`는 등록을 가장 먼저 망가뜨리는 두 의존성을 다루므로, 온라인이 되지 못한
-노드는 보통 이미 여기서 그 이유를 알려줍니다 —
+`Registration Status`는 아직 올라오는 중인 노드(`PROVISIONING`)와 완료된
+노드(`PROVISIONED`)를 구분해 줍니다. `Software`는 어떤 명령이 존재하는지를 결정하는 빌드
+문자열입니다. `DNS`와 `NTP`는 등록을 가장 먼저 깨뜨리는 두 의존성을 다루므로, 온라인이
+되지 못한 노드는 보통 여기서 이미 그 이유를 알려줍니다 —
 [`chronyc-sources`](../../commands/network/chronyc-sources/)나
-[`dig`](../../commands/network/dig/)가 필요해지기 전에 말입니다.
+[`dig`](../../commands/network/dig/)가 필요해지기도 전에 말입니다.
 
-## 키 쌍 제공
+## 키페어 제공하기
 
 <Steps>
 
-1. 아직 없다면 키 쌍을 생성하십시오. RSA가 아니라 Ed25519를 사용합니다. 더 짧고,
-   어플라이언스 `sshd`가 수락합니다.
+1. 아직 없다면 키페어를 생성하십시오. RSA가 아니라 Ed25519를 사용합니다: 더 짧고,
+   어플라이언스 `sshd`가 받아들입니다.
 
    ```bash
    ssh-keygen -t ed25519 -C "ce-operator" -f ~/.ssh/id_ed25519
    ```
 
-2. 배포가 **공개** 키를 가리키도록 하십시오. 루트 모듈이 파일을 한 번 읽어 그 문자열을
-   모든 노드로 전달합니다:
+2. 배포가 **공개** 키를 가리키게 하십시오. 루트 모듈이 파일을 한 번 읽어 그 문자열을 모든
+   노드로 전달합니다:
 
    ```hcl
    # terraform/terraform.tfvars
@@ -275,68 +280,68 @@ WELCOME IN SITE CLI
    ```
 
    `ssh_public_key`는 대신 키 내용을 인라인으로 받으며, 플랜 테스트에서 사용하는 방식입니다.
-   비공개 키는 워크스테이션을 벗어나지 않습니다.
+   비공개 키는 결코 워크스테이션을 떠나지 않습니다.
 
-3. 적용하십시오. 이 페이지 상단의 경고를 먼저 읽으십시오 — 기존 배포에서는 이 작업이
-   CE VM을 교체합니다.
+3. 적용하십시오. 이 페이지 상단의 경고를 먼저 읽으십시오 — 기존 배포에서는 이 작업이 CE
+   VM을 교체합니다.
 
 </Steps>
 
-<Aside type="note" title="VM 자체의 admin_ssh_key는 별개의 것입니다">
+<Aside type="note" title="VM 자체의 admin_ssh_key는 별개입니다">
 `modules/ce-node`의 `azurerm_linux_virtual_machine.admin_ssh_key`는 Azure VM 관리자를
-인증하며, 어플라이언스 `admin` 계정과는 무관합니다. Site CLI 접근 권한을 부여하지 않으며,
-이 값이 설정되어 있다는 것이 CE SSH가 구성되었다는 증거는 아닙니다.
+인증하는 것이며, 어플라이언스 `admin` 계정이 아닙니다. Site CLI 접근 권한을 부여하지 않고,
+이 값이 설정되어 있다는 것이 CE SSH가 구성되었다는 증거도 아닙니다.
 </Aside>
 
 ## 이것이 아닌 것들
 
-다음 각 항목은 이 경로가 여전히 불가능하다고 믿던 시기에 테스트되어 배제되었습니다.
-각각은 하루를 낭비하게 할 만큼 그럴듯합니다.
+아래 항목들은 이 경로가 아직 불가능하다고 믿던 동안 테스트하여 배제한 것들입니다.
+각각은 하루를 소비할 만큼 그럴듯합니다.
 
-| 원인이 아닌 것 | 배제된 방법 |
+| 원인이 아닌 것 | 어떻게 배제되었는가 |
 | --- | --- |
-| 자격 증명이 생성 시점에만 적용된다 | `sshd`는 최초 부팅 후 약 90초 시점에, 사이트 객체가 존재하기 전에 시작됩니다. `admin_user_credentials`는 `ReplaceSpecType`에도 존재하며 인플레이스로 적용됩니다. |
-| `block_all_services` | 관리 주소의 22번 포트 차단 상태는 서비스가 차단되었든 아니든 동일합니다. |
-| 키 끝의 개행 문자 | 양쪽 모두 테스트했으며 변화 없음. 리터럴 블록이면 두 번째 빈 줄이 렌더링되므로 cloud-init이 이를 제거합니다. |
-| 고정된 구버전 CE 소프트웨어 | OpenSSH 9.9를 실행하는 빌드를 포함해 세 개의 빌드에서 재현되었습니다. |
-| `admin_password` 누락 | 처음부터 만든 CE에서 `ssh_key`와 함께 `admin_password`를 설정해도 아무 변화가 없었습니다. |
+| 자격 증명이 생성 시점에만 적용된다 | `sshd`는 첫 부팅 후 약 90초에, 사이트 객체가 존재하기 전에 시작됩니다. `admin_user_credentials`는 `ReplaceSpecType`에도 존재하며 인플레이스로 적용됩니다. |
+| `block_all_services` | 관리 주소의 22번 포트 차단 상태는 서비스가 차단되었는지 여부와 무관하게 동일합니다. |
+| 키 뒤의 개행 문자 | 두 가지 방식 모두 테스트했으며 변화가 없었습니다. cloud-init은 여전히 이를 제거하는데, 그렇지 않으면 리터럴 블록이 두 번째 빈 줄을 렌더링하기 때문입니다. |
+| 고정된 구버전 CE 소프트웨어 | OpenSSH 9.9를 실행하는 빌드를 포함해 세 개 빌드에서 재현되었습니다. |
+| `admin_password` 누락 | 새로 만든 CE에서 `ssh_key`와 함께 `admin_password`를 설정해도 아무것도 바뀌지 않았습니다. |
 
-<Aside type="caution" title="구분자처럼 보이지만 그렇지 않은 두 개의 API 필드">
+<Aside type="caution" title="판별자처럼 보이지만 아닌 두 개의 API 필드">
 `gc_spec.admin_ssh_key`는 **`f5-sales-demo`의 58개 사이트 전부**에서 비어 있거나
-없습니다 — `admin_user_credentials.ssh_key`를 실제로 설정한 두 사이트를 포함해서요. 동작하는
-사이트와 동작하지 않는 사이트 간에 이 값을 비교해도 아무것도 알 수 없습니다. 자격 증명이
-*실제로* 구성된 사이트에서도 비어 있는 것으로 읽히기 때문입니다.
+없습니다 — `admin_user_credentials.ssh_key`를 실제로 설정한 두 사이트를 포함해서입니다.
+동작하는 사이트와 동작하지 않는 사이트 사이에서 이 값을 비교해도 아무것도 알 수 없는데,
+자격 증명이 *실제로* 구성된 사이트에서도 비어 있는 것으로 읽히기 때문입니다.
 
-`registrations_by_site`는 이 필드를 아예 생략하고 `None`을 반환하므로, "보고되지 않음"이
-아니라 "구성되지 않음"으로 읽힙니다.
+`registrations_by_site`는 이 필드를 아예 생략하고 `None`을 반환하는데, 이는 "보고되지
+않음"이 아니라 "구성되지 않음"으로 읽힙니다.
 </Aside>
 
 ## 다른 경로들
 
 <CardGrid>
   <LinkCard
-    title="Debug API"
-    description="스크립트로 자동화할 수 있고, VNet 내부 접근이 필요 없으며, 반복 가능한 증거 수집에 적합한 선택입니다. 34개 명령을 다루며 사이트가 <code>ONLINE</code>이어야 합니다."
+    title="디버그 API"
+    description="스크립트로 실행 가능하고, VNet 내부 접근이 필요 없으며, 반복 가능한 증거 수집에 적합한 선택입니다. 34개 명령을 다루며 사이트가 <code>ONLINE</code>이어야 합니다."
     href="../debug-api/"
   />
   <LinkCard
-    title="Site Console"
-    description="Azure Bastion 터널을 통한 F5의 노드 트러블슈팅 UI입니다. 키도, 점프 호스트도 필요 없으며, 사이트가 등록되기 전에도 응답합니다."
+    title="사이트 콘솔"
+    description="Azure Bastion 터널을 통한 F5의 노드 트러블슈팅 UI입니다. 키도, 점프 호스트도 필요 없고, 사이트가 등록되기 전에도 응답합니다."
     href="../site-console/"
   />
   <LinkCard
     title="시리얼 콘솔"
-    description="등록된 적이 없거나 동작하는 네트워크 경로가 없는 노드용입니다. 터미널 또는 웹소켓 하네스가 필요합니다."
+    description="등록된 적이 없거나 동작하는 네트워크 경로가 없는 노드용입니다. 터미널 또는 웹소켓 하니스가 필요합니다."
     href="../serial-console/"
   />
 </CardGrid>
 
-<Aside type="caution" title="새로 생성된 사이트는 operate API가 응답하기까지 약 30분이 필요합니다">
+<Aside type="caution" title="새로 생성한 사이트는 operate API가 응답하기까지 약 30분이 필요합니다">
 새 사이트가 `ONLINE`을 보고한 후 대략 25~30분 동안 `vpm/debug` 엔드포인트는
 `The requested URL was rejected`라고 표시된 BIG-IP `503` 페이지를 반환합니다. 이는 웹
-애플리케이션 방화벽 차단이나 토큰 취소처럼 보이지만 둘 다 아닙니다. 사이트가 아직 중계할
-준비가 되지 않은 것입니다. 무엇을 바꾸기보다 기다린 후 재시도하십시오.
+애플리케이션 방화벽 차단이나 토큰 취소처럼 보이지만 둘 다 아닙니다: 사이트가 아직 중계할
+준비가 되지 않은 것입니다. 무언가를 변경하기보다 기다린 뒤 재시도하십시오.
 
-SSH에는 그러한 예열 시간이 없습니다. `sshd`가 올라오는 즉시 응답하며, 그래서 노드가 아직
-등록 중일 때도 동작하는 경로입니다.
+SSH에는 그런 예열 시간이 없습니다. `sshd`가 올라오는 즉시 응답하며, 그래서 노드가 아직
+등록 중일 때에도 동작하는 경로입니다.
 </Aside>

@@ -7,6 +7,29 @@ mock_provider "azurerm" {}
 mock_provider "azuread" {}
 mock_provider "xcsh" {}
 
+variables {
+  # Explicitly null so these assert the DERIVED names no matter what a local
+  # terraform.tfvars pins — `terraform test` reads that file too, so without this a
+  # deployment holding older names steady would turn this suite red on the
+  # engineer's machine while CI, which has no tfvars, stayed green.
+  site_prefix         = null
+  lb_name             = null
+  origin_pool_name    = null
+  route_server_name   = null
+  bastion_name        = null
+  client_vm_name      = null
+  region_short        = null
+  resource_group_name = null
+  # Pinned rather than inherited. Both now have NO default (an origin default is
+  # one specific machine; an lb_domain default belongs to whoever deploys), and
+  # `terraform test` also reads the gitignored terraform.tfvars — so without these
+  # CI fails on a missing required variable and any assertion against them depends
+  # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
+  # space: unroutable by design, so it cannot name a real host.
+  lb_domain = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip = "203.0.113.10"
+}
+
 run "root_plans_end_to_end" {
   command = plan
 
@@ -24,13 +47,36 @@ run "root_plans_end_to_end" {
   }
 
   assert {
-    condition     = output.loadbalancer_name == "ar-bgp-ecmp-lb"
-    error_message = "Load balancer name should be ar-bgp-ecmp-lb."
+    condition     = output.loadbalancer_name == "mcn-ce-ha-f5se"
+    error_message = "Load balancer name should be mcn-ce-ha-f5se."
   }
 
   assert {
-    condition     = output.origin_pool_name == "wsp-demo-pool"
-    error_message = "Origin pool name should be wsp-demo-pool."
+    condition     = output.origin_pool_name == "mcn-ce-ha-pool"
+    error_message = "Origin pool name should be mcn-ce-ha-pool."
+  }
+
+  # The documentation names no operational value; it reads each one from an output.
+  # These four are what the demo pages call, so a rename or removal has to fail here
+  # rather than silently leaving a documented command with nothing behind it.
+  assert {
+    condition     = output.route_server_name == "mcn-ce-ha-rs"
+    error_message = "Route Server name should derive to mcn-ce-ha-rs; the verify page reads it for --routeserver."
+  }
+
+  assert {
+    condition     = output.client_vm_name == "mcn-ce-ha-client"
+    error_message = "Client VM name should derive to mcn-ce-ha-client; the verify page reads it for az vm run-command."
+  }
+
+  assert {
+    condition     = output.lb_domain == "mcn-ce-ha.f5-sales-demo.com"
+    error_message = "lb_domain must be surfaced as an output; every VIP request has to send it as the Host header."
+  }
+
+  assert {
+    condition     = output.origin_ip == "203.0.113.10"
+    error_message = "origin_ip must be surfaced as an output; it is the control batch that separates an origin fault from a VIP fault."
   }
 
   assert {
@@ -39,8 +85,8 @@ run "root_plans_end_to_end" {
   }
 
   assert {
-    condition     = output.xc_site_names["eastus01"] == "ar-bgp-eastus01"
-    error_message = "CE-01 XC site name should be ar-bgp-eastus01."
+    condition     = output.xc_site_names["eastus01"] == "mcn-ce-ha-eastus01"
+    error_message = "CE-01 XC site name should be mcn-ce-ha-eastus01."
   }
 
   assert {
@@ -96,7 +142,7 @@ run "bastion_enabled_root_wiring" {
   }
 
   assert {
-    condition     = output.bastion_name == "ce-ha-lab-bastion"
+    condition     = output.bastion_name == "mcn-ce-ha-bastion"
     error_message = "Root must surface the Bastion host name so the tunnel command is copy-pasteable."
   }
 

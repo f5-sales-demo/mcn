@@ -4,7 +4,7 @@
 # No backing Azure VM is required — the object create/read/delete is Azure-free
 # (each HTTP 200). Numeric leaves are wired to variables so later slices can push
 # out-of-range values through input validation. NEVER targets the live demo sites
-# (ar-bgp-eastus01/02/03) — always use a fresh throwaway probe_name.
+# (mcn-ce-ha-eastus01/02/03) — always use a fresh throwaway probe_name.
 resource "xcsh_securemesh_site_v2" "probe" {
   name      = var.probe_name
   namespace = "system"

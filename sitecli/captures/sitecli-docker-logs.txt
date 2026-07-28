@@ -1,13 +1,13 @@
-2026-07-23T23:02:59.0+0000	INFO		Argo is not running
-2026-07-23T23:03:29.0+0000	INFO		Argo is not running
-2026-07-23T23:03:59.0+0000	INFO		Argo is not running
-2026-07-23T23:04:29.0+0000	INFO		Argo is not running
-2026-07-23T23:04:59.0+0000	INFO		Argo is not running
-2026-07-23T23:05:29.0+0000	INFO		Argo is not running
-2026-07-23T23:05:59.0+0000	INFO		Argo is not running
-2026-07-23T23:06:29.0+0000	INFO		Argo is not running
-2026-07-23T23:06:59.0+0000	INFO		Argo is not running
-2026-07-23T23:07:29.0+0000	INFO		Argo is not running
+2026-07-28T18:08:07.0+0000	INFO		Argo is not running
+2026-07-28T18:08:37.0+0000	INFO		Argo is not running
+2026-07-28T18:09:07.0+0000	INFO		Argo is not running
+2026-07-28T18:09:37.0+0000	INFO		Argo is not running
+2026-07-28T18:10:07.0+0000	INFO		Argo is not running
+2026-07-28T18:10:37.0+0000	INFO		Argo is not running
+2026-07-28T18:11:07.0+0000	INFO		Argo is not running
+2026-07-28T18:11:37.0+0000	INFO		Argo is not running
+2026-07-28T18:12:07.0+0000	INFO		Argo is not running
+2026-07-28T18:12:37.0+0000	INFO		Argo is not running
 Failed to get Argo PID 1
 Failed to get Argo PID 2
 Failed to get Argo PID 3
@@ -27,8 +27,8 @@ Failed to get Argo PID 16
 Failed to get Argo PID 17
 Failed to get Argo PID 18
 Failed to get Argo PID 19
-2026-07-23T23:07:59.0+0000	INFO		Argo is not running
 Failed to get Argo PID 20
+2026-07-28T18:13:07.0+0000	INFO		Argo is not running
 Failed to get Argo PID 21
 Failed to get Argo PID 22
 Failed to get Argo PID 23
@@ -39,4 +39,4 @@ Failed to get Argo PID 27
 Failed to get Argo PID 28
 Failed to get Argo PID 29
 
-... [capture trimmed: first 40 of 59 lines]
+... [capture trimmed: first 40 of 61 lines]

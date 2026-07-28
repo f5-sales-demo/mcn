@@ -1,0 +1,134 @@
+---
+title: Presentar la demo
+description: >-
+  Qué puede demostrar este despliegue y cómo mostrarlo con un solo comando —
+  multipath de coste equivalente programado por la infraestructura de
+  enrutamiento en lugar de por un balanceador de carga — además de las tres
+  cosas que aún no puede mostrar, indicadas con claridad para que un ensayo no
+  las descubra frente a una audiencia.
+sidebar:
+  order: 40
+  label: Presentar
+i18n:
+  sourceHash: 5e23dca1c815
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+La afirmación que respalda esta demo es limitada y conviene formularla con precisión, porque una más amplia no
+sobreviviría a las preguntas:
+
+> Varios Customer Edges anuncian cada uno la misma ruta de host mediante eBGP, y Azure instala todos
+> ellos como siguientes saltos de coste equivalente. La distribución del tráfico y la retirada de nodos son, por tanto,
+> propiedades de la infraestructura de enrutamiento — no hay ningún balanceador de carga de Azure delante de los CE.
+
+Ejecute primero [las cuatro comprobaciones de salud](../verify/). Todo lo que sigue asume que se superaron.
+
+## El único comando que lo hace visible
+
+Las rutas efectivas son el artefacto individual más contundente: son lo que Azure programó realmente,
+no lo que los CE afirman.
+
+```bash
+cd terraform
+az network nic show-effective-route-table \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_nic_name)" \
+  --query "value[?addressPrefix[0]=='$(terraform output -raw vip)/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,state:state}" \
+  -o json
+```
+
+Observado el 2026-07-28:
+
+```json
+[
+  {
+    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+    "prefix": "10.250.0.10/32",
+    "state": "Active"
+  }
+]
+```
+
+Un prefijo, tres siguientes saltos, `Active`. Ese es todo el sentido de la demo en una sola
+salida, y merece la pena detenerse en ello: nada de lo que aparece en la imagen es un balanceador de carga.
+
+A continuación, muéstrelo sirviendo, desde dentro de la VNet y con el encabezado `Host`:
+
+```bash
+az vm run-command invoke \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_vm_name)" \
+  --command-id RunShellScript --query "value[0].message" -o tsv \
+  --scripts "curl -s -o /dev/null -w '%{http_code}\n' \
+               -H 'Host: $(terraform output -raw lb_domain)' \
+               http://$(terraform output -raw vip)/"
+```
+
+<Aside type="caution" title="No lo demuestre escribiendo la dirección en un navegador">
+El balanceador de carga hace coincidencia por `Host`, de modo que una petición con la IP desnuda devuelve **404** — en un despliegue
+completamente sano. O bien envíe el encabezado, o bien resuelva primero el dominio a la VIP. Un 404 delante
+de una audiencia es difícil de justificar aunque no haya nada mal.
+</Aside>
+
+## Orden sugerido
+
+<Steps>
+
+1. **Enmárquelo.** Una VIP, varios CE, ningún balanceador de carga. La infraestructura de enrutamiento es el
+   mecanismo de alta disponibilidad.
+2. **Muestre el lado del anuncio.** Recorra los peerings ([comprobación 2](../verify/)) — cada CE
+   anunciando el mismo prefijo con su propio siguiente salto, todos con la misma ruta de AS, de modo que ninguno se
+   prefiere.
+3. **Muestre qué hizo Azure con ello.** La tabla de rutas efectivas anterior: un prefijo, N siguientes
+   saltos, `Active`.
+4. **Muéstrelo sirviendo.** El `curl` anterior, con el encabezado.
+5. **Muestre la configuración.** [El Terraform](../terraform/) está publicado aquí, leído desde
+   los archivos que lo despliegan — útil cuando alguien pregunta si esto es reproducible.
+
+</Steps>
+
+## Qué no puede mostrar todavía esta demo
+
+Se indica aquí en lugar de descubrirlo en directo. Los tres casos son ausencias de evidencia, no fallos
+conocidos.
+
+<Aside type="danger" title="No ensaye una historia de conmutación por error a partir de estas páginas">
+**La conmutación por error no se ha probado.** Se ha verificado que los siguientes saltos de coste equivalente están instalados; lo que
+ocurre con la tabla de rutas cuando se detiene un CE o este deja de anunciar no se ha ejercitado
+contra este despliegue. El mecanismo previsto es retirar el anuncio de un CE y
+observar cómo baja el número de siguientes saltos, pero hasta que eso se haya ejecutado y medido realmente es un
+plan, no un resultado — así que no lo prometa, y no lo improvise delante de una audiencia.
+
+Se sigue en [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). Necesita una ventana
+en la que nadie más esté usando el entorno, ya que cambia el estado de anuncio en vivo.
+</Aside>
+
+- **La distribución del tráfico entre los siguientes saltos no se ha medido.** En la [página de verificación](../verify/) se rinden cuentas de 1.470 peticiones a la
+  VIP, lo que establece que la ruta funciona y cómo se comporta a lo largo del tiempo. Nada de eso muestra cómo se repartieron las peticiones entre los
+  siguientes saltos, y esta topología no ofrece ningún listener HTTP por nodo con el que atribuirlas. Si le
+  preguntan «¿está equilibrado?», la respuesta honesta es que aquí no se ha medido.
+- **La causa del transitorio de convergencia en una construcción nueva no está establecida.** Está
+  caracterizado — cuándo ocurre, durante cuánto tiempo y que el origen está limpio en todo momento —
+  pero no explicado.
+
+<Aside type="note" title="Si va a presentar sobre una pila recién construida, espere">
+La VIP pierde una pequeña fracción de las peticiones durante aproximadamente los primeros 45 minutos después de que los CE
+alcancen el estado `ONLINE`. Se resuelve por completo. Construya la demo bastante antes de necesitarla y vuelva a ejecutar
+la comprobación 4 inmediatamente antes.
+</Aside>
+
+<CardGrid>
+  <LinkCard
+    title="Demuestre que está sano"
+    description="Las cuatro comprobaciones y los resultados de aspecto normal que se leen como una interrupción y no lo son."
+    href="../verify/"
+  />
+  <LinkCard
+    title="El Terraform"
+    description="La propia configuración, para la pregunta sobre si esto es reproducible."
+    href="../terraform/"
+  />
+</CardGrid>

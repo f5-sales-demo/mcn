@@ -1,22 +1,26 @@
 ---
 title: Envoy
 description: >-
-  Customer Edge 上の Envoy 管理インターフェースを囲む 4 つのラッパー — リスナー、クラスター、2 つの設定ダンプ。それぞれが
-  curl プログレスメーターで始まる理由と、リスナー出力がアドバタイズされた VIP について何を示すかを説明します。
+  Customer Edge 上の Envoy 管理インターフェースを包む 4 つのラッパー — listener、cluster、そして 2 種類の
+  config dump。なぜそれぞれが curl の進捗メーターから始まるのか、また listener の出力が広告される VIP
+  について何を示すのかを解説します。
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 6ca185ca6ece
+  sourceHash: 7b786fa58fb2
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Envoy は Customer Edge 上でアプリケーショントラフィックを終端してプロキシします。これらの 4 つのコマンドは Envoy の管理インターフェースを照会するものであり、いずれも [デバッグ API](../../../access/debug-api/) には含まれていません。
+このデプロイメントの 1 台の CE から 2026-07-28 に取得しました。これらはオンボックスコマンドであるため、デバッグ API ではなく Site CLI を経由して取得しています。`sitecli/exec-catalog.json` が対象範囲を、`sitecli/capture-manifest.json` がどのノードかを記録しています。
 
-<Aside type="note" title="これらはすべて curl プログレスメーターで始まります">
-これらは Envoy の管理エンドポイントへの `curl` ラッパーであり、`-s` オプションなしで呼び出されます。そのため、以下の各キャプチャの最初の 2〜3 行は curl の転送進捗が stderr に出力されたものです:
+Envoy は Customer Edge 上でアプリケーショントラフィックを終端およびプロキシします。次の 4 つのコマンドはその管理インターフェースに問い合わせるもので、いずれも
+[デバッグ API](../../../access/debug-api/) には含まれていません。
+
+<Aside type="note" title="いずれもcurlの進捗メーターから始まります">
+これらは Envoy の管理エンドポイントに対する `curl` ラッパーであり、`-s` を付けずに呼び出されるため、以下の各キャプチャの最初の 2〜3 行は curl が stderr に書き出す転送進捗です:
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -24,12 +28,12 @@ Envoy は Customer Edge 上でアプリケーショントラフィックを終�
   0     0    0     0 …
 ```
 
-これは Envoy の出力ではなく、エラーでもありません。また有用な情報でもあります: `% Received` のバイト数によって、Envoy が何かを返したかどうかがわかるため、「リスナーが設定されていない」と「管理インターフェースが応答しなかった」を区別できます。
+これは Envoy の出力ではなく、エラーでもありません。また有用でもあります: `% Received` のバイト数から Envoy が何かを返したかどうかが分かり、「listener が設定されていない」のか「管理インターフェースが応答しなかった」のかを区別できます。
 </Aside>
 
 ## `envoy-listeners`
 
-Envoy にインストールされているすべてのリスナーを `name:address:port` の形式で表示します。
+Envoy にインストールされているすべての listener を `name:address:port` 形式で表示します。
 
 ```bash
 execcli envoy-listeners
@@ -38,15 +42,15 @@ execcli envoy-listeners
 ```text file=../../../../_data/sitecli-envoy-listeners.txt
 ```
 
-**確認すべき点。** このデプロイメントでは、リスナーに `10.250.0.10:80` — CE が BGP にアドバタイズする VIP — が含まれています。この 1 行で 3 つのレイヤーが結び付きます: [`show-ip-bgp-summary`](../../network/bgp/) でプレフィックスがアドバタイズされているにもかかわらずこのリスナーが存在しない場合、ルートはトラフィックを処理しないノードに引き寄せられていることを意味します。これは ECMP セットにおいて最悪の障害モードであり、トラフィックがブラックホールに負荷分散されてしまいます。
+**確認すべきポイント。** このデプロイメントでは、listener は `10.250.0.10:80` を持っています — これは CE が BGP に広告する VIP です。この 1 行が 3 つのレイヤーを結び付けています: [`show-ip-bgp-summary`](../../network/bgp/) がプレフィックスの広告を示しているのに、この listener が存在しない場合、そのルートはサービスを提供しないノードへトラフィックを引き寄せていることになります。これは ECMP セットにおいて最悪の障害モードであり、トラフィックがブラックホールへロードシェアされてしまいます。
 
-末尾の `[fe80:…]:80` は、リスナーがバインドされているインターフェースのリンクローカルアドレスです。
+末尾の `[fe80:…]:80` は、listener がバインドされているインターフェースのリンクローカルアドレスです。
 
-**表示されない情報。** アップストリームの健全性については何も表示されません — リスナーは背後の何かが到達可能かどうかに関わらず存在します。その情報については `envoy-clusters` を使用してください。
+**分からないこと。** アップストリームの健全性については何も分かりません — その背後にあるものが到達可能かどうかに関係なく listener は存在します。それには `envoy-clusters` を使用してください。
 
 ## `envoy-clusters`
 
-すべてのクラスターを、優先度ごとの接続数およびリクエスト数の制限とともに表示します。
+すべての cluster と、その優先度ごとの接続数およびリクエスト数の上限を表示します。
 
 ```bash
 execcli envoy-clusters
@@ -55,11 +59,11 @@ execcli envoy-clusters
 ```text file=../../../../_data/sitecli-envoy-clusters.txt
 ```
 
-**確認すべき点。** 行の形式は `cluster::scope::key::value` です。`observability_name` エントリーで各クラスターを識別でき、`default_priority::max_connections`、`max_pending_requests`、`max_requests` の 3 つの値にリクエスト制限が表示されます — クラスターが `max_pending_requests` に達している場合、アップストリームの問題ではなく設定によってスロットリングされています。
+**確認すべきポイント。** 各行は `cluster::scope::key::value` の形式です。`observability_name` エントリが各 cluster を識別し、`default_priority::max_connections`、`max_pending_requests`、`max_requests` の 3 つがリクエスト上限の表示箇所です — `max_pending_requests` に張り付いている cluster は、アップストリームではなく設定によってスロットリングされています。
 
 ## `envoy-config-dump`
 
-Envoy の完全な設定を JSON 形式で表示します。アイドル状態のデモノードでも 126 KB と大きなサイズになります。
+Envoy の完全な設定を JSON で表示します。サイズは大きく、アイドル状態のデモノードでも 126 KB あります。
 
 ```bash
 execcli envoy-config-dump
@@ -68,11 +72,11 @@ execcli envoy-config-dump
 ```text file=../../../../_data/sitecli-envoy-config-dump.txt
 ```
 
-**確認すべき点。** トップレベルの `configs` 配列には、設定タイプごとに 1 つのオブジェクト — ブートストラップ、クラスター、リスナー、ルート、シークレット — が含まれています。リスナーやクラスターは存在するが予期しない動作をしている場合にこれを参照し、全体を読むのではなく検索して使用してください。
+**確認すべきポイント。** トップレベルの `configs` 配列には、設定タイプごとに 1 つのオブジェクトが含まれます — bootstrap、clusters、listeners、routes、secrets です。listener や cluster が存在するのに想定外の挙動をする場合にこれを参照してください。読み通すのではなく検索して使うものです。
 
 ## `envoy-hc-config-dump`
 
-ヘルスチェックの設定のみを表示します。
+ヘルスチェック設定に特化した出力です。
 
 ```bash
 execcli envoy-hc-config-dump
@@ -81,4 +85,4 @@ execcli envoy-hc-config-dump
 ```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
 ```
 
-**確認すべき点。** このデプロイメントでは **1 バイト** のみを返します — curl メーターに `100 1` として表示されます — つまり、ヘルスチェックの設定がインストールされていないことを意味します。これはヘルスチェック対象のオリジンプールを持たない CE の想定される状態であり、認識しておく価値があります: ここでの空の結果はクエリの失敗ではありません。
+**確認すべきポイント。** このデプロイメントでは **1 バイト** のみを返します — curl のメーターに `100 1` として表示されます — つまりヘルスチェック設定がインストールされていないことを意味します。これはヘルスチェック対象のオリジンプールを持たない CE として想定される状態であり、認識しておく価値があります: ここでの空の結果はクエリの失敗ではありません。

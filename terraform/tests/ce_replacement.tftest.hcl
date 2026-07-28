@@ -32,9 +32,9 @@ run "site_is_keyed_to_the_ce_vm_instance_id" {
   }
 
   variables {
-    site_name         = "ar-bgp-eastus01"
+    site_name         = "mcn-ce-ha-eastus01"
     hostname          = "f5-xc-ce-vm-01"
-    interface_name    = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    interface_name    = "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     mgmt_nic_mac      = "7c:1e:52:18:c1:77"
     ce_vm_instance_id = "89e6c538-6bc2-4c2c-a37e-d6149c1708ce"
     rs_peer_ips       = ["10.0.4.4", "10.0.4.5"]
@@ -59,7 +59,7 @@ run "site_is_keyed_to_the_ce_vm_instance_id" {
   # not rename it. A renamed site would orphan the bgp object and the LB
   # advertise rule, which both reference it by name.
   assert {
-    condition     = xcsh_securemesh_site_v2.this.name == "ar-bgp-eastus01"
+    condition     = xcsh_securemesh_site_v2.this.name == "mcn-ce-ha-eastus01"
     error_message = "The instance-id coupling must not change the site name."
   }
 }
@@ -74,9 +74,9 @@ run "a_different_instance_yields_a_different_key" {
   }
 
   variables {
-    site_name            = "ar-bgp-eastus01"
+    site_name            = "mcn-ce-ha-eastus01"
     hostname             = "f5-xc-ce-vm-01"
-    interface_name       = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    interface_name       = "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     mgmt_nic_mac         = "7c:1e:52:18:c1:77"
     ce_vm_instance_id    = "81ab781d-36e0-42b0-aa3b-f1ba2c935e24"
     rs_peer_ips          = ["10.0.4.4", "10.0.4.5"]

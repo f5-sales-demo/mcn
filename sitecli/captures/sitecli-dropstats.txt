@@ -2,29 +2,29 @@ Invalid IF                    0
 Trap No IF                    0
 IF TX Discard                 0
 IF Drop                       0
-IF RX Discard                 5
-Invalid ARP                   14
+IF RX Discard                 3
+Invalid ARP                   12
 
 Flow Unusable                 0
 Flow No Memory                0
 Flow Table Full               0
 Flow NAT no rflow             0
-Flow Action Drop              428
+Flow Action Drop              285
 Flow Action Invalid           0
 Flow Invalid Protocol         0
 Flow Queue Limit Exceeded     0
 New Flow Drops                0
-Flow Unusable (Eviction)      4603
+Flow Unusable (Eviction)      198
 Flow Resource Exhaustion      0
 
 Original Packet Trapped       0
 
-Discards                      174
+Discards                      20
 TTL Exceeded                  0
 Mcast Clone Fail              0
-Cloned Original               0
+Cloned Original               56
 
-Invalid NH                    0
+Invalid NH                    2
 Invalid Label                 0
 Invalid Protocol              28
 Rewrite Fail                  0
@@ -33,18 +33,18 @@ Packet Loop                   0
 
 Push Fails                    0
 Pull Fails                    0
-Duplicated                    14
+Duplicated                    5
 Head Alloc Fails              0
 PCOW Fails                    0
-Invalid Packets               37087
+Invalid Packets               625
 
-Misc                          0
+Misc                          83
 Nowhere to go                 0
 Checksum errors               0
 No Fmd                        0
 Invalid VNID                  0
 Fragment errors               0
-Invalid Source                4
+Invalid Source                8
 Jumbo Mcast Pkt with DF Bit   0
 No L2 Route                   0
 Memory Failures               0

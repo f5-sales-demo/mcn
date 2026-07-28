@@ -1,25 +1,29 @@
 ---
 title: Interfaces
 description: >-
-  Estado de las interfaces y de los enlaces del lado Linux en el nodo, junto con
-  el único comando privilegiado que lo modifica. Lo que Linux cree, que el plano
-  de datos puede contradecir.
+  Estado de las interfaces y de los enlaces del lado de Linux en el nodo, además
+  del único comando privilegiado que lo modifica. Lo que Linux cree, que el
+  plano de datos puede contradecir.
 sidebar:
   order: 60
   label: Interfaces
 i18n:
-  sourceHash: 3d2e9fd4cf74
+  sourceHash: c5b78c1a0b8c
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-Estos informan la vista del kernel. El plano de datos Argo mantiene la suya propia, visible mediante
-[`vif`](../dataplane-forwarding/), y ambas pueden discrepar.
+Capturado el 2026-07-28 desde un CE de esta implementación. `sitecli/capture-manifest.json`
+registra qué nodo, y `scripts/capture-sitecli.sh --check` vuelve a verificar la superficie
+de comandos contra un CE en vivo.
+
+Estos informan la visión del kernel. El plano de datos Argo mantiene la suya propia, visible
+a través de [`vif`](../dataplane-forwarding/), y ambas pueden discrepar.
 
 ## `ip`
 
-Acepta un subcomando `ip`. `addr` es el habitual; `route`, `link` y `neigh` también
+Recibe un subcomando `ip`. `addr` es el más habitual; `route`, `link` y `neigh` también
 funcionan.
 
 ```bash
@@ -29,29 +33,30 @@ funcionan.
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-El CE tiene tres NIC de Azure por diseño — gestión/SLO, externa, interna/SLI — pero el
-invitado no las presenta en la forma que ese orden sugiere, y es aquí donde leer mal la
+El CE tiene tres NIC de Azure por diseño —gestión/SLO, externa, interna/SLI—, pero el
+guest no las presenta de la forma que ese orden sugiere, y aquí es donde leer mal la
 salida cuesta tiempo.
 
-| En el invitado | Transporta |
+| En el guest | Transporta |
 | --- | --- |
 | `a-i-eth0` | **ninguna dirección en absoluto** — esta es la eth0 física renombrada, y el plano de datos Argo es su propietario |
-| `vhost0` | la dirección de gestión/SLO, la que emparejan los pares BGP y la que informa el objeto del sitio |
+| `vhost0` | la dirección de gestión/SLO, la que utiliza BGP para el peering y la que informa el objeto de sitio |
 | `eth1` y `eth2` | las direcciones externa e interna/SLI — pero **no en un orden fijo** |
 
 <Aside type="danger" title="Cuál de eth1 y eth2 es la interfaz interna difiere entre nodos">
-Leído en vivo desde los tres CE de esta misma implementación: en `f5-xc-ce-vm-01` y
+Leído en vivo desde los tres CE de esta única implementación: en `f5-xc-ce-vm-01` y
 `f5-xc-ce-vm-03` la dirección interna/SLI está en `eth2`, y en `f5-xc-ce-vm-02` está en
 `eth1`. Nada en la configuración determina esto.
 
-Por lo tanto, nunca deduzca una subred a partir del nombre de una interfaz, y nunca traslade una asignación de un nodo a
-otro. En su lugar, haga la correspondencia por la dirección — la subred a la que pertenece una dirección de CE es estable aunque
-la interfaz que la aloja no lo sea.
+Por tanto, nunca deduzca una subred a partir del nombre de una interfaz, y nunca traslade
+una correspondencia de un nodo a otro. En su lugar, haga la correspondencia por la dirección:
+la subred a la que pertenece una dirección de CE es estable, aunque la interfaz que la
+contiene no lo sea.
 </Aside>
 
-Que `a-i-eth0` no transporte ninguna dirección es también la razón completa por la que no se puede alcanzar `sshd` en la
-dirección de gestión: allí no hay ningún proceso escuchando, no se trata de un puerto bloqueado. Consulte
-[SSH](../../../access/ssh/).
+Que `a-i-eth0` no lleve ninguna dirección es también toda la razón por la que no se puede
+alcanzar `sshd` en la dirección de gestión: allí no hay ningún proceso a la escucha, no es
+un puerto bloqueado. Consulte [SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 
@@ -65,9 +70,10 @@ Solo capa de enlace: estado, MTU, disciplina de encolado, MAC.
 ```
 
 Más rápido que `ip addr` cuando la pregunta es «¿está el enlace activo y cuál es su MTU?».
-Las discordancias de MTU son una causa recurrente de túneles que se establecen pero no pasan tráfico.
+Las discrepancias de MTU son una causa recurrente de túneles que se establecen pero no
+pasan tráfico.
 
-## `ip-link-set` <Badge text="Exec tier — mutating" variant="danger" />
+## `ip-link-set` <Badge text="Nivel Exec — mutante" variant="danger" />
 
 Activa o desactiva una interfaz o un grupo.
 
@@ -77,10 +83,10 @@ ip-link-set (<device>||<group>) (up||down)
 
 <Aside type="danger" title="No se ejecuta aquí, y no es accesible por la vía habitual">
 Este es el único comando de nivel `Exec` en esta compilación. Va al endpoint `exec`
-en lugar de `exec-user`, y modifica el nodo: desactivar `eth0` en un CE remoto
+en lugar de a `exec-user`, y modifica el nodo: desactivar `eth0` en un CE remoto
 elimina la ruta a través de la cual lo está gestionando, incluida la propia API de depuración.
 
 Deliberadamente no hay salida capturada en esta página. El arnés de captura rechaza
 todo el nivel `Exec`, y lee el nivel desde el catálogo en vivo en lugar de una
-lista codificada, de modo que esto seguirá siendo cierto si una compilación futura promueve otros comandos a dicho nivel.
+lista codificada, de modo que esto seguirá siendo cierto si una compilación futura promueve otros comandos a él.
 </Aside>

@@ -1,0 +1,114 @@
+---
+title: Demonstração de rede multi-cloud CE-HA
+description: >-
+  O que este repositório implanta — N Customer Edges de nó único originando um
+  VIP via eBGP em um Azure Route Server para múltiplos caminhos de custo igual,
+  sem nenhum balanceador de carga do Azure à frente deles — o que a demonstração
+  pretende comprovar e para onde ir para implantá-la, comprovar sua integridade
+  e apresentá-la.
+sidebar:
+  order: 5
+  label: Demonstração
+i18n:
+  sourceHash: 4fbc25642229
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Esta implantação demonstra a **alta disponibilidade ativo/ativo do Customer Edge no Azure**
+sem nenhum balanceador de carga do Azure à frente dos CEs. Cada CE origina a mesma rota de host
+por eBGP, e o Azure Route Server instala todas elas como próximos saltos de custo igual na VNet.
+A malha de roteamento, e não um balanceador de carga, é portanto onde a distribuição de tráfego
+e a remoção de nós com falha devem acontecer.
+
+Tudo nestas páginas foi executado contra a implantação ativa, e a saída exibida é a
+saída que ela produziu. O que essa frase *não* cobre — failover e como o tráfego se divide
+entre os próximos saltos — é apontado explicitamente, em vez de ser deixado como suposição.
+
+## O que ela implanta
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| Peça | O que é |
+| --- | --- |
+| Locatário do F5 Distributed Cloud | `var.expected_xc_tenant` — o único lugar em que o locatário é nomeado |
+| Namespaces | Sites CE em `system`; pool de origem e balanceador de carga em `var.xc_app_namespace` |
+| Customer Edges | `var.ce_count` sites Secure Mesh v2 de nó único, de 1 a 3, um por zona de disponibilidade |
+| Software do CE | fixado por `var.ce_sw_version` / `var.ce_os_version` |
+| VMs do Azure | três NICs cada — gerenciamento/SLO, externa, interna/SLI |
+| Troca de rotas | um Azure Route Server, ASN `var.rs_asn`, dois endereços de instância |
+| Peerings | um por CE, nomeado `<key>-bgp`, ASN do CE `var.ce_asn` |
+| VIP anunciado | `var.vip` como um `/32`, originado de forma idêntica por cada CE |
+| Balanceador de carga | atende `var.lb_domain`, apoiado por um pool de origem em `var.origin_ip` |
+| Cliente de teste | uma VM dentro da mesma VNet, para direcionar tráfego ao VIP |
+
+Nada acima é um literal que você deva copiar. Cada valor é legível a partir da implantação,
+e cada página o lê em vez de nomeá-lo:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="O VIP deve ficar fora de todo CIDR de VNet">
+`terraform/main.tf` contém um bloco `check` que verifica se o VIP está fora dos CIDRs do hub
+e do spoke, e recusa o plano caso contrário. A razão declarada é que um VIP dentro de um
+CIDR de VNet perde para a rota de sistema da própria VNet, apesar de a rota BGP ser mais específica.
+
+Trate a proteção como o contrato: se você reapontar esta demonstração para um endereçamento diferente, o
+VIP tem de sair das faixas da VNet junto com ele.
+</Aside>
+
+<Aside type="caution" title="Renomear é uma reconstrução, não uma renomeação">
+Como cada nome deriva de `var.component`, alterá-lo renomeia toda a
+implantação — mas `site_prefix` não é uma mudança cosmética. Ele se torna o `ClusterName`
+no cloud-init de cada CE, `custom_data` é somente-substituição, e o cloud-init roda apenas no
+primeiro boot de um CE. Portanto, alterá-lo **substitui cada VM de CE e seu site XC**, e o VIP
+fica então brevemente com perdas enquanto o ECMP reconverge.
+
+Isso não é teórico: adotar esses nomes derivados na demonstração em execução substituiu três
+VMs de CE, três sites, três objetos BGP, o balanceador de carga, o pool de origem, o Azure
+Route Server, o Bastion e o cliente de teste — `23 to add, 3 to change, 26 to destroy`.
+Fixe `site_prefix` no valor atual quando precisar que os sites existentes permaneçam intactos.
+</Aside>
+
+## Para onde ir em seguida
+
+<CardGrid>
+  <LinkCard
+    title="Implante-a"
+    description="Pré-requisitos, os dois valores que você deve fornecer, por que o primeiro apply é em duas fases e como desfazê-la."
+    href="./deploy/"
+  />
+  <LinkCard
+    title="O Terraform"
+    description="A própria configuração, lida a partir dos arquivos que a implantam em vez de redigitada."
+    href="./terraform/"
+  />
+  <LinkCard
+    title="Comprove sua integridade"
+    description="Quatro verificações em ordem, e os resultados de aparência normal que parecem uma indisponibilidade e não são."
+    href="./verify/"
+  />
+  <LinkCard
+    title="Apresente-a"
+    description="O que esta demonstração consegue mostrar, o que ela ainda não consegue mostrar e o único comando que torna o ECMP visível."
+    href="./present/"
+  />
+</CardGrid>

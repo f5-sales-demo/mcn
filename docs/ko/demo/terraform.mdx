@@ -1,0 +1,184 @@
+---
+title: Terraform 구성
+description: >-
+  이 데모를 배포하는 구성으로, 다시 입력한 것이 아니라 실제로 배포하는 파일에서 읽어온 것입니다 — 루트 모듈과 여섯 개의 하위 모듈,
+  그리고 각 파일이 담당하는 역할에 대한 설명입니다.
+sidebar:
+  order: 20
+  label: Terraform
+i18n:
+  sourceHash: b8380b6bc381
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import { Code } from "@astrojs/starlight/components";
+import backend from "../../_includes/terraform/backend.tf?raw";
+import data from "../../_includes/terraform/data.tf?raw";
+import locals from "../../_includes/terraform/locals.tf?raw";
+import main from "../../_includes/terraform/main.tf?raw";
+import outputs from "../../_includes/terraform/outputs.tf?raw";
+import providers from "../../_includes/terraform/providers.tf?raw";
+import variables from "../../_includes/terraform/variables.tf?raw";
+import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
+import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
+import variablesXc from "../../_includes/terraform/variables_xc.tf?raw";
+import versions from "../../_includes/terraform/versions.tf?raw";
+import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
+import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
+import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
+import modulesAzureHubVersions from "../../_includes/terraform/modules/azure-hub/versions.tf?raw";
+import modulesAzureRouteServerBgpMain from "../../_includes/terraform/modules/azure-route-server-bgp/main.tf?raw";
+import modulesAzureRouteServerBgpVersions from "../../_includes/terraform/modules/azure-route-server-bgp/versions.tf?raw";
+import modulesCeNodeMain from "../../_includes/terraform/modules/ce-node/main.tf?raw";
+import modulesCeNodeOutputs from "../../_includes/terraform/modules/ce-node/outputs.tf?raw";
+import modulesCeNodeVariables from "../../_includes/terraform/modules/ce-node/variables.tf?raw";
+import modulesCeNodeVersions from "../../_includes/terraform/modules/ce-node/versions.tf?raw";
+import modulesCeTopologyMain from "../../_includes/terraform/modules/ce-topology/main.tf?raw";
+import modulesClientVmMain from "../../_includes/terraform/modules/client-vm/main.tf?raw";
+import modulesClientVmVariables from "../../_includes/terraform/modules/client-vm/variables.tf?raw";
+import modulesClientVmVersions from "../../_includes/terraform/modules/client-vm/versions.tf?raw";
+import modulesXcSiteMain from "../../_includes/terraform/modules/xc-site/main.tf?raw";
+import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outputs.tf?raw";
+import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
+import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
+
+아래의 모든 파일은 실제로 배포되는 파일이며, 붙여넣은 것이 아니라 빌드 시점에 가져온 것입니다.
+어긋날 수 있는 복사본은 결국 어긋나기 때문에, 여기에 게시된 내용이 `terraform/`에 있는 내용과
+달라지는 순간 CI의 검사가 실패합니다.
+
+<Aside type="note" title="구성을 인라인으로 표시하지 않고 가져오는 이유">
+코드 펜스에 붙여넣으면 이 구성은 페이지 소스의 일부가 되며, 페이지 소스는 12개 언어로
+번역됩니다. 그 안의 주석도 함께 번역되어, 각 로케일이 서로 다른 잘못된 구성을 게시하게
+됩니다. 가져오는 방식이라면 구성이 페이지 소스에 아예 들어가지 않습니다.
+</Aside>
+
+## 루트 모듈
+
+### `terraform/backend.tf`
+
+Azure 스토리지 백엔드입니다. 해당 구성은 init 시점에 제공되며 커밋되지 않습니다.
+
+<Code code={backend} lang="hcl" title="terraform/backend.tf" />
+
+### `terraform/data.tf`
+
+읽기 전용 조회이며, 배포자를 도출하는 데 사용되는 Azure AD 자격 증명도 포함합니다.
+
+<Code code={data} lang="hcl" title="terraform/data.tf" />
+
+### `terraform/locals.tf`
+
+도출된 객체 이름이 위치하는 곳입니다. Terraform 변수 기본값은 다른 변수를 참조할 수 없으므로, 각 이름 변수는 기본값이 null이며 여기에서 확정됩니다.
+
+<Code code={locals} lang="hcl" title="terraform/locals.tf" />
+
+### `terraform/main.tf`
+
+최상위 연결 구성, 테넌트 가드, 그리고 VNet 외부 VIP 검사입니다. 배포 순서는 이 파일 상단에 문서화되어 있으며, 그것이 정본입니다.
+
+<Code code={main} lang="hcl" title="terraform/main.tf" />
+
+### `terraform/outputs.tf`
+
+문서가 이름을 직접 지정하는 대신 읽어오는 모든 값입니다. 어떤 페이지가 명령을 표시한다면, 그 배후에는 여기의 출력값이 있습니다.
+
+<Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
+
+### `terraform/providers.tf`
+
+xcsh 엔드포인트를 var.expected_xc_tenant에 고정하며, 이로 인해 테넌트가 구성의 속성이 됩니다.
+
+<Code code={providers} lang="hcl" title="terraform/providers.tf" />
+
+### `terraform/variables.tf`
+
+구성 요소, 환경, 배포자, 태그입니다.
+
+<Code code={variables} lang="hcl" title="terraform/variables.tf" />
+
+### `terraform/variables_azure.tf`
+
+구독, 리전, CIDR, Bastion, 그리고 Azure 객체 이름입니다.
+
+<Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
+
+### `terraform/variables_ce.tf`
+
+CE 개수, 사이트 접두사, ASN, 이미지 버전, VM 크기입니다.
+
+<Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
+
+### `terraform/variables_xc.tf`
+
+테넌트, 앱 네임스페이스, 로드 밸런서, 오리진 풀, 그리고 VIP입니다.
+
+<Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
+
+### `terraform/versions.tf`
+
+Terraform 최소 버전과 프로바이더 제약입니다. xcsh 제약은 상한이 없는 최소 버전이며 lock 파일은 gitignore 처리되어 있으므로, 모든 init은 최신 게시 프로바이더를 가져옵니다.
+
+<Code code={versions} lang="hcl" title="terraform/versions.tf" />
+
+## 모듈
+
+### `terraform/modules/azure-hub/`
+
+리소스 그룹, 허브 VNet, 네 개의 서브넷, Azure Route Server, 그리고 선택적 Bastion입니다. RouteServerSubnet은 의도적으로 NSG나 라우팅 테이블을 갖지 않습니다.
+
+<Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
+
+<Code code={modulesAzureHubOutputs} lang="hcl" title="terraform/modules/azure-hub/outputs.tf" />
+
+<Code code={modulesAzureHubVariables} lang="hcl" title="terraform/modules/azure-hub/variables.tf" />
+
+<Code code={modulesAzureHubVersions} lang="hcl" title="terraform/modules/azure-hub/versions.tf" />
+
+### `terraform/modules/azure-route-server-bgp/`
+
+각 eBGP 세션의 Azure 측입니다 — CE마다 하나의 bgpConnection으로, Route Server를 해당 CE의 eth0/SLO 주소와 피어링합니다.
+
+<Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
+
+<Code code={modulesAzureRouteServerBgpVersions} lang="hcl" title="terraform/modules/azure-route-server-bgp/versions.tf" />
+
+### `terraform/modules/ce-node/`
+
+노드당 하나의 CE VM입니다: IP 포워딩이 설정된 세 개의 NIC, 마켓플레이스 plan 블록, 그리고 custom_data로 전달되는 cloud-init입니다.
+
+<Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
+
+<Code code={modulesCeNodeOutputs} lang="hcl" title="terraform/modules/ce-node/outputs.tf" />
+
+<Code code={modulesCeNodeVariables} lang="hcl" title="terraform/modules/ce-node/variables.tf" />
+
+<Code code={modulesCeNodeVersions} lang="hcl" title="terraform/modules/ce-node/versions.tf" />
+
+### `terraform/modules/ce-topology/`
+
+순수 계산만 수행하며 프로바이더도 데이터 소스도 없습니다: ce_count를 모든 for_each를 구동하는 CE별 맵으로 확장합니다. 자격 증명 없이도 임의의 N에서 plan 테스트가 가능합니다.
+
+<Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
+
+### `terraform/modules/client-vm/`
+
+VNet 내부의 테스트 클라이언트로, 유효 경로를 확인하고 VIP로 트래픽을 발생시키는 데 사용됩니다.
+
+<Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
+
+<Code code={modulesClientVmVariables} lang="hcl" title="terraform/modules/client-vm/variables.tf" />
+
+<Code code={modulesClientVmVersions} lang="hcl" title="terraform/modules/client-vm/versions.tf" />
+
+### `terraform/modules/xc-site/`
+
+XC 사이트 객체, 해당 BGP 피어링, 그리고 사이트 이름으로 `r-<uuid>` 등록을 확인하는 등록 승인입니다.
+
+<Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
+
+<Code code={modulesXcSiteOutputs} lang="hcl" title="terraform/modules/xc-site/outputs.tf" />
+
+<Code code={modulesXcSiteVariables} lang="hcl" title="terraform/modules/xc-site/variables.tf" />
+
+<Code code={modulesXcSiteVersions} lang="hcl" title="terraform/modules/xc-site/versions.tf" />

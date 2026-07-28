@@ -1,20 +1,24 @@
 ---
 title: diagnosis
-description: 節點針對自身執行的連線與 DNS 探測，以 JSON 形式回傳。告訴你節點對自身可達性的判斷。
+description: 節點針對自身執行的連線與 DNS 探測，以 JSON 格式回傳。可讓您了解節點對自身可達性的認知。
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: fe68c321f801
+  sourceHash: 6bd26ad47105
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
+擷取自 2026-07-28，來源為此部署的一個 CE。`sitecli/capture-manifest.json`
+記錄了是哪個節點，而 `scripts/capture-sitecli.sh --check` 會針對實際運作中的 CE
+重新驗證指令介面。
+
 ## `diagnosis`
 
 <Aside type="caution" title="GLOBAL 範圍 —— 不同的傳輸方式">
-與 `health` 相同，這是對 `global` 路徑發出的 `GET`，無法透過 `exec-user` 存取。
+與 `health` 一樣，這是對 `global` 路徑的 `GET`，且無法透過 `exec-user` 存取。
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -26,25 +30,26 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-結果會以節點為單位回報，因此在多節點站台上，每個節點都會得到一個區塊。
+結果會依節點分別回報，因此在多節點站點上，每個節點都會得到一個區塊。
 `gateway_connectivity` 與 `dns_connectivity` 各自帶有一份 ping 摘要 —— `dest_ip`、`sent`、
 `received`、`lost` 以及往返時間。
 
-<Aside type="danger" title="在完全健康的節點上，兩個 ping 探測都回報 100% 遺失">
+<Aside type="danger" title="在完全健康的節點上，兩項 ping 探測都回報 100% 遺失">
 在此拓撲中，**兩者** `gateway_connectivity`（對 `10.0.1.1`）與 `dns_connectivity`（對
-`168.63.129.16`）都回報 `sent: 5, received: 0, lost: 100`，然而站台狀態為 `ONLINE`、
-正在轉送流量，且 `registration_status: OK` —— 撰寫本文時再次驗證過。同一份回應中出現兩個
-`lost: 100` 區塊，是本頁面上看起來最令人警覺的事情，但這正是正常狀態。
+`168.63.129.16`）都回報 `sent: 5, received: 0, lost: 100`，而站點卻是 `ONLINE`、
+正在轉送流量，且 `registration_status: OK` —— 撰寫本文時再次驗證過。單一回應中出現兩個
+`lost: 100` 區塊，是本頁面上看起來最令人警覺的事，但它就是正常狀態。
 
-`dns_connectivity` 是兩者中更容易造成誤導的一個，因為 DNS 明顯是可用的：同一份回應的
-`dns_query_result` 包含十次成功的查詢，結果為 `NOERROR`，且正是針對那個解析器。該探測衡量的是
-ICMP 可達性，而 Azure 平台位址並不回應 ICMP；它並未衡量 DNS。
+`dns_connectivity` 是兩者中更容易造成誤解的一項，因為 DNS 明顯是正常運作的：
+同一份回應的 `dns_query_result` 中包含針對該解析器的十次成功查詢，結果為 `NOERROR`。
+此探測衡量的是 ICMP 可達性，而 Azure 平台位址並不回應 ICMP；它並不衡量 DNS。
 
-只有在你已經有其他問題證據，或該欄位發生變化時，才把這兩個欄位視為訊號。
+只有在您已掌握其他問題證據時，或當這些欄位發生變化時，才把它們視為訊號。
 </Aside>
 
-真正值得先閱讀的欄位在回應的其他位置：`registration_status`、
-`curl_response`（節點所需的每個 F5 端點各一筆，每筆為 `OK` 或非 `OK`）、
+值得優先閱讀的欄位位於回應的其他部分：`registration_status`、
+`curl_response`（節點所需的每個 F5 端點各一筆，各為 `OK` 或非 `OK`）、
 `dns_query_result` 以及 `ntp_sync_status`。
 
-`resolv_conf` 顯示節點實際會使用的解析器，值得在花時間使用 [`dig`](../../network/dig/) 之前，先與你預期的結果比對。
+`resolv_conf` 顯示節點實際將使用的解析器，值得在花時間使用 [`dig`](../../network/dig/) 之前，
+先與您預期的內容做比對。
