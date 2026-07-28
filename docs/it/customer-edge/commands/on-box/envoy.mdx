@@ -3,25 +3,30 @@ title: Envoy
 description: >-
   I quattro wrapper attorno all'interfaccia di amministrazione di Envoy su un
   Customer Edge — listener, cluster e due dump di configurazione. Spiega perché
-  ognuno di essi inizia con un indicatore di avanzamento curl, e cosa indica
-  l'output dei listener riguardo al VIP annunciato.
+  ognuno di essi inizia con un indicatore di avanzamento di curl e cosa rivela
+  l'output dei listener sul VIP annunciato.
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 6ca185ca6ece
+  sourceHash: 7b786fa58fb2
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Envoy termina e fa da proxy per il traffico applicativo sul Customer Edge. Questi quattro comandi
-interrogano la sua interfaccia di amministrazione, e nessuno di essi è presente nella
-[debug API](../../../access/debug-api/).
+Acquisito il 28-07-2026 da un CE di questo deployment. Si tratta di comandi eseguiti sul
+dispositivo, quindi passano attraverso la Site CLI anziché dall'API di debug;
+`sitecli/exec-catalog.json` registra la superficie e `sitecli/capture-manifest.json` registra
+quale nodo.
 
-<Aside type="note" title="Ognuno di questi inizia con un indicatore di avanzamento curl">
+Envoy termina e inoltra il traffico applicativo sul Customer Edge. Questi quattro comandi
+interrogano la sua interfaccia di amministrazione e nessuno di essi è disponibile sull'
+[API di debug](../../../access/debug-api/).
+
+<Aside type="note" title="Ognuno di questi inizia con un indicatore di avanzamento di curl">
 Sono wrapper `curl` attorno all'endpoint di amministrazione di Envoy, invocati senza `-s`, quindi le prime
-due o tre righe di ogni acquisizione sottostante sono l'avanzamento del trasferimento di curl scritto su stderr:
+due o tre righe di ogni acquisizione qui sotto sono l'avanzamento del trasferimento di curl scritto su stderr:
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -29,14 +34,14 @@ due o tre righe di ogni acquisizione sottostante sono l'avanzamento del trasferi
   0     0    0     0 …
 ```
 
-Non si tratta di output di Envoy né di un errore. È anche utile: il conteggio dei byte `% Received`
-indica se Envoy ha restituito qualcosa, il che distingue "nessun listener configurato"
-da "l'interfaccia di amministrazione non ha risposto".
+Non è output di Envoy e non è un errore. È anche utile: il conteggio dei byte `% Received`
+indica se Envoy ha restituito qualcosa, il che distingue "nessun listener
+configurato" da "l'interfaccia di amministrazione non ha risposto".
 </Aside>
 
 ## `envoy-listeners`
 
-Ogni listener installato da Envoy, nel formato `nome:indirizzo:porta`.
+Ogni listener installato da Envoy, nel formato `name:address:port`.
 
 ```bash
 execcli envoy-listeners
@@ -46,19 +51,20 @@ execcli envoy-listeners
 ```
 
 **Cosa cercare.** In questo deployment il listener riporta `10.250.0.10:80` — il VIP che il
-CE annuncia tramite BGP. Quella singola riga collega tre livelli insieme: se
-[`show-ip-bgp-summary`](../../network/bgp/) mostra il prefisso annunciato ma questo
-listener è assente, la route viene attratta verso un nodo che non la servirà, il che rappresenta
-la modalità di guasto peggiore in un set ECMP, poiché il traffico viene distribuito verso un buco nero.
+CE annuncia in BGP. Quella singola riga collega tre livelli: se
+[`show-ip-bgp-summary`](../../network/bgp/) mostra il prefisso come annunciato ma questo
+listener è assente, la rotta sta attirando traffico verso un nodo che non lo servirà, ovvero
+la peggiore modalità di guasto in un set ECMP perché il traffico viene ripartito in un buco nero.
 
-Il `[fe80:…]:80` finale è l'indirizzo link-local dell'interfaccia a cui è associato il listener.
+L'indirizzo finale `[fe80:…]:80` è l'indirizzo link-local dell'interfaccia a cui il listener è
+associato.
 
-**Cosa non indica.** Nulla sullo stato upstream — un listener esiste indipendentemente dal fatto
-che qualcosa dietro di esso sia raggiungibile. Utilizzare `envoy-clusters` per questo scopo.
+**Cosa non indica.** Nulla sullo stato di salute degli upstream — un listener esiste
+indipendentemente dal fatto che qualcosa dietro di esso sia raggiungibile. Per questo si usa `envoy-clusters`.
 
 ## `envoy-clusters`
 
-Ogni cluster, con i relativi limiti di connessione e richiesta per priorità.
+Ogni cluster, con i relativi limiti di connessioni e richieste per priorità.
 
 ```bash
 execcli envoy-clusters
@@ -67,14 +73,14 @@ execcli envoy-clusters
 ```text file=../../../../_data/sitecli-envoy-clusters.txt
 ```
 
-**Cosa cercare.** Le righe hanno il formato `cluster::scope::chiave::valore`. La voce `observability_name`
-identifica ogni cluster, e la tripletta `default_priority::max_connections`,
-`max_pending_requests` e `max_requests` è dove compaiono i limiti delle richieste — un cluster
-bloccato al suo `max_pending_requests` viene limitato dalla configurazione piuttosto che dall'upstream.
+**Cosa cercare.** Le righe hanno il formato `cluster::scope::key::value`. La voce `observability_name`
+identifica ogni cluster, e la terna `default_priority::max_connections`,
+`max_pending_requests` e `max_requests` è dove compaiono i limiti sulle richieste — un cluster
+bloccato al suo `max_pending_requests` è limitato dalla configurazione anziché dall'upstream.
 
 ## `envoy-config-dump`
 
-La configurazione completa di Envoy in formato JSON. Di grandi dimensioni: 126 KB su un nodo demo altrimenti inattivo.
+La configurazione completa di Envoy in formato JSON. Voluminosa: 126 KB su un nodo demo altrimenti inattivo.
 
 ```bash
 execcli envoy-config-dump
@@ -84,12 +90,12 @@ execcli envoy-config-dump
 ```
 
 **Cosa cercare.** L'array `configs` di primo livello contiene un oggetto per ogni tipo di configurazione —
-bootstrap, cluster, listener, route, secret. Si ricorre a questo quando un listener o un cluster
-esiste ma si comporta in modo inatteso; è preferibile effettuare ricerche piuttosto che leggerlo integralmente.
+bootstrap, cluster, listener, route, secret. Ricorrete a questo comando quando un listener o un cluster
+esiste ma si comporta in modo inatteso, ed effettuate una ricerca nel contenuto anziché leggerlo integralmente.
 
 ## `envoy-hc-config-dump`
 
-La configurazione degli health check in modo specifico.
+Nello specifico, la configurazione dei controlli di integrità.
 
 ```bash
 execcli envoy-hc-config-dump
@@ -99,6 +105,6 @@ execcli envoy-hc-config-dump
 ```
 
 **Cosa cercare.** In questo deployment restituisce un **singolo byte** — visibile come `100 1`
-nell'indicatore curl — il che significa che non è installata alcuna configurazione di health check. Questo è lo stato
-previsto per un CE senza pool di origine sottoposti a health check, ed è importante riconoscerlo:
-un risultato vuoto qui non indica una query fallita.
+nell'indicatore di curl — il che significa che non è installata alcuna configurazione di controllo dell'integrità. Questo è lo
+stato previsto per un CE senza pool di origine con controlli di integrità, ed è utile riconoscerlo: un risultato
+vuoto in questo caso non è una query fallita.
