@@ -15,13 +15,21 @@ sidebar:
 ```text file=../../../../_data/sitecli-chronyc-sources.txt
 ```
 
-The leading character on each line is the state: `*` is the source currently
-selected, `+` an acceptable alternative, `-` one excluded by the selection algorithm,
-and `?` one that is unreachable. Exactly one `*` is the healthy case.
+The `MS` column is **two** characters, not one. The first is the mode — `^` for a server —
+and the **second** is the state: `*` is the source currently selected, `+` an acceptable
+alternative, `-` one excluded by the selection algorithm, and `?` one that is unreachable.
+So `^*` is the selected server and `^?` is an unreachable one; reading only the first
+character tells you nothing, because it is `^` on every line here.
 
-`Reach` is an octal register of the last eight polls, so `377` means all eight
-succeeded. A value that is not `377` means polls are being lost. `LastRx` shows how
-long ago the source last answered.
+Exactly one `*` is the healthy case, and that holds even when other sources show `?`.
+
+`Reach` is an octal register of the last eight polls, so `377` means all eight succeeded.
+Anything lower means at least one of the last eight did not — but that includes a source that
+has only recently started answering, whose register is still filling. A run taken while
+writing this showed `3` and `37` alongside a `377` on a node that had one source selected
+(`^*`) and whose login banner reported `NTP: Synced`. Read `Reach` together with `LastRx`,
+which shows how long ago the source last answered, rather than treating any value below `377`
+as a fault.
 
 Worth checking early when authentication or TLS is failing for no visible reason: a
 node whose clock has drifted far enough will reject valid certificates and have its

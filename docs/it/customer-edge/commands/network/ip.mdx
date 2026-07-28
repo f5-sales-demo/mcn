@@ -1,26 +1,25 @@
 ---
 title: Interfacce
 description: >-
-  Stato dell'interfaccia e del collegamento lato Linux sul nodo, più l'unico
-  comando privilegiato che lo modifica. Ciò che Linux rileva, che il piano dati
+  Stato delle interfacce e dei link lato Linux sul nodo, più l'unico comando
+  privilegiato che lo modifica. Ciò che Linux ritiene vero, che il data plane
   può contraddire.
 sidebar:
   order: 60
   label: Interfacce
 i18n:
-  sourceHash: 7ad734b3a357
+  sourceHash: 3d2e9fd4cf74
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-Questi riportano la visione del kernel. Il piano dati Argo mantiene la propria,
-visibile tramite [`vif`](../dataplane-forwarding/), e le due possono non concordare.
+Questi comandi riportano la visione del kernel. Il data plane Argo mantiene la propria, visibile tramite
+[`vif`](../dataplane-forwarding/), e le due possono divergere.
 
 ## `ip`
 
-Accetta un sottocomando `ip`. `addr` è quello più comune; `route`, `link` e `neigh`
-funzionano anch'essi.
+Accetta un sottocomando `ip`. `addr` è quello più comune; funzionano anche `route`, `link` e `neigh`.
 
 ```bash
 {"command":["ip","addr"]}
@@ -29,14 +28,33 @@ funzionano anch'essi.
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-Il CE dispone di tre NIC per progetto, e l'ordine è importante: `eth0` è l'interfaccia
-di gestione e SLO che trasporta l'indirizzo BGP locale del sito, con interfacce esterna
-e interna a seguire. Si noti `a-i-eth0` nell'output — il piano dati ha preso il
-controllo dell'interfaccia fisica e presenta la propria.
+Il CE ha tre NIC Azure per progettazione — management/SLO, esterna, interna/SLI — ma il
+guest non le presenta nel modo che quell'ordine suggerirebbe, ed è qui che leggere male
+l'output costa tempo.
+
+| Nel guest | Trasporta |
+| --- | --- |
+| `a-i-eth0` | **nessun indirizzo** — è la eth0 fisica rinominata, ed è il data plane Argo a possederla |
+| `vhost0` | l'indirizzo management/SLO, quello da cui esegue il peering BGP e quello riportato dall'oggetto site |
+| `eth1` e `eth2` | gli indirizzi esterno e interno/SLI — ma **non in un ordine fisso** |
+
+<Aside type="danger" title="Quale tra eth1 ed eth2 sia l'interfaccia interna varia da nodo a nodo">
+Letto in tempo reale dai tre CE di questo singolo deployment: su `f5-xc-ce-vm-01` e
+`f5-xc-ce-vm-03` l'indirizzo interno/SLI è su `eth2`, mentre su `f5-xc-ce-vm-02` è su
+`eth1`. Nulla nella configurazione determina questa scelta.
+
+Quindi non dedurre mai una subnet dal nome di un'interfaccia, e non riportare mai una mappatura da un nodo
+a un altro. Effettua invece la corrispondenza sull'indirizzo — la subnet a cui appartiene un indirizzo CE è stabile anche
+se l'interfaccia che lo ospita non lo è.
+</Aside>
+
+Il fatto che `a-i-eth0` non abbia alcun indirizzo è anche l'intera ragione per cui `sshd` non è raggiungibile sull'indirizzo
+di management: là non c'è alcun listener, non si tratta di una porta bloccata. Vedi
+[SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 
-Solo livello di collegamento: stato, MTU, disciplina di accodamento, MAC.
+Solo livello link: stato, MTU, disciplina di accodamento, MAC.
 
 ```bash
 {"command":["ip-link-show"]}
@@ -45,25 +63,23 @@ Solo livello di collegamento: stato, MTU, disciplina di accodamento, MAC.
 ```text file=../../../../_data/sitecli-ip-link-show.txt
 ```
 
-Più rapido di `ip addr` quando la domanda è "il collegamento è attivo e qual è il suo
-MTU". Le discrepanze di MTU sono una causa ricorrente di tunnel che si stabiliscono ma
-non trasmettono traffico.
+Più rapido di `ip addr` quando la domanda è "il link è attivo e qual è la sua MTU".
+Le discrepanze di MTU sono una causa ricorrente di tunnel che si stabiliscono ma non trasportano traffico.
 
-## `ip-link-set` <Badge text="Livello Exec — mutante" variant="danger" />
+## `ip-link-set` <Badge text="Livello Exec — modifica lo stato" variant="danger" />
 
-Porta un'interfaccia o un gruppo su o giù.
+Porta un'interfaccia o un gruppo in stato up o down.
 
 ```
 ip-link-set (<device>||<group>) (up||down)
 ```
 
 <Aside type="danger" title="Non eseguito qui, e non raggiungibile nel modo consueto">
-Questo è l'unico comando di livello `Exec` in questa build. Va all'endpoint `exec`
-anziché a `exec-user`, e modifica il nodo: portare `eth0` giù su un CE remoto rimuove
-il percorso attraverso cui lo si gestisce, inclusa la stessa API di debug.
+Questo è l'unico comando di livello `Exec` in questa build. Viene inviato all'endpoint `exec`
+anziché a `exec-user`, e modifica il nodo: portare `eth0` in stato down su un CE remoto
+elimina il percorso attraverso cui lo stai gestendo, inclusa l'API di debug stessa.
 
-Deliberatamente non è presente alcun output acquisito in questa pagina. Il sistema di
-acquisizione rifiuta l'intero livello `Exec`, e legge il livello dal catalogo attivo
-anziché da un elenco hardcoded, quindi ciò rimane valido se una build futura promuove
-altri comandi in esso.
+Su questa pagina non è deliberatamente presente alcun output catturato. Il sistema di cattura rifiuta
+l'intero livello `Exec`, e legge il livello dal catalogo live anziché da un
+elenco codificato, così questo resta vero anche se una build futura promuovesse altri comandi a tale livello.
 </Aside>

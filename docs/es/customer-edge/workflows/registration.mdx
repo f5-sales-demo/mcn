@@ -1,77 +1,142 @@
 ---
-title: Un sitio que nunca se conectó
+title: Un site que nunca se conectó
 description: >-
-  Secuencia ordenada para un CE que no pudo registrarse, donde la API de
+  Secuencia ordenada para un CE que no logró registrarse, donde la API de
   depuración no puede ayudar porque depende del registro que falló.
 sidebar:
   order: 10
   label: Registro
 i18n:
-  sourceHash: 4b54a905730d
+  sourceHash: fb8362ea5f14
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
 <Aside type="danger" title="La API no puede depurar esto">
-La API de depuración alcanza el nodo a través del plano de control de F5 Distributed Cloud, por
-el túnel que establece el registro. Si el registro falló, no hay túnel,
-por lo que cada comando en este sitio no está disponible para este fallo exacto. Trabaje desde
-la [consola serie](../../access/serial-console/).
+La API de depuración llega al nodo a través del plano de control de F5 Distributed Cloud, por
+el túnel que establece el registro. Si el registro falló no hay túnel,
+por lo que todos los comandos de este site no están disponibles para este fallo concreto. Trabaje desde
+[Site Console](../../access/site-console/) si el nodo todavía tiene una ruta de red, y desde
+[consola serie](../../access/serial-console/) si no la tiene.
 </Aside>
 
 <Steps>
 
-1. **Confirme lo que el tenant observa.** Ausente de la lista de sitios es un problema
-   diferente de presente pero no `ONLINE`.
+1. **Confirme que está preguntando al tenant correcto.** Esto cuesta un comando y va
+   primero porque equivocarse hace que todos los pasos posteriores le mientan: una flota sana en el tenant
+   que no está mirando es indistinguible de una flota que nunca se registró.
+
+   ```bash
+   cd terraform
+   terraform output -raw xc_tenant       # the tenant this deployment belongs to
+   terraform output -raw xc_env_tenant   # the tenant your shell is exporting
+   ```
+
+   ```text
+   f5-sales-demo
+   f5-sales-demo
+   ```
+
+   ¿No coinciden, o una credencial que cree correcta devuelve un `401` sin más? Ese es el
+   síntoma de un token emitido para otro tenant, y ya le ha costado a este despliegue una
+   reconstrucción completa ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
+
+2. **Confirme lo que piensa el tenant.** Estar ausente de la lista de sites es un
+   problema distinto de estar presente pero no `ONLINE`.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
      "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
    ```
 
-   Si el sitio existe e informa `ONLINE`, el registro fue exitoso y está en el
-   flujo de trabajo incorrecto.
+   Si el site existe e informa `ONLINE`, el registro tuvo éxito y usted está en el
+   flujo de trabajo equivocado.
 
-2. **Verifique si hay un registro pendiente.** Un nodo puede registrarse y luego esperar
-   aprobación, lo que se ve idéntico a un fallo desde el exterior.
+3. **Localice el registro del site y su estado.** Un nodo puede registrarse y luego esperar
+   aprobación, lo que desde fuera parece idéntico a un fallo.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
-     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+     "$XCSH_API_URL/api/register/namespaces/system/registrations_by_site/<site>" \
+     | jq -r '.items[] | "\(.name)  \(.object.status.current_state)  \(.object.spec.gc_spec.infra.hostname)"'
    ```
 
-3. **Confirme que la VM está realmente en ejecución**, antes de asumir un fallo de software.
+   ```text
+   r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
+   ```
+
+   Que no haya ningún elemento significa que el nodo aún no se ha registrado: vaya a la consola serie. Un elemento
+   en un estado distinto de `ONLINE` significa que se registró y que algo posterior falló, lo cual
+   es una investigación diferente.
+
+   Para barrer todo el namespace en busca de cualquier cosa pendiente de aprobación, `listregistrationsbystate`
+   recibe el estado como un **cuerpo `POST`**:
+
+   ```bash
+   curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"namespace":"system","state":"PENDING"}' \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
+   ```
+
+   En una flota sana eso no devuelve nada, porque la aprobación está automatizada.
+
+4. **Confirme que la VM está realmente en ejecución**, antes de suponer un fallo de software.
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
    ```
 
-4. **Conecte la consola serie.** Esto requiere una terminal — no puede ejecutarse como script.
+   ```text
+   Name            Power
+   --------------  ----------
+   ar-ecmp-client  VM running
+   f5-xc-ce-vm-01  VM running
+   f5-xc-ce-vm-02  VM running
+   f5-xc-ce-vm-03  VM running
+   ```
+
+5. **Conéctese a la consola serie.** De forma interactiva esto necesita un terminal real; la conexión
+   en sí puede automatizarse sobre el websocket — consulte
+   [consola serie](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   Si la conexión es rechazada, verifique que los diagnósticos de arranque estén habilitados en la VM antes de concluir que
-   el nodo es inalcanzable; ese prerequisito y sus modos de fallo se tratan en la página de
+   Si se niega, compruebe que el diagnóstico de arranque está habilitado en la VM antes de concluir que el
+   nodo es inalcanzable; ese requisito previo y sus modos de fallo se tratan en la página
    [consola serie](../../access/serial-console/).
 
-5. **Lea lo que muestra la consola, en este orden.** Primero cloud-init — un nodo cuyo
-   cloud-init nunca se completó no tiene configuración con la que registrarse. Luego los
-   intentos de registro en sí mismos, y después el DNS: si el nodo no puede resolver
-   `register.ves.volterra.io`, nada en la cadena posterior puede funcionar.
+6. **Lea lo que muestra la consola, en este orden.** cloud-init primero: un nodo cuyo
+   cloud-init nunca se completó no tiene configuración con la que registrarse. Después los
+   propios intentos de registro, y luego DNS: si el nodo no puede resolver
+   `register.ves.volterra.io`, nada de lo que viene después puede funcionar.
 
-6. **Una vez que el nodo esté `ONLINE`**, verifique con [`health`](../../commands/system/health/)
+7. **Una vez que el nodo esté `ONLINE`**, verifíquelo con [`health`](../../commands/system/health/)
    y espere `state: PROVISIONED`.
 
 </Steps>
 
+<Aside type="caution" title="Un registro se nombra con un UUID, nunca con el nombre de su site">
+Los registros se nombran `r-<uuid>`, y no existe ningún endpoint que acepte un nombre de site donde se
+espera un nombre de registro.
+`GET .../registrations/<site>` devuelve `404`, lo que se lee como «este site no tiene
+registro» y en realidad significa «ese no es un nombre de registro». La correspondencia entre site y registro
+solo se obtiene con `registrations_by_site/<site>`, como en el paso 3, o listando
+`registrations` y emparejando por `gc_spec.passport.cluster_name`.
+
+La misma trampa hizo parecer que una flota sana tenía cero registros.
+</Aside>
+
 ## Las causas habituales
 
+- **Está apuntando al tenant equivocado**, por lo que una flota que está bien parece ausente. Paso 1.
 - cloud-init no se completó, por lo que `/etc/vpm/config.yaml` está ausente o es incorrecto.
-- El token de registro está expirado, ya fue consumido, o pertenece a otro tenant.
+- El token de registro está caducado, ya consumido, o pertenece a otro tenant.
 - No hay ruta de salida hacia `register.ves.volterra.io`.
-- Desfase de reloj suficientemente grande para invalidar certificados — fácil de descartar más tarde con
-  [`chronyc-sources`](../../commands/network/chronyc-sources/), pero no es accesible
-  hasta que el nodo esté en línea.
+- Desfase de reloj lo bastante grande para invalidar certificados: rápido de descartar más adelante con
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), pero inaccesible
+  hasta que el nodo esté en línea. El banner de inicio de sesión de [SSH](../../access/ssh/) informa `NTP: Synced`
+  y el estado del resolver antes de que ejecute nada, cuando SSH está disponible.

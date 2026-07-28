@@ -1,31 +1,39 @@
 ---
 title: 诊断工作流
-description: 当您有特定症状而非具体命令时，请阅读本部分。每个工作流均为有序步骤序列，可逐步缩小原因范围，并链接至相应的命令页面以获取语法说明。
+description: 当你面对的是某个症状而非明确的命令时，请阅读本层内容。每个工作流都是一个有序序列，用于逐步缩小原因范围，并链接到相应的命令页面以查阅语法。
 sidebar:
   order: 30
   label: 工作流
 i18n:
-  sourceHash: 6f0f5a56a919
+  sourceHash: 934e7667dbf3
   translator: machine
 ---
 
-[命令参考](../commands/) 按各命令的功能组织。本部分则按出现的问题组织。
+[命令参考](../commands/) 按每个命令的功能进行组织。而本节内容
+则按出现的问题进行组织。
 
 | 症状 | 工作流 |
 | --- | --- |
-| 站点从未上线，或已从租户中断开 | [注册](./registration/) |
+| 站点从未上线，或从租户中掉线 | [注册](./registration/) |
 | 路由未被通告或学习；VIP 不可达 | [BGP](./bgp-diagnostics/) |
-| 流量到达节点但未能送达 | [数据平面](./dataplane-diagnostics/) |
+| 流量到达了节点但没有真正送达 | [数据平面](./dataplane-diagnostics/) |
 
-每个步骤均链接至记录该命令的页面。此处不重复任何内容，因此语法只有唯一的来源，不会与节点产生不一致。
+每个步骤都链接到记录该命令的页面。这里不重复任何内容，
+因此语法只有唯一的归属位置，不会与节点上的实际情况产生偏离。
 
-## 开始之前
+## 在开始任何工作流之前
 
-确认您当前所使用的访问路径，因为这决定了可执行的操作：
+先确定你所处的访问路径，因为它决定了哪些操作是可行的：
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   "$XCSH_API_URL/api/config/namespaces/system/sites/<site>" | jq -r '.spec.site_state'
 ```
 
-`ONLINE` 表示 [调试 API](../access/debug-api/) 可以响应。任何其他状态均表示需使用[串行控制台](../access/serial-console/)，同时也意味着注册工作流是您需要使用的流程。
+`ONLINE` 表示 [调试 API](../access/debug-api/) 会有响应。其他任何状态都意味着你需要的是
+注册工作流，以及某条不依赖注册的访问路径：当节点仍有网络通路时使用 [站点控制台](../access/site-console/)，
+当没有网络通路时使用 [串行控制台](../access/serial-console/)。
+
+对于**完全查不到**的站点，在断定"它从未注册"之前还需排除另一种解释：
+你查询的租户不对。`cd terraform && terraform output -raw
+xc_tenant` 会给出本次部署所属的租户名称。

@@ -1,24 +1,33 @@
 ---
-title: Tabela de fluxo
+title: Tabela de fluxos
 description: >-
-  Estado por conexão no plano de dados do Argo. Use o formulário de
-  correspondência para encontrar uma conexão; o dump completo é enorme.
+  Estado por conexão no plano de dados do Argo. Use a forma de correspondência
+  para encontrar uma conexão; o dump completo é enorme.
 sidebar:
   order: 40
-  label: Tabela de fluxo
+  label: Tabela de fluxos
 i18n:
-  sourceHash: c654c4d3ca8c
+  sourceHash: 8619021a68e3
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-O Argo rastreia cada conexão. A tabela neste nó possui 629.760 entradas, portanto a forma
-como você a consulta importa mais do que o que ela contém.
+O Argo rastreia cada conexão. A forma como você consulta a tabela importa mais do que o seu conteúdo,
+porque o dump completo é ilimitado em princípio e incômodo na prática.
+
+<Aside type="caution" title="629.760 é a capacidade da tabela, não o número de fluxos">
+A linha de cabeçalho `Flow table(size 161218560, entries 629760)` informa quantos slots o plano
+de dados alocou, e ela é a mesma em todos os nós aqui, independentemente da carga. A contagem
+de fluxos ativos não está nessa linha. `Entries: Created … Added … Deleted …`, algumas linhas
+abaixo, são contadores acumulados de todo o ciclo de vida, e os fluxos realmente preenchidos são
+os registros exibidos após a legenda — 73 deles em uma execução feita durante a redação deste
+texto, em uma resposta de 542 linhas.
+</Aside>
 
 ## `flow-l-match`
 
-Quase sempre o que você precisa. Aceita um endereço, ou um endereço e porta.
+Quase sempre é o que você quer. Aceita um endereço, ou um endereço e uma porta.
 
 ```bash
 {"command":["flow-l-match","100.127.192.10:53"]}
@@ -27,9 +36,9 @@ Quase sempre o que você precisa. Aceita um endereço, ou um endereço e porta.
 ```text file=../../../../_data/sitecli-flow-l-match.txt
 ```
 
-A ação em cada fluxo é o ponto principal: `F` encaminhar, `D` descartar, `N` NAT. Um fluxo presente
-com ação `D` significa que o plano de dados tomou uma decisão deliberada, o que redireciona você
-para a política em vez de para a conectividade.
+A ação em cada fluxo é o ponto central: `F` forward, `D` drop, `N` NAT. Um fluxo presente
+com a ação `D` significa que o plano de dados tomou uma decisão deliberada, o que direciona
+você para a política em vez da conectividade.
 
 ## `flow-l`
 
@@ -42,9 +51,9 @@ O dump completo.
 ```text file=../../../../_data/sitecli-flow-l.txt
 ```
 
-<Aside type="caution" title="Truncado e enorme">
-A captura acima está truncada para as primeiras 60 linhas de 1057, e 1057 era o próprio limite
-da API, não a tabela inteira. Use `flow-l-match` a menos que você realmente precise examinar a
-tabela inteira, e espere que os contadores do cabeçalho — tamanho da tabela e contagem de entradas
-— sejam as únicas partes que valem a pena ler quando você o fizer.
+<Aside type="caution" title="Reduzido, e o tamanho varia">
+A captura acima foi reduzida às suas primeiras 60 linhas de uma resposta de 1.186 linhas. Uma
+execução feita durante a redação deste texto retornou 542 linhas — o comprimento da resposta
+acompanha quantos fluxos estão ativos, portanto nenhum desses números é uma propriedade do
+comando. Use `flow-l-match` a menos que você realmente precise examinar a tabela inteira.
 </Aside>

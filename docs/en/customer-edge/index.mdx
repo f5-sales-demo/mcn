@@ -1,6 +1,6 @@
 ---
 title: Customer Edge diagnostics
-description: Read this tier first when a Customer Edge misbehaves. Establishes which of the two access paths applies, because the wrong one silently returns nothing.
+description: Read this tier first when a Customer Edge misbehaves. Establishes which of the four access paths applies, because the wrong one silently returns nothing.
 sidebar:
   order: 10
   label: Customer Edge
@@ -21,7 +21,7 @@ When a CE misbehaves, the Site CLI is the instrument. The first decision is whic
 access path applies, and getting it wrong wastes time in a way that looks like a
 broken node.
 
-## Two access paths, and they are not interchangeable
+## Four access paths, and they are not interchangeable
 
 <CardGrid>
   <LinkCard
@@ -30,8 +30,18 @@ broken node.
     href="./access/debug-api/"
   />
   <LinkCard
+    title="Site Console"
+    description="F5's own per-node troubleshooting UI, over an Azure Bastion tunnel. No SSH key, no jump host."
+    href="./access/site-console/"
+  />
+  <LinkCard
+    title="SSH"
+    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
+    href="./access/ssh/"
+  />
+  <LinkCard
     title="Serial console"
-    description="For a node that never registered. The only route when the API cannot answer."
+    description="For a node that never registered. The only route when the node has no network path."
     href="./access/serial-console/"
   />
 </CardGrid>
@@ -44,18 +54,25 @@ A node that failed to register — bad cloud-init, an expired token, no route to
 `register.ves.volterra.io` — is exactly the case where you need diagnostics, and
 exactly the case the API cannot serve.
 
-[SSH](./access/ssh/) is the third option, and the only one that reaches the appliance's
-full command surface — the debug API exposes 34 commands and the node itself offers many
-more. Two things constrain it. `sshd` answers on the node's internal (SLI) address only,
-so it needs a host inside the VNet; and the key is written by cloud-init at first boot,
-because the `ssh_key` field on the site object is inert — `vpm` skips the `admin` user and
-never applies it. Enabling it on running nodes therefore replaces them.
+[Site Console](./access/site-console/) is the one to try first when you want F5's own
+troubleshooting UI rather than specific commands. It asks least of you — no key, no jump
+host, no public IP on the node — because who may connect becomes an Azure RBAC decision, and
+it answers whether or not the site has registered. It needs Azure Bastion, which this
+deployment gates behind `enable_bastion` and which is not deployed by default.
 
-So: if the site is `ONLINE` and 34 commands are enough, use the debug API. If you need the
-rest of the surface and can reach the VNet, use SSH. If registration is what is broken,
-serial console is the only way in.
+[SSH](./access/ssh/) is the only route that reaches the appliance's full command surface —
+the debug API exposes 34 commands and the node itself offers many more. Two things constrain
+it. `sshd` answers on the node's internal (SLI) address only, so it needs a host inside the
+VNet; and the key is written by cloud-init at first boot, because the `ssh_key` field on the
+site object is inert — `vpm` skips the `admin` user and never applies it. Enabling it on
+running nodes therefore replaces them.
 
-<Aside type="caution" title="Check the site state first">
+So: if the site is `ONLINE` and 34 commands are enough, use the debug API. For a UI, or for a
+node that never registered but still has a network path, use Site Console. If you need the
+rest of the command surface and can reach the VNet, use SSH. If the node has no working
+network path at all, serial console is the only way in.
+
+<Aside type="caution" title="Check the site state first — and check you are asking the right tenant">
 One request tells you which path you are on:
 
 ```bash
@@ -64,8 +81,13 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` means the debug API will work. Anything else — or a site that does not
-exist — means serial console.
+`ONLINE` means the debug API will work. Anything else means Site Console or serial console.
+
+A site that **does not exist** has a second explanation before "it never registered": you
+are pointed at the wrong tenant. This deployment lives in `f5-sales-demo`
+(`https://f5-sales-demo.console.ves.volterra.io`), pinned by `var.expected_xc_tenant` —
+`cd terraform && terraform output -raw xc_tenant` says so without touching anything. A
+credential minted for another tenant returns a bare `401`, which reads as an expired token.
 </Aside>
 
 ## Safety rules
@@ -80,8 +102,8 @@ These hold for every command on every page below.
   query and takes an interface down. `systemctl-restart-crio` restarts the
   container runtime under a live data plane.
 - **Prefer the narrowest command that answers the question.** `health` and
-  `diagnosis` summarise the node cheaply; `flow-l` dumps a 629,760-entry flow
-  table.
+  `diagnosis` summarise the node cheaply; `flow-l` dumps every live flow, and
+  `flow-l-match` answers the same question about one connection.
 - **A CE serves live traffic.** These are shared demo environments. Assume someone
   is presenting from the site you are debugging.
 

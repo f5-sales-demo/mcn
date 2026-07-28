@@ -2,13 +2,13 @@
 title: Diagnostics Customer Edge
 description: >-
   Consultez ce niveau en premier lorsqu'un Customer Edge dysfonctionne. Il
-  permet de déterminer lequel des deux chemins d'accès s'applique, car le
-  mauvais choix ne renvoie silencieusement rien.
+  détermine lequel des quatre chemins d'accès s'applique, car le mauvais choix
+  ne renvoie silencieusement rien.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: f6d78e1c7066
+  sourceHash: e7a23e4a0f12
   translator: machine
 ---
 
@@ -16,53 +16,72 @@ import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
 Un Customer Edge (CE) est le nœud F5 Distributed Cloud que ce dépôt provisionne dans
-Azure — `terraform/modules/ce-node`, construit à partir de l'image de la place de marché
+Azure — `terraform/modules/ce-node`, construit à partir de l'image de place de marché
 `volterraedgeservices/volterra-node`.
 
 Il exécute le plan de données (Argo), le plan de contrôle (Vega), un proxy Envoy, une pile
 Kubernetes et `vpm`, l'agent qui enregistre le nœud et gère tout le reste sur
 celui-ci.
 
-Lorsqu'un CE dysfonctionne, la CLI du site est l'instrument à utiliser. La première décision
-consiste à déterminer quel chemin d'accès s'applique, et se tromper fait perdre du temps d'une
-manière qui donne l'impression d'un nœud défaillant.
+Lorsqu'un CE dysfonctionne, la Site CLI est l'instrument à utiliser. La première décision
+consiste à déterminer quel chemin d'accès s'applique, et se tromper fait perdre du temps
+d'une manière qui donne l'impression d'un nœud défaillant.
 
-## Deux chemins d'accès, et ils ne sont pas interchangeables
+## Quatre chemins d'accès, et ils ne sont pas interchangeables
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    description="Pour un nœud <code>ONLINE</code>. Scriptable, en lecture seule, et couvre 34 commandes."
     href="./access/debug-api/"
   />
   <LinkCard
-    title="Serial console"
-    description="For a node that never registered. The only route when the API cannot answer."
+    title="Site Console"
+    description="L'interface de dépannage par nœud propre à F5, via un tunnel Azure Bastion. Aucune clé SSH, aucun hôte de rebond."
+    href="./access/site-console/"
+  />
+  <LinkCard
+    title="SSH"
+    description="La Site CLI complète sur la machine. Nécessite une clé présente dès le premier démarrage et un hôte au sein du VNet."
+    href="./access/ssh/"
+  />
+  <LinkCard
+    title="Console série"
+    description="Pour un nœud qui ne s'est jamais enregistré. La seule voie lorsque le nœud n'a aucun chemin réseau."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-L'API de débogage atteint le nœud **par l'intermédiaire du plan de contrôle F5 Distributed Cloud**.
-C'est toute la raison pour laquelle cette distinction est importante : l'API ne peut répondre
-qu'une fois le nœud enregistré et signalé comme `ONLINE`.
+La debug API atteint le nœud **via le plan de contrôle F5 Distributed Cloud**.
+C'est toute la raison pour laquelle cette distinction importe : l'API ne peut répondre
+qu'une fois le nœud enregistré et signalé `ONLINE`.
 
-Un nœud dont l'enregistrement a échoué — cloud-init incorrect, jeton expiré, absence de route vers
-`register.ves.volterra.io` — correspond précisément au cas où vous avez besoin de diagnostics, et
-précisément au cas que l'API ne peut pas traiter.
+Un nœud qui n'a pas réussi à s'enregistrer — cloud-init incorrect, jeton expiré, absence de
+route vers `register.ves.volterra.io` — correspond précisément au cas où vous avez besoin de
+diagnostics, et précisément au cas que l'API ne peut pas traiter.
 
-[SSH](./access/ssh/) est la troisième option, et la seule qui donne accès à l'ensemble de la
-surface de commandes de l'appliance — l'API de débogage expose 34 commandes tandis que le nœud lui-même
-en propose bien davantage. Deux éléments la limitent. `sshd` ne répond que sur l'adresse interne (SLI)
-du nœud, ce qui nécessite donc un hôte à l'intérieur du VNet ; et la clé est écrite par cloud-init au
-premier démarrage, car le champ `ssh_key` de l'objet site est inerte — `vpm` ignore l'utilisateur `admin` et
-ne l'applique jamais. L'activer sur des nœuds en cours d'exécution implique donc de les remplacer.
+[Site Console](./access/site-console/) est l'option à essayer en premier lorsque vous souhaitez
+l'interface de dépannage propre à F5 plutôt que des commandes spécifiques. C'est celle qui exige
+le moins de vous — aucune clé, aucun hôte de rebond, aucune IP publique sur le nœud — car la
+question de savoir qui peut se connecter devient une décision Azure RBAC, et elle répond que le
+site soit enregistré ou non. Elle nécessite Azure Bastion, que ce déploiement conditionne à
+`enable_bastion` et qui n'est pas déployé par défaut.
 
-Ainsi : si le site est `ONLINE` et que 34 commandes suffisent, utilisez l'API de débogage. Si vous avez besoin du
-reste de la surface et que vous pouvez atteindre le VNet, utilisez SSH. Si c'est l'enregistrement qui est défaillant,
-la console série est la seule voie d'accès.
+[SSH](./access/ssh/) est la seule voie qui atteint la totalité de la surface de commandes de
+l'appliance — la debug API expose 34 commandes et le nœud lui-même en offre bien davantage. Deux
+éléments la contraignent. `sshd` ne répond que sur l'adresse interne (SLI) du nœud, il faut donc
+un hôte au sein du VNet ; et la clé est écrite par cloud-init au premier démarrage, car le champ
+`ssh_key` de l'objet site est inerte — `vpm` ignore l'utilisateur `admin` et ne l'applique jamais.
+L'activer sur des nœuds en fonctionnement implique donc de les remplacer.
 
-<Aside type="caution" title="Vérifiez d'abord l'état du site">
-Une seule requête vous indique quel chemin emprunter :
+Donc : si le site est `ONLINE` et que 34 commandes suffisent, utilisez la debug API. Pour une
+interface, ou pour un nœud qui ne s'est jamais enregistré mais qui conserve un chemin réseau,
+utilisez Site Console. Si vous avez besoin du reste de la surface de commandes et que vous pouvez
+atteindre le VNet, utilisez SSH. Si le nœud n'a aucun chemin réseau fonctionnel, la console série
+est la seule entrée possible.
+
+<Aside type="caution" title="Vérifiez d'abord l'état du site — et vérifiez que vous interrogez le bon tenant">
+Une seule requête vous indique sur quel chemin vous vous trouvez :
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -70,44 +89,49 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` signifie que l'API de débogage fonctionnera. Toute autre valeur — ou un site qui n'existe
-pas — signifie console série.
+`ONLINE` signifie que la debug API fonctionnera. Toute autre valeur implique Site Console ou la console série.
+
+Un site qui **n'existe pas** a une seconde explication avant « il ne s'est jamais enregistré » :
+vous pointez vers le mauvais tenant. Ce déploiement réside dans `f5-sales-demo`
+(`https://f5-sales-demo.console.ves.volterra.io`), fixé par `var.expected_xc_tenant` —
+`cd terraform && terraform output -raw xc_tenant` vous le confirme sans rien modifier. Une
+identité générée pour un autre tenant renvoie un simple `401`, ce qui ressemble à un jeton expiré.
 </Aside>
 
 ## Règles de sécurité
 
-Elles s'appliquent à chaque commande de chacune des pages ci-dessous.
+Elles s'appliquent à toutes les commandes de chacune des pages ci-dessous.
 
-- **Lecture seule sauf certitude absolue.** La surface de commandes est répartie en deux
+- **Lecture seule sauf si vous êtes certain.** La surface de commandes est répartie en deux
   niveaux de privilèges, et le niveau `Exec` modifie le nœud ou lit un marqueur
-  d'état. Rien sur ces pages n'exécute une commande `Exec`, pas plus que le
-  harnais de capture.
-- **Ne présumez jamais qu'une commande est sûre d'après son nom.** `ip-link-set` ressemble à une
+  d'état. Rien sur ces pages n'exécute une commande `Exec`, et le harnais de
+  capture n'en exécute pas davantage.
+- **Ne présumez jamais qu'une commande est sûre d'après son nom.** `ip-link-set` se lit comme une
   requête et désactive une interface. `systemctl-restart-crio` redémarre le
   runtime de conteneurs sous un plan de données actif.
-- **Privilégiez la commande la plus restreinte qui répond à la question.** `health` et
-  `diagnosis` résument l'état du nœud à faible coût ; `flow-l` déverse une table de flux de
-  629 760 entrées.
-- **Un CE traite du trafic en production.** Ce sont des environnements de démonstration partagés. Partez du principe que quelqu'un
+- **Préférez la commande la plus restreinte qui réponde à la question.** `health` et
+  `diagnosis` résument le nœud à faible coût ; `flow-l` vide tous les flux actifs, et
+  `flow-l-match` répond à la même question pour une seule connexion.
+- **Un CE sert du trafic réel.** Il s'agit d'environnements de démonstration partagés. Supposez que quelqu'un
   est en train de présenter depuis le site que vous déboguez.
 
 ## Ce qui est documenté ici
 
-Toutes les commandes accessibles via l'API de débogage sur la version logicielle exécutée par ce tenant,
-chacune avec une sortie capturée depuis un nœud réel plutôt que transcrite d'ailleurs.
+Toutes les commandes accessibles via la debug API sur la version logicielle utilisée par ce tenant,
+chacune accompagnée d'une sortie capturée sur un nœud réel plutôt que transcrite d'ailleurs.
 
 La [référence des commandes](./commands/) les répertorie toutes avec leur catégorie, leur niveau
-de privilège et leur transport ; les [workflows](./workflows/) les enchaînent dans les séquences que vous
-utilisez réellement lorsqu'un problème survient.
+de privilèges et leur transport ; les [workflows](./workflows/) les enchaînent dans les séquences
+que vous utilisez réellement lorsque quelque chose ne va pas.
 
-Les parties de la CLI du site accessibles uniquement sur la machine — `configure`, `configure-network`,
-`factory-reset`, `upgrade` et une soixantaine d'autres commandes `ExecCLI` — ne sont pas
+Les parties de la Site CLI accessibles uniquement sur la machine — `configure`, `configure-network`,
+`factory-reset`, `upgrade` et environ soixante autres commandes `ExecCLI` — ne sont pas
 couvertes, car leur sortie n'a pas été capturée depuis un nœud réel comme l'a été celle de chaque
 page ci-dessous.
 
 Elles ne sont toutefois plus hors de portée. `scripts/sitecli_ssh_harvest.py` pilote le
-menu de complétion de l'appliance via [SSH](./access/ssh/) et enregistre la description que l'appliance
-fournit pour chaque commande, de sorte que la surface puisse être mesurée plutôt que devinée.
-Son exécution est refusée par défaut — il énumère tout et n'exécute qu'une liste d'autorisation —
-car une syntaxe de commande non vérifiée, et des *effets* de commande non vérifiés, constituent le défaut que cette
-documentation existe pour éviter de reproduire.
+menu de complétion de l'appliance via [SSH](./access/ssh/) et enregistre la description que
+l'appliance fournit pour chaque commande, de sorte que la surface peut être mesurée plutôt que
+devinée. Son exécution est refusée par défaut — elle énumère tout et n'exécute qu'une liste
+d'autorisation — car une syntaxe de commande non vérifiée, et des *effets* de commande non vérifiés,
+constituent le défaut que cette documentation existe pour éviter de reproduire.

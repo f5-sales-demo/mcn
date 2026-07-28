@@ -1,21 +1,21 @@
 ---
-title: Debug API
-description: 如何透過 HTTP 在線上節點上執行 Site CLI 命令，包含決定命令所需三種傳輸方式的層級對應端點規則，以及列出這些端點的探索呼叫。
+title: 除錯 API
+description: 如何透過 HTTP 在 ONLINE 節點上執行 Site CLI 命令，包含決定命令需要三種傳輸方式中哪一種的層級對端點規則，以及列出這些命令的探索呼叫。
 sidebar:
   order: 20
-  label: Debug API
+  label: 除錯 API
 i18n:
-  sourceHash: 36ee4d6fe690
+  sourceHash: ee7f5b2d1442
   translator: machine
 ---
 
 import { Aside, Steps, Badge } from "@astrojs/starlight/components";
 
-`vpm/debug` API 可在已註冊的節點上執行 Site CLI 命令並回傳其輸出結果。以下所有內容均依據實際運行的節點所建立，並未在上游公開發布。
+`vpm/debug` API 會在已註冊的節點上執行 Site CLI 命令並回傳其輸出。以下所有內容都是針對實際運作的節點驗證所得；這些內容皆未由上游發布。
 
-## 命令目錄具有自我描述能力
+## 命令目錄具備自我描述能力
 
-透過向 `exec-user` 發送 POST 請求並**省略** `command` 鍵，即可查詢節點所支援的命令：
+在 POST 至 `exec-user` 時**省略** `command` 鍵，即可詢問節點支援哪些命令：
 
 ```bash
 curl -sS -X POST \
@@ -26,7 +26,7 @@ curl -sS -X POST \
   | jq -r .output | jq .
 ```
 
-回應為一個以命令名稱為鍵的 JSON 物件：
+回應是以命令名稱為鍵的 JSON 物件：
 
 ```json
 {
@@ -36,21 +36,21 @@ curl -sS -X POST \
 }
 ```
 
-每個項目的格式為 `[category, tier, exampleArgument?, scope?]`，這些欄位並非說明文件，而是決定命令呼叫方式的依據。
+每一筆項目的格式為 `[category, tier, exampleArgument?, scope?]`，而這些欄位並非文件說明——它們決定了命令必須以何種方式呼叫。
 
-<Aside type="caution" title="省略該鍵；請勿傳送錯誤的值">
-探索功能的運作方式是省略 `command` 鍵。若改為傳送未知的值，回傳的是錯誤訊息，而非命令目錄：
+<Aside type="caution" title="請省略該鍵；不要傳送錯誤的值">
+探索功能的運作方式是將 `command` 完全省略。若改為傳送未知的值，回傳的會是錯誤，而不是目錄：
 
 ```json
 {"code":3,"details":[],"message":"exec command failed: command not supported"}
 ```
 
-這個錯誤訊息也會在將*正確的*命令傳送至錯誤端點時出現，因此容易被誤判為「此命令不存在」。
+當一個*真實存在*的命令被送到錯誤的端點時，也會得到相同的訊息，因此很容易被誤讀為「此命令不存在」。
 </Aside>
 
-## 三種傳輸方式，依目錄項目決定
+## 三種傳輸方式，由目錄項目決定
 
-| 條件 | 方法與路徑 | 請求主體 | 回傳值 |
+| 條件 | 方法與路徑 | 主體 | 回傳 |
 | --- | --- | --- | --- |
 | `scope` 為 `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | 無 | JSON |
 | `tier` 為 `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | `command` 陣列 | 文字 |
@@ -58,7 +58,7 @@ curl -sS -X POST \
 
 ### `ExecUser` — 唯讀層級 <Badge text="31 個命令" variant="note" />
 
-最常見的情況。將命令及其參數以陣列形式傳入，命令名稱置於首位：
+最常見的情況。將命令及其引數以陣列形式傳遞，命令名稱放在第一個位置：
 
 ```bash
 curl -sS -X POST \
@@ -72,15 +72,15 @@ curl -sS -X POST \
 { "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
 ```
 
-參數應作為獨立的陣列元素傳入，而非合併為單一字串：
+引數必須是獨立的陣列元素，而不是單一字串：
 
 ```json
 { "command": ["journalctl", "-u", "vpm", "-n", "200"] }
 ```
 
-### `GLOBAL` — 站台範圍，且採用完全不同的傳輸方式 <Badge text="2 個命令" variant="tip" />
+### `GLOBAL` — 站點範圍，且傳輸方式完全不同 <Badge text="2 個命令" variant="tip" />
 
-僅有 `health` 與 `diagnosis` 兩個命令屬於此類。它們以 `GET` 請求發送至 `global` 路徑，不需要任何參數，並回傳結構化 JSON 而非終端機文字。
+只有 `health` 與 `diagnosis` 這兩個。它們是對 `global` 路徑發出的 `GET` 請求，不接受任何引數，並回傳結構化 JSON 而非終端機文字。
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -88,7 +88,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```
 
 <Aside type="danger" title="GLOBAL 命令無法透過 exec-user 存取">
-這是最耗費時間的陷阱。將 `health` 或 `diagnosis` 傳送至 `exec-user` 會回傳 `command not supported`，看起來像是節點上不存在該命令，但實際上命令存在，只是使用了錯誤的傳輸方式。
+這是最耗費時間的陷阱。將 `health` 或 `diagnosis` 送至 `exec-user` 會回傳 `command not supported`，看起來就像該命令在節點上不存在——但事實上它確實存在，只是你用錯了傳輸方式。
 
 ```bash
 # 錯誤。回傳：exec command failed: command not supported
@@ -100,19 +100,19 @@ GET .../vpm/debug/global/health
 
 </Aside>
 
-### `Exec` — 特權層級 <Badge text="此版本僅 1 個命令" variant="danger" />
+### `Exec` — 特權層級 <Badge text="此組建上有 1 個命令" variant="danger" />
 
-使用獨立的端點，且層級的強制執行並非建議性質：`exec` 端點會以相同的 `command not supported` 訊息拒絕 `ExecUser` 命令。此層級的每個成員不是修改節點狀態，就是讀取狀態標記。
+這是獨立的端點，而且層級屬於強制執行而非建議性質：`exec` 會以相同的 `command not supported` 訊息拒絕 `ExecUser` 命令。此層級的每個成員都會變更節點狀態或讀取狀態標記。
 
-在此租用戶執行的版本中，該層級僅包含 `ip-link-set`。較新的版本還會加入 `systemctl-restart-NetworkManager`、`systemctl-restart-crio`、`systemctl-restart-kubelet`、`systemctl-start-crio-prune` 以及三個 `marker-exists-*` 命令。
+在此租戶所執行的組建上，該層級僅包含 `ip-link-set`。較新的組建則加入了 `systemctl-restart-NetworkManager`、`systemctl-restart-crio`、`systemctl-restart-kubelet`、`systemctl-start-crio-prune` 以及三個 `marker-exists-*` 命令。
 
-<Aside type="danger" title="此處不執行任何 Exec 命令">
-擷取工具拒絕此層級，並從實際的目錄讀取層級資訊，而非使用硬編碼的清單——因此若未來版本將某個命令提升至 `Exec`，系統會自動遵從，無需任何人修改程式碼。請僅在有意為之的情況下，於可承受中斷的節點上執行此類命令。
+<Aside type="danger" title="本文件不會執行任何 Exec 命令">
+擷取工具會拒絕此層級，並且是從即時目錄而非硬編碼清單讀取層級資訊——因此若未來的組建將某個命令提升至 `Exec`，也會被自動遵守，無須任何人修改程式碼。只有在你刻意為之、且願意讓該節點受到干擾時，才執行這類命令。
 </Aside>
 
-## 尋找站台與節點名稱
+## 尋找站點與節點名稱
 
-節點名稱即為 Azure VM 名稱，`list-service` 是確認名稱及其上執行服務的便捷方式：
+節點名稱即 Azure VM 名稱，而 `list-service` 是一種成本低廉的方式，可同時確認節點名稱與其上執行的服務：
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -120,23 +120,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '[.service[].node] | unique'
 ```
 
-## 重現此儲存庫的擷取結果
+```json
+["", "f5-xc-ce-vm-01"]
+```
 
-每個命令頁面都嵌入了由 `scripts/capture-sitecli.sh` 擷取的輸出，該腳本實作了上述三項規則。
+某些服務回報的節點名稱為空，因此該清單中的空字串是回應本身的產物，而不是第二個節點。`list-service` 也不在 34 個命令的目錄之中：它是目錄未公告的 `global` 端點，這也是為什麼它記錄在此處，而不在[命令參考](../../commands/)中。
+
+## 重現本儲存庫的擷取結果
+
+每個命令頁面都嵌入了由 `scripts/capture-sitecli.sh` 擷取的輸出，該腳本實作了上述全部三項規則。
 
 <Steps>
 
-1. 將其指向某個租用戶。它會讀取 `XCSH_API_URL` 與 `XCSH_API_TOKEN`，或退回使用目前啟用的 `xcsh` 上下文。
+1. 將其指向某個租戶。它會讀取 `XCSH_API_URL` 與 `XCSH_API_TOKEN`，否則退回使用目前啟用的 `xcsh` 環境。
 
-2. 重新整理目錄，並確認節點未在說明文件建立後發生變更：
+2. 重新整理目錄，並確認節點未在文件之下發生變更：
 
    ```bash
    bash scripts/capture-sitecli.sh --check
    ```
 
-   此操作僅比對已提交的目錄與軟體版本，會將版本變更與命令新增或移除分開回報。
+   這只會比對已提交的目錄與軟體組建。它會將組建變更與新增或移除的命令分別回報。
 
-3. 需要新的擷取資料時，重新執行擷取：
+3. 當你需要最新證據時重新擷取：
 
    ```bash
    bash scripts/capture-sitecli.sh
@@ -144,16 +150,16 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 </Steps>
 
-<Aside type="note" title="擷取結果是佐證資料，而非可重現的產出物">
-計數器、運行時間與容器存活時間會在每次執行之間變動，因此重新擷取必然會產生差異。命令目錄是穩定的合約，在節點未發生變更的情況下，每次執行的結果會完全一致；這正是 `--check` 所比較的內容。較長的輸出會被截斷，並以明確的標記結尾，因此截斷後的表格不會被誤認為完整內容。
+<Aside type="note" title="擷取結果是證據，而非可重現的產物">
+計數器、運行時間與容器存續時間會在每次執行之間變動，因此重新擷取必然會產生差異。目錄才是穩定的契約，在節點未變更時，各次執行之間會逐位元組相同；這正是 `--check` 所比對的內容。過長的輸出會被裁剪並以明確的標記結尾，因此被截斷的表格絕不會被呈現為完整內容。
 </Aside>
 
-<Aside type="danger" title="從客戶節點擷取：請檢查脫敏設定檔">
-命令輸出包含基礎架構識別資訊——內部位址、MAC 位址、AS 編號、主機名稱——對於客戶而言，這些都是關於其組織的識別資訊。
+<Aside type="danger" title="從客戶節點擷取時：請檢查遮蔽設定檔">
+命令輸出會攜帶基礎架構身分資訊——內部尋址、MAC 位址、AS 編號、主機名稱——而對客戶而言，這些都是可識別該組織的資訊。
 
-因此，脫敏過濾器預設採用**嚴格**設定檔，將上述資訊全部移除。此儲存庫在 `sitecli/capture-manifest.json` 中宣告為 `lab`，可保留這些細節，但這僅適用於此儲存庫，因為這些擷取結果來自 F5 自有的示範基礎架構。
+因此清理過濾器預設採用**嚴格（strict）**設定檔，將這些資訊全部移除。本儲存庫在 `sitecli/capture-manifest.json` 中宣告為 `lab`，會保留這些細節，而這僅在此處成立，因為這些擷取結果來自 F5 自有的示範基礎架構。
 
-**請勿將此設定套用至客戶的擷取作業。**在兩種設定檔下，金鑰、私密金鑰、租用戶識別碼、物件 UUID、電子郵件地址及家目錄路徑均會被移除。
+**請勿將該設定套用至客戶的擷取作業。** 在兩種設定檔之下，權杖、私密金鑰、租戶識別碼、物件 UUID、電子郵件位址與家目錄路徑都會被移除。
 
-有一個限制值得注意：BGP 鄰居表以裸露欄位顯示 AS 編號，欄位本身沒有可供模式比對的標籤，因此 ASN 是透過數值與私有範圍進行比對。**公開** ASN 在嚴格模式下仍可能存留，發布前需人工審查 `show-ip-bgp*` 的輸出內容。
+有一項限制值得注意：BGP 鄰居表會將 AS 以未加標籤的裸欄位形式輸出，沒有可供比對模式定位的標籤，因此 ASN 是依數值比對私有範圍。位於該處的**公有** ASN 在嚴格模式下仍會保留，發布前需要人工檢閱 `show-ip-bgp*` 的輸出。
 </Aside>

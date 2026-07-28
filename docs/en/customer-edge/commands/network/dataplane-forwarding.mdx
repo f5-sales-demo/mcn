@@ -47,10 +47,22 @@ The next-hop table. Every route points at a next-hop id, and this resolves them.
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-Each entry carries a `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — and the VRF it
-belongs to. A route resolving to a `Drop` next hop is a blackhole, and that
-combination is worth checking whenever a prefix is present in `rt` yet traffic still
-disappears.
+Each entry carries a `Type` and the VRF it belongs to. Eight types occur on these nodes, in
+these proportions — identical across all three CEs when counted:
+
+```text
+Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
+```
+
+A route resolving to a `Drop` next hop is a blackhole, and that combination is worth checking
+whenever a prefix is present in `rt` yet traffic still disappears.
+
+<Aside type="caution" title="The capture above is trimmed, so it does not contain every type">
+It is the first 60 lines of 3,849. `Tunnel`, the most common type by a wide margin, does not
+appear in those 60 at all — so do not read the capture as the full type inventory, and do not
+conclude a type is absent from a node because it is absent from a trimmed capture. The counts
+above came from the untrimmed response.
+</Aside>
 
 ## `vif`
 

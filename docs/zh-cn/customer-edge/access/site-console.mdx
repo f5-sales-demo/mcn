@@ -1,46 +1,54 @@
 ---
 title: 站点控制台
 description: >-
-  F5 的每节点站点控制台，服务于 TCP 65500 端口，通过 Azure Bastion 隧道访问。无需 SSH 密钥、跳板机和公共 IP——访问权限由
-  Azure RBAC 决定，即使站点注册失败也能响应。涵盖精确的命令及其实际输出、证书警告原因、隧道必须针对 VM 资源 ID
-  的原因，以及管理员凭据的处理方式。
+  F5 的每节点站点控制台，通过 TCP 65500 提供服务，并借助 Azure Bastion 隧道访问。无需 SSH 密钥、跳板机或公网 IP ——
+  访问权限完全由 Azure RBAC 决定，即使站点注册失败它也依然响应。本文涵盖确切的命令及其真实输出、你会遇到的证书警告、为什么隧道必须指向 VM 资源
+  ID，以及应如何处理管理员凭据。
 sidebar:
   order: 22
   label: 站点控制台
 i18n:
-  sourceHash: cc5c36fb3f65
+  sourceHash: e514eb8fdcfe
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-每个 Customer Edge 均在 `https://<sli-ip>:65500` 上提供 F5 的站点控制台服务。在本部署中，这通常是首选的访问方式。
+每个 Customer Edge 都在 `https://<sli-ip>:65500` 上提供 F5 的站点控制台。在本部署中，它通常是首选尝试的途径。
 
-它对您的要求最少：无需分发 SSH 密钥、无需维护跳板机、节点上无需公共 IP，也无需替换 VM 即可启用。允许连接的人员成为 **Azure RBAC 决策**。而且它不需要站点完成注册——以下记录是在所有三个站点均报告 `site_state: FAILED` 时采集的。
+它对你的要求最少：无需分发 SSH 密钥、无需维护跳板机、节点上无需公网 IP，也无需替换 VM 来启用它。谁可以连接变成了一个 **Azure RBAC 决策**。而且它不要求站点已注册：本页最初是在三个站点均报告 `site_state: FAILED` 时采集的，并在同一批节点变为 `ONLINE` 后重新验证，结果没有变化。
 
-需要注意的是，站点控制台仅在节点的内部（SLI）地址上响应，只能从 VNet 内部访问。Azure Bastion 在不向网络添加任何其他内容的情况下弥补了这一缺口。
+需要注意的是，站点控制台只在节点的内部（SLI）地址上响应，而该地址只能从 VNet 内部访问。Azure Bastion 弥补了这一缺口，同时不会在网络上放置任何其他东西。
 
-<Aside type="note" title="此处验证的内容及未验证的内容">
-本页面上的每条命令和每段输出均在本部署的 `f5-xc-ce-vm-01` 上运行，并逐字复现，包括失败的情况。
+<Aside type="note" title="此处已验证的内容与未验证的内容">
+本页中的每条命令和每段输出都是针对本部署中的 `f5-xc-ce-vm-01` 运行的，并逐字复现，包括失败情形。
 
-唯一未进行的操作是**登录**。步骤在凭据提示处停止，因此以下内容不描述进入控制台后的界面。
+**身份验证已验证**：设备的 `admin` 凭据通过隧道返回 `200`。但*未*涉及的是控制台本身 —— 下文没有任何内容描述你进入之后能看到或能做什么。
+
+**Azure RBAC 未经验证。** 每次运行都是以订阅所有者身份进行的，因此第 2 步中的 Reader 要求是 Microsoft 的文档要求，而非此处实测所得。
+</Aside>
+
+<Aside type="caution" title="Bastion 需要显式启用，默认不部署">
+`enable_bastion` 默认为 `false`，因此在默认的 `terraform apply` 下不存在 Bastion 主机，且 `terraform output -raw bastion_name` 为 `null`。请在 `terraform/terraform.tfvars` 中设置 `enable_bastion = true` —— 在本部署中它为 `true`。
+
+它需要显式启用的原因是成本，而非风险：Standard SKU 主机从预配的那一刻起就按小时计收固定费用，无论是否有人打开隧道 —— 在 `eastus` 区域，包含的两个扩展单元为每小时 0.29 美元（零售价，2026-07），约每月 212 美元。当演示不需要控制台访问时，请将其关闭。
 </Aside>
 
 ## 开始之前
 
 <Steps>
 
-1. 登录 Azure 并添加 Bastion 扩展。隧道功能是原生客户端特性，默认情况下不安装该扩展。
+1. 登录 Azure 并添加 Bastion 扩展。隧道功能是原生客户端特性，该扩展默认未安装。
 
    ```bash
    az login
    az extension add --name bastion
    ```
 
-2. 在 CE 虚拟机、其网络接口以及 Bastion 主机上持有 **Reader** 权限。
+2. 需要在 CE 虚拟机、其网络接口以及 Bastion 主机上持有 **Reader** 角色。这是 Microsoft 的文档要求，且**此处未经验证** —— 本部署中的每次运行都是以订阅所有者身份进行的，因此没有证据表明更低权限的角色是否足够。
 
-3. 确认 Bastion 已部署且具备相应能力。Basic SKU 不支持隧道或基于 IP 的连接，因此此处的 `Standard` 和 `True` 均至关重要。
+3. 确认 Bastion 已部署且具备所需能力。Basic SKU 既不支持隧道也不支持基于 IP 的连接，因此此处的 `Standard` 和 `True` 都至关重要。
 
    ```bash
    az network bastion list -g rg-mcn-ce-ha-rmordasiewicz \
@@ -57,11 +65,11 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
 ## 打开隧道
 
-从 `terraform output` 获取这些值，而不是手动输入——资源 ID 不应手动拼接。
+请从 `terraform output` 中获取取值，而不要手动输入 —— 资源 ID 不是可以手工拼装的东西。
 
 <Steps>
 
-1. 读取 Bastion 主机名、资源组以及目标 CE 的 VM 资源 ID。
+1. 读取 Bastion 主机名称、资源组以及目标 CE 的 VM 资源 ID。
 
    ```bash
    cd terraform
@@ -76,8 +84,8 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
    /subscriptions/…/providers/Microsoft.Compute/virtualMachines/f5-xc-ce-vm-01
    ```
 
-   <Aside type="caution" title="映射以站点为键，而非 VM 名称">
-   `ce_vm_ids` 的键为 `eastus01`、`eastus02`、`eastus03`——**不是** VM 名称。使用 `jq -r '."f5-xc-ce-vm-01"'` 之类的过滤器会返回 `null`，隧道随后会因资源 ID 为空而失败。如不确定，可列出所有键：
+   <Aside type="caution" title="该映射以站点为键，而非以 VM 名称为键">
+   `ce_vm_ids` 的键是 `eastus01`、`eastus02`、`eastus03` —— **而不是** VM 名称。类似 `jq -r '."f5-xc-ce-vm-01"'` 的过滤器会返回 `null`，随后隧道会因资源 ID 为空而失败。如不确定，请列出它们：
 
    ```bash
    terraform output -json ce_vm_ids | jq -r 'keys | join(", ")'
@@ -86,9 +94,10 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
    ```text
    eastus01, eastus02, eastus03
    ```
+
    </Aside>
 
-2. 启动隧道。它会保持端口开放直到停止，因此请将其置于后台或使用第二个终端。
+2. 启动隧道。它会一直保持端口打开直到被停止，因此请将其放到后台运行或使用第二个终端。
 
    ```bash
    az network bastion tunnel \
@@ -105,9 +114,9 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
    WARNING: Ctrl + C to close
    ```
 
-   所有三行均以 `WARNING:` 为前缀。这是 Azure CLI 将进度写入 stderr，并非问题。在连接之前，请等待出现 `Tunnel is ready`。
+   这三行都以 `WARNING:` 为前缀。那是 Azure CLI 将进度写入 stderr，并不是问题。请等到出现 `Tunnel is ready` 后再连接。
 
-3. 确认监听器位于本地回环地址：
+3. 确认监听器位于本地环回地址上：
 
    ```bash
    lsof -nP -iTCP:65500 -sTCP:LISTEN
@@ -118,20 +127,20 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
    Python  41648  you   7u  IPv4  …            0t0   TCP  127.0.0.1:65500 (LISTEN)
    ```
 
-4. 打开控制台。隧道使其本地化，因此地址为 `localhost`——而非节点地址。
+4. 打开控制台。隧道使其成为本地服务，因此地址是 `localhost` —— 而不是节点的地址。
 
    ```bash
    open https://localhost:65500/          # macOS
    xdg-open https://localhost:65500/      # Linux
    ```
 
-5. 完成后停止隧道——按 `Ctrl-C`，或若已置于后台则执行 `kill %1`。保持其开放会占用本地端口 65500 和 Bastion 会话。
+5. 完成后停止隧道 —— 使用 `Ctrl-C`，若放到了后台则使用 `kill %1`。保持其打开会占用本地端口 65500 和该 Bastion 会话。
 
 </Steps>
 
-## 您将看到的内容
+## 你将会看到什么
 
-**凭据对话框，而非登录页面。** 控制台使用 HTTP Basic 认证，因此浏览器会弹出其自身的用户名和密码提示。没有表单可以查看：
+**一个凭据对话框，而不是登录页面。** 控制台使用 HTTP Basic 身份验证，因此浏览器会弹出它自己的用户名和密码提示。没有表单可看：
 
 ```bash
 curl -skI https://localhost:65500/
@@ -140,12 +149,24 @@ curl -skI https://localhost:65500/
 ```text
 HTTP/1.1 401 Unauthorized
 WWW-Authenticate: Basic realm="Volterra Site Console"
+Content-Type: text/html; charset=utf-8
 Content-Length: 0
 ```
 
-带有该 realm 的 `401` 表示控制台正常工作。这正是未经身份验证的请求应得到的响应。
+带有该 realm 的 `401` 说明控制台正常工作。这正是未经身份验证的请求应当得到的结果 —— 而向同一 URL 提供 `admin` 凭据会返回 `200`，这就是在打开浏览器之前确认凭据的方式：
 
-**证书警告，同时存在三个原因。** 直接检查证书：
+```bash
+curl -sk -u admin -o /dev/null -w '%{http_code}\n' https://localhost:65500/
+```
+
+```text
+Enter host password for user 'admin':
+200
+```
+
+`-u admin` 后不带冒号会让 `curl` 提示输入密码，而不是从命令行获取 —— 否则密码会留在 shell 历史记录和进程列表中。
+
+**一个证书警告，同时有三个原因。** 直接检查证书：
 
 ```bash
 openssl s_client -connect localhost:65500 -servername localhost </dev/null 2>/dev/null \
@@ -159,72 +180,79 @@ notBefore=Oct 25 04:51:31 2024 GMT
 notAfter=Oct 25 04:51:31 2025 GMT
 ```
 
-主体与颁发者相同，因此这是自签名证书。证书名称为 `site-local.volterra.io`，而您连接的是 `localhost`，因此不匹配。在本部署运行的版本上，**证书已于 2025 年 10 月 25 日过期**——设备自带该证书，本仓库中没有任何内容会续期。
+subject 与 issuer 相同，因此它是自签名的。名称是 `site-local.volterra.io`，而你连接的是 `localhost`，因此不会匹配。而且在本部署所运行的构建版本上，**该证书已于 2025 年 10 月 25 日过期** —— 它随设备一起提供，本仓库中也没有任何内容会续订它。
 
-预期会出现明显的浏览器警告，且每次都会出现。上述主体行是有用的部分：它用于确认您连接的是设备，而不是其他监听在本地端口 65500 上的内容。
+请预期浏览器会给出直白的警告，并且每次都会出现。上面的 subject 行才是有用的部分：它是你确认自己确实连到了该设备、而不是连到某个占用本地 65500 端口的其他服务的方式。
 
 ## 管理员凭据
 
-以 `admin` 身份登录。**本文档不公布密码，也不应公布。**
+以 `admin` 身份登录。**本文档不公布该密码，也不应公布。**
 
-出厂时的 Customer Edge 附带 F5 公布的默认密码，F5 要求对其进行更改。将更改密码视为部署节点的一部分，而非后续加固措施。这在此处比看起来更为重要，原因有二：
+<Aside type="danger" title="在本部署中，该密码仍然是 F5 的出厂默认值">
+这是实测事实，而非猜测：出厂默认凭据今天在所有三台 CE 上都能通过身份验证并返回 `200`。F5 公布了该默认值并要求必须更改它，但它并未被更改。
 
-- 本文档是公开的。打印出整个机群当前的控制台密码，将使"持有 Bastion 的 Reader 权限"等同于任何阅读该页面的人都能获得完整的设备访问权限。
-- 文档中公布的密码在某人轮换后立即失效，且失效方式最具误导性——读者会认为是自己的访问权限出了问题，而非文档已过时。
-
-请从您的团队存储运维机密的地方获取密码。如果答案是"仍为出厂默认值"，请在执行任何其他操作之前先更改它。
-
-<Aside type="caution" title="通过 Terraform 设置密码未经验证">
-站点对象上的 `admin_user_credentials.admin_password` 看起来像是声明式设置方式。但尚**未确认**其在本版本上能够作用于站点控制台，因此请勿假定它能生效。
-
-也不要将 [SSH 页面](../ssh/) 作为任何方向的依据。其关于 `admin_password`"未改变任何内容"的结论是针对 SSH 认证进行测量的，而 `vpm` 对 `admin` 用户完全跳过 SSH 认证。这与控制台无关。
+实际后果是，在本部署中，"在 Bastion 上持有 Reader" 等同于完整的设备控制台访问权限，任何知道 F5 公开文档中那个值的人都可以做到。请更改它，并把更改它视为部署节点的一部分，而不是事后的加固工作。
 </Aside>
 
-## 为何隧道必须针对资源 ID
+不公布它在此处比看起来更重要，有两个原因：
 
-`--target-resource-id` 是必需的。改为针对节点地址会被拒绝：
+- 本文档是公开的。印出机群当前的控制台密码，会使"在 Bastion 上持有 Reader"对任何阅读本页的人来说变成完整的设备访问权限。
+- 文档中公布的密码在有人轮换它的那一刻就是错的，而且是以最具误导性的方式出错 —— 读者会以为自己的访问权限出了问题，而不是这个页面过时了。
+
+一旦密码被轮换，请从你团队保存运维机密的地方获取它。
+
+<Aside type="caution" title="通过 Terraform 设置密码未经验证">
+站点对象上的 `admin_user_credentials.admin_password` 看起来是声明式设置它的方式。但**尚未**确认它在此构建版本上会作用于站点控制台，因此不要假定它有效。
+
+也不要把 [SSH 页面](../ssh/) 当作任何一方的证据。该页关于 `admin_password`"没有产生任何变化"的结论是针对 SSH 身份验证测得的，而 `vpm` 对 `admin` 用户完全跳过了 SSH 身份验证。这与控制台无关。
+</Aside>
+
+## 为什么隧道必须指向资源 ID
+
+`--target-resource-id` 是必需的。改为指向节点地址会被拒绝 —— 无论你使用哪个地址，因此这里刻意没有打印任何真实地址：
 
 ```bash
 az network bastion tunnel --name "$BASTION" -g "$RG" \
-  --target-ip-address 10.0.3.5 --resource-port 65500 --port 65501
+  --target-ip-address <any-sli-address> --resource-port 65500 --port 65501
 ```
 
 ```text
 ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.
 ```
 
-原因**并非**禁用了基于 IP 的连接——在本 Bastion 上，`ip_connect_enabled` 为 `true`。无论该设置如何，Microsoft 均不支持通过基于 IP 的原生客户端连接使用自定义端口（[Azure 文档](https://learn.microsoft.com/azure/bastion/connect-ip-address)），而 65500 是自定义端口。检查此处的 Bastion 配置无济于事；请使用资源 ID。
+原因**不是**基于 IP 的连接被禁用 —— 在本 Bastion 上 `ip_connect_enabled` 为 `true`。无论该设置如何，Microsoft 都不支持在基于 IP 的原生客户端连接上使用自定义端口（[Azure 文档](https://learn.microsoft.com/azure/bastion/connect-ip-address)），而 65500 就是自定义端口。在此检查 Bastion 配置毫无意义；请使用资源 ID。
 
-## 当其不起作用时
+## 当它不工作时
 
-| 症状 | 原因 | 解决方法 |
+| 症状 | 原因 | 解决办法 |
 | --- | --- | --- |
-| `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | 使用了 `--target-ip-address` | 改用 `--target-resource-id` |
-| `ERROR: Defined port is currently unavailable` | 另一个隧道已占用该本地端口 | 停止另一个隧道，或传入不同的 `--port`；`--resource-port` 保持 65500 |
+| `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | 使用了 `--target-ip-address` | 使用 `--target-resource-id` |
+| `ERROR: Defined port is currently unavailable` | 另一个隧道已占用该本地端口 | 停止另一个隧道，或传入不同的 `--port`；`--resource-port` 保持为 65500 |
+| `terraform output -raw bastion_name` 为 `null` 或为空 | Bastion 未部署 | 设置 `enable_bastion = true` 并 apply |
 | 隧道启动但资源 ID 为空 | `jq` 过滤器使用了 VM 名称而非站点键 | 使用 `eastus01`/`02`/`03` 作为键 |
-| `401 Unauthorized`，realm 为 `Volterra Site Console` | 这不是故障——未经身份验证的请求 | 提供 `admin` 凭据 |
-| 浏览器拒绝证书 | 自签名、名称不匹配，且自 2025 年 10 月起已过期 | 预期行为；确认主体为 `CN=site-local.volterra.io` 后继续 |
+| `401 Unauthorized`，realm 为 `Volterra Site Console` | 不是故障 —— 未经身份验证的请求 | 提供 `admin` 凭据 |
+| 浏览器拒绝该证书 | 自签名、名称不匹配，且自 2025 年 10 月起已过期 | 属预期；确认 subject 为 `CN=site-local.volterra.io` 后继续 |
 
-<Aside type="note" title="未复现授权失败的情况">
-RBAC 权限不足是导致此问题的另一个明显原因，但复现它意味着需要从共享部署中移除角色分配，因此此处未附带逐字错误进行记录。如果隧道在启动时因授权错误而失败，请检查 VM、其 NIC 以及 Bastion 主机上的三项 Reader 权限。
+<Aside type="note" title="授权失败未被复现">
+RBAC 权限不足是另一种明显的失败方式，但复现它意味着要从共享部署中移除角色分配，因此此处没有记录逐字的错误信息。如果隧道在启动时因授权错误而失败，请检查 VM、其 NIC 以及 Bastion 主机三者上的 Reader 角色。
 </Aside>
 
-## 其他访问方式
+## 其他访问途径
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="脚本化且可重复执行，无需 VNet 访问。共 34 条命令，且站点必须处于 <code>ONLINE</code> 状态。"
+    description="可脚本化且可重复，无需 VNet 访问。34 条命令，且站点必须为 <code>ONLINE</code>。"
     href="../debug-api/"
   />
   <LinkCard
     title="SSH"
-    description="完整的节点内 Site CLI。需要在首次启动时存在密钥，以及 VNet 内部的主机。"
+    description="完整的机上 Site CLI。需要首次启动时即已存在的密钥，以及一台 VNet 内部的主机。"
     href="../ssh/"
   />
   <LinkCard
     title="串行控制台"
-    description="适用于完全没有可用网络路径的节点。每个 VM 一个会话，粘贴上限为 2,048 个字符。"
+    description="适用于完全没有可用网络路径的节点。每个 VM 一个会话，粘贴上限 2,048 个字符。"
     href="../serial-console/"
   />
 </CardGrid>
