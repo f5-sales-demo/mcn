@@ -1,0 +1,67 @@
+---
+title: vpm 및 클러스터 상태
+description: >-
+  노드를 등록하고 플랫폼 컨테이너를 실행하는 vpm 에이전트와 CE 클러스터가 유지하는 etcd 멤버 상태. vpm이 권한 있는 Docker
+  컨테이너로 실행되며 etcd가 세 개가 아닌 하나의 멤버를 보고한다는 검증된 세부 정보를 포함합니다.
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm`은 Customer Edge를 테넌트에 등록하고 플랫폼 컨테이너를 관리하는 에이전트입니다.
+노드가 온라인 상태가 되지 않을 경우, 그 상태를 먼저 확인해야 합니다.
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**확인할 사항.**
+
+- `Active: active (running) since …` 및 경과 시간. 몇 시간 동안 가동 중인 노드에서 몇 분 전에 `vpm`이 재시작되었다면 이는 신호입니다 — 등록 실패는 테넌트에 나타나기 훨씬 전에 재시작 루프로 나타납니다.
+- **`Main PID`가 `docker`입니다.** `vpm`은 네이티브 프로세스가 아닌 권한 있는 Docker 컨테이너로 실행되며, `--net=host --privileged` 옵션과 `/`, `/dev`, `/etc`를 포함한 긴 호스트 바인드 마운트 목록과 함께 시작됩니다. 따라서 `vpm`은 [`docker-ps`](../../system/docker/)에는 나타나지만 [`crictl-ps`](../../system/crictl/)에는 절대 나타나지 않습니다 — 이것이 CE에서 `docker-ps`에 항목이 세 개인 것이 증상이 아니라 정상인 이유이기도 합니다.
+- 마지막 저널 라인. `statusreporter.go: Status reporter loop has finished without
+  error, sleeping for 5m…`은 정상적인 안정 상태입니다: `vpm`은 대략 5분 주기로 보고합니다. `module.go: Running intra-cluster, type: node`는 독립 실행이 아닌 클러스터에 합류했음을 확인합니다.
+
+**알 수 없는 사항.** 테넌트가 등록을 *수락*했는지 여부는 알 수 없습니다.
+완전히 정상적인 `vpm`도 이를 거부하는 컨트롤 플레인에 대해 무한 루프를 반복할 수 있습니다 — 그 이유는 저널 라인에서 확인하십시오.
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="중단을 유발하며 여기에 기록되지 않음">
+`vpm`을 재시작하면 노드의 테넌트 연결이 해제되고 재설정됩니다. 이는 수집 하네스의 거부 목록에 있으므로 카탈로그 메타데이터로만 문서화되며 실행되지 않습니다. 지시가 있을 때만 사용하십시오.
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+이 노드의 etcd 파드에서 쿼리된, CE의 Kubernetes 컨트롤 플레인을 지원하는 etcd 클러스터입니다.
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**확인할 사항.** `IS LEADER`, `RAFT TERM`, 그리고 `RAFT INDEX`와
+`RAFT APPLIED INDEX`가 일치하는지 여부. 두 값 사이의 지속적인 차이는 멤버가 로그보다 늦게 적용되고 있음을 의미합니다. `ERRORS`가 비어 있는 것이 정상적인 상태입니다.
+
+<Aside type="caution" title="3노드 배포에서 멤버가 하나인 경우">
+이 배포는 세 개의 CE 노드로 실행되지만, 명령은 **단일** 멤버 —
+`https://etcd-0.etcd:2379`, `IS LEADER: true` — 를 보고합니다. 이것이 명령이 반환한 결과이며, 세 개의 CE 노드는 3멤버 etcd를 의미하고 한 행짜리 테이블은 두 멤버가 누락되었음을 의미한다는 자연스러운 가정이 있으므로 명확히 언급할 필요가 있습니다.
+
+**확인되지 않은 것은** 그 이유입니다: 각 노드가 자체적인 단일 멤버 etcd를 실행하는지, 아니면 `--cluster` 쿼리가 항상 로컬 파드에만 도달하는지 여부. 두 경우 모두 이 출력과 일치합니다. 다른 두 노드를 확인하지 않고 한 행짜리 테이블을 클러스터 성능 저하의 증거로 읽지 마십시오.
+</Aside>

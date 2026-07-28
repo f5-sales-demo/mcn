@@ -2,12 +2,12 @@
 title: docker
 description: >-
   Die Docker-Laufzeitumgebung, die die CE-Plattformdienste ausführt. Fünf
-  Befehle und der Ort, an dem vpm selbst zu finden ist.
+  Befehle und der richtige Ort, um vpm selbst zu suchen.
 sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
@@ -25,11 +25,11 @@ Docker führt die Plattformdienste aus. Kubernetes-Workloads befinden sich unter
 ```text file=../../../../_data/sitecli-docker-ps.txt
 ```
 
-<Aside type="tip" title="Drei Container ist die vollständige Liste, kein defekter Knoten">
-`vpm`, `argo_watch` und `site-console`. Da der Großteil des Knotens unter CRI-O läuft,
-sieht ein kurzes `docker-ps` wie ein Fehler aus, wenn Kubernetes-Workloads erwartet werden.
+<Aside type="tip" title="Drei Container sind die vollständige Liste, kein defekter Knoten">
+`vpm`, `argo_watch` und `site-console`. Da der Großteil des Knotens unter CRI-O läuft, wirkt
+ein kurzes `docker-ps` wie ein Fehler, wenn man hier Kubernetes-Workloads erwartet.
 Das ist es nicht — dies ist die vollständige Menge der Docker-Container auf einem gesunden CE, und
-das Vorhandensein von `vpm` mit dem Status `Up` ist die wichtigste Zeile auf der Seite.
+die Anwesenheit von `vpm` mit dem Status `Up` ist die wichtigste Zeile auf dieser Seite.
 </Aside>
 
 ## `docker-ps-a`
@@ -41,7 +41,7 @@ das Vorhandensein von `vpm` mit dem Status `Up` ist die wichtigste Zeile auf der
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-Enthält beendete Container, sodass ein `vpm`, das immer wieder abstürzt, hier Spuren hinterlässt.
+Schließt beendete Container ein, sodass ein `vpm`, das wiederholt abstürzt, hier Spuren hinterlässt.
 
 ## `docker-images`
 
@@ -52,8 +52,8 @@ Enthält beendete Container, sodass ein `vpm`, das immer wieder abstürzt, hier 
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-Die Image-Tags identifizieren die Plattformversion, die der Knoten tatsächlich ausführt.
-Dies lohnt sich mit dem Software-Build zu vergleichen, der von [`health`](../health/) gemeldet wird.
+Die Image-Tags geben die Plattformversion an, die der Knoten tatsächlich ausführt. Dies ist
+es wert, mit dem von [`health`](../health/) gemeldeten Software-Build verglichen zu werden.
 
 ## `docker-inspect`
 
@@ -65,7 +65,7 @@ Dies lohnt sich mit dem Software-Build zu vergleichen, der von [`health`](../hea
 ```
 
 Akzeptiert sowohl einen Namen als auch eine ID, sodass `docker-inspect vpm` funktioniert und über
-Neustarts hinweg stabil ist. Vollständiges JSON: Mounts, Umgebungsvariablen, Neustart-Richtlinie und der Beendigungsstatus.
+Neustarts hinweg stabil ist. Vollständiges JSON: Einhängepunkte, Umgebung, Neustart-Richtlinie und der Exit-Status.
 
 ## `docker-logs`
 
@@ -77,5 +77,27 @@ Neustarts hinweg stabil ist. Vollständiges JSON: Mounts, Umgebungsvariablen, Ne
 ```
 
 `docker-logs vpm` ist der schnellste Weg zu Registrierungsfehlern. Für dieselben
-Informationen mit Zeitstempeln und über Neustarts hinweg verwenden Sie stattdessen
-[`journalctl`](../journalctl/).
+Informationen mit Zeitstempeln und über Neustarts hinweg kann stattdessen
+[`journalctl`](../journalctl/) verwendet werden.
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+Entfernt alle ungenutzten Docker-Objekte — gestoppte Container, ungenutzte Netzwerke, verwaiste Images und
+den Build-Cache.
+
+**Nur von der Appliance aus.** `docker-prune` ist nicht in der Debug-API verfügbar; es erfordert
+[`execcli`](../../on-box/).
+
+<Aside type="danger" title="Destruktiv und hier nicht erfasst">
+Dieser Befehl löscht Zustand. Er steht auf der Ablehnungsliste des Harvest-Harness und wurde nie ausgeführt, daher
+dokumentiert diese Seite ihn anhand der eigenen Katalog-Metadaten der Appliance, ohne Ausgabe zu zeigen.
+
+Der CE-spezifische Hinweis: Dieser Knoten betreibt **zwei** Container-Laufzeitumgebungen. `docker-prune` betrifft
+ausschließlich die Docker-Seite — `vpm`, `argo_watch` und `site-console` — und kann die
+Kubernetes-Workloads unter [CRI-O](../crictl/) nicht erreichen. Die Rückgewinnung von Speicherplatz auf der CRI-O-Seite erfordert
+einen anderen Befehl, `systemctl-start-crio-prune`, der in diesem Build nicht vorhanden ist.
+</Aside>

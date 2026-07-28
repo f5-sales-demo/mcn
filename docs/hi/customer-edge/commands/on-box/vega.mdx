@@ -1,0 +1,93 @@
+---
+title: Vega कंट्रोल प्लेन
+description: >-
+  छह vegactl कमांड जो Customer Edge कंट्रोल प्लेन का अन्वेषण करते हैं —
+  कॉन्फ़िगरेशन ऑब्जेक्ट, इंट्रोस्पेक्शन टेबल, ट्रेस बफर, और कौन सा नोड प्राथमिक
+  भूमिका रखता है। केवल बॉक्स से पहुँचा जा सकता है, कभी भी debug API के माध्यम से
+  नहीं।
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega, Customer Edge कंट्रोल प्लेन है। `vegactl` इसका F5 का क्लाइंट है, और इन छह कमांड में से कोई भी [debug API](../../../access/debug-api/) पर नहीं है — ये केवल बॉक्स पर मौजूद हैं, [`execcli`](../) के माध्यम से पहुँचे जाते हैं।
+
+इस पृष्ठ को तब पढ़ें जब डेटा प्लेन गलत दिखे लेकिन इंटरफेस और रूट सही दिखें। Argo वही फ़ॉरवर्ड करता है जो Vega ने प्रोग्राम किया है; यदि दोनों असहमत हों, तो उत्तर यहाँ है।
+
+## `vegactl-introspect-show-election`
+
+CE क्लस्टर में कौन सा नोड वर्तमान में प्राथमिक भूमिका रखता है। इस पृष्ठ पर सबसे उपयोगी और सबसे सस्ती कमांड।
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**क्या देखें।** तीन-नोड CE में से ठीक एक नोड `role: Master` रिपोर्ट करता है; अन्य एक फ़ॉलोअर भूमिका रिपोर्ट करते हैं। दो मास्टर, या कोई नहीं, का अर्थ है कि क्लस्टर कन्वर्ज नहीं हुआ है, और कंट्रोल प्लेन से आप जो कुछ भी पढ़ते हैं उस पर तब तक भरोसा नहीं किया जा सकता जब तक ऐसा न हो।
+
+**यह क्या नहीं बताता।** क्या निर्वाचित प्राथमिक *स्वस्थ* है — केवल यह कि चुनाव हल हो गया।
+
+## `vegactl-configuration-list`
+
+कंट्रोल प्लेन द्वारा रखे गए कॉन्फ़िगरेशन ऑब्जेक्ट की सूची बनाता है। बिना आर्गुमेंट के इनवोक करने पर यह अपना उपयोग प्रिंट करता है, जो इस बिल्ड के ज्ञात ऑब्जेक्ट प्रकारों की खोज करने का व्यावहारिक तरीका है।
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**क्या देखें।** `Usage` और `Examples` ब्लॉक पूरी तरह से qualified ऑब्जेक्ट प्रकारों का नाम देते हैं — `ves.io.<service>.<object>.Object`। ये नाम वे आर्गुमेंट हैं जिनकी अन्य इंट्रोस्पेक्शन कमांड अपेक्षा करती हैं, इसलिए यह आउटपुट वह स्थान है जहाँ किसी अपरिचित ऑब्जेक्ट प्रकार को क्वेरी करने से पहले हल किया जाता है।
+
+## `vegactl-introspect-list-tracebuffers`
+
+हर ट्रेस बफर जिसे कंट्रोल प्लेन बनाए रखता है, उसके आकार और वर्तमान अधिभोग के साथ।
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**क्या देखें।** बफर नाम `vegactl-introspect-show-tracebuffer` का आर्गुमेंट हैं। यह एक डायरेक्टरी है, निदान नहीं — इसका मूल्य यह बताना है कि क्या निरीक्षण किया जा सकता है।
+
+## `vegactl-introspect-show-tracebuffer`
+
+एक नामित ट्रेस बफर की सामग्री।
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="एक आर्गुमेंट आवश्यक है, और यहाँ कोई आउटपुट कैप्चर नहीं किया गया">
+बिना आर्गुमेंट के चलाने पर यह `not sufficient args` रिपोर्ट करता है। कौन सा बफर पढ़ने योग्य है यह पूरी तरह इस बात पर निर्भर करता है कि आप क्या खोज रहे हैं, इसलिए प्रकाशित करने के लिए कोई प्रतिनिधि कैप्चर नहीं है — ऊपर `vegactl-introspect-list-tracebuffers` से एक नाम लें।
+</Aside>
+
+## `vegactl-introspect-get`
+
+प्रकार और कुंजी द्वारा कंट्रोल प्लेन से एक एकल ऑब्जेक्ट प्राप्त करता है।
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+एक संपूर्ण इंट्रोस्पेक्शन टेबल डंप करता है।
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="दोनों आर्गुमेंट लेते हैं जो आप जो डीबग कर रहे हैं उसके लिए विशिष्ट हैं">
+इस पृष्ठ पर न तो कैप्चर किया गया आउटपुट है। दोनों को `vegactl-configuration-list` या `vegactl-introspect-list-tracebuffers` से लिए गए ऑब्जेक्ट प्रकार या टेबल नाम की आवश्यकता है, और एक मनमानी टेबल का डंप एक बड़ी फ़ाइल होगी जो कुछ भी नहीं दर्शाती। उनका अस्तित्व और उनका आर्गुमेंट आकार सत्यापित किया गया है; उनका आउटपुट पुनः उत्पादित नहीं किया गया है।
+</Aside>

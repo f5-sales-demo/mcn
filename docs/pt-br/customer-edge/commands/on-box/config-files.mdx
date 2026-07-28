@@ -1,0 +1,86 @@
+---
+title: Arquivos de configuração
+description: >-
+  Os quatro comandos edit-* que abrem arquivos pertencentes à F5 em um Customer
+  Edge — ambiente de aplicação, hardware certificado, credenciais de cliente
+  Azure e regras de nomenclatura de NIC. Todos direcionados ao suporte, todos
+  documentados sem serem executados.
+sidebar:
+  order: 60
+  label: Arquivos de config
+i18n:
+  sourceHash: d018a3245c8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Quatro comandos abrem um editor em um arquivo pertencente à F5. Eles não estão na
+[API de debug](../../../access/debug-api/), e dois deles indicam isso em sua própria descrição:
+*"por favor, não utilize a menos que o suporte F5 XC tenha solicitado"*.
+
+<Aside type="danger" title="Nenhuma saída capturada nesta página, deliberadamente">
+Cada um desses comandos abre um editor interativo em um arquivo de configuração ativo. Não há
+forma somente leitura, portanto não há saída a capturar que não seja também uma oportunidade de escrita, e
+o sistema de coleta recusa os quatro. O que é verificado é que eles existem e qual arquivo
+cada um abre — ambos pelo menu de autocompletar do próprio appliance.
+</Aside>
+
+## `edit-app-env-file`
+
+Abre `/etc/vpm/app_env.yaml`, o ambiente de aplicação local do nó.
+
+```bash
+execcli edit-app-env-file
+```
+
+A descrição do appliance termina com *"por favor, não utilize a menos que o suporte F5 XC tenha solicitado"*.
+Leve isso ao pé da letra: este arquivo é lido pelo `vpm` na inicialização, e um valor malformado afeta
+todos os contêineres de plataforma no nó.
+
+## `edit-certified-hardware`
+
+Abre a configuração de hardware certificado.
+
+```bash
+execcli edit-certified-hardware
+```
+
+Também marcado como exclusivo ao suporte pelo appliance. Esta é a configuração que decide se
+o `vpm` acredita estar rodando em hardware certificado pela F5 — e um erro aqui não é
+teórico. Sem um `CertifiedHardwareEndpoint` válido, o `vpmd` encerra com *"fail to match
+certified hardware"* e o nó nunca se registra. É por isso que o cloud-init deste repositório
+define o endpoint explicitamente em vez de depender de um valor padrão; veja
+`terraform/cloud-init/ce-node.yaml`.
+
+## `edit-azure-client-id-secret`
+
+Atualiza o client id e o secret Azure que este CE utiliza, para quando a credencial expirou.
+
+```bash
+execcli edit-azure-client-id-secret
+```
+
+**Quando este é o recurso adequado.** Um CE que estava funcionando e passou a apresentar falhas nas operações
+Azure, sem nenhuma alteração de configuração para explicar, é o caso para o qual este comando existe — a credencial
+expirou por tempo, não houve nenhuma quebra.
+
+## `edit-udev-10-nic-name`
+
+Abre `/etc/udev/rules.d/10-nic-names.rules`, que define como os NICs são nomeados.
+
+```bash
+execcli edit-udev-10-nic-name
+```
+
+**Leia as páginas de interface antes de modificar isso.** A nomenclatura de NIC em um CE já é surpreendente:
+`eth0` é renomeado para `a-i-eth0` e não carrega endereço de host, o endereço SLO reside em `vhost0`,
+e qual das interfaces `eth1`/`eth2` possui o endereço interno não é consistente entre os três
+nós neste deployment. Veja [`ip`](../../network/ip/). Uma regra udev que assume uma organização
+mais ordenada vai piorar as coisas.
+
+<Aside type="note" title="Mais dois comandos edit-* são passthrough, não estes">
+`edit-etc-hosts` e `edit-sysctl-conf` abrem arquivos Linux comuns e estão listados como
+passthrough no [índice local](../) — a própria documentação do sistema operacional os cobre,
+e não há nada específico ao CE a acrescentar.
+</Aside>

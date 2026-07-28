@@ -1,0 +1,90 @@
+---
+title: Packet capture
+description: The five vifdump commands that capture packets on a Customer Edge's virtual interfaces. Documented from verified catalog metadata and never run here, because they write capture files onto the node — including an account of what happened when one was invoked as a harmless-looking probe.
+sidebar:
+  order: 30
+  label: Packet capture
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vifdump` captures packets on the Argo data plane's virtual interfaces. Five commands, all
+F5's, none on the [debug API](../../../access/debug-api/).
+
+<Aside type="danger" title="These write to the node, and none of them are run on this page">
+`vifdump` and `vifdump-d` start a capture that writes `.pcap` files into `/tmp` inside the
+Argo container. On a CE with a 31 GiB disk, a capture left running is a disk-space problem
+with a timer on it.
+
+Every command here is documented from the appliance's own catalog metadata and its
+completion-menu description. **No captured output appears on this page**, and the harvest
+harness refuses to execute any of them.
+</Aside>
+
+## Why this page has no output, specifically
+
+Argument arity on the Site CLI is discoverable by running a command with no arguments — it
+answers `not sufficient args for command <name>`. That is safe for a read-only command.
+Applied to `vifdump` during this documentation work, it returned **no error at all**, on a
+node that was still registering. Whether a capture started is unknown, because the node was
+destroyed and rebuilt before it could be checked.
+
+That is the whole argument for the harness's design: execution is **default-denied**, not
+deny-listed. `vifdump` was on no deny-list, because nobody had thought of it. Only an
+explicit allow-list refuses the command nobody thought of.
+
+## `vifdump`
+
+Capture packets on a specified vif.
+
+```bash
+execcli vifdump <vif-id> [options]
+```
+
+Take the vif id from [`vif --list`](../../network/dataplane-forwarding/).
+
+## `vifdump-d`
+
+Capture **dropped** packets, on one vif or all of them.
+
+```bash
+execcli vifdump-d <vif-id|all>
+```
+
+Pairs with [`dropstats`](../../network/dataplane-drops/): `dropstats` tells you drops are
+happening and which counter is incrementing, `vifdump-d` shows you the packets.
+
+## `vifdump-stop`
+
+Stops a capture that a previous run left behind.
+
+```bash
+execcli vifdump-stop
+```
+
+The appliance's own description is "stop vifdump command if previous run abnormally ended",
+which tells you the failure mode is expected: a capture can outlive the session that started
+it. If you have run `vifdump` and are unsure whether it is still going, run this.
+
+## `vifdump-file-cp`
+
+Copies the capture files out of the Argo container to the host, into `/tmp/vifdump/`.
+
+```bash
+execcli vifdump-file-cp
+```
+
+Equivalent to `docker cp $(argo):/tmp/. /tmp/vifdump/`. Necessary because the capture is
+written *inside* the container.
+
+## `vifdump-file-rm`
+
+Deletes the `.pcap` files from the Argo container.
+
+```bash
+execcli vifdump-file-rm
+```
+
+**Run this when you are finished.** Together with `vifdump-stop` it is the cleanup pair for
+any capture work, and the two are what you run first if you inherit a node where someone
+else may have left a capture running.

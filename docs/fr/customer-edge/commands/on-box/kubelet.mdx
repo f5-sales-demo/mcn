@@ -1,0 +1,93 @@
+---
+title: Paramètres Kubelet
+description: >-
+  Les trois commandes qui lisent, ajoutent et suppriment des paramètres kubelet
+  personnalisés sur un Customer Edge. Inclut la constatation vérifiée que la
+  commande de lecture ne peut pas être utilisée depuis l'interface CLI admin du
+  site, car le fichier de paramètres n'est pas lisible par ce compte.
+sidebar:
+  order: 40
+  label: Paramètres kubelet
+i18n:
+  sourceHash: 4490323ac4fd
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Trois commandes gèrent un fichier de paramètres kubelet personnalisés,
+`/etc/vpm/kubelet-custom-params.txt`. Les trois sont de F5, aucune ne figure dans
+[l'API de débogage](../../../access/debug-api/), et toutes trois sont à usage dirigé par le support — les paramètres
+kubelet modifient la façon dont le nœud exécute les charges de travail Kubernetes.
+
+<Aside type="danger" title="Ne les utilisez pas sauf si le support F5 vous le demande">
+Un paramètre kubelet personnalisé survit aux redémarrages et s'applique à toutes les charges de travail exécutées par le nœud.
+Il n'y a aucune validation ici : un paramètre incorrect est accepté et prend effet au prochain
+démarrage de kubelet.
+</Aside>
+
+## `kubelet-get-params`
+
+Lit les paramètres personnalisés actuels.
+
+```bash
+execcli kubelet-get-params
+```
+
+```text file=../../../../_data/sitecli-kubelet-get-params.txt
+```
+
+**Cette commande ne fonctionne pas depuis l'interface CLI du site sur cette version.** Le compte `admin` ne peut pas
+lire le fichier de paramètres, donc la commande échoue qu'un paramètre soit défini ou non :
+
+```text
+Error: failed to read all params: failed to read custom param file:
+open /etc/vpm/kubelet-custom-params.txt: permission denied
+```
+
+**Pourquoi cela est plus important qu'il n'y paraît.** L'échec est une erreur de *permission*, et non un résultat vide,
+et les deux sont faciles à confondre — « failed to read all params » se lit comme « il n'y a
+aucun paramètre ». Ce n'est pas la preuve qu'aucun paramètre n'est configuré. Sur cette version, le seul moyen
+de les consulter depuis l'interface CLI du site est via
+[l'accès root auxiliaire](../root-access/), qui est lui-même à usage dirigé par le support.
+
+<Aside type="note" title="Ce qui a été vérifié">
+La commande existe, s'exécute et renvoie l'erreur ci-dessus en tant qu'`admin` sur la version
+`crt-20250613-3382`. Si elle réussit avec le compte root `xuser` n'a **pas** été testé —
+l'obtention de ce compte modifie le nœud.
+</Aside>
+
+## `kubelet-add-param`
+
+Ajoute un paramètre personnalisé.
+
+```bash
+execcli kubelet-add-param <parameter>
+```
+
+Exécutée sans argument, elle indique sa propre arité, ce qui est la façon dont l'exigence a été confirmée
+sans rien définir :
+
+```text
+Error: at least one parameter is required
+```
+
+**Aucune sortie capturée.** Cette commande écrit sur le nœud. Son existence et l'obligation
+de fournir un argument ont été vérifiées ; elle n'a pas été exécutée avec un argument.
+
+## `kubelet-remove-param`
+
+Supprime un paramètre personnalisé.
+
+```bash
+execcli kubelet-remove-param <parameter>
+```
+
+**Aucune sortie capturée**, pour la même raison.
+
+<Aside type="caution" title="Aucune des deux commandes d'écriture ne figure dans la liste autorisée en lecture seule">
+`scripts/sitecli_ssh_harvest.py` refuse d'exécuter `kubelet-add-param` et
+`kubelet-remove-param` : seuls les noms figurant dans sa liste autorisée explicite en lecture seule peuvent s'exécuter, et
+tout le reste est énuméré mais jamais exécuté. C'est délibéré — une liste de refus ne bloque que
+ce que quelqu'un a pensé à y inscrire.
+</Aside>

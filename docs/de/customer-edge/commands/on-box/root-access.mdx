@@ -1,0 +1,67 @@
+---
+title: Zusätzlicher Root-Zugriff
+description: >-
+  Die zwei Befehle, die das xuser-Root-Konto auf einem Customer Edge erstellen
+  und entfernen. Auf Anweisung des Supports hinterlassen sie den Knoten
+  verändert, und der Erstellungsbefehl ist der einzige dokumentierte Weg, um auf
+  Dateien zuzugreifen, die das Admin-Konto nicht lesen kann.
+sidebar:
+  order: 70
+  label: Root-Zugriff
+i18n:
+  sourceHash: c2417b409442
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Zwei Befehle erstellen und entfernen ein Root-Konto namens `xuser`. Sie gehören F5, sind nicht in der
+[Debug-API](../../../access/debug-api/) vorhanden, und sie sind der Ausweg für Arbeiten, die das `admin`-Konto
+nicht ausführen kann.
+
+<Aside type="danger" title="Diese Befehle ändern den Kontostatus des Knotens und werden hier nicht ausgeführt">
+`get-auxilary-root-access-to-node` erstellt einen **Root-Benutzer**. Das ist eine Änderung am Knoten,
+die Ihre Sitzung überdauert, und es ist nichts, das man explorativ tun sollte. Beide Befehle sind
+im Vervollständigungsmenü des Geräts selbst dokumentiert; keiner wurde ausgeführt, und das
+Erfassungs-Framework lehnt beide ab.
+
+Die Falschschreibung von „auxiliary" stammt vom Gerät, es ist kein Tippfehler auf dieser Seite. Geben Sie es
+so ein wie gezeigt, sonst wird der Befehl nicht gefunden.
+</Aside>
+
+## `get-auxilary-root-access-to-node`
+
+Erstellt das `xuser`-Root-Konto.
+
+```bash
+execcli get-auxilary-root-access-to-node
+```
+
+**Wann dies tatsächlich die richtige Lösung ist.** Einige Diagnosen sind als `admin` schlicht nicht erreichbar.
+Das klarste verifizierte Beispiel in diesem Build ist [`kubelet-get-params`](../kubelet/), das
+mit `open /etc/vpm/kubelet-custom-params.txt: permission denied` fehlschlägt — die Datei existiert, und
+das `admin`-Konto kann sie nicht lesen. Root-Zugriff ist der dokumentierte Weg für diese Art von
+Problem.
+
+**Bevor Sie darauf zurückgreifen**, prüfen Sie, ob die [Debug-API](../../../access/debug-api/)
+die Frage bereits beantwortet. Ihre `exec`-Ebene führt privilegierte Befehle aus, ohne ein
+dauerhaftes Konto zu erstellen, was eine kleinere Änderung am Knoten darstellt.
+
+## `remove-auxilary-root-access-to-node`
+
+Löscht das `xuser`-Konto.
+
+```bash
+execcli remove-auxilary-root-access-to-node
+```
+
+**Führen Sie dies aus, wenn Sie fertig sind.** Ein für eine Diagnosesitzung erstelltes und anschließend
+belassenes Root-Konto ist dauerhaft ein Anmeldedatum auf dem Gerät, an das Sie nichts erinnern wird. Behandeln Sie
+Erstellen und Entfernen als ein Paar, in derselben Sitzung, so wie
+[`vifdump`](../packet-capture/) und `vifdump-file-rm` ein Paar sind.
+
+<Aside type="note" title="Was nicht festgestellt wurde">
+Die Ausgabe keines der Befehle ist aufgezeichnet, daher kann diese Seite nicht mitteilen, wie Erfolg aussieht,
+mit welchem Passwort oder Schlüssel `xuser` erstellt wird, oder ob das Entfernen verweigert wird, während eine Sitzung
+offen ist. Dafür wird ein Knoten benötigt, den Sie bereit sind zu verändern.
+</Aside>

@@ -1,14 +1,14 @@
 ---
 title: Rotas e próximos saltos
 description: >-
-  Aquilo sobre o que o plano de dados do Argo realmente encaminha, que não é
+  O que o plano de dados do Argo efetivamente encaminha, que não é
   necessariamente o que o Linux acredita. Abrange a tabela de rotas do vRouter,
   a tabela de próximos saltos e as interfaces virtuais.
 sidebar:
   order: 50
   label: Rotas e próximos saltos
 i18n:
-  sourceHash: 80785e30393a
+  sourceHash: 9e8dd5045310
   translator: machine
 ---
 
@@ -28,23 +28,23 @@ A tabela de rotas do vRouter, por VRF.
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="O id da VRF não é aquele que o BGP informa">
-`show-ip-bgp-summary` exibe `vrf-id 3`. Essa é a numeração do FRR e trata-se de um
-namespace diferente do id da tabela do vRouter. Passá-lo aqui falha de um modo que
-parece indicar um nó defeituoso:
+<Aside type="danger" title="O ID de VRF não é o que o BGP reporta">
+`show-ip-bgp-summary` exibe `vrf-id 3`. Essa é a numeração do FRR e pertence a um
+namespace diferente do ID de tabela do vRouter. Passá-lo aqui falha de uma forma que
+parece um nó com problema:
 
 ```
 vRouter(Response):  [No such file or directory (2)]
 ```
 
 A mesma resposta é retornada para `--dump 0`. Nesta topologia, a **VRF 2** é a
-tabela inet4 populada, com a VRF 1 contendo duas rotas. Se você não souber o id,
-faça a sondagem crescente a partir de 1 em vez de confiar na saída do BGP.
+tabela inet4 populada, com a VRF 1 contendo duas rotas. Se você não souber o ID,
+sonde a partir de 1 incrementando gradualmente, em vez de confiar na saída do BGP.
 </Aside>
 
 ## `nh`
 
-A tabela de próximos saltos. Toda rota aponta para um id de próximo salto, e isto os resolve.
+A tabela de próximos saltos. Cada rota aponta para um ID de próximo salto, e esta tabela os resolve.
 
 ```bash
 {"command":["nh","--list"]}
@@ -53,26 +53,26 @@ A tabela de próximos saltos. Toda rota aponta para um id de próximo salto, e i
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-Cada entrada carrega um `Type` e a VRF à qual pertence. Oito tipos ocorrem nesses nós, nestas
-proporções — idênticas nos três CEs quando contabilizadas:
+Cada entrada possui um `Type` e a VRF à qual pertence. Oito tipos ocorrem nesses nós, nas
+seguintes proporções — idênticas nos três CEs quando contados:
 
 ```text
 Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
 ```
 
-Uma rota que resolve para um próximo salto `Drop` é um blackhole, e vale verificar essa
-combinação sempre que um prefixo estiver presente em `rt` mas o tráfego ainda desaparecer.
+Uma rota que resolve para um próximo salto `Drop` é uma rota blackhole, e essa combinação vale
+ser verificada sempre que um prefixo estiver presente em `rt`, mas o tráfego ainda desaparecer.
 
-<Aside type="caution" title="A captura acima está reduzida, portanto não contém todos os tipos">
+<Aside type="caution" title="A captura acima está truncada e não contém todos os tipos">
 São as primeiras 60 linhas de 3.849. `Tunnel`, o tipo mais comum por ampla margem, não
-aparece nessas 60 linhas — então não interprete a captura como o inventário completo de tipos, e não
-conclua que um tipo está ausente em um nó apenas porque ele está ausente de uma captura reduzida. As contagens
-acima vieram da resposta não reduzida.
+aparece nessas 60 linhas — portanto, não interprete a captura como o inventário completo de tipos,
+e não conclua que um tipo está ausente de um nó porque está ausente de uma captura truncada. As
+contagens acima foram obtidas a partir da resposta completa.
 </Aside>
 
 ## `vif`
 
-A tabela de interfaces virtuais: aquilo a que o plano de dados se vincula, e os
+A tabela de interfaces virtuais: ao que o plano de dados se vincula e os
 contadores por interface.
 
 ```bash
@@ -82,7 +82,23 @@ contadores por interface.
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-Vale a pena ler uma vez a legenda de flags no topo — `Vp` marca a interface física
-vhost, `Dpdk` uma gerenciada por DPDK. Use isto para confirmar que o plano de dados assumiu
-a interface que você espera, e para ver os contadores RX e TX que o Linux não mostra
+A legenda de flags no topo vale ser lida uma vez — `Vp` marca a interface física do vhost,
+`Dpdk` uma gerenciada pelo DPDK. Use isso para confirmar que o plano de dados assumiu
+a interface esperada e para visualizar os contadores de RX e TX que o Linux não exibe
 porque o tráfego nunca chega ao kernel.
+
+## `mpls`
+
+```bash
+execcli mpls --help
+```
+
+A tabela MPLS do Argo. Acessível **somente a partir do equipamento** — `mpls` não está na API de
+depuração, portanto, ao contrário de `rt`, `nh` e `vif` acima, requer [SSH](../../../access/ssh/) ou o
+[console serial](../../../access/serial-console/), por meio do
+[`execcli`](../../on-box/).
+
+Não há saída capturada aqui. Nesta implantação, o CE encaminha IPv4 com BGP e ECMP e não
+utiliza rótulos MPLS, portanto uma captura mostraria uma tabela vazia e não ensinaria nada. Sua
+existência e a forma do argumento `--help` são verificadas a partir do menu de conclusão do próprio
+appliance; a saída populada não é reproduzida.

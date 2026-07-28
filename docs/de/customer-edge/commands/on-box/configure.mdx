@@ -1,0 +1,68 @@
+---
+title: Knotenkonfiguration
+description: >-
+  Die vier configure-Befehle auf der obersten Ebene der Site CLI —
+  Registrierung, Netzwerk, HTTP-Proxy und nicht zertifizierte Hardware.
+  Interaktive Assistenten, die einen laufenden Knoten neu konfigurieren,
+  dokumentiert aus dem Menü des Geräts, ohne ausgeführt zu werden, sowie warum
+  dieses Repository alles durch cloud-init konfiguriert.
+sidebar:
+  order: 80
+  label: Konfigurieren
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vier Befehle befinden sich auf der **obersten Ebene** der Site CLI und nicht hinter
+[`execcli`](../) — sie sind das, was das interaktive Menü bei der Anmeldung anbietet, zusammen mit
+[`health`](../../system/health/) und [`diagnosis`](../../system/diagnosis/).
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+Dies ist der eigene Menütext des Geräts, und diese sechs Einträge bilden die gesamte oberste Ebene.
+
+<Aside type="caution" title="Fünf Befehle, die man erwarten würde, sind nicht vorhanden">
+`factory-reset`, `upgrade`, `reboot`, `show` und `clear` sind im Build
+`crt-20250613-3382` **nicht vorhanden**. Sie waren eine Weile in der Befehlsklassifikation dieses Repositorys enthalten, in der Annahme, dass eine Site CLI über sie verfügen würde, und zwei unabhängige Enumerationen — eine bei `site_state: PROVISIONING`, eine bei `PROVISIONED` — fanden keinerlei Hinweis auf sie. Siehe [den On-Box-Index](../) für die Messmethode.
+</Aside>
+
+<Aside type="danger" title="Interaktiv und konfigurieren einen laufenden Knoten neu">
+Jeder dieser Befehle ist ein Assistent, der die Konfiguration des Knotens neu schreibt. Keiner wurde während dieser Dokumentationsarbeit ausgeführt, und keiner hat eine Ausgabe erfasst — es gibt keine schreibgeschützte Form zum Erfassen. Was verifiziert wurde, ist, dass alle vier vorhanden sind, und ihre Beschreibungen aus dem Vervollständigungsmenü.
+</Aside>
+
+## `configure`
+
+Erstkonfiguration des Knotens: die Registrierungsdetails, die ihn an einen Mandanten und eine Site binden.
+
+## `configure-network`
+
+Erstkonfiguration des Netzwerks — Adressierung für die Schnittstellen des Knotens.
+
+## `configure-http-proxy`
+
+Konfiguriert einen ausgehenden HTTP-Proxy für eine CE, die die F5-Steuerungsebene nicht direkt erreichen kann.
+
+## `configure-generic-hardware`
+
+Konfiguriert Hardware, die F5 nicht zertifiziert hat. Steht im Zusammenhang mit der zertifizierten Hardware-Konfiguration, die über [`edit-certified-hardware`](../config-files/) erreichbar ist: Ohne einen gültigen zertifizierten Hardware-Endpunkt beendet sich `vpmd` mit *„fail to match certified hardware"* und der Knoten registriert sich nie.
+
+## Warum dieses Repository diese Befehle nicht verwendet
+
+Dies ist der manuelle Pfad, und diese Bereitstellung verwendet den automatisierten. Die Registrierung wird beim ersten Start von cloud-init geschrieben — `terraform/cloud-init/ce-node.yaml` schreibt `/etc/vpm/config.yaml` mit dem Clusternamen, dem Token und dem zertifizierten Hardware-Endpunkt — sodass ein Knoten bereits konfiguriert hochfährt und `configure` nichts zu tun hat.
+
+Das ist aus zwei Gründen wichtig, die über Ordentlichkeit hinausgehen:
+
+- **Reproduzierbarkeit.** Ein per Assistent konfigurierter Knoten wird jedes Mal, wenn jemand dies tut, anders konfiguriert. Ein per cloud-init konfigurierter Knoten wird jedes Mal identisch konfiguriert, was die Demo wiederbereitstellbar macht.
+- **Sie sind der Wiederherstellungspfad, nicht der Bereitstellungspfad.** Greifen Sie auf `configure` zurück, wenn ein Knoten neu ausgerichtet werden muss und Terraform keine Option ist — ein Knoten, der sich nie registriert hat, über die [serielle Konsole](../../../access/serial-console/), wo nichts anderes ihn erreichen kann.
+
+<Aside type="note" title="Registrierung ist Zustand, und das Ersetzen eines Knotens führte früher zu einem Deadlock">
+Eine Neuregistrierung ist keine rein knotenseitige Operation: Der Mandant hält ein Registrierungsobjekt, das auf `(tenant, cluster_name, hostname)` abgebildet ist. Das Ersetzen einer CE bei Beibehaltung ihres Namens hat die Bereitstellung früher dauerhaft blockiert, weil die Registrierung des zerstörten Knotens diesen Schlüssel noch hielt. Das ist behoben — siehe den [Registrierungsworkflow](../../../workflows/registration/) — aber das ist der Grund, warum `configure` allein nicht immer ausreicht, um einen neu erstellten Knoten zurückzubringen.
+</Aside>

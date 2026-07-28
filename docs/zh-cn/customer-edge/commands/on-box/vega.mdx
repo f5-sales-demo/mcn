@@ -1,0 +1,89 @@
+---
+title: Vega 控制平面
+description: 用于检查客户边缘控制平面的六条 vegactl 命令——配置对象、自检表、跟踪缓冲区以及哪个节点持有主角色。仅可从设备本身访问，无法通过调试 API 访问。
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega 是客户边缘（Customer Edge）控制平面。`vegactl` 是 F5 针对它的客户端工具，以下六条命令均不在 [调试 API](../../../access/debug-api/) 上——它们仅存在于设备本身，通过 [`execcli`](../) 访问。
+
+当数据平面表现异常但接口和路由看起来正常时，请阅读本页。Argo 转发的是 Vega 已编程的内容；若两者不一致，答案就在这里。
+
+## `vegactl-introspect-show-election`
+
+显示 CE 集群中当前持有主角色的节点。这是本页最实用、开销最小的命令。
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**需要关注的内容。** 在三节点 CE 中，恰好有一个节点报告 `role: Master`，其余节点报告跟随者角色。出现两个主节点或没有主节点，意味着集群尚未收敛，在收敛之前，从控制平面读取的任何其他信息都不可信。
+
+**无法告诉你的内容。** 无法说明已选出的主节点是否*健康*——仅表明选举已完成。
+
+## `vegactl-configuration-list`
+
+列出控制平面持有的配置对象。不带参数执行时会打印其自身的用法说明，这是发现当前构建所支持对象类型的实用方式。
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**需要关注的内容。** `Usage` 和 `Examples` 块列出了完全限定的对象类型——`ves.io.<service>.<object>.Object`。这些名称是其他自检命令所期望的参数，因此在查询之前，可通过此输出解析不熟悉的对象类型。
+
+## `vegactl-introspect-list-tracebuffers`
+
+列出控制平面维护的所有跟踪缓冲区，包含其大小和当前占用情况。
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**需要关注的内容。** 缓冲区名称是传递给 `vegactl-introspect-show-tracebuffer` 的参数。这是一个目录，而非诊断结果——其价值在于告知你可以检查哪些内容。
+
+## `vegactl-introspect-show-tracebuffer`
+
+显示一个具名跟踪缓冲区的内容。
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="需要参数，此处未捕获输出">
+不带参数执行时会报告 `not sufficient args`。哪个缓冲区值得查看完全取决于你正在排查的问题，因此没有可供发布的代表性捕获结果——请从上方的 `vegactl-introspect-list-tracebuffers` 获取缓冲区名称。
+</Aside>
+
+## `vegactl-introspect-get`
+
+按类型和键从控制平面获取单个对象。
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+转储整个自检表。
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="两者均需要特定于调试场景的参数">
+本页均未包含这两条命令的捕获输出。两者都需要对象类型或表名称，可从 `vegactl-configuration-list` 或 `vegactl-introspect-list-tracebuffers` 获取；任意表的转储结果将是一个内容庞大且缺乏说明意义的文件。这两条命令的存在及其参数形式已经过验证，但输出内容不在此处重现。
+</Aside>

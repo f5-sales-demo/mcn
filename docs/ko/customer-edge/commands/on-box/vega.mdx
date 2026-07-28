@@ -1,0 +1,106 @@
+---
+title: Vega 컨트롤 플레인
+description: >-
+  Customer Edge 컨트롤 플레인을 검사하는 여섯 가지 vegactl 명령 — 구성 객체, 인트로스펙션 테이블, 트레이스 버퍼, 그리고
+  어느 노드가 기본 역할을 보유하는지. 박스에서만 접근 가능하며, 디버그 API를 통해서는 접근할 수 없습니다.
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega는 Customer Edge 컨트롤 플레인입니다. `vegactl`은 F5의 클라이언트이며, 이 여섯 가지
+명령 중 어느 것도 [디버그 API](../../../access/debug-api/)에는 없습니다 — 이들은 박스에서만 존재하며,
+[`execcli`](../)를 통해 접근합니다.
+
+데이터 플레인이 잘못되어 보이지만 인터페이스와 라우트가 정상으로 보일 때 이 페이지를 참조하십시오.
+Argo는 Vega가 프로그래밍한 내용을 전달합니다. 둘이 일치하지 않으면, 그 답이 여기에 있습니다.
+
+## `vegactl-introspect-show-election`
+
+CE 클러스터에서 현재 기본 역할을 보유하는 노드. 이 페이지에서 가장 유용하고
+비용이 가장 적은 명령입니다.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**확인할 사항.** 세 노드로 구성된 CE에서 정확히 하나의 노드가 `role: Master`를 보고합니다. 나머지
+노드들은 팔로워 역할을 보고합니다. 마스터가 두 개이거나 없는 경우, 클러스터가 수렴되지 않은 것이며,
+수렴될 때까지 컨트롤 플레인에서 읽은 다른 모든 정보를 신뢰할 수 없습니다.
+
+**알 수 없는 사항.** 선출된 기본 노드가 *정상* 상태인지 여부 — 선거가 해결되었다는 것만 알 수 있습니다.
+
+## `vegactl-configuration-list`
+
+컨트롤 플레인이 보유한 구성 객체를 나열합니다. 인수 없이 실행하면 사용법을 출력하며,
+이는 해당 빌드가 알고 있는 객체 유형을 확인하는 실용적인 방법입니다.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**확인할 사항.** `Usage` 및 `Examples` 블록은 완전히 정규화된 객체
+유형 — `ves.io.<service>.<object>.Object`를 명시합니다. 해당 이름들은 다른
+인트로스펙션 명령이 기대하는 인수이므로, 이 출력은 익숙하지 않은 객체 유형을 쿼리하기 전에
+해결하는 곳입니다.
+
+## `vegactl-introspect-list-tracebuffers`
+
+컨트롤 플레인이 유지하는 모든 트레이스 버퍼와 그 크기 및 현재 점유율.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**확인할 사항.** 버퍼 이름은 `vegactl-introspect-show-tracebuffer`의 인수입니다.
+이것은 진단이 아닌 디렉토리입니다 — 무엇을 검사할 수 있는지 알려주는 것이 그 가치입니다.
+
+## `vegactl-introspect-show-tracebuffer`
+
+명명된 트레이스 버퍼 하나의 내용.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="인수가 필요하며 출력이 여기에 캡처되지 않습니다">
+인수 없이 실행하면 `not sufficient args`를 보고합니다. 어느 버퍼를 읽을 가치가 있는지는 전적으로
+추적하는 대상에 따라 다르므로, 게시할 대표적인 캡처가 없습니다 — 위의 `vegactl-introspect-list-tracebuffers`에서 이름을 가져오십시오.
+</Aside>
+
+## `vegactl-introspect-get`
+
+유형과 키로 컨트롤 플레인에서 단일 객체를 가져옵니다.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+전체 인트로스펙션 테이블을 덤프합니다.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="두 명령 모두 디버깅 중인 내용에 특화된 인수가 필요합니다">
+이 페이지에는 두 명령 모두 캡처된 출력이 없습니다. 두 명령 모두 `vegactl-configuration-list` 또는
+`vegactl-introspect-list-tracebuffers`에서 가져온 객체 유형 또는 테이블 이름이 필요하며,
+임의의 테이블 덤프는 아무것도 설명하지 않는 큰 파일이 될 것입니다. 해당 명령의 존재와
+인수 형식은 검증되었으나, 출력은 재현되지 않습니다.
+</Aside>

@@ -1,0 +1,111 @@
+---
+title: Plano de control Vega
+description: >-
+  Los seis comandos vegactl que introspectionan el plano de control del Customer
+  Edge — objetos de configuración, tablas de introspección, búferes de traza y
+  qué nodo ocupa el rol primario. Solo accesibles desde el equipo, nunca a
+  través de la API de depuración.
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega es el plano de control del Customer Edge. `vegactl` es el cliente de F5 para él, y ninguno de estos
+seis comandos está en la [API de depuración](../../../access/debug-api/) — solo existen en el
+equipo, a los que se accede mediante [`execcli`](../).
+
+Consulte esta página cuando el plano de datos parezca incorrecto pero las interfaces y rutas parezcan correctas.
+Argo reenvía lo que Vega ha programado; si los dos no coinciden, la respuesta está aquí.
+
+## `vegactl-introspect-show-election`
+
+Qué nodo ocupa actualmente el rol primario en el clúster CE. El comando más útil
+de esta página, y el menos costoso.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**Qué buscar.** Exactamente un nodo en un CE de tres nodos reporta `role: Master`; los demás
+reportan un rol de seguidor. Dos masters, o ninguno, significa que el clúster no ha convergido, y
+nada más que lea del plano de control puede ser de confianza hasta que lo haga.
+
+**Lo que no le indica.** Nada acerca de si el primario elegido está *sano* — solo
+que la elección se resolvió.
+
+## `vegactl-configuration-list`
+
+Lista los objetos de configuración que mantiene el plano de control. Invocado sin argumentos imprime su propio uso,
+que es la forma práctica de descubrir los tipos de objetos que conoce esta compilación.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**Qué buscar.** Los bloques `Usage` y `Examples` nombran los tipos de objetos completamente calificados
+— `ves.io.<service>.<object>.Object`. Esos nombres son los argumentos que esperan los demás
+comandos de introspección, por lo que esta salida es donde se resuelve un tipo de objeto desconocido
+antes de consultarlo.
+
+## `vegactl-introspect-list-tracebuffers`
+
+Todos los búferes de traza que mantiene el plano de control, con su tamaño y ocupación actual.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**Qué buscar.** Los nombres de búfer son el argumento para
+`vegactl-introspect-show-tracebuffer`. Esto es un directorio, no un diagnóstico — su valor es
+indicarle qué puede inspeccionarse.
+
+## `vegactl-introspect-show-tracebuffer`
+
+Contenido de un búfer de traza nombrado.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="Requiere un argumento y no se captura ninguna salida aquí">
+Ejecutado sin argumentos reporta `not sufficient args`. Qué búfer vale la pena leer depende completamente
+de lo que esté analizando, por lo que no hay ninguna captura representativa que publicar — tome un nombre
+de `vegactl-introspect-list-tracebuffers` más arriba.
+</Aside>
+
+## `vegactl-introspect-get`
+
+Obtiene un único objeto del plano de control por tipo y clave.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+Vuelca una tabla de introspección completa.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="Ambos toman argumentos específicos de lo que está depurando">
+Ninguno tiene salida capturada en esta página. Ambos necesitan un tipo de objeto o nombre de tabla, tomado
+de `vegactl-configuration-list` o `vegactl-introspect-list-tracebuffers`, y un volcado de
+una tabla arbitraria sería un archivo grande que no ilustra nada. Su existencia y
+la forma de sus argumentos están verificadas; su salida no se reproduce.
+</Aside>

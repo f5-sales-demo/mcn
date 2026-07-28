@@ -154,6 +154,42 @@ JSON
 printf 'x\n' >"${t}/sitecli/captures/sitecli-not-a-real-command.txt"
 assert_reject "capture matching neither catalog" "$t"
 
+# --- a page may document an on-box-only command ---------------------------------
+# 55 of the 82 on-box commands have no debug-API equivalent. Validating documented
+# commands against catalog.json alone rejected every page that covers them.
+t=$(new_tree onbox-documented)
+cat >"${t}/sitecli/exec-catalog.json" <<'JSON'
+{
+  "top_level": {},
+  "execcli": {"vegactl-introspect-show-election": "check vegactl cluster primary election status"},
+  "counts": {"top_level": 0, "execcli": 1}
+}
+JSON
+cat >"${t}/docs/en/customer-edge/commands/network/vega.mdx" <<'MDX'
+---
+title: Vega
+description: Control plane introspection.
+---
+
+## `vegactl-introspect-show-election`
+MDX
+assert_pass "page documenting an on-box-only command" "$t"
+
+# --- a page documenting a name in neither catalog is still a violation ----------
+t=$(new_tree onbox-ghost-doc)
+cat >"${t}/sitecli/exec-catalog.json" <<'JSON'
+{"top_level": {}, "execcli": {"vegactl-introspect-show-election": "x"}, "counts": {}}
+JSON
+cat >"${t}/docs/en/customer-edge/commands/network/ghost.mdx" <<'MDX'
+---
+title: Ghost
+description: Documents something that does not exist.
+---
+
+## `vegactl-invented-subcommand`
+MDX
+assert_reject "page documenting a name in neither catalog" "$t"
+
 # --- captured output for a privileged command is a safety failure --------------
 t=$(new_tree exec-captured)
 printf 'should never exist\n' >"${t}/sitecli/captures/sitecli-ip-link-set.txt"

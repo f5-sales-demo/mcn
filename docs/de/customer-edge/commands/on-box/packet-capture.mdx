@@ -1,0 +1,82 @@
+---
+title: Paketerfassung
+description: >-
+  Die fünf vifdump-Befehle zur Paketerfassung auf den virtuellen Schnittstellen
+  eines Customer Edge. Dokumentiert aus verifizierten Katalog-Metadaten und nie
+  hier ausgeführt, da sie Erfassungsdateien auf dem Knoten schreiben –
+  einschließlich eines Berichts über das, was passierte, als einer als harmlos
+  erscheinende Sonde aufgerufen wurde.
+sidebar:
+  order: 30
+  label: Paketerfassung
+i18n:
+  sourceHash: ff41ac658325
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vifdump` erfasst Pakete auf den virtuellen Schnittstellen der Argo-Datenebene. Fünf Befehle, alle von F5, keiner über die [Debug-API](../../../access/debug-api/).
+
+<Aside type="danger" title="Diese schreiben auf den Knoten, und keiner davon wird auf dieser Seite ausgeführt">
+`vifdump` und `vifdump-d` starten eine Erfassung, die `.pcap`-Dateien in `/tmp` innerhalb des
+Argo-Containers schreibt. Auf einem CE mit einer 31-GiB-Festplatte ist eine dauerhaft laufende Erfassung ein Speicherplatzproblem mit einem Timer.
+
+Jeder hier dokumentierte Befehl stammt aus den eigenen Katalog-Metadaten des Geräts und seiner Beschreibung im Vervollständigungsmenü. **Auf dieser Seite erscheint keine erfasste Ausgabe**, und das Erfassungs-Framework verweigert die Ausführung all dieser Befehle.
+</Aside>
+
+## Warum diese Seite keine Ausgabe hat – konkret
+
+Die Argumentanzahl auf der Site CLI lässt sich ermitteln, indem man einen Befehl ohne Argumente ausführt – er antwortet mit `not sufficient args for command <name>`. Das ist für einen schreibgeschützten Befehl sicher. Auf `vifdump` während dieser Dokumentationsarbeit angewendet, lieferte er **überhaupt keinen Fehler**, auf einem Knoten, der sich noch registrierte. Ob eine Erfassung gestartet wurde, ist unbekannt, da der Knoten zerstört und neu aufgebaut wurde, bevor dies überprüft werden konnte.
+
+Das ist das gesamte Argument für das Design des Frameworks: Die Ausführung ist **standardmäßig verweigert**, nicht über eine Sperrliste. `vifdump` stand auf keiner Sperrliste, weil niemand daran gedacht hatte. Nur eine explizite Erlaubnisliste verweigert den Befehl, den niemand bedacht hat.
+
+## `vifdump`
+
+Pakete auf einer angegebenen VIF erfassen.
+
+```bash
+execcli vifdump <vif-id> [options]
+```
+
+Die VIF-ID aus [`vif --list`](../../network/dataplane-forwarding/) entnehmen.
+
+## `vifdump-d`
+
+**Verworfene** Pakete erfassen, auf einer VIF oder auf allen.
+
+```bash
+execcli vifdump-d <vif-id|all>
+```
+
+Ergänzt [`dropstats`](../../network/dataplane-drops/): `dropstats` zeigt an, dass Verwürfe stattfinden und welcher Zähler inkrementiert wird, `vifdump-d` zeigt die Pakete selbst.
+
+## `vifdump-stop`
+
+Beendet eine Erfassung, die ein vorheriger Lauf hinterlassen hat.
+
+```bash
+execcli vifdump-stop
+```
+
+Die eigene Beschreibung des Geräts lautet „stop vifdump command if previous run abnormally ended", was auf die erwartete Fehlerform hinweist: Eine Erfassung kann die Sitzung überdauern, die sie gestartet hat. Wenn Sie `vifdump` ausgeführt haben und unsicher sind, ob es noch läuft, führen Sie diesen Befehl aus.
+
+## `vifdump-file-cp`
+
+Kopiert die Erfassungsdateien aus dem Argo-Container auf den Host, in `/tmp/vifdump/`.
+
+```bash
+execcli vifdump-file-cp
+```
+
+Entspricht `docker cp $(argo):/tmp/. /tmp/vifdump/`. Notwendig, da die Erfassung *innerhalb* des Containers geschrieben wird.
+
+## `vifdump-file-rm`
+
+Löscht die `.pcap`-Dateien aus dem Argo-Container.
+
+```bash
+execcli vifdump-file-rm
+```
+
+**Führen Sie diesen Befehl aus, wenn Sie fertig sind.** Zusammen mit `vifdump-stop` bildet er das Bereinigungspaar für jede Erfassungsarbeit – und die beiden sind das Erste, was Sie ausführen, wenn Sie einen Knoten übernehmen, auf dem jemand anderes möglicherweise eine Erfassung laufen gelassen hat.

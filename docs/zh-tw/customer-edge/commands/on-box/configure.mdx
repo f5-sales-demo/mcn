@@ -1,0 +1,65 @@
+---
+title: 節點設定
+description: >-
+  Site CLI 頂層的四個設定指令——註冊、網路、HTTP
+  代理與未認證硬體。這些互動式精靈可重新設定運行中的節點，文件內容取自設備自身的選單但未實際執行，並說明為何本儲存庫改以 cloud-init 完成所有設定。
+sidebar:
+  order: 80
+  label: 設定
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+四個指令位於 Site CLI 的**頂層**，而非隱藏在
+[`execcli`](../) 之後——這些是您登入時互動式選單所提供的選項，與
+[`health`](../../system/health/) 及 [`diagnosis`](../../system/diagnosis/) 並列。
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+以上為設備自身的選單文字，這六個項目構成了完整的頂層內容。
+
+<Aside type="caution" title="五個您可能預期存在的指令並不在此">
+`factory-reset`、`upgrade`、`reboot`、`show` 及 `clear` 在組建版本
+`crt-20250613-3382` 中**並不存在**。這些指令曾基於 Site CLI 應具備這些功能的假設，在本儲存庫的指令分類中保留了一段時間，但經過兩次獨立列舉——一次在 `site_state: PROVISIONING` 狀態，一次在 `PROVISIONED` 狀態——均未發現任何蹤跡。請參閱[機箱內索引](../)以了解測量方式。
+</Aside>
+
+<Aside type="danger" title="互動式操作，且會重新設定運行中的節點">
+每個指令都是一個會改寫節點設定的精靈。在本文件撰寫過程中，任何指令均未實際執行，因此沒有擷取到輸出內容——亦無唯讀形式可供擷取。可確認的是：四個指令均存在，其說明文字取自補全選單。
+</Aside>
+
+## `configure`
+
+節點的初始設定：將節點綁定至租戶與站台的註冊詳細資訊。
+
+## `configure-network`
+
+網路的初始設定——節點介面的位址配置。
+
+## `configure-http-proxy`
+
+為無法直接連線 F5 控制平面的 CE 設定對外 HTTP 代理。
+
+## `configure-generic-hardware`
+
+設定 F5 尚未認證的硬體。與可透過 [`edit-certified-hardware`](../config-files/) 存取的已認證硬體設定相關：若缺少有效的已認證硬體端點，`vpmd` 將因 *"fail to match certified hardware"* 而結束，導致節點永遠無法完成註冊。
+
+## 為何本儲存庫不使用這些指令
+
+這些指令屬於手動路徑，而本部署採用自動化路徑。註冊作業由 cloud-init 在首次開機時寫入——`terraform/cloud-init/ce-node.yaml` 會將叢集名稱、Token 及已認證硬體端點寫入 `/etc/vpm/config.yaml`——因此節點啟動後即已完成設定，`configure` 指令無須執行任何操作。
+
+這在整潔性之外還有兩項重要意義：
+
+- **可重現性。** 透過精靈設定的節點，每次操作的結果都可能不同。透過 cloud-init 設定的節點，每次結果都完全一致，這正是讓示範環境得以重複部署的關鍵。
+- **這些指令是復原路徑，而非部署路徑。** 當節點需要重新指向目標且 Terraform 無法使用時，才應使用 `configure`——例如某個從未完成註冊的節點，只能透過[序列主控台](../../../access/serial-console/)存取，其他方式均無法連線。
+
+<Aside type="note" title="註冊是狀態，替換節點過去曾導致狀態滯留">
+重新註冊並非純粹的節點端操作：租戶持有一個以 `(tenant, cluster_name, hostname)` 為鍵的註冊物件。在保留節點名稱的情況下替換 CE，曾導致部署永久卡住，因為被銷毀節點的註冊仍佔用著該鍵值。此問題已獲修復——詳見[註冊工作流程](../../../workflows/registration/)——但這也說明了為何單靠 `configure` 並不總能讓重建的節點恢復正常。
+</Aside>

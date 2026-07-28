@@ -5,14 +5,13 @@ sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-DockerはプラットフォームサービスをDockerは実行します。KubernetesワークロードはDockerは
-[CRI-O](../crictl/)配下にあります。
+DockerはプラットフォームサービスはDockerで実行されます。KubernetesワークロードはCRI-O（[CRI-O](../crictl/)）で管理されます。
 
 ## `docker-ps`
 
@@ -23,8 +22,8 @@ DockerはプラットフォームサービスをDockerは実行します。Kuber
 ```text file=../../../../_data/sitecli-docker-ps.txt
 ```
 
-<Aside type="tip" title="コンテナが3つというのは完全なリストであり、ノードが壊れているわけではありません">
-`vpm`、`argo_watch`、`site-console`。ノードの大部分はCRI-O配下で動作しているため、Kubernetesワークロードが存在すると期待している場合、`docker-ps`の出力が短いと障害のように見えることがあります。しかしそうではありません。これが正常なCEにおけるDockerコンテナの完全なセットであり、`vpm`が存在し`Up`状態であることがこのページで最も重要な確認事項です。
+<Aside type="tip" title="コンテナが3つというのは、ノードが壊れているのではなく、それが全リストです">
+`vpm`、`argo_watch`、`site-console`の3つです。ノードのほとんどはCRI-Oで動作しているため、Kubernetesワークロードを期待している場合、`docker-ps`の短い出力は障害のように見えるかもしれません。しかし、これは正常なCEにおけるDockerコンテナの完全なセットであり、`vpm`が存在して`Up`状態であることが、このページで最も重要な1行です。
 </Aside>
 
 ## `docker-ps-a`
@@ -36,7 +35,7 @@ DockerはプラットフォームサービスをDockerは実行します。Kuber
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-終了したコンテナも含まれるため、`vpm`が繰り返しクラッシュしている場合にその証跡がここに残ります。
+終了済みコンテナも含まれるため、`vpm`が繰り返しクラッシュしている場合はここに証跡が残ります。
 
 ## `docker-images`
 
@@ -47,7 +46,7 @@ DockerはプラットフォームサービスをDockerは実行します。Kuber
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-イメージタグにより、ノードが実際に実行しているプラットフォームバージョンを特定できます。[`health`](../health/)が報告するソフトウェアビルドと比較する価値があります。
+イメージタグは、ノードが実際に実行しているプラットフォームバージョンを識別します。[`health`](../health/)が報告するソフトウェアビルドと照合する価値があります。
 
 ## `docker-inspect`
 
@@ -58,7 +57,7 @@ DockerはプラットフォームサービスをDockerは実行します。Kuber
 ```text file=../../../../_data/sitecli-docker-inspect.txt
 ```
 
-名前とIDの両方を受け付けるため、`docker-inspect vpm`は有効であり、再起動をまたいでも安定して使用できます。完全なJSON形式で、マウント、環境変数、再起動ポリシー、終了状態が確認できます。
+IDだけでなく名前も受け付けるため、`docker-inspect vpm`は有効であり、再起動をまたいでも安定して使用できます。完全なJSON形式で、マウント、環境変数、再起動ポリシー、終了状態が確認できます。
 
 ## `docker-logs`
 
@@ -69,4 +68,20 @@ DockerはプラットフォームサービスをDockerは実行します。Kuber
 ```text file=../../../../_data/sitecli-docker-logs.txt
 ```
 
-`docker-logs vpm`は登録エラーを確認する最も手軽な方法です。タイムスタンプ付きで再起動をまたいだ同一情報を確認するには、代わりに[`journalctl`](../journalctl/)を使用してください。
+`docker-logs vpm`は、登録エラーを確認する最も手早い方法です。タイムスタンプ付きで再起動をまたいだ同じ情報を確認するには、代わりに[`journalctl`](../journalctl/)を使用してください。
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+停止済みコンテナ、未使用のネットワーク、ダングリングイメージ、ビルドキャッシュなど、未使用のDockerオブジェクトをすべて削除します。
+
+**ボックス上からのみ実行可能。** `docker-prune`はデバッグAPIには存在しないため、[`execcli`](../../on-box/)が必要です。
+
+<Aside type="danger" title="破壊的な操作であり、ここには記録されていません">
+このコマンドは状態を削除します。ハーベストハーネスの拒否リストに登録されており、実行されたことがないため、このページではアプライアンス自身のカタログメタデータをもとに説明しており、実際の出力は示していません。
+
+CE固有の注意事項：このノードは**2つの**コンテナランタイムを実行しています。`docker-prune`はDockerサイド（`vpm`、`argo_watch`、`site-console`）のみに影響し、[CRI-O](../crictl/)配下のKubernetesワークロードには届きません。CRI-O側のスペースを回収するには別のコマンド`systemctl-start-crio-prune`が必要ですが、このビルドには存在しません。
+</Aside>
