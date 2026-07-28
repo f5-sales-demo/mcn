@@ -2,32 +2,32 @@
 title: Guía de demostración según lo construido
 description: >-
   Lo que despliega este repositorio — tres Customer Edges de un solo nodo que
-  originan una VIP mediante eBGP hacia un Azure Route Server para ECMP de tres
-  vías —, cómo comprobar que está en buen estado antes de presentarlo y los dos
-  resultados de apariencia normal que se leen como una interrupción sin serlo.
+  originan una VIP por eBGP hacia un Azure Route Server para ECMP de tres vías
+  —, cómo comprobar que está en buen estado antes de presentarlo y los dos
+  resultados de apariencia normal que se leen como una interrupción y no lo son.
 sidebar:
   order: 5
   label: Demostración según lo construido
 i18n:
-  sourceHash: 8e45b930d69d
+  sourceHash: 0d2a4becd81a
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Este despliegue demuestra la **alta disponibilidad activo/activo de Customer Edge en Azure**
-sin ningún balanceador de carga de Azure delante de los CE. Tres CE originan cada uno la misma
-ruta de host mediante eBGP, y el Azure Route Server instala los tres como próximos saltos de
-igual coste en la VNet. Por lo tanto, la infraestructura de enrutamiento, en lugar de un
-balanceador de carga, es donde deben producirse la distribución del tráfico y la eliminación
-de nodos con fallos.
+Este despliegue demuestra **alta disponibilidad activo/activo de Customer Edge en Azure**
+sin ningún balanceador de carga de Azure delante de los CE. Tres CE originan cada uno la
+misma ruta de host por eBGP, y el Azure Route Server instala los tres como saltos
+siguientes de igual coste en la VNet. Por tanto, es el tejido de enrutamiento, y no un
+balanceador de carga, donde se supone que ocurren la distribución de tráfico y la
+eliminación de nodos caídos.
 
-Todo lo que se muestra a continuación se ejecutó contra el despliegue en vivo, y la salida es la
-salida que produjo. Dos cosas que esa frase *no* cubre — la conmutación por error y la distribución
-del tráfico — se señalan al final en lugar de darse por supuestas.
+Todo lo que se muestra a continuación se ejecutó contra el despliegue en vivo, y la salida
+es la salida que produjo. Dos cosas que esa frase *no* cubre —la conmutación por error y
+la distribución de tráfico— se señalan al final en lugar de darse por supuestas.
 
-## Qué se despliega
+## Qué está desplegado
 
 ```text
                   Azure Route Server  ce-ha-lab-rrs  ASN 65515
@@ -53,24 +53,24 @@ del tráfico — se señalan al final en lugar de darse por supuestas.
 | Intercambio de rutas | Azure Route Server `ce-ha-lab-rrs`, ASN `65515`, instancias `10.0.4.4` y `10.0.4.5` |
 | Peerings | uno por CE — `eastus01-bgp`, `eastus02-bgp`, `eastus03-bgp` — ASN del CE `64512` |
 | VIP anunciada | `10.250.0.10/32`, originada de forma idéntica por los tres CE |
-| Balanceador de carga | `ar-bgp-ecmp-lb`, que sirve el dominio `ar-bgp-ecmp.bankexample.com` |
+| Balanceador de carga | `ar-bgp-ecmp-lb`, sirviendo el dominio `ar-bgp-ecmp.bankexample.com` |
 | Cliente de prueba | `ar-ecmp-client`, una VM dentro de la misma VNet |
 | Grupo de recursos | `rg-mcn-ce-ha-rmordasiewicz` |
 
-<Aside type="caution" title="La VIP debe situarse fuera de todos los CIDR de la VNet">
-`terraform/main.tf` incluye un bloque `check` que afirma que la VIP está fuera de los CIDR tanto
-del hub como del spoke, y rechaza el plan en caso contrario. La razón declarada es que una VIP
-dentro de un CIDR de la VNet pierde frente a la propia ruta del sistema de la VNet, a pesar de que
-la ruta BGP sea más específica.
+<Aside type="caution" title="La VIP debe quedar fuera de todos los CIDR de la VNet">
+`terraform/main.tf` incluye un bloque `check` que afirma que la VIP está fuera de los CIDR
+del hub y del spoke, y rechaza el plan en caso contrario. Su razón declarada es que una VIP
+dentro de un CIDR de VNet pierde frente a la propia ruta de sistema de la VNet, a pesar de
+que la ruta BGP sea más específica.
 
-Trate esa salvaguarda como el contrato: si vuelve a apuntar esta demostración a un
-direccionamiento distinto, la VIP debe salir de los rangos de la VNet junto con él.
+Trate esa protección como el contrato: si reorienta esta demostración a un
+direccionamiento distinto, la VIP tiene que salir de los rangos de la VNet con él.
 </Aside>
 
 ## Compruebe que está en buen estado antes de presentar
 
 Cuatro comprobaciones, en este orden. Cada una acota dónde estaría un fallo, de modo que un
-error le indica algo en lugar de únicamente que algo va mal.
+error le dice algo en lugar de solo indicar que algo va mal.
 
 <Steps>
 
@@ -91,8 +91,8 @@ error le indica algo en lugar de únicamente que algo va mal.
    ```
 
 2. **Cada peering está aprendiendo el anuncio de la VIP de ese CE.** Consulte cada peering
-   por separado — vea la trampa más abajo, porque aquí es donde la demostración parece
-   estar rota con más frecuencia sin estarlo.
+   por separado — vea la trampa más abajo, porque es aquí donde la demostración parece
+   rota con más frecuencia y no lo está.
 
    ```bash
    for p in eastus01-bgp eastus02-bgp eastus03-bgp; do
@@ -121,12 +121,12 @@ error le indica algo en lugar de únicamente que algo va mal.
    10.250.0.10/32  10.0.1.6   64512     EBgp
    ```
 
-   Tres peerings, tres próximos saltos distintos, un prefijo. Eso demuestra el lado del
-   anuncio de ECMP.
+   Tres peerings, tres saltos siguientes distintos, un prefijo. Eso demuestra el lado de
+   los anuncios de ECMP.
 
-3. **Las rutas efectivas del cliente incluyen los tres próximos saltos.** Esto es el ECMP en
-   sí, tal como la VNet lo ha programado — no lo que afirman los CE, sino lo que Azure hizo
-   con ello.
+3. **Las rutas efectivas del cliente incluyen los tres saltos siguientes.** Esto es el ECMP
+   en sí, tal como lo ha programado la VNet: no lo que afirman los CE, sino lo que Azure
+   hizo con ello.
 
    ```bash
    az network nic show-effective-route-table \
@@ -146,11 +146,11 @@ error le indica algo en lugar de únicamente que algo va mal.
    ]
    ```
 
-   `state: Active` con tres entradas en `nextHopIpAddress` es la comprobación. Un único
-   próximo salto donde espera tres significa que un CE ha dejado de anunciar, y el paso 2
+   `state: Active` con tres entradas en `nextHopIpAddress` es la comprobación. Un solo
+   salto siguiente donde espera tres significa que un CE ha dejado de anunciar, y el paso 2
    identifica cuál.
 
-4. **La VIP sirve tráfico.** Desde la VM cliente y **con la cabecera `Host`** — vea la
+4. **La VIP sirve tráfico.** Desde la VM cliente, y **con la cabecera `Host`** — vea la
    segunda trampa más abajo.
 
    ```bash
@@ -168,70 +168,70 @@ error le indica algo en lugar de únicamente que algo va mal.
 
 </Steps>
 
-## Trampa: un peering muestra una sola ruta, y es correcto
+## Trampa: un peering muestra una sola ruta, y eso es correcto
 
-`list-learned-routes` está limitado al peering que indique. Informa de lo que anunció **ese**
-peer, no de la tabla completa del Route Server.
+`list-learned-routes` está acotado al peering que usted nombra. Informa de lo que **ese**
+par anunció, no de la tabla completa del Route Server.
 
-Así que consultar `eastus01-bgp` por separado devuelve un único `10.250.0.10/32` vía `10.0.1.4`,
-y resulta tentador interpretarlo como «solo un CE está anunciando: los otros dos están caídos».
-Nada está caído. Los otros dos anuncios son visibles en sus propios peerings, que es lo que
-recorre el paso 2 anterior.
+Así que consultar `eastus01-bgp` por sí solo devuelve un único `10.250.0.10/32` vía
+`10.0.1.4`, y resulta tentador leerlo como «solo un CE está anunciando: los otros dos están
+caídos». Nada está caído. Los otros dos anuncios se ven en sus propios peerings, que es
+justo lo que recorre el bucle del paso 2.
 
-Confirmar ECMP desde una única consulta de peering no es posible. O recorre los tres peerings,
-o lee la tabla de rutas efectivas del cliente, que muestra el resultado combinado en una sola
-llamada.
+Confirmar ECMP a partir de la consulta de un único peering no es posible. O recorre los
+tres peerings, o lee la tabla de rutas efectivas del cliente, que muestra el resultado
+combinado en una sola llamada.
 
-## Trampa: una petición a la IP a secas devuelve 404
+## Trampa: una petición a la IP desnuda devuelve 404
 
-El balanceador de carga hace coincidencias por `Host`. La VIP no es un servidor virtual que
-sirva algo a quien sea que se conecte a la dirección.
+El balanceador de carga hace coincidir por `Host`. La VIP no es un servidor virtual que
+sirva algo a quienquiera que se conecte a la dirección.
 
 ```text
 curl -H 'Host: ar-bgp-ecmp.bankexample.com' http://10.250.0.10/   ->  200   (10 of 10)
 curl                                        http://10.250.0.10/   ->  404
 ```
 
-Ambos resultados se produjeron en la misma ejecución contra el despliegue en buen estado. **Un
-404 con la IP a secas es la prueba de que la ruta funciona**: la petición llegó al CE, el proxy
-del CE respondió y la rechazó porque ningún dominio configurado coincidió. Interpretarlo como
-una interrupción le lleva a mirar BGP, donde no encontrará nada mal.
+Ambos resultados se produjeron en la misma ejecución contra el despliegue en buen estado.
+**Un 404 con la IP desnuda es la prueba de que el camino funciona**: la petición llegó al
+CE, el proxy del CE respondió y la rechazó porque ningún dominio configurado coincidía.
+Leerlo como una interrupción le hace mirar el BGP, donde no encontrará nada mal.
 
-Lo mismo se aplica durante una demostración: si escribe la dirección en un navegador en lugar
+Lo mismo aplica durante una demostración: si escribe la dirección en un navegador en lugar
 de resolver el dominio hacia ella, obtiene el 404.
 
 ## La aprobación del registro está automatizada, y el apply sigue siendo en dos fases
 
-La aprobación del registro ya no necesita a una persona en la consola. Con el proveedor
-**v3.81.1**, el recurso `xcsh_registration_approval` la realiza, y el módulo del sitio resuelve
-qué registro aprobar.
+La aprobación del registro ya no necesita a una persona en la consola. En la versión
+**v3.81.1** del proveedor, el recurso `xcsh_registration_approval` la realiza, y el módulo
+del sitio resuelve qué registro aprobar.
 
 Eso sigue sin convertir el despliegue en un único `apply` desatendido, y la razón merece
-entenderse antes de observar una primera ejecución y concluir que falló:
+entenderse antes de que observe una primera ejecución y concluya que falló:
 
-- El objeto de registro de un CE se llama **`r-<uuid>`**. Nunca se nombra a partir del sitio,
-  de modo que nada puede predecir el nombre en el momento del plan.
+- El objeto de registro de un CE se llama **`r-<uuid>`**. Nunca lleva el nombre del sitio,
+  así que nada puede predecir el nombre en tiempo de plan.
 - El registro solo existe después de que la VM haya arrancado y `vpm` se haya registrado.
-- Por lo tanto, el **primer apply no planifica ninguna aprobación**. Vuelva a aplicar una vez
+- Por tanto, el **primer apply no planifica ninguna aprobación**. Vuelva a aplicar una vez
   que los CE se hayan registrado y se hayan creado las aprobaciones.
 
-`terraform/main.tf` documenta este orden en la parte superior del archivo, que es la versión
-autoritativa: la secuencia de despliegue vive junto al código que la implementa.
+`terraform/main.tf` documenta esta secuencia en la parte superior del archivo, que es la
+versión autoritativa: la secuencia de despliegue vive junto al código que la implementa.
 
-<Aside type="caution" title="Un sitio recién creado no es inmediatamente accesible mediante la API de operación">
+<Aside type="caution" title="Un sitio recién creado no es accesible de inmediato por la API de operación">
 Durante aproximadamente 25 a 30 minutos después de que un sitio nuevo informe `ONLINE`, los
-endpoints `vpm/debug` responden con una página `503` de BIG-IP que dice `The requested URL was
-rejected`. Parece un bloqueo de un firewall de aplicaciones web o un token revocado, y no es
-ninguna de las dos cosas. Espere y vuelva a intentarlo.
+endpoints `vpm/debug` responden con una página `503` de BIG-IP que dice
+`The requested URL was rejected`. Parece un bloqueo de firewall de aplicaciones web o un
+token revocado, y no es ninguna de las dos cosas. Espere y reintente.
 
-Esto afecta a una demostración recién construida, no a una en funcionamiento.
+Esto afecta a una demostración recién construida, no a una en marcha.
 </Aside>
 
 ## Acceso a la CLI del sitio
 
-El diagnóstico en el propio equipo pasa por la API de depuración, que ya está automatizada
-aquí. Confirme que la superficie de comandos sigue coincidiendo con lo que describe la
-documentación:
+Los diagnósticos rutinarios en el equipo pasan por la API de depuración, que ya está
+scriptada aquí. Confirme que la superficie de comandos sigue coincidiendo con lo que
+describe la documentación:
 
 ```bash
 bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
@@ -241,12 +241,39 @@ bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-v
 catalog matches the live CE (build crt-20250613-3382, 34 commands)
 ```
 
-`--check` no escribe nada, por lo que es seguro ejecutarlo contra la demostración en vivo.
+`--check` no escribe nada, así que es seguro contra la demostración en vivo.
+
+Para los comandos que esa API no retransmite, este despliegue también dispone de **SSH de
+operador a la cuenta `admin` del dispositivo**, cuyo shell de inicio de sesión es la CLI del
+sitio. Está verificado en los tres CE. Conéctese a la dirección interna (SLI) desde un host
+dentro de la VNet, con un terminal asignado:
+
+```bash
+ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<vm-in-vnet> admin@10.0.3.5
+```
+
+```text
+WELCOME IN SITE CLI
+Registration Status: PROVISIONED
+```
+
+<Aside type="caution" title="Ese acceso existe porque estos CE se construyeron con él — no puede añadirse después">
+La clave de operador la escribe `write_files` de cloud-init, que se ejecuta una sola vez en
+el primer arranque. `custom_data` es solo de reemplazo, así que adoptar esto en CE que ya
+están en ejecución reemplaza todas las VM de CE — y reemplazar una actualmente atasca el
+registro mientras `terraform plan` informa «No changes»
+([incidencia 674](https://github.com/f5-sales-demo/mcn/issues/674)). La recuperación
+requirió dos reconstrucciones completas.
+
+Para este despliegue el cambio ya está aplicado y la flota está en buen estado. Quien lo
+adopte en otro lugar debería leer antes la
+[página de SSH](../customer-edge/access/ssh/).
+</Aside>
 
 <CardGrid>
   <LinkCard
     title="Acceso a un Customer Edge"
-    description="Qué vía de acceso corresponde, las credenciales que necesita cada una y por qué la elección no es una preferencia."
+    description="Qué vía de acceso se aplica, las credenciales que necesita cada una y por qué la elección no es una preferencia."
     href="../customer-edge/access/"
   />
   <LinkCard
@@ -261,28 +288,29 @@ catalog matches the live CE (build crt-20250613-3382, 34 commands)
 Ambas produjeron respuestas erróneas con total confianza en este entorno, y ninguna es
 evidente.
 
-- **Haga las pruebas desde dentro de la VNet, no desde su estación de trabajo.** Netskope
-  completa él mismo el handshake TCP en los puertos habituales, de modo que una prueba desde
-  la estación de trabajo informa de un puerto **abierto** que en realidad está cerrado. Los
-  puertos 80 y 443 se leen como abiertos en las direcciones públicas del CE desde una
-  estación de trabajo y están cerrados al probarlos desde dentro de la VNet. Use
-  `ar-ecmp-client`.
-- **El puerto 22 de un CE responde solo en la dirección interna (SLI).** Probados desde
+- **Sondee desde dentro de la VNet, no desde su estación de trabajo.** Netskope completa
+  por sí mismo el saludo TCP en puertos comunes, de modo que un sondeo desde la estación de
+  trabajo informa de un puerto **abierto** que en realidad está cerrado. Los puertos 80 y
+  443 aparecen como abiertos en las direcciones públicas de los CE desde una estación de
+  trabajo y están cerrados cuando se sondean desde dentro de la VNet. Use `ar-ecmp-client`.
+- **El puerto 22 de un CE responde solo en la dirección interna (SLI).** Sondeados desde
   `ar-ecmp-client` contra los tres CE, `10.0.3.5`, `10.0.3.6` y `10.0.3.7` devuelven todos
-  `SSH-2.0-OpenSSH_8.7`, mientras que las direcciones de gestión y externa expiran, igual que
-  una dirección sin usar empleada como control. Por lo tanto, probar la dirección por la que
-  conoce el nodo no le dice nada sobre el estado de SSH del nodo.
+  `SSH-2.0-OpenSSH_8.7`, mientras que las direcciones de gestión y externa expiran, igual
+  que una dirección sin usar empleada como control. eth0 se renombra como `a-i-eth0` y no
+  lleva IP de host, porque la ruta de datos es su propietaria. Así que sondear la dirección
+  por la que conoce el nodo no le dice nada sobre el estado de SSH del nodo, y la dirección
+  SLI es a la que hay que conectarse.
 
 <Aside type="note" title="Lo que esta página no afirma">
 Dos cosas que un lector podría esperar razonablemente aquí están deliberadamente ausentes,
 porque no se ejercitaron contra el despliegue:
 
-- **No se probó la conmutación por error.** Se verifica que los tres próximos saltos de igual
-  coste están instalados; lo que ocurre con la tabla de rutas cuando se detiene un CE no se
-  muestra, así que no ensaye una demostración de conmutación por error a partir de esta página
-  sin probarla antes.
-- **No se midió la distribución del tráfico.** Diez de diez peticiones a la VIP devolvieron
-  `200`, lo que demuestra que la ruta funciona. No muestra cómo se repartieron esas diez entre
-  los tres próximos saltos.
+- **La conmutación por error no se probó.** Se verifica que los tres saltos siguientes de
+  igual coste están instalados; lo que le ocurre a la tabla de rutas cuando se detiene un CE
+  no se muestra, así que no ensaye una demostración de conmutación por error a partir de
+  esta página sin probarlo antes.
+- **La distribución de tráfico no se midió.** Diez de diez peticiones a la VIP devolvieron
+  `200`, lo que demuestra que el camino funciona. No muestra cómo se repartieron esas diez
+  entre los tres saltos siguientes.
 
 </Aside>

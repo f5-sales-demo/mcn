@@ -1,26 +1,28 @@
 ---
 title: Customer Edge 診斷
-description: 當 Customer Edge 出現異常時，請優先閱讀本層級說明。本文說明兩種存取路徑各適用於哪種情況，因為選錯路徑會導致靜默地返回空結果。
+description: 當 Customer Edge 運作異常時，請先閱讀此層級的內容。它會確立兩條存取路徑中適用的是哪一條，因為選錯的那一條會靜默地回傳空值。
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: b4cc7a6da640
+  sourceHash: f6d78e1c7066
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Customer Edge（CE）是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節點——`terraform/modules/ce-node`，
-由 `volterraedgeservices/volterra-node` Marketplace 映像檔建置而成。
+Customer Edge (CE) 是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節點 —
+`terraform/modules/ce-node`，以
+`volterraedgeservices/volterra-node` marketplace 映像檔建置而成。
 
-它運行資料平面（Argo）、控制平面（Vega）、Envoy Proxy、Kubernetes
-堆疊，以及 `vpm`——負責註冊節點並管理其上所有元件的代理程式。
+它執行資料平面 (Argo)、控制平面 (Vega)、一個 Envoy Proxy、一套 Kubernetes
+堆疊，以及 `vpm` — 負責註冊節點並管理節點上其餘一切的代理程式。
 
-當 CE 出現異常時，Site CLI 是主要的診斷工具。首要決策是判斷適用哪種存取路徑，選錯路徑將浪費時間，且表現形式如同節點損壞。
+當 CE 運作異常時，Site CLI 就是診斷工具。第一個決定是判斷適用哪一條存取路徑，
+選錯會浪費時間，而且看起來就像節點壞掉了一樣。
 
-## 兩種存取路徑，且不可互換
+## 兩條存取路徑，兩者不可互換
 
 <CardGrid>
   <LinkCard
@@ -35,21 +37,25 @@ Customer Edge（CE）是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節
   />
 </CardGrid>
 
-Debug API 透過 **F5 Distributed Cloud 控制平面**連接節點。
-這正是兩者區別的關鍵所在：API 只有在節點完成註冊並回報 `ONLINE` 狀態後才能回應。
+Debug API **透過 F5 Distributed Cloud 控制平面**連上節點。
+這正是這項區分之所以重要的原因：只有在節點已完成註冊且回報 `ONLINE` 之後，
+API 才能回應。
 
-若節點因 cloud-init 設定錯誤、Token 過期或無法路由至
-`register.ves.volterra.io` 而未能完成註冊——這類情況恰恰是您最需要診斷資訊的時候，卻也正是 API 無法提供服務的情況。
+註冊失敗的節點 — cloud-init 有誤、權杖過期、無法路由至
+`register.ves.volterra.io` — 正是你最需要診斷的情況，
+也正是 API 無法服務的情況。
 
-[SSH](./access/ssh/) 是第三種選項，也是唯一能存取設備完整命令介面的方式——Debug API 僅提供 34 個命令，而節點本身提供更多。
-然而有兩項限制：`sshd` 僅監聽節點的內部（SLI）位址，因此需要 VNet 內部的主機才能連線；
-且金鑰由 cloud-init 於首次開機時寫入，因為 Site 物件上的 `ssh_key` 欄位實際上無效——`vpm` 會略過 `admin` 使用者，從不套用該欄位。
-因此，若要在運行中的節點上啟用 SSH，必須重新佈建這些節點。
+[SSH](./access/ssh/) 是第三個選項，也是唯一能觸及設備完整命令介面的方式 —
+debug API 只公開 34 個命令，而節點本身提供的遠不止於此。有兩件事限制了它。
+`sshd` 只在節點的內部 (SLI) 位址上回應，因此需要一台位於 VNet 內的主機；
+而金鑰是由 cloud-init 在首次開機時寫入的，因為 site 物件上的 `ssh_key` 欄位無作用 —
+`vpm` 會跳過 `admin` 使用者且從不套用它。因此，要在執行中的節點上啟用它就等於替換節點。
 
-總結：若 Site 狀態為 `ONLINE` 且 34 個命令已足夠，請使用 Debug API。若需要完整命令介面且能夠連接 VNet，請使用 SSH。若問題出在節點無法完成註冊，序列主控台是唯一的進入途徑。
+所以：如果站台為 `ONLINE` 且 34 個命令已足夠，請使用 debug API。如果你需要其餘的
+命令介面且能連上 VNet，請使用 SSH。如果壞掉的是註冊本身，序列主控台是唯一的入口。
 
-<Aside type="caution" title="請先確認 Site 狀態">
-一個請求即可判斷您所處的路徑：
+<Aside type="caution" title="先檢查站台狀態">
+一個請求就能告訴你該走哪條路徑：
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -57,25 +63,39 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` 表示 Debug API 可正常使用。其他任何狀態——或 Site 不存在——則表示需使用序列主控台。
+`ONLINE` 表示 debug API 可以運作。其他任何狀態 — 或站台根本不存在 —
+都表示要用序列主控台。
 </Aside>
 
 ## 安全規則
 
-以下規則適用於以下各頁面的所有命令。
+以下規則適用於下列各頁的每一個命令。
 
-- **除非確定，否則僅執行唯讀操作。** 命令介面分為兩個權限層級，`Exec` 層級的命令會修改節點狀態或讀取狀態標記。本文各頁面均不執行 `Exec` 命令，擷取工具亦同。
-- **切勿從命令名稱推測其安全性。** `ip-link-set` 看似查詢命令，實際上會使網路介面下線。`systemctl-restart-crio` 會在活躍資料平面下重啟容器執行環境。
-- **優先使用能回答問題的最精簡命令。** `health` 與 `diagnosis` 能以低成本彙總節點狀態；`flow-l` 則會傾印包含 629,760 筆記錄的流量表。
-- **CE 承載著線上流量。** 這些是共用的示範環境。請假設您正在除錯的 Site 上，有人正在進行展示。
+- **除非你有十足把握，否則只做唯讀操作。** 命令介面分為兩個權限層級，
+  而 `Exec` 層級不是會變更節點狀態，就是會讀取某個狀態標記。這些頁面上沒有任何
+  內容會執行 `Exec` 命令，擷取工具 (capture harness) 也不會。
+- **絕不要從命令名稱推斷它是安全的。** `ip-link-set` 讀起來像查詢，
+  實際上會讓介面斷線。`systemctl-restart-crio` 會在資料平面運作中重新啟動
+  容器執行環境。
+- **優先使用能回答問題的最小範圍命令。** `health` 與 `diagnosis`
+  能以低成本摘要節點狀態；`flow-l` 則會傾印一份 629,760 筆的流量表。
+- **CE 承載即時流量。** 這些是共用的展示環境。請假設有人正在用你要除錯的
+  站台進行簡報。
 
-## 本文涵蓋範圍
+## 這裡記錄了哪些內容
 
-所有可透過 Debug API 存取的命令（基於本租用戶運行的軟體版本），每個命令均附有從線上節點實際擷取的輸出，而非轉錄自其他來源。
+本租戶所執行的軟體版本上，透過 debug API 可觸及的每一個命令，
+每一個都附有從實際運作節點擷取的輸出，而非從別處轉錄而來。
 
-[命令參考](./commands/)列出所有命令及其類別、權限層級與傳輸方式；[工作流程](./workflows/)則將這些命令串聯成您在實際排查問題時所使用的操作序列。
+[命令參考](./commands/) 列出所有命令及其類別、權限層級與傳輸方式；
+[工作流程](./workflows/) 則將它們串連成出問題時實際會使用的操作順序。
 
-節點本機專屬的 Site CLI 部分——`configure`、`configure-network`、
-`factory-reset`、`upgrade`，以及約六十個額外的 `ExecCLI` 命令——不在本文涵蓋範圍內。
+Site CLI 中僅限於機上執行的部分 — `configure`、`configure-network`、
+`factory-reset`、`upgrade` 以及大約六十個其他 `ExecCLI` 命令 — 不在涵蓋範圍內，
+因為它們的輸出並未像下列每一頁那樣，從實際運作的節點擷取而來。
 
-這些命令僅能透過序列主控台工作階段存取，因此無法以程式化方式驗證，而本文件的存在正是為了避免重蹈未經驗證之命令語法所帶來的缺陷。
+不過，它們已不再遙不可及。`scripts/sitecli_ssh_harvest.py` 會透過
+[SSH](./access/ssh/) 驅動設備本身的補全選單，並記錄設備對每個命令所給出的描述，
+如此一來這片命令介面就能被量測，而非僅憑猜測。
+它的執行採預設拒絕 — 它會列舉一切，但只執行允許清單中的項目 —
+因為未經驗證的命令語法，以及未經驗證的命令*效果*，正是這份文件存在要避免重蹈覆轍的缺陷。

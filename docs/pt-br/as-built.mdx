@@ -1,15 +1,15 @@
 ---
-title: Guia da demonstração as-built
+title: Guia da demonstração conforme construída
 description: >-
   O que este repositório implanta — três Customer Edges de nó único originando
   um VIP via eBGP em um Azure Route Server para ECMP de três vias — como
-  comprovar que está saudável antes de apresentar, e os dois resultados de
-  aparência normal que parecem uma interrupção e não são.
+  comprovar que está saudável antes de apresentá-lo e os dois resultados de
+  aparência normal que parecem uma indisponibilidade e não são.
 sidebar:
   order: 5
-  label: Demonstração as-built
+  label: Demonstração conforme construída
 i18n:
-  sourceHash: 8e45b930d69d
+  sourceHash: 0d2a4becd81a
   translator: machine
 ---
 
@@ -17,14 +17,14 @@ import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
 Esta implantação demonstra **alta disponibilidade ativo/ativo de Customer Edge no Azure**
-sem nenhum load balancer do Azure na frente dos CEs. Três CEs originam cada um a mesma rota
-de host por eBGP, e o Azure Route Server instala todos os três como next hops de custo igual
-na VNet. A malha de roteamento, e não um load balancer, é portanto onde a distribuição de
-tráfego e a remoção de nós com falha devem ocorrer.
+sem nenhum load balancer do Azure à frente dos CEs. Três CEs originam, cada um, a mesma
+rota de host por eBGP, e o Azure Route Server instala os três como próximos saltos de
+custo igual na VNet. A malha de roteamento, e não um load balancer, é portanto onde a
+distribuição de tráfego e a remoção de nós com falha devem acontecer.
 
-Tudo o que é mostrado abaixo foi executado contra a implantação ativa, e a saída é a saída que
-ela produziu. Duas coisas que essa frase *não* cobre — failover e distribuição de tráfego —
-são destacadas ao final, em vez de serem deixadas como pressuposto.
+Tudo o que é mostrado abaixo foi executado contra a implantação ativa, e a saída é a saída
+que ela produziu. Duas coisas que essa frase *não* cobre — failover e distribuição de
+tráfego — são destacadas ao final, em vez de deixadas como suposição.
 
 ## O que está implantado
 
@@ -44,35 +44,36 @@ são destacadas ao final, em vez de serem deixadas como pressuposto.
                           three-way ECMP into the VNet
 ```
 
-| Componente | Como construído |
+| Componente | Conforme construído |
 | --- | --- |
 | Customer Edges | 3 sites Secure Mesh v2 de nó único — `ar-bgp-eastus01`, `ar-bgp-eastus02`, `ar-bgp-eastus03` |
 | Software do CE | fixado em `9.2024.6`, build `crt-20250613-3382` |
 | VMs do Azure | `f5-xc-ce-vm-01/02/03`, três NICs cada (gerenciamento/SLO, externa, interna/SLI) |
 | Troca de rotas | Azure Route Server `ce-ha-lab-rrs`, ASN `65515`, instâncias `10.0.4.4` e `10.0.4.5` |
 | Peerings | um por CE — `eastus01-bgp`, `eastus02-bgp`, `eastus03-bgp` — CE ASN `64512` |
-| VIP anunciado | `10.250.0.10/32`, originado de forma idêntica por todos os três CEs |
-| Load balancer | `ar-bgp-ecmp-lb`, atendendo o domínio `ar-bgp-ecmp.bankexample.com` |
+| VIP anunciado | `10.250.0.10/32`, originado de forma idêntica pelos três CEs |
+| Load balancer | `ar-bgp-ecmp-lb`, servindo o domínio `ar-bgp-ecmp.bankexample.com` |
 | Cliente de teste | `ar-ecmp-client`, uma VM dentro da mesma VNet |
 | Grupo de recursos | `rg-mcn-ce-ha-rmordasiewicz` |
 
-<Aside type="caution" title="O VIP precisa estar fora de todos os CIDRs da VNet">
-`terraform/main.tf` contém um bloco `check` que garante que o VIP esteja fora dos CIDRs de hub
-e de spoke, e recusa o plano caso contrário. A razão declarada é que um VIP dentro de um
-CIDR de VNet perde para a rota de sistema da própria VNet, apesar de a rota BGP ser mais específica.
+<Aside type="caution" title="O VIP precisa ficar fora de todo CIDR de VNet">
+`terraform/main.tf` traz um bloco `check` que afirma que o VIP está fora dos CIDRs do hub
+e do spoke, e recusa o plano caso contrário. A razão declarada é que um VIP dentro de um
+CIDR de VNet perde para a rota de sistema da própria VNet, apesar de a rota BGP ser mais
+específica.
 
-Trate a proteção como o contrato: se você reapontar esta demonstração para um endereçamento
-diferente, o VIP tem de sair das faixas da VNet junto com ele.
+Trate a proteção como o contrato: se você reapontar esta demonstração para um
+endereçamento diferente, o VIP tem de sair das faixas da VNet junto.
 </Aside>
 
 ## Comprove que está saudável antes de apresentar
 
-Quatro verificações, nesta ordem. Cada uma restringe onde uma falha estaria, de modo que uma
-falha lhe diz algo, e não apenas que algo está errado.
+Quatro verificações, nesta ordem. Cada uma estreita onde uma falha estaria, de modo que
+uma falha lhe diz algo em vez de apenas que algo está errado.
 
 <Steps>
 
-1. **Todos os três sites estão `ONLINE`.** Nada a jusante pode ser verdadeiro se isso não for.
+1. **Os três sites estão `ONLINE`.** Nada a jusante pode ser verdade se isto não for.
 
    ```bash
    for s in ar-bgp-eastus01 ar-bgp-eastus02 ar-bgp-eastus03; do
@@ -119,11 +120,11 @@ falha lhe diz algo, e não apenas que algo está errado.
    10.250.0.10/32  10.0.1.6   64512     EBgp
    ```
 
-   Três peerings, três next hops diferentes, um prefixo. Isso comprova o lado do anúncio
-   do ECMP.
+   Três peerings, três próximos saltos diferentes, um prefixo. Esse é o lado do anúncio do
+   ECMP comprovado.
 
-3. **As rotas efetivas do cliente carregam todos os três next hops.** Este é o ECMP em si,
-   como a VNet o programou — não o que os CEs alegam, mas o que o Azure fez com isso.
+3. **As rotas efetivas do cliente carregam os três próximos saltos.** Este é o ECMP em si,
+   tal como a VNet o programou — não o que os CEs afirmam, mas o que o Azure fez com isso.
 
    ```bash
    az network nic show-effective-route-table \
@@ -143,11 +144,12 @@ falha lhe diz algo, e não apenas que algo está errado.
    ]
    ```
 
-   `state: Active` com três entradas em `nextHopIpAddress` é a verificação. Um next hop
-   onde você espera três significa que um CE parou de anunciar, e o passo 2 identifica qual.
+   `state: Active` com três entradas em `nextHopIpAddress` é a verificação. Um próximo
+   salto onde você espera três significa que um CE parou de anunciar, e o passo 2
+   identifica qual.
 
-4. **O VIP atende tráfego.** A partir da VM cliente, e **com o cabeçalho `Host`** — veja
-   a segunda armadilha abaixo.
+4. **O VIP atende tráfego.** A partir da VM cliente, e **com o cabeçalho `Host`** — veja a
+   segunda armadilha abaixo.
 
    ```bash
    az vm run-command invoke -g rg-mcn-ce-ha-rmordasiewicz -n ar-ecmp-client \
@@ -166,21 +168,21 @@ falha lhe diz algo, e não apenas que algo está errado.
 
 ## Armadilha: um peering mostra uma rota, e isso está correto
 
-`list-learned-routes` tem escopo limitado ao peering que você nomear. Ele reporta o que
-**aquele** peer anunciou, não a tabela inteira do Route Server.
+`list-learned-routes` tem escopo no peering que você nomeia. Ele relata o que **aquele**
+peer anunciou, não a tabela inteira do Route Server.
 
-Assim, consultar `eastus01-bgp` isoladamente retorna um único `10.250.0.10/32` via `10.0.1.4`,
-e é tentador interpretar isso como "somente um CE está anunciando — os outros dois estão fora".
-Nada está fora. Os outros dois anúncios estão visíveis em seus próprios peerings, que é
-sobre o que o passo 2 acima itera.
+Assim, consultar `eastus01-bgp` isoladamente retorna um único `10.250.0.10/32` via
+`10.0.1.4`, e é tentador ler isso como "apenas um CE está anunciando — os outros dois
+estão fora do ar". Nada está fora do ar. Os outros dois anúncios estão visíveis em seus
+próprios peerings, que é o que o passo 2 acima percorre em laço.
 
-Confirmar o ECMP a partir de uma consulta a um único peering não é possível. Ou itere todos
-os três peerings, ou leia a tabela de rotas efetivas do cliente, que mostra o resultado
-combinado em uma única chamada.
+Confirmar ECMP a partir de uma consulta a um único peering não é possível. Ou percorra os
+três peerings em laço, ou leia a tabela de rotas efetivas do cliente, que mostra o
+resultado combinado em uma única chamada.
 
 ## Armadilha: uma requisição por IP puro retorna 404
 
-O load balancer faz a correspondência por `Host`. O VIP não é um servidor virtual que atende
+O load balancer faz correspondência por `Host`. O VIP não é um servidor virtual que serve
 qualquer coisa a quem se conectar ao endereço.
 
 ```text
@@ -188,44 +190,46 @@ curl -H 'Host: ar-bgp-ecmp.bankexample.com' http://10.250.0.10/   ->  200   (10 
 curl                                        http://10.250.0.10/   ->  404
 ```
 
-Ambos foram produzidos na mesma execução contra a implantação saudável. **Um 404 por IP puro
-é prova de que o caminho funciona** — a requisição chegou ao CE, o proxy do CE respondeu, e
-recusou porque nenhum domínio configurado correspondeu. Interpretar isso como uma interrupção
-o faz procurar no BGP, onde você não encontrará nada errado.
+Ambos foram produzidos na mesma execução contra a implantação saudável. **Um 404 por IP
+puro é prova de que o caminho funciona** — a requisição chegou ao CE, o proxy do CE
+respondeu e recusou porque nenhum domínio configurado correspondeu. Lê-la como uma
+indisponibilidade leva você a olhar para o BGP, onde não encontrará nada de errado.
 
-O mesmo se aplica durante uma demonstração: se você digitar o endereço em um navegador em vez
-de resolver o domínio para ele, você obtém o 404.
+O mesmo se aplica durante uma demonstração: se você digitar o endereço em um navegador em
+vez de resolver o domínio para ele, você obtém o 404.
 
 ## A aprovação de registro é automatizada, e o apply ainda é em duas fases
 
-A aprovação de registro não precisa mais de uma pessoa no console. No provider **v3.81.1** o
-recurso `xcsh_registration_approval` a executa, e o módulo do site resolve qual registro aprovar.
+A aprovação de registro não precisa mais de um humano no console. No provider **v3.81.1**,
+o recurso `xcsh_registration_approval` a executa, e o módulo do site resolve qual registro
+aprovar.
 
-Isso ainda não torna a implantação um único `apply` sem intervenção, e vale entender a razão
-antes de assistir a uma primeira execução e concluir que ela falhou:
+Isso ainda não torna a implantação um único `apply` sem intervenção, e vale a pena
+entender o motivo antes de assistir a uma primeira execução e concluir que ela falhou:
 
-- O objeto de registro de um CE é nomeado **`r-<uuid>`**. Ele nunca é nomeado a partir do site,
+- O objeto de registro de um CE é nomeado **`r-<uuid>`**. Ele nunca recebe o nome do site,
   então nada pode prever o nome no momento do plan.
-- O registro só existe após a VM ter inicializado e o `vpm` ter se registrado.
-- Portanto, o **primeiro apply não planeja aprovação alguma**. Reaplique depois que os CEs
-  tiverem se registrado e as aprovações tiverem sido criadas.
+- O registro só existe depois que a VM inicializou e o `vpm` se registrou.
+- Portanto, o **primeiro apply não planeja aprovação alguma**. Reaplique assim que os CEs
+  tiverem se registrado e as aprovações forem criadas.
 
-`terraform/main.tf` documenta essa ordenação no topo do arquivo, que é a versão
-autoritativa — a sequência de implantação vive junto com o código que a implementa.
+`terraform/main.tf` documenta esse ordenamento no topo do arquivo, que é a versão
+autoritativa — a sequência de implantação vive junto do código que a implementa.
 
-<Aside type="caution" title="Um site recém-criado não é imediatamente alcançável pela API operate">
-Por cerca de 25 a 30 minutos após um novo site reportar `ONLINE`, os endpoints `vpm/debug`
-respondem com uma página `503` do BIG-IP dizendo `The requested URL was rejected`. Parece um
-bloqueio de web application firewall ou um token revogado e não é nenhum dos dois. Aguarde e
-tente novamente.
+<Aside type="caution" title="Um site recém-criado não é imediatamente alcançável pela API de operação">
+Por aproximadamente 25 a 30 minutos após um novo site reportar `ONLINE`, os endpoints
+`vpm/debug` respondem com uma página `503` do BIG-IP dizendo `The requested URL was rejected`.
+Parece um bloqueio de web application firewall ou um token revogado e não é nenhum dos
+dois. Espere e tente novamente.
 
 Isso afeta uma demonstração recém-construída, não uma em execução.
 </Aside>
 
-## Acessando a CLI do Site
+## Acessando a Site CLI
 
-Diagnósticos on-box passam pela API de debug, que já está roteirizada aqui. Confirme que a
-superfície de comandos ainda corresponde ao que a documentação descreve:
+Diagnósticos de rotina no equipamento passam pela API de debug, que já está roteirizada
+aqui. Confirme que a superfície de comandos ainda corresponde ao que a documentação
+descreve:
 
 ```bash
 bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
@@ -235,45 +239,74 @@ bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-v
 catalog matches the live CE (build crt-20250613-3382, 34 commands)
 ```
 
-`--check` não escreve nada, portanto é seguro executá-lo contra a demonstração ativa.
+`--check` não escreve nada, então é seguro executá-lo contra a demonstração ativa.
+
+Para os comandos que essa API não repassa, esta implantação também possui **SSH de
+operador para a conta `admin` do appliance**, cujo shell de login é a Site CLI. Isso está
+verificado nos três CEs. Conecte-se ao endereço interno (SLI) a partir de um host dentro
+da VNet, com um terminal alocado:
+
+```bash
+ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<vm-in-vnet> admin@10.0.3.5
+```
+
+```text
+WELCOME IN SITE CLI
+Registration Status: PROVISIONED
+```
+
+<Aside type="caution" title="Esse acesso existe porque estes CEs foram construídos com ele — não pode ser adicionado depois">
+A chave de operador é gravada pelo `write_files` do cloud-init, que é executado uma vez na
+primeira inicialização. `custom_data` é somente-substituição, então adotar isso em CEs que
+já estão em execução substitui todas as VMs de CE — e substituir uma atualmente trava o
+registro enquanto o `terraform plan` reporta "No changes" ([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)).
+A recuperação exigiu duas reconstruções completas.
+
+Para esta implantação a mudança já está aplicada e a frota está saudável. Quem for adotá-la
+em outro lugar deve ler primeiro a
+[página de SSH](../customer-edge/access/ssh/).
+</Aside>
 
 <CardGrid>
   <LinkCard
-    title="Reaching a Customer Edge"
-    description="Which access route applies, the credentials each needs, and why the choice is not a preference."
+    title="Acessando um Customer Edge"
+    description="Qual rota de acesso se aplica, as credenciais que cada uma exige e por que a escolha não é uma preferência."
     href="../customer-edge/access/"
   />
   <LinkCard
-    title="BGP commands"
-    description="The on-box view from FRR — peering state, the full table, and what this node advertises."
+    title="Comandos BGP"
+    description="A visão no equipamento a partir do FRR — estado de peering, a tabela completa e o que este nó anuncia."
     href="../customer-edge/commands/network/bgp/"
   />
 </CardGrid>
 
-## Duas outras armadilhas de medição
+## Mais duas armadilhas de medição
 
 Ambas produziram respostas erradas com confiança neste ambiente, e nenhuma delas é óbvia.
 
-- **Sonde de dentro da VNet, não da sua estação de trabalho.** O Netskope completa o handshake
-  TCP por conta própria em portas comuns, então uma sondagem da estação de trabalho reporta uma
-  porta **aberta** que na verdade está fechada. As portas 80 e 443 aparecem como abertas nos
-  endereços públicos dos CEs a partir de uma estação de trabalho e estão fechadas quando
-  sondadas de dentro da VNet. Use o `ar-ecmp-client`.
-- **A porta 22 em um CE responde somente no endereço interno (SLI).** Sondadas do
+- **Faça a sondagem de dentro da VNet, não da sua estação de trabalho.** O Netskope
+  conclui o handshake TCP por conta própria em portas comuns, então uma sondagem da estação
+  de trabalho reporta como **aberta** uma porta que na verdade está fechada. As portas 80 e
+  443 aparecem como abertas nos endereços públicos dos CEs a partir de uma estação de
+  trabalho e estão fechadas quando sondadas de dentro da VNet. Use `ar-ecmp-client`.
+- **A porta 22 em um CE responde apenas no endereço interno (SLI).** Sondados a partir de
   `ar-ecmp-client` contra os três CEs, `10.0.3.5`, `10.0.3.6` e `10.0.3.7` todos retornam
-  `SSH-2.0-OpenSSH_8.7`, enquanto os endereços de gerenciamento e externo expiram por tempo —
-  assim como um endereço não utilizado usado como controle. Portanto, sondar o endereço pelo
-  qual você conhece o nó não lhe diz nada sobre o estado de SSH do nó.
+  `SSH-2.0-OpenSSH_8.7`, enquanto os endereços de gerenciamento e externo expiram — assim
+  como um endereço não utilizado usado como controle. A eth0 é renomeada para `a-i-eth0` e
+  não carrega IP de host, porque o datapath é o dono dela. Portanto, sondar o endereço pelo
+  qual você conhece o nó não lhe diz nada sobre o estado de SSH do nó, e o endereço SLI é
+  aquele ao qual se conectar.
 
 <Aside type="note" title="O que esta página não afirma">
-Duas coisas que um leitor poderia razoavelmente esperar aqui estão deliberadamente ausentes,
-porque não foram exercitadas contra a implantação:
+Duas coisas que um leitor poderia razoavelmente esperar aqui estão deliberadamente
+ausentes, porque não foram exercitadas contra a implantação:
 
-- **O failover não foi testado.** Os três next hops de custo igual estão verificados como
-  instalados; o que acontece com a tabela de rotas quando um CE é parado não é mostrado,
-  portanto não ensaie uma demonstração de failover a partir desta página sem testá-la primeiro.
-- **A distribuição de tráfego não foi medida.** Dez de dez requisições ao VIP retornaram `200`,
-  o que prova que o caminho funciona. Isso não mostra como essas dez foram distribuídas entre
-  os três next hops.
+- **O failover não foi testado.** Os três próximos saltos de custo igual estão verificados
+  como instalados; o que acontece com a tabela de rotas quando um CE é parado não é
+  mostrado, então não ensaie uma demonstração de failover a partir desta página sem
+  experimentá-la antes.
+- **A distribuição de tráfego não foi medida.** Dez de dez requisições ao VIP retornaram
+  `200`, o que prova que o caminho funciona. Isso não mostra como essas dez foram
+  distribuídas entre os três próximos saltos.
 
 </Aside>

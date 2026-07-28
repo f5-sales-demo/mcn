@@ -50,12 +50,15 @@ fallback — it is the only option.
 
 ## Credentials
 
-Both routes use different credentials, and neither belongs on a command line.
+Each route uses different credentials, and none of them belongs on a command line.
 
 - **Debug API** — an F5 Distributed Cloud API token, as `XCSH_API_TOKEN`, with the
   tenant URL as `XCSH_API_URL`. The `xcsh` context file at
   `~/.config/xcsh/contexts/<tenant>.json` holds both, which is what
   `scripts/capture-sitecli.sh` reads when the environment does not supply them.
+- **SSH** — the private half of the keypair whose public half the deployment wrote into
+  `/var/home/admin/.ssh/authorized_keys` at first boot, plus a host inside the VNet to
+  reach the internal address through. Connect as `admin`, not `azureuser`.
 - **Serial console** — your interactive Azure login. There is no service principal
   for this: the F5 corporate Entra tenant does not permit provisioning one, which
   is also why no part of this runs in CI.
