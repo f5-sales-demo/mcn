@@ -1,67 +1,68 @@
 ---
-title: Diagnóstico de Customer Edge
+title: Diagnósticos de Customer Edge
 description: >-
-  Lea este nivel primero cuando un Customer Edge se comporte de forma
-  incorrecta. Establece cuál de las dos rutas de acceso corresponde, porque la
-  equivocada no devuelve nada de forma silenciosa.
+  Lea este nivel primero cuando un Customer Edge falla. Establece cuál de las
+  dos rutas de acceso aplica, porque la incorrecta silenciosamente no devuelve
+  nada.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: 991cdd445e1e
+  sourceHash: b4cc7a6da640
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Un Customer Edge (CE) es el nodo de F5 Distributed Cloud que este repositorio
-aprovisiona en Azure — `terraform/modules/ce-node`, construido a partir de la imagen
-de marketplace `volterraedgeservices/volterra-node`.
+Un Customer Edge (CE) es el nodo de F5 Distributed Cloud que este repositorio aprovisiona en
+Azure — `terraform/modules/ce-node`, construido a partir de la
+imagen del marketplace `volterraedgeservices/volterra-node`.
 
 Ejecuta el plano de datos (Argo), el plano de control (Vega), un proxy Envoy, una pila
-de Kubernetes y `vpm`, el agente que registra el nodo y gestiona todo lo demás en
-él.
+de Kubernetes y `vpm`, el agente que registra el nodo y gestiona todo lo demás en él.
 
-Cuando un CE se comporta de forma incorrecta, el Site CLI es el instrumento. La
-primera decisión es qué ruta de acceso corresponde, y equivocarse hace perder tiempo
-de una manera que parece un nodo averiado.
+Cuando un CE falla, la CLI del sitio es el instrumento. La primera decisión es cuál
+ruta de acceso aplica, y equivocarse desperdicia tiempo de una manera que parece un
+nodo defectuoso.
 
-## Dos rutas de acceso, y no son intercambiables
+## Dos rutas de acceso que no son intercambiables
 
 <CardGrid>
   <LinkCard
-    title="API de depuración"
-    description="Para un nodo que está <code>ONLINE</code>. Automatizable, de solo lectura y cubre 34 comandos."
+    title="Debug API"
+    description="Para un nodo que está <code>ONLINE</code>. Con soporte para scripts, de solo lectura y cubre 34 comandos."
     href="./access/debug-api/"
   />
   <LinkCard
-    title="Consola serie"
-    description="Para un nodo que nunca se registró. La única vía cuando la API no puede responder."
+    title="Serial console"
+    description="Para un nodo que nunca se registró. La única ruta cuando la API no puede responder."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-La API de depuración llega al nodo **a través del plano de control de F5 Distributed
-Cloud**. Esa es toda la razón por la que la distinción importa: la API solo puede
-responder una vez que el nodo se ha registrado e informa `ONLINE`.
+La API de depuración alcanza el nodo **a través del plano de control de F5 Distributed Cloud**.
+Esa es la razón fundamental por la que la división importa: la API solo puede responder una vez
+que el nodo se ha registrado y reporta `ONLINE`.
 
-Un nodo que no logró registrarse — un cloud-init defectuoso, un token caducado, sin
-ruta hacia `register.ves.volterra.io` — es exactamente el caso en el que necesita
-diagnósticos, y exactamente el caso que la API no puede atender.
+Un nodo que no logró registrarse — cloud-init defectuoso, token expirado, sin ruta hacia
+`register.ves.volterra.io` — es exactamente el caso en que se necesitan diagnósticos, y
+exactamente el caso que la API no puede atender.
 
-SSH no es una tercera opción. `sshd` se ejecuta en el nodo y responde en su dirección
-interna (SLI), pero la cuenta `admin` no puede autenticarse: `vpm` omite ese usuario,
-por lo que la `ssh_key` que configura en el objeto de sitio nunca se aplica. Ninguna
-regla del grupo de seguridad lo cambia. La evidencia está en la página
-[SSH](./access/ssh/), que existe porque todos los síntomas allí se interpretan como un
-fallo de firewall o de credenciales.
+[SSH](./access/ssh/) es la tercera opción, y la única que alcanza la superficie de comandos
+completa del dispositivo — la API de depuración expone 34 comandos y el nodo en sí ofrece
+muchos más. Dos cosas la restringen. `sshd` responde únicamente en la dirección interna (SLI)
+del nodo, por lo que requiere un host dentro de la VNet; y la clave es escrita por cloud-init
+en el primer arranque, porque el campo `ssh_key` en el objeto del sitio es inerte — `vpm`
+omite el usuario `admin` y nunca la aplica. Por lo tanto, habilitarla en nodos en ejecución
+implica reemplazarlos.
 
-Así que: si el sitio está `ONLINE`, use la API de depuración. Si no lo está, la consola
-serie es la única forma de entrar.
+En resumen: si el sitio está `ONLINE` y 34 comandos son suficientes, use la API de depuración.
+Si necesita el resto de la superficie y puede alcanzar la VNet, use SSH. Si el registro es lo
+que está fallando, la consola serial es la única forma de acceder.
 
-<Aside type="caution" title="Compruebe primero el estado del sitio">
-Una sola solicitud le indica en qué ruta se encuentra:
+<Aside type="caution" title="Verifique el estado del sitio primero">
+Una solicitud le indica en qué ruta se encuentra:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -69,41 +70,39 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` significa que la API de depuración funcionará. Cualquier otra cosa — o un
-sitio que no existe — significa consola serie.
+`ONLINE` significa que la API de depuración funcionará. Cualquier otro valor — o un sitio que no
+existe — significa consola serial.
 </Aside>
 
 ## Reglas de seguridad
 
-Estas se aplican a todos los comandos de todas las páginas siguientes.
+Estas aplican para cada comando en cada página a continuación.
 
-- **Solo lectura a menos que esté seguro.** La superficie de comandos se divide en dos
-  niveles de privilegio, y el nivel `Exec` o modifica el nodo o lee un marcador de
-  estado. Nada en estas páginas ejecuta un comando `Exec`, ni tampoco lo hace el
-  arnés de captura.
-- **Nunca suponga que un comando es seguro por su nombre.** `ip-link-set` se lee como
-  una consulta y desactiva una interfaz. `systemctl-restart-crio` reinicia el runtime
-  de contenedores bajo un plano de datos en vivo.
-- **Prefiera el comando más específico que responda a la pregunta.** `health` y
+- **Solo lectura a menos que esté seguro.** La superficie de comandos está dividida en dos
+  niveles de privilegio, y el nivel `Exec` ya sea muta el nodo o lee un marcador de estado.
+  Ninguna página de este sitio ejecuta un comando `Exec`, y tampoco lo hace el arnés de captura.
+- **Nunca asuma que un comando es seguro por su nombre.** `ip-link-set` parece una
+  consulta y deja una interfaz inactiva. `systemctl-restart-crio` reinicia el
+  tiempo de ejecución de contenedores bajo un plano de datos activo.
+- **Prefiera el comando más específico que responda la pregunta.** `health` y
   `diagnosis` resumen el nodo de forma económica; `flow-l` vuelca una tabla de flujos
-  de 629.760 entradas.
-- **Un CE sirve tráfico en vivo.** Estos son entornos de demostración compartidos.
-  Suponga que alguien está presentando desde el sitio que está depurando.
+  con 629.760 entradas.
+- **Un CE atiende tráfico en producción.** Estos son entornos de demostración compartidos.
+  Asuma que alguien está presentando desde el sitio que está depurando.
 
-## Qué se documenta aquí
+## Qué está documentado aquí
 
-Todos los comandos accesibles a través de la API de depuración en la compilación de
-software que ejecuta este tenant, cada uno con la salida capturada de un nodo en vivo
-en lugar de transcrita de otro lugar.
+Cada comando accesible a través de la API de depuración en la versión de software que ejecuta
+este tenant, cada uno con salida capturada desde un nodo activo en lugar de transcrita de otra fuente.
 
-La [referencia de comandos](./commands/) los enumera todos con su categoría, nivel de
-privilegio y transporte; los [flujos de trabajo](./workflows/) los encadenan en las
-secuencias que realmente utiliza cuando algo va mal.
+La [referencia de comandos](./commands/) los lista todos con su categoría, nivel de privilegio
+y transporte; los [flujos de trabajo](./workflows/) los encadenan en las secuencias que
+realmente se usan cuando algo falla.
 
-Las partes del Site CLI disponibles solo en el equipo — `configure`,
-`configure-network`, `factory-reset`, `upgrade` y aproximadamente sesenta comandos
-`ExecCLI` adicionales — no están cubiertas.
+Las partes exclusivas del nodo de la CLI del sitio — `configure`, `configure-network`,
+`factory-reset`, `upgrade` y aproximadamente sesenta comandos `ExecCLI` adicionales — no están
+cubiertas.
 
-Solo son accesibles desde una sesión de consola serie, por lo que nada sobre ellas
-puede verificarse de forma programática, y la sintaxis de comandos no verificada es
-precisamente el defecto que esta documentación existe para evitar repetir.
+Solo son accesibles desde una sesión de consola serial, por lo que nada de ellos puede verificarse
+mediante programación, y la sintaxis de comandos no verificada es el defecto que esta
+documentación existe para evitar repetir.

@@ -1,6 +1,6 @@
 ---
 title: Reaching a Customer Edge
-description: Read this tier before running any command. Covers authentication, the tier-to-endpoint rule that decides where a command is sent, and the break-glass path for an unregistered node.
+description: Read this tier before running any command. Covers the three routes onto a Customer Edge — the debug API, SSH to the on-box Site CLI, and serial console — with authentication for each, the tier-to-endpoint rule that decides where a debug API command is sent, and the break-glass path for an unregistered node. Start here to choose a route, because only SSH and serial console reach the full on-box command surface.
 sidebar:
   order: 10
   label: Access
@@ -8,21 +8,25 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
-Two routes work, and which one applies is decided by the state of the node rather
-than by preference.
+Three routes work, and which one applies is decided by the state of the node and where
+you are connecting from, rather than by preference.
 
 | Route | Needs node `ONLINE` | Needs network reachability | Limits | Covers |
 | --- | --- | --- | --- | --- |
 | [Debug API](./debug-api/) | **yes** | yes | about 25–30 minutes of warm-up on a new site | 34 commands |
+| [SSH](./ssh/) | no | from inside the VNet, to the internal address only | key must be present from first boot | The full on-box Site CLI |
 | [Serial console](./serial-console/) | no | no | one session per VM; 2,048-character paste cap | The full on-box Site CLI |
 
 Serial console is the last resort, and the only route that survives a node with no working
 network path.
 
-[**SSH is not a third route.**](./ssh/) The `admin` account cannot authenticate on the
-build this tenant runs, `vpm` never applies the key, and there is no site setting that
-changes that. The page exists to document the evidence, because every failure mode there
-looks like a firewall or a credential problem.
+SSH is the one to reach for when the debug API is not enough, because the appliance offers
+substantially more commands than the 34 that API exposes. It has two costs. The key is
+written by cloud-init and so must be present at **first boot**, which means enabling it on
+running nodes replaces them — and that currently wedges registration
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). And `sshd` answers on the
+node's internal address only, so it needs a host inside the VNet; probing the address you
+know the node by will always report closed.
 
 ## Why the split is not a preference
 

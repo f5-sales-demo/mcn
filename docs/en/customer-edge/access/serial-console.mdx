@@ -15,8 +15,10 @@ when nothing else does.
 
 Reach for it when a CE **never came up**: registration failed, the site is absent
 from the tenant, or the node is up but has no route out. In all of those cases the
-[debug API](../debug-api/) has no tunnel to relay through, and
-[SSH cannot authenticate](../ssh/) on this build.
+[debug API](../debug-api/) has no tunnel to relay through. [SSH](../ssh/) survives a
+failed registration, but only if its key was already written at first boot and you can
+reach the node's internal address from inside the VNet — neither of which is true of a
+node you are meeting for the first time.
 
 ## Prerequisite: boot diagnostics
 
@@ -173,8 +175,9 @@ successful request evicts the first.** The evicted user is disconnected but not 
 out, so the shell session survives. Two people debugging one node will displace each
 other repeatedly.
 
-For bulk work prefer the [debug API](../debug-api/), which has none of these limits.
-[SSH is not an alternative](../ssh/) — it cannot be enabled on this build.
+For bulk work prefer the [debug API](../debug-api/) or [SSH](../ssh/), neither of which
+has these limits. SSH in particular has no paste cap and no single-session restriction,
+so it is the better choice whenever the node is reachable from inside the VNet.
 </Aside>
 
 <Aside type="caution" title="Paste is capped at 2,048 characters">
