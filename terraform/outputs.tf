@@ -41,6 +41,21 @@ output "ce_vm_names" {
   value       = { for k, m in module.ce_node : k => m.vm_name }
 }
 
+output "ce_sli_private_ips" {
+  description = "Per-CE internal/SLI private IPs — where each CE serves its Site Console web UI (TCP 65500). Informational: the Bastion tunnel is targeted by VM resource id (ce_vm_ids), because Azure does not allow a custom resource port over an IP-targeted tunnel."
+  value       = { for k, m in module.ce_node : k => m.sli_private_ip }
+}
+
+output "ce_vm_ids" {
+  description = "Per-CE VM resource IDs — the --target-resource-id of `az network bastion tunnel` when opening the Site Console web UI on 65500."
+  value       = { for k, m in module.ce_node : k => m.vm_id }
+}
+
+output "bastion_name" {
+  description = "Azure Bastion host name, or null when enable_bastion is false. Feed it to `az network bastion tunnel --name`."
+  value       = module.azure_hub.bastion_name
+}
+
 output "client_public_ip" {
   description = "Public IP of the test client."
   value       = module.client_vm.public_ip

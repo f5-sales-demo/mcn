@@ -66,6 +66,9 @@ module "azure_hub" {
   internal_subnet_prefix     = var.internal_subnet_prefix
   route_server_subnet_prefix = var.route_server_subnet_prefix
   route_server_name          = var.route_server_name
+  bastion_subnet_prefix      = var.bastion_subnet_prefix
+  enable_bastion             = var.enable_bastion
+  bastion_name               = var.bastion_name
   tags                       = local.tags
 }
 
