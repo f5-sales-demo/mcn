@@ -1,0 +1,22 @@
+>>> execcli systemctl-status-vpm
+● vpm.service - VP Manager service
+     Loaded: loaded (/etc/systemd/system/vpm.service; enabled; preset: disabled)
+     Active: active (running) since Tue 2026-07-28 06:18:58 UTC; 6h ago
+   Main PID: 24257 (docker)
+      Tasks: 11 (limit: 204888)
+     Memory: 16.9M
+        CPU: 760ms
+     CGroup: /system.slice/vpm.service
+             └─24257 /usr/bin/docker run --rm --name vpm --net=host --privileged -v /dev:/dev -v /bin/udevadm:/bin/udevadm -v /etc/:/hostetc/:rw -v /opt/:/hostopt/:rw -v /:/hostos/:ro -v /usr/bin/:/hostusr/bin/:ro -v /e…
+
+Jul 28 12:17:04 f5-xc-ce-vm-01 vpm[24257]: statusreporter.go:195: Status reporter loop has finished without error, sleeping for 5m4.288123124s, until 2026-07-28 12:22:08.87039748 +0000 UTC m=+21790.221035775
+Jul 28 12:17:59 f5-xc-ce-vm-01 vpm[24257]: module.go:84: Running intra-cluster, type: node
+Jul 28 12:17:59 f5-xc-ce-vm-01 vpm[24257]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+Jul 28 12:18:24 f5-xc-ce-vm-01 vpm[24257]: etcd.go:123: Holding dictator lock for path /_lock/dictator
+Jul 28 12:18:59 f5-xc-ce-vm-01 vpm[24257]: module.go:84: Running intra-cluster, type: node
+Jul 28 12:18:59 f5-xc-ce-vm-01 vpm[24257]: module.go:90: Running intra-cluster, type: fabric
+Jul 28 12:18:59 f5-xc-ce-vm-01 vpm[24257]: pinger.go:38: Stats for connectivity-check: <name: fabric, type: fabric, success: true>
+Jul 28 12:18:59 f5-xc-ce-vm-01 vpm[24257]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+Jul 28 12:19:59 f5-xc-ce-vm-01 vpm[24257]: module.go:84: Running intra-cluster, type: node
+Jul 28 12:19:59 f5-xc-ce-vm-01 vpm[24257]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+>>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

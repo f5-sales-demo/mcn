@@ -130,6 +130,30 @@ description: Not a real command.
 MDX
 assert_reject "documented command absent from the catalog" "$t"
 
+# --- an on-box capture is legitimate, and must not be rejected -----------------
+# The debug API exposes 34 commands; the appliance's own Site CLI exposes 82, and
+# 55 of those have no API equivalent. Captures for them are keyed by exec-catalog.json,
+# not catalog.json. Validating only against the API catalog rejected every one.
+t=$(new_tree onbox-capture)
+cat >"${t}/sitecli/exec-catalog.json" <<'JSON'
+{
+  "_provenance": {"node": "test", "site_state": "PROVISIONED"},
+  "top_level": {"health": "Status of the node"},
+  "execcli": {"vegactl-introspect-show-election": "check vegactl cluster primary election status"},
+  "counts": {"top_level": 1, "execcli": 1}
+}
+JSON
+printf 'role: Master\n' >"${t}/sitecli/captures/sitecli-vegactl-introspect-show-election.txt"
+assert_pass "capture for an on-box-only command in exec-catalog.json" "$t"
+
+# --- a capture in neither catalog is still a violation -------------------------
+t=$(new_tree ghost-capture)
+cat >"${t}/sitecli/exec-catalog.json" <<'JSON'
+{"top_level": {}, "execcli": {"vegactl-introspect-show-election": "x"}, "counts": {}}
+JSON
+printf 'x\n' >"${t}/sitecli/captures/sitecli-not-a-real-command.txt"
+assert_reject "capture matching neither catalog" "$t"
+
 # --- captured output for a privileged command is a safety failure --------------
 t=$(new_tree exec-captured)
 printf 'should never exist\n' >"${t}/sitecli/captures/sitecli-ip-link-set.txt"
