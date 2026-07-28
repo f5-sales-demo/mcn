@@ -91,7 +91,9 @@ variable "bastion_subnet_prefix" {
 # Default false, deliberately. Bastion is the only resource in this deployment
 # that is not load-bearing for the BGP/ECMP demo — the data path, the sites and
 # the VIP all work without it — yet a Standard-SKU host bills an hourly standing
-# charge from the moment it is provisioned, whether or not anyone opens a tunnel.
+# charge from the moment it is provisioned, whether or not anyone opens a tunnel:
+# USD 0.29/hour in eastus for the two included scale units (retail, 2026-07),
+# roughly USD 212 a month, plus USD 0.14/hour for each scale unit beyond two.
 # Opting in keeps the cost of a default `terraform apply` exactly what it is
 # today and makes the spend a conscious choice by whoever needs CE console
 # access. Turn it on with `enable_bastion = true` in terraform.tfvars.
