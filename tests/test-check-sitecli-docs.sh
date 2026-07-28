@@ -190,6 +190,41 @@ description: Documents something that does not exist.
 MDX
 assert_reject "page documenting a name in neither catalog" "$t"
 
+# --- a command classified as both available and unavailable ---------------------
+# dig was in tiers/passthrough/networking AND in not_on_this_build/debug_api_only,
+# so the same command was documented as both on-box and not-on-box. A reconciliation
+# that counts "classified" and "excluded" separately passes that happily.
+t=$(new_tree classification-overlap)
+cat >"${t}/sitecli/command-classification.json" <<'JSON'
+{
+  "tiers": {"passthrough": {"networking": ["dig"]}},
+  "not_on_this_build": {"debug_api_only": {"commands": ["dig"]}}
+}
+JSON
+assert_reject "command in both tiers and not_on_this_build" "$t"
+
+# --- the same command classified twice inside tiers ----------------------------
+t=$(new_tree classification-duplicate)
+cat >"${t}/sitecli/command-classification.json" <<'JSON'
+{
+  "tiers": {
+    "passthrough": {"networking": ["ping"], "system": ["ping"]}
+  },
+  "not_on_this_build": {}
+}
+JSON
+assert_reject "command classified twice inside tiers" "$t"
+
+# --- a consistent classification passes ----------------------------------------
+t=$(new_tree classification-ok)
+cat >"${t}/sitecli/command-classification.json" <<'JSON'
+{
+  "tiers": {"passthrough": {"networking": ["ping"]}},
+  "not_on_this_build": {"debug_api_only": {"commands": ["dig"]}}
+}
+JSON
+assert_pass "consistent classification" "$t"
+
 # --- captured output for a privileged command is a safety failure --------------
 t=$(new_tree exec-captured)
 printf 'should never exist\n' >"${t}/sitecli/captures/sitecli-ip-link-set.txt"

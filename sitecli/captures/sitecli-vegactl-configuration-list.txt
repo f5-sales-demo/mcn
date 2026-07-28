@@ -159,7 +159,7 @@ Global Flags:
       --outfmt string                    Output format for command
   -o, --output string                    Output dir for command (default "./")
       --p12-bundle string                Client P12 bundle (key+cert) file path. Any password for this file should be in environment variable VES_P12_PASSWORD
-      --server-cn string                 Common Name to expect in server cert for Prism (default "ver.ar-bgp-eastus01.<tenant>.tenant.int.ves.io")
+      --server-cn string                 Common Name to expect in server cert for Prism (default "ver.mcn-ce-ha-eastus01.<tenant>.tenant.int.ves.io")
   -u, --server-urls strings              Server URLs (Full url for REST, <server>:<port> for gRPC) (default [localhost:9505])
       --show-curl                        Emit requests from program in CURL format
       --timeout int                      Timeout (in seconds) for command to finish (default 5)

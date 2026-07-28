@@ -22,12 +22,36 @@ bash scripts/capture-sitecli.sh --discover-only  # refresh catalog.json only
 bash scripts/capture-sitecli.sh --check          # drift gate, writes nothing
 ```
 
+A site and a node must be resolved before any of those run. Supply `--site` and `--node`, or
+set both `defaults.site` and `defaults.node` in `capture-manifest.json`; the script never
+guesses, and exits telling you which is missing. Read the values from the deployment rather
+than typing them:
+
+```bash
+cd terraform
+SITE=$(terraform output -json xc_site_names | jq -r .eastus01)
+NODE=$(terraform output -json ce_vm_names   | jq -r .eastus01)
+cd .. && bash scripts/capture-sitecli.sh --check --site "$SITE" --node "$NODE"
+```
+
 This needs a live tenant, so it is a workstation operation: the F5 corporate Entra
 tenant does not permit provisioning an Azure service principal, so no GitHub
 runner can hold the credential. CI instead runs `scripts/check-sitecli-docs.sh`,
 which is offline and proves the documentation agrees with `catalog.json`. The
 committed catalog is CI's proxy for the live tenant; `--check` on a workstation is
 what proves the catalog still matches reality.
+
+### The on-box harness is a separate tool
+
+`scripts/sitecli_ssh_harvest.py` reaches the larger `execcli` surface over SSH and writes
+`exec-catalog.json`. It takes `--node` as an SLI address and `--jump` as an operator VM inside
+the VNet, and records `--site-state` as provenance because a menu read in one registration
+state is not evidence about another.
+
+It reports progress every 25 scrolls. That matters: the completion menu shows six rows at a
+time whatever the terminal size, so exhausting an 82-command menu takes about 101 keypresses,
+and a silent run is indistinguishable from a stalled one. Teardown is bounded — SIGTERM, wait,
+SIGKILL, wait — and `tests/test-sitecli-harvest.sh` fails if an unbounded wait is reintroduced.
 
 ## Three routing rules
 
@@ -111,6 +135,52 @@ lines). A trimmed capture ends with an explicit
 `... [capture trimmed: first N of M lines]` marker, so a truncated table is never
 presented as if it were complete.
 
+## Writing the documentation pages
+
+Four rules are enforced by tests, so they are not style preferences.
+
+**No deployment-specific value inside a `bash` or `sh` fence.** A literal in a command is an
+instruction, and it is wrong for every deployment but one — silently, because a resource group
+that does not exist looks the same as a mistyped command. Read it instead:
+
+```bash
+terraform -chdir=terraform output -raw resource_group_name
+terraform -chdir=terraform output -json ce_sli_private_ips
+```
+
+**Any page that shows a live value must carry `Observed YYYY-MM-DD` or `Captured
+YYYY-MM-DD`.** Captured output is welcome; *undated* captured output is not, because a reader
+cannot tell whether it was true today or three rebuilds ago. Both rules are checked by
+`tests/test-docs-no-literals.sh`.
+
+**MDX parses `<word>` as a JSX tag.** A placeholder like `r-<uuid>` in prose fails the build
+with `Expected a closing tag`. Backtick it. Related: if `textlint --plugin mdx` cannot parse a
+page, that is a *true signal* of this and not a plugin defect — the error text invites you to
+report a plugin bug, and doing so wastes your time.
+
+**Do not duplicate configuration that has to stay identical across locales.** Fenced code is
+preserved — command names and captured output come through unchanged in all twelve locales,
+verified. Frontmatter and prose are translated, so a `description` or heading carrying a
+literal value will differ per locale. Import evidence through `docs/_imports` and `_data/`
+rather than restating it in the page, and keep literals out of frontmatter.
+
+### CI does not lint these pages
+
+The shared linter runs `BASH`, `CHECKOV`, `GITLEAKS`, `JSCPD`, the Python set, `SHELL_SHFMT`,
+`SPELL_CODESPELL` and `TRIVY` — there is **no `MARKDOWN` entry at all**, so neither
+markdownlint nor textlint sees `docs/`. Run them yourself:
+
+```bash
+npx --yes markdownlint-cli@latest -c .markdownlint.json $(find docs/en -name '*.mdx')
+npx --yes -p textlint@15.7.1 -p textlint-rule-terminology -p textlint-plugin-mdx \
+  textlint --plugin mdx -c .textlintrc -f compact $(find docs/en -name '*.mdx')
+```
+
+textlint reports three standing false positives, all link text where the lowercase spelling is
+the page or command name — `[curl](…)` once and `[docker](…)` twice. Anything beyond those
+three is worth reading: the count was four when these notes were written, and the fourth was a
+real terminology error in prose.
+
 ## Known gaps
 
 - **Two of the 33 captures are not committed yet**, both blocked on
@@ -131,5 +201,22 @@ presented as if it were complete.
   because a page referencing a missing capture is a violation.
 
   The word cannot be quoted verbatim in these notes either, for the same reason.
+- **Whether the advertised newer build installs on this topology is unsettled**, which is why
+  the command reference documents `crt-20250613-3382` only.
+
+  The tenant advertises `crt-20260201-0179` (`volterra_software_status.available_version` on
+  the site object). Two observations conflict and neither can now be confirmed:
+
+  - It was reported to fail on single-node Azure Secure Mesh v2 sites, with all three nodes
+    stopping at the `voucher` DaemonSet while the OS upgrade to `9.2026.14` succeeded.
+  - A `CUSTOMER_EDGE` site was earlier observed running that exact build, `ONLINE`, in another
+    tenant. That site no longer exists, so its type cannot be re-checked — the failure may have
+    involved the discontinued App Stack site type rather than a plain CE.
+
+  What would settle it: deploy one CE pinned to that build from scratch and see whether it
+  registers, which separates "fails to upgrade in place" from "fails to install at all". Since
+  a version change is a fleet rebuild, this is not a cheap experiment; do not start it to
+  satisfy curiosity about the newer commands.
+
 - Output for the nine commands that exist only on newer CE builds is absent, since
   this tenant runs `crt-20250613-3382`. They are recorded by name and tier only.

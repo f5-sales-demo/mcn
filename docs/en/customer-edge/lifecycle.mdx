@@ -1,0 +1,87 @@
+---
+title: Software versions and rebuilds
+description: What ce_sw_version and ce_os_version do and do not do on a Customer Edge — why the node upgrades itself whether or not you set them, why leaving them empty does not get you the newest build, and why changing either one is a fleet rebuild you plan rather than an edit Terraform can apply.
+sidebar:
+  order: 50
+  label: Versions and rebuilds
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Two Terraform variables set a Customer Edge's software: `ce_os_version` for the operating
+system and `ce_sw_version` for the F5 Distributed Cloud build. Both behave in ways that are
+the opposite of the obvious reading, and the cost of getting it wrong is a fleet rebuild.
+
+## What the version fields do, in two phases
+
+Separating the phases is the whole subject. Conflated, the behaviour reads as
+self-contradictory.
+
+**On first boot, a node always upgrades.** `terraform/modules/ce-node` deploys the marketplace
+image with `version = "latest"`, and that image ships a build **older** than what the tenant
+runs. So an upgrade happens whether or not you set the field. `ce_sw_version` chooses only its
+**destination** — and leaving it empty means the server chooses, not that nothing happens. The
+same holds for `ce_os_version`.
+
+**After that, nothing upgrades on its own.** F5 Distributed Cloud advertises a newer build and
+waits. An empty field is therefore not "track latest": the node stays where it first landed.
+
+Both phases are visible on the site object. `Observed 2026-07-28`, this fleet:
+
+```text
+volterra_software_status.available_version   crt-20260201-0179
+operating_system_status.available_version    9.2026.14
+```
+
+while the nodes run `crt-20250613-3382` and OS `9.2024.6`. A newer build is on offer and has
+not been taken — the steady state, not a stalled upgrade.
+
+## Changing a version needs a rebuild, and Terraform will not do it for you
+
+`ce_os_version` and `ce_sw_version` are both **create-time only**, and the failure mode is
+worse than a rejected apply. In order:
+
+1. You change the value and apply. Terraform proposes an in-place update.
+2. The API **rejects** it — `[BAD_REQUEST] Invalid request parameters`.
+3. That rejected request still clears the field on the server, and the provider's read does
+   not report it. Terraform's state now disagrees with the live object.
+4. Every subsequent plan proposes **the same failing change**, indefinitely.
+
+So Terraform does not fall back to replacing the site. It gets stuck, and it stays stuck
+until you replace the site and its CE virtual machine deliberately. Moving a fleet to a
+different version is a **rebuild you plan**, not an edit you apply.
+
+<Aside type="danger" title="Every consequence of replacing a CE applies">
+New SSH host keys, reassigned internal addresses, a fresh registration, and the loss of
+anything that lived only on the node. Cloud-init runs again on the new VM, so SSH access
+configured that way survives — but it runs *only* on first boot, so anything added to the old
+node by hand is gone.
+
+Read [SSH](./access/ssh/) on the host-key and address consequences before scheduling this.
+</Aside>
+
+<Aside type="note" title="Reported, not reproduced here">
+The rejection and the state divergence are recorded in this repository's own
+`terraform/modules/xc-site` comments — verified there in both directions, pinning and
+unpinning, on all three sites — and against provider issue `xcsh#1387`. This page has not
+re-tested it, because the test leaves the deployment proposing a failing change on every
+plan.
+</Aside>
+
+## Which build the documentation describes
+
+The command reference on this site describes **`crt-20250613-3382`**, the build this fleet
+runs. Commands observed only on newer builds are recorded by name in
+`sitecli/command-classification.json` under `not_on_this_build`, and are not documented as
+runnable. See [on-box commands](./commands/on-box/).
+
+<Aside type="caution" title="Do not plan a rebuild in order to reach newer commands">
+A newer build is on offer, and whether it installs cleanly on this topology is unsettled —
+there is a report of it failing on single-node Azure Secure Mesh v2 sites, and a
+counter-observation of a Customer Edge running it. Neither can be confirmed from what remains
+in the tenant.
+
+Since a version change is a fleet rebuild, that uncertainty is the operative fact: treat
+reaching those commands as unproven, not as a scheduled upgrade. The evidence and the
+experiment that would settle it are recorded in `sitecli/README.md`.
+</Aside>

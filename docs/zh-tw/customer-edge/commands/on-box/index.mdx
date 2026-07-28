@@ -1,77 +1,98 @@
 ---
-title: 機箱內指令
+title: 箱內指令
 description: >-
-  設備本身的 Site CLI 提供 82 個指令，其中 55 個無法透過 debug API 存取。本文說明隱藏的 execcli
-  指令及其執行方式、為何此介面比 API 更廣泛、哪些指令有完整文件記錄、哪些僅列出清單，以及測量方式。
+  Site CLI 本身的指令集——6 個頂層指令與 82 個 execcli 子指令——以及它與除錯 API 獨立目錄中 34
+  個指令的重疊情況，兩者互不包含。說明執行這些指令的隱藏 execcli 指令、哪些指令有完整文件記錄、哪些僅列出，以及指令集的測量方式。
 sidebar:
   order: 40
-  label: 機箱內
+  label: 箱內指令
 i18n:
-  sourceHash: 1f8259efff3f
+  sourceHash: da52a578a40b
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-[debug API](../../access/debug-api/) 公開 **34 個指令**。設備本身提供 **82 個**，**其中 55 個沒有對應的 API** — 整個 Vega 控制平面、Envoy 封裝器、封包擷取、kubelet 參數集、`edit-*` 檔案以及輔助 root 存取組合，只能從機箱本身存取。
+有兩組獨立的指令集可存取 Customer Edge，且兩者互不包含。
 
-要存取這些指令，需要 [SSH](../../access/ssh/) 或[序列主控台](../../access/serial-console/)，以及一項未記錄於任何文件的資訊：
+- **箱內**，Site CLI 有 **6 個頂層指令**與 **82 個 `execcli` 子指令**。
+- **透過網路**，[除錯 API](../../access/debug-api/) 有其獨立的 **34 個**指令目錄。
 
-<Aside type="tip" title="execcli 是一個隱藏指令">
-`execcli` 不會出現在 Site CLI 的互動式選單中。它以指令名稱作為引數，輸入 `execcli ` 後按下 **Tab** 鍵，即可列出所有 82 個指令，以及設備本身為每個指令提供的單行說明。該補全選單是特定組建版本的權威目錄，也是 `sitecli/exec-catalog.json` 所記錄的內容。
+大部分箱內介面沒有對應的 API：完整的 Vega 控制平面、Envoy 包裝器、封包擷取、kubelet 參數集、`edit-*` 檔案以及輔助 root 存取對，都只能從箱上存取。
+
+存取這些功能需要 [SSH](../../access/ssh/) 或[序列主控台](../../access/serial-console/)，以及一項在任何文件中均未記載的事項：
+
+<Aside type="tip" title="execcli 是隱藏指令">
+`execcli` 不會出現在 Site CLI 的互動式選單中。它以指令名稱作為引數，輸入 `execcli ` 後按 **Tab** 鍵，即可列出全部 82 個指令，以及設備本身對每個指令的單行說明。該補全選單是特定建置版本的權威目錄，也是 `sitecli/exec-catalog.json` 所記錄的內容。
 </Aside>
 
-## 測量方式
+## 測量方式及指令集的重疊情況
 
-下列指令集並非從廠商文件謄錄而來，而是從兩個實際執行中的節點讀取，並連同其來源紀錄提交至 `sitecli/exec-catalog.json`：
+以下指令集並非從廠商文件中謄錄而來，而是透過 `scripts/sitecli_ssh_harvest.py` 從正式節點讀取，並連同其來源資訊提交至 `sitecli/exec-catalog.json`。共進行三次測量，分別在三種註冊狀態下執行：
 
-| | 頂層 | `execcli` |
+| 測量時機 | 頂層指令 | `execcli` |
 | --- | --- | --- |
-| 於 `site_state: PROVISIONING` 時測量 | 6 | 82 |
-| 於 `site_state: PROVISIONED` 時測量 | 6 | 82 |
+| `site_state: PROVISIONING` | 6 | 82 |
+| `site_state: PROVISIONED` | 6 | 82 |
+| `site_state: ONLINE` | 6 | 82 |
 
-兩次執行回傳**完全相同的指令集**。這比數量本身更重要：這意味著指令介面不會隨註冊狀態改變，因此若某個指令不存在，代表它確實不存在，而非尚未提供。
+三次測量均返回**完全相同的指令集**——名稱相同，不僅僅是總數相同，而且最後一次是在具有不同站台與資源名稱的不同部署環境中執行。因此，指令介面不會隨著註冊狀態而改變，若某個指令不存在，則是真正地缺失，而非尚未提供。
+
+對照除錯 API 的 34 個指令，有兩個數字值得特別區分：
+
+- **51** 個 `execcli` 子指令沒有對應的 API。
+- **55** 是涵蓋整個箱內介面的相同統計數字，因為它還包含四個 `configure*` 指令，這些指令位於頂層而非 `execcli` 之下。
+
+兩者皆正確；若讀者重新計算其中一個數字而得到另一個，並非計算錯誤。此處所有數字均來自 `sitecli/catalog.json` 與 `sitecli/exec-catalog.json`。
 
 <Aside type="caution" title="五個不存在的指令">
-`factory-reset`、`upgrade`、`reboot`、`show` 和 `clear` **不在此組建版本中**。這些是 Site CLI 可能具備的指令類型，在此儲存庫的分類中曾依此假設保留了一段時間，但兩次列舉均未發現它們。頂層確切只有六個項目：`configure`、`configure-generic-hardware`、`configure-network`、`configure-http-proxy`、`diagnosis` 和 `health`。
+`factory-reset`、`upgrade`、`reboot`、`show` 與 `clear` **並不存在**於此建置版本中。這些指令是 Site CLI 合理可能具備的功能，曾基於此假設在本儲存庫的分類中保留了一段時間，但任何列舉均未發現它們。頂層恰好有六個項目：`configure`、`configure-generic-hardware`、`configure-network`、`configure-http-proxy`、`diagnosis` 與 `health`。
 </Aside>
 
-## 已完整記錄與僅列出的指令
+<Aside type="caution" title="三個 API 指令不是 execcli 子指令">
+在 `execcli` 下搜尋以下指令將找不到任何結果，看起來像是「指令遺失」：
 
-Customer Edge 執行 Linux 及多個第三方常駐程序。記錄其指令會重複其自身的參考文件，並暗示 F5 擁有這些軟體，因此規則是：**記錄 F5 的軟體，對於其他所有項目，僅記錄 CE 特有的內容。**
+- **`health`** 與 **`diagnosis`** 是 **頂層** Site CLI 指令。請直接在 `>>>` 提示符輸入，無需加上 `execcli` 前綴。
+- **`dig`** 可透過除錯 API 存取，**兩個**箱內選單均未出現，因此它不在下方的直通列表中。它僅限 API 使用。
 
-分為三個層級，因為「我們的」與「他們的」並非截然分明。此分類記錄於 `sitecli/command-classification.json`。
+</Aside>
+
+## 哪些指令有完整文件，哪些僅列出
+
+Customer Edge 執行 Linux 及多個第三方常駐程式。為這些指令編寫文件會與其原有參考資料重複，並隱含 F5 擁有它們，因此原則為：**為 F5 軟體編寫文件，對其餘所有內容僅記錄 CE 特有的部分。**
+
+分為三個層級，因為「我們的」與「他們的」並非截然分明。這個分類記錄於 `sitecli/command-classification.json`。
 
 | 層級 | 處理方式 |
 | --- | --- |
-| **F5 軟體** | 完整文件記錄 — 用途、語法、引數、擷取的輸出內容、應注意事項。Argo、Vega、`vpm`、`vifdump`、`configure*`、`edit-*` 指令集、kubelet 參數、root 存取。 |
-| **CE 特定解讀** | 第三方工具，其輸出在 CE 上具有特定意義。記錄 CE 特定的解讀方式，工具本身的語義留待上游文件說明。 |
-| **直通** | 純 Linux 或第三方工具，沒有 CE 特定內容需說明。列為可用，並指向上游文件。無說明文字。 |
+| **F5 軟體** | 完整文件——用途、語法、引數、擷取的輸出結果、注意事項。Argo、Vega、`vpm`、`vifdump`、`configure*`、`edit-*` 集合、kubelet 參數、root 存取。 |
+| **CE 特定解讀** | 第三方工具，但其輸出結果在 CE 上具有特定含義。記錄 CE 特有的解讀方式，工具本身的語義留給上游文件。 |
+| **直通** | 標準 Linux 或第三方工具，無 CE 特有說明。列出可用性並指向上游。無說明文字。 |
 
-此區別決定是否需要建立專屬頁面，也是避免本文件淪為比 man 頁面更差的複製品的關鍵。
+此區分決定是否需要為某個指令建立頁面，也是確保本文件不會淪為比 man 頁面更差的複製品的方式。
 
 ## F5 軟體
 
 <CardGrid>
   <LinkCard
-    title="Vega control plane"
-    description="六個 <code>vegactl</code> 指令：組態物件、內省表格、追蹤緩衝區，以及哪個節點擔任主要角色。"
+    title="Vega 控制平面"
+    description="六個 <code>vegactl</code> 指令：設定物件、內省表、追蹤緩衝區，以及哪個節點持有主要角色。"
     href="./vega/"
   />
   <LinkCard
     title="Envoy"
-    description="四個 Envoy 管理介面的封裝器 — 監聽器、叢集，以及兩個組態傾印。"
+    description="四個 Envoy 管理介面的包裝器——監聽器、叢集，以及兩個設定傾印。"
     href="./envoy/"
   />
   <LinkCard
     title="封包擷取"
-    description="五個 <code>vifdump</code> 指令。已有文件記錄，但不在此執行：這些指令會將擷取檔案寫入節點。"
+    description="五個 <code>vifdump</code> 指令。已記錄文件，但此處從未執行：它們會將擷取檔案寫入節點。"
     href="./packet-capture/"
   />
   <LinkCard
     title="Kubelet 參數"
-    description="讀取、新增及移除自訂 kubelet 參數。由支援團隊指導執行。"
+    description="讀取、新增與移除自訂 kubelet 參數。由支援人員指導使用。"
     href="./kubelet/"
   />
   <LinkCard
@@ -80,17 +101,17 @@ Customer Edge 執行 Linux 及多個第三方常駐程序。記錄其指令會�
     href="./vpm/"
   />
   <LinkCard
-    title="組態檔案"
-    description="四個 <code>edit-*</code> 指令，用於開啟節點上 F5 所屬的檔案。"
+    title="設定檔案"
+    description="四個 <code>edit-*</code> 指令，用於開啟節點上 F5 擁有的檔案。"
     href="./config-files/"
   />
   <LinkCard
     title="輔助 root 存取"
-    description="建立及移除 <code>xuser</code> root 帳戶。由支援團隊指導執行，且會留下修改後的節點狀態。"
+    description="建立與移除 <code>xuser</code> root 帳號。由支援人員指導使用，且會使節點保持修改後的狀態。"
     href="./root-access/"
   />
   <LinkCard
-    title="節點組態"
+    title="節點設定"
     description="Site CLI 頂層的四個 <code>configure*</code> 指令。"
     href="./configure/"
   />
@@ -98,20 +119,20 @@ Customer Edge 執行 Linux 及多個第三方常駐程序。記錄其指令會�
 
 ## 直通
 
-可在機箱上使用，但**未在此記錄** — 這些屬於作業系統和第三方常駐程序，而非 F5 的軟體，其自身的參考文件比本頁所能重述的內容更為完善。
+可在箱上使用，且**本文件未加以記錄**——這些屬於作業系統與第三方常駐程式，並非 F5 軟體，其原有參考資料優於本頁所能提供的任何說明。
 
 | 指令 | 上游 |
 | --- | --- |
-| `ping`、`netstat`、`lsof`、`ip`、`ip-link-show`、`nmcli`、`tracepath`、`dig` | iproute2、NetworkManager、BIND 工具程式 |
-| `top`、`check-mem`、`sysctl`、`load-sysctl-conf`、`journalctl`、`files`、`rpm-ostree`、`chronyc-sources` | coreutils、procps、systemd、rpm-ostree、chrony |
-| `edit-etc-hosts`、`edit-sysctl-conf` | 這些檔案屬於作業系統 |
-| `systemctl-status-crio`、`systemctl-status-docker`、`systemctl-status-kubelet`、`systemctl-status-iscsid`、`systemctl-status-multipathd` | systemd |
-| `systemctl-restart-crio`、`systemctl-restart-docker`、`systemctl-restart-kubelet`、`systemctl-restart-iscsid`、`systemctl-restart-multipathd` | systemd — 這些指令中的每一個都會中斷節點上的工作負載 |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath` | iproute2, NetworkManager |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | 這些檔案屬於作業系統 |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd——這些指令每一個都會中斷節點上的工作負載 |
 
-其中兩個值得特別注意，即使它們沒有專屬頁面。`files` 執行檔案操作，且只會在 `/tmp` 目錄下寫入。每個 `systemctl-restart-*` 本質上都會造成服務中斷 — 重新啟動 `crio` 或 `kubelet` 會中斷該節點上的工作負載。
+其中兩個值得了解，即便它們沒有獨立頁面。`files` 執行檔案操作，且只會在 `/tmp` 以下寫入。而每個 `systemctl-restart-*` 本質上都是具破壞性的——重新啟動 `crio` 或 `kubelet` 會中斷該節點上的工作負載。
 
-<Aside type="note" title="七個指令存在於較新組建版本中，但不在此版本">
-`collect-database-stats`、`iptables-lv`、三個 `marker-exists-*` 指令、`systemctl-restart-NetworkManager` 和 `systemctl-start-crio-prune` 是透過 debug API 在組建版本 `crt-20260201-0179` 上觀察到的。它們記錄於分類中的 `not_on_this_build.newer_build_debug_api` 下，以避免此處任何內容被誤認為可在 `crt-20250613-3382` 上執行的指令。
+<Aside type="note" title="七個指令存在於較新建置版本而非此版本">
+`collect-database-stats`、`iptables-lv`、三個 `marker-exists-*` 指令、`systemctl-restart-NetworkManager` 與 `systemctl-start-crio-prune` 是透過除錯 API 在建置版本 `crt-20260201-0179` 上觀察到的。它們被記錄在分類中的 `not_on_this_build.newer_build_debug_api` 下，以確保本文件中的任何內容不會被誤認為可在 `crt-20250613-3382` 上執行的指令。
 
-`collect-debug-info` 是另一種情況：它不出現在任何選單或目錄中。Site CLI 的歡迎文字表示該 CLI「允許…收集支援所需的除錯資訊」，因此該名稱很可能源自該說明文字，而非實際觀察所得。此指令已標記為未驗證，且刻意不予探測 — 在實際執行的節點上隨意執行未知指令，正是導致一個仍在註冊中的 CE 上意外啟動 `vifdump` 封包擷取的原因。
+`collect-debug-info` 是另一個特殊情況：它不出現在任何選單或目錄中。Site CLI 歡迎文字說明該 CLI「允許……收集支援所需的除錯資訊」，因此這個名稱很可能是從該說明文字推導而來，而非實際觀察所得。它被標記為未驗證，且刻意不加以探測——在正式節點上隨意執行未知指令，正是導致一個仍在註冊中的 CE 意外啟動 `vifdump` 封包擷取的原因。
 </Aside>

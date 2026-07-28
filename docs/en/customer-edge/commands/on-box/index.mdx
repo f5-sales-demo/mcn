@@ -1,6 +1,6 @@
 ---
 title: On-box commands
-description: The 82 commands the appliance's own Site CLI offers, 55 of which the debug API cannot reach at all. Explains the hidden execcli command that runs them, why this surface is larger than the API's, which commands are documented in full and which are only listed, and how the set was measured.
+description: The Site CLI's own command set — 6 top-level commands and 82 execcli subcommands — and how it overlaps the debug API's separate catalog of 34 without either containing the other. Explains the hidden execcli command that runs them, which commands are documented in full and which are only listed, and how the set was measured.
 sidebar:
   order: 40
   label: On-box
@@ -9,10 +9,14 @@ sidebar:
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-The [debug API](../../access/debug-api/) exposes **34 commands**. The appliance itself
-offers **82**, and **55 of those have no API equivalent** — the whole Vega control plane,
-the Envoy wrappers, packet capture, the kubelet parameter set, the `edit-*` files and the
-auxiliary root-access pair are reachable only from the box.
+Two separate command sets reach a Customer Edge, and neither contains the other.
+
+- **On the box**, the Site CLI has **6 top-level commands** and **82 `execcli` subcommands**.
+- **Over the network**, the [debug API](../../access/debug-api/) has its own catalog of **34**.
+
+Most of the on-box surface has no API equivalent: the whole Vega control plane, the Envoy
+wrappers, packet capture, the kubelet parameter set, the `edit-*` files and the auxiliary
+root-access pair are reachable only from the box.
 
 Getting to them needs [SSH](../../access/ssh/) or the
 [serial console](../../access/serial-console/), and one thing that is documented nowhere:
@@ -24,26 +28,48 @@ own one-line description for each. That completion menu is the authoritative cat
 build, and it is what `sitecli/exec-catalog.json` records.
 </Aside>
 
-## How this was measured
+## How this was measured, and how the sets overlap
 
-The set below is not transcribed from a vendor document. It was read off two live nodes and
-committed to `sitecli/exec-catalog.json` with its provenance:
+The set below is not transcribed from a vendor document. It was read off live nodes with
+`scripts/sitecli_ssh_harvest.py` and committed to `sitecli/exec-catalog.json` with its
+provenance. Three runs, in three registration states:
 
-| | Top level | `execcli` |
+| Measured at | Top level | `execcli` |
 | --- | --- | --- |
-| Measured at `site_state: PROVISIONING` | 6 | 82 |
-| Measured at `site_state: PROVISIONED` | 6 | 82 |
+| `site_state: PROVISIONING` | 6 | 82 |
+| `site_state: PROVISIONED` | 6 | 82 |
+| `site_state: ONLINE` | 6 | 82 |
 
-The two runs returned **identical sets**. That matters more than the count: it means the
-command surface does not change with registration state, so a command that is absent is
-genuinely absent rather than not yet offered.
+All three returned **identical sets** — the same names, not merely the same totals, and the
+last was a different deployment with different site and resource names. So the command surface
+does not change with registration state, and a command that is absent is genuinely absent
+rather than not yet offered.
+
+Against the debug API's 34, that gives two figures worth keeping straight:
+
+- **51** `execcli` subcommands have no API equivalent.
+- **55** is the same figure counted across the whole on-box surface, because it also includes
+  the four `configure*` commands, which live at the top level rather than under `execcli`.
+
+Both are correct; a reader who recomputes one and finds the other has not made a mistake.
+Every figure here derives from `sitecli/catalog.json` and `sitecli/exec-catalog.json`.
 
 <Aside type="caution" title="Five commands that do not exist">
-`factory-reset`, `upgrade`, `reboot`, `show` and `clear` are **not** on this build. They
-are the kind of thing a Site CLI plausibly has, they were carried in this repository's
-classification for a while on that assumption, and neither enumeration found them. The
-top level has exactly six entries: `configure`, `configure-generic-hardware`,
-`configure-network`, `configure-http-proxy`, `diagnosis` and `health`.
+`factory-reset`, `upgrade`, `reboot`, `show` and `clear` are **not** on this build. They are
+the kind of thing a Site CLI plausibly has, they were carried in this repository's
+classification for a while on that assumption, and no enumeration found them. The top level
+has exactly six entries: `configure`, `configure-generic-hardware`, `configure-network`,
+`configure-http-proxy`, `diagnosis` and `health`.
+</Aside>
+
+<Aside type="caution" title="Three API commands are not execcli subcommands">
+Looking for these under `execcli` finds nothing, which reads as "the command is missing":
+
+- **`health`** and **`diagnosis`** are **top-level** Site CLI commands. Type them at the `>>>`
+  prompt directly, with no `execcli` prefix.
+- **`dig`** is reachable over the debug API and appears in **neither** on-box menu, so it is
+  absent from the passthrough listing below. It is API-only.
+
 </Aside>
 
 ## What is documented, and what is only listed
@@ -117,7 +143,7 @@ this page could restate.
 
 | Commands | Upstream |
 | --- | --- |
-| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, BIND utilities |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath` | iproute2, NetworkManager |
 | `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
 | `edit-etc-hosts`, `edit-sysctl-conf` | The files are the operating system's |
 | `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |

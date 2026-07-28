@@ -40,6 +40,7 @@ done
 
 CATALOG="${ROOT}/sitecli/catalog.json"
 EXEC_CATALOG="${ROOT}/sitecli/exec-catalog.json"
+CLASSIFICATION="${ROOT}/sitecli/command-classification.json"
 MANIFEST="${ROOT}/sitecli/capture-manifest.json"
 CAPTURE_DIR="${ROOT}/sitecli/captures"
 DOCS="${ROOT}/docs/en/customer-edge"
@@ -112,6 +113,43 @@ while IFS= read -r cmd; do
     violation "manifest entry '${cmd}' is Exec tier and must never be executed"
   fi
 done < <(jq -r '.commands | keys[]' "$MANIFEST")
+
+# --- classification ------------------------------------------------------------
+# command-classification.json decides whether a command gets a page, a one-line
+# listing, or is held back as unavailable on this build. Two ways it can lie, and
+# a reconciliation that counts "classified" and "excluded" separately sees neither:
+# the same command in two tier groups, or a command in BOTH tiers (available) and
+# not_on_this_build (unavailable). The second one shipped: dig sat in
+# passthrough/networking and in debug_api_only at once.
+if [ -f "$CLASSIFICATION" ]; then
+  section "command classification"
+
+  TIERED=$(jq -r '
+    (.tiers // {}) | to_entries[] | .value | to_entries[]
+    | select(.key | startswith("_") | not)
+    | (if (.value | type) == "object" then (.value.commands // []) else .value end)[]
+  ' "$CLASSIFICATION")
+
+  EXCLUDED=$(jq -r '
+    (.not_on_this_build // {}) | to_entries[] | .value
+    | select(type == "object") | (.commands // [])[]
+  ' "$CLASSIFICATION")
+
+  while IFS= read -r cmd; do
+    [ -n "$cmd" ] || continue
+    violation "command '${cmd}' is classified in more than one tier group"
+  done <<EOF
+$(printf '%s\n' "$TIERED" | sed '/^$/d' | sort | uniq -d)
+EOF
+
+  while IFS= read -r cmd; do
+    [ -n "$cmd" ] || continue
+    violation "command '${cmd}' is in tiers (available) and not_on_this_build (unavailable)"
+  done <<EOF
+$(comm -12 <(printf '%s\n' "$TIERED" | sed '/^$/d' | sort -u) \
+    <(printf '%s\n' "$EXCLUDED" | sed '/^$/d' | sort -u))
+EOF
+fi
 
 # --- captures ------------------------------------------------------------------
 section "captured output"

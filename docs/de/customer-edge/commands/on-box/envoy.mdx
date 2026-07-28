@@ -1,31 +1,29 @@
 ---
 title: Envoy
 description: >-
-  Die vier Wrapper um die Admin-Schnittstelle von Envoy auf einer Customer Edge
-  — Listener, Cluster und zwei Konfigurations-Dumps. Erklärt, warum jeder von
-  ihnen mit einer curl-Fortschrittsanzeige beginnt und was die Listener-Ausgabe
-  über die angekündigte VIP verrät.
+  Die vier Wrapper um Envoys Admin-Schnittstelle auf einem Customer Edge —
+  Listener, Cluster und zwei Konfigurations-Dumps. Erklärt, warum jeder dieser
+  Befehle mit einem curl-Fortschrittsanzeiger beginnt, und was die
+  Listener-Ausgabe über die beworbene VIP aussagt.
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 7b786fa58fb2
+  sourceHash: ddca96e880a1
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Aufgezeichnet am 28.07.2026 von einer CE dieses Deployments. Dies sind On-Box-Befehle, sie
-laufen daher über die Site-CLI statt über die Debug-API; `sitecli/exec-catalog.json` erfasst die
-Oberfläche und `sitecli/capture-manifest.json` erfasst, welcher Knoten verwendet wurde.
+Erfasst am 2026-07-28 von einem CE dieses Deployments. Hierbei handelt es sich um On-Box-Befehle, die über die Site CLI und nicht über die Debug-API ausgeführt werden; `sitecli/exec-catalog.json` dokumentiert die Oberfläche und `sitecli/capture-manifest.json` den jeweiligen Knoten.
 
-Envoy terminiert und proxyt Anwendungsdatenverkehr auf der Customer Edge. Diese vier Befehle
-fragen dessen Admin-Schnittstelle ab, und keiner von ihnen ist Teil der
+Envoy beendet und vermittelt Anwendungsdatenverkehr auf dem Customer Edge. Diese vier Befehle
+fragen seine Admin-Schnittstelle ab und sind nicht Teil der
 [Debug-API](../../../access/debug-api/).
 
-<Aside type="note" title="Jeder dieser Befehle beginnt mit einer curl-Fortschrittsanzeige">
-Es handelt sich um `curl`-Wrapper um den Admin-Endpunkt von Envoy, die ohne `-s` aufgerufen werden. Daher sind die ersten
-zwei oder drei Zeilen jeder unten stehenden Aufzeichnung der von curl nach stderr geschriebene Übertragungsfortschritt:
+<Aside type="note" title="Jeder dieser Befehle beginnt mit einem curl-Fortschrittsanzeiger">
+Es sind `curl`-Wrapper um Envoys Admin-Endpunkt, die ohne `-s` aufgerufen werden, sodass die ersten
+zwei oder drei Zeilen jeder folgenden Aufzeichnung den von curl auf stderr geschriebenen Übertragungsfortschritt darstellen:
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -33,14 +31,14 @@ zwei oder drei Zeilen jeder unten stehenden Aufzeichnung der von curl nach stder
   0     0    0     0 …
 ```
 
-Das ist keine Envoy-Ausgabe und kein Fehler. Es ist zudem nützlich: Die Byte-Anzahl unter `% Received`
-verrät Ihnen, ob Envoy überhaupt etwas zurückgegeben hat, was „keine Listener
-konfiguriert" von „die Admin-Schnittstelle hat nicht geantwortet" unterscheidet.
+Dies ist keine Envoy-Ausgabe und kein Fehler. Es ist zudem nützlich: Der Bytezähler `% Received`
+zeigt an, ob Envoy überhaupt etwas zurückgegeben hat, was zwischen „keine Listener konfiguriert"
+und „die Admin-Schnittstelle hat nicht geantwortet" unterscheidet.
 </Aside>
 
 ## `envoy-listeners`
 
-Jeder Listener, den Envoy installiert hat, als `name:address:port`.
+Alle von Envoy installierten Listener, im Format `name:address:port`.
 
 ```bash
 execcli envoy-listeners
@@ -49,21 +47,20 @@ execcli envoy-listeners
 ```text file=../../../../_data/sitecli-envoy-listeners.txt
 ```
 
-**Worauf zu achten ist.** In diesem Deployment führt der Listener `10.250.0.10:80` — die VIP, die
-die CE per BGP ankündigt. Diese eine Zeile verbindet drei Schichten miteinander: Wenn
-[`show-ip-bgp-summary`](../../network/bgp/) zeigt, dass das Präfix angekündigt wird, dieser
-Listener aber fehlt, wird die Route zu einem Knoten gezogen, der sie nicht bedienen wird — das ist
-der schlimmste Fehlermodus in einem ECMP-Set, weil der Datenverkehr in ein schwarzes Loch lastverteilt wird.
+**Worauf zu achten ist.** In diesem Deployment enthält der Listener `10.250.0.10:80` — die VIP, die der
+CE in BGP bewirbt. Diese einzelne Zeile verbindet drei Schichten miteinander: Wenn
+[`show-ip-bgp-summary`](../../network/bgp/) zeigt, dass das Präfix beworben wird, dieser
+Listener jedoch fehlt, wird die Route zu einem Knoten angezogen, der sie nicht bedienen wird — dies ist
+der schlimmste Fehlermodus in einem ECMP-Set, da der Datenverkehr lastverteilt in ein Black Hole geleitet wird.
 
-Die abschließende `[fe80:…]:80` ist die Link-Local-Adresse der Schnittstelle, an die der Listener gebunden
-ist.
+Die abschließende Adresse `[fe80:…]:80` ist die link-lokale Adresse der Schnittstelle, an die der Listener gebunden ist.
 
-**Was es Ihnen nicht verrät.** Nichts über die Upstream-Gesundheit — ein Listener existiert unabhängig davon,
-ob irgendetwas dahinter erreichbar ist. Verwenden Sie dafür `envoy-clusters`.
+**Was es nicht aussagt.** Nichts über den Upstream-Zustand — ein Listener existiert unabhängig davon,
+ob etwas dahinter erreichbar ist. Verwenden Sie `envoy-clusters` dafür.
 
 ## `envoy-clusters`
 
-Jedes Cluster mit seinen Verbindungs- und Anfragelimits pro Priorität.
+Alle Cluster mit ihren verbindungs- und anfragebezogenen Limits je Priorität.
 
 ```bash
 execcli envoy-clusters
@@ -73,14 +70,13 @@ execcli envoy-clusters
 ```
 
 **Worauf zu achten ist.** Zeilen haben das Format `cluster::scope::key::value`. Der Eintrag `observability_name`
-identifiziert jedes Cluster, und das Tripel aus `default_priority::max_connections`,
-`max_pending_requests` und `max_requests` ist der Ort, an dem Anfragelimits sichtbar werden — ein Cluster,
-das an seinem `max_pending_requests` festhängt, wird durch die Konfiguration gedrosselt und nicht durch den
-Upstream.
+identifiziert jeden Cluster, und das Tripel `default_priority::max_connections`,
+`max_pending_requests` und `max_requests` zeigt, wo Anfragelimits greifen — ein Cluster,
+der sein `max_pending_requests`-Limit erreicht hat, wird durch die Konfiguration gedrosselt und nicht durch den Upstream.
 
 ## `envoy-config-dump`
 
-Die vollständige Konfiguration von Envoy als JSON. Umfangreich: 126 KB auf einem ansonsten unbeschäftigten Demo-Knoten.
+Envoys vollständige Konfiguration als JSON. Umfangreich: 126 KB auf einem ansonsten unbeschäftigten Demo-Knoten.
 
 ```bash
 execcli envoy-config-dump
@@ -89,13 +85,13 @@ execcli envoy-config-dump
 ```text file=../../../../_data/sitecli-envoy-config-dump.txt
 ```
 
-**Worauf zu achten ist.** Das Array `configs` auf oberster Ebene enthält ein Objekt pro Konfigurationstyp —
+**Worauf zu achten ist.** Das `configs`-Array auf oberster Ebene enthält je ein Objekt pro Konfigurationstyp —
 Bootstrap, Cluster, Listener, Routen, Secrets. Greifen Sie darauf zurück, wenn ein Listener oder Cluster
-existiert, sich aber unerwartet verhält, und durchsuchen Sie es, statt es zu lesen.
+zwar existiert, sich aber unerwartet verhält, und durchsuchen Sie es gezielt, anstatt es vollständig zu lesen.
 
 ## `envoy-hc-config-dump`
 
-Speziell die Health-Check-Konfiguration.
+Die Konfiguration der Zustandsprüfungen (Health Checks) im Einzelnen.
 
 ```bash
 execcli envoy-hc-config-dump
@@ -104,7 +100,6 @@ execcli envoy-hc-config-dump
 ```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
 ```
 
-**Worauf zu achten ist.** In diesem Deployment gibt der Befehl ein **einziges Byte** zurück — sichtbar als `100 1`
-in der curl-Anzeige — was bedeutet, dass keine Health-Check-Konfiguration installiert ist. Das ist der erwartete
-Zustand für eine CE ohne Origin-Pools mit Health-Checks, und es lohnt sich, das zu erkennen: Ein leeres
-Ergebnis ist hier keine fehlgeschlagene Abfrage.
+**Worauf zu achten ist.** In diesem Deployment gibt es **ein einzelnes Byte** zurück — im `curl`-Fortschrittsanzeiger als `100 1` sichtbar —, was bedeutet, dass keine Konfiguration für Zustandsprüfungen installiert ist. Dies ist der erwartete
+Zustand für einen CE ohne zustandsgeprüfte Origin Pools, und es lohnt sich, dies zu erkennen: Ein leeres
+Ergebnis hier ist keine fehlgeschlagene Abfrage.

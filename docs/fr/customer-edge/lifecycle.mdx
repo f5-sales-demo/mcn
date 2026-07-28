@@ -1,0 +1,102 @@
+---
+title: Versions du logiciel et reconstructions
+description: >-
+  Ce que font et ne font pas ce_sw_version et ce_os_version sur un Customer Edge
+  — pourquoi le nœud se met à niveau qu'on les définisse ou non, pourquoi les
+  laisser vides ne donne pas la build la plus récente, et pourquoi modifier l'un
+  ou l'autre déclenche une reconstruction de flotte à planifier et non une
+  modification qu'on applique dans Terraform.
+sidebar:
+  order: 50
+  label: Versions et reconstructions
+i18n:
+  sourceHash: 6c0be3179303
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Deux variables Terraform définissent le logiciel d'un Customer Edge : `ce_os_version` pour le
+système d'exploitation et `ce_sw_version` pour la build F5 Distributed Cloud. Les deux se
+comportent à l'inverse de leur lecture évidente, et le coût d'une erreur est une reconstruction
+de flotte.
+
+## Ce que font les champs de version, en deux phases
+
+La séparation des phases est tout le sujet. Confondues, le comportement semble
+contradictoire.
+
+**Au premier démarrage, un nœud se met toujours à niveau.** `terraform/modules/ce-node` déploie
+l'image de la place de marché avec `version = "latest"`, et cette image embarque une build
+**plus ancienne** que celle qu'exécute le tenant. Une mise à niveau se produit donc qu'on
+définisse ou non le champ. `ce_sw_version` choisit uniquement la **destination** — le laisser
+vide signifie que le serveur choisit, non qu'il ne se passe rien. Il en va de même pour
+`ce_os_version`.
+
+**Après cela, rien ne se met à niveau de lui-même.** F5 Distributed Cloud annonce une build
+plus récente et attend. Un champ vide ne signifie donc pas « suivre la dernière version » : le
+nœud reste là où il a atterri au premier démarrage.
+
+Les deux phases sont visibles sur l'objet site. `Observé le 2026-07-28`, cette flotte :
+
+```text
+volterra_software_status.available_version   crt-20260201-0179
+operating_system_status.available_version    9.2026.14
+```
+
+tandis que les nœuds exécutent `crt-20250613-3382` et l'OS `9.2024.6`. Une build plus récente
+est disponible mais n'a pas été adoptée — c'est l'état stable, non une mise à niveau bloquée.
+
+## Modifier une version nécessite une reconstruction, et Terraform ne le fera pas à votre place
+
+`ce_os_version` et `ce_sw_version` sont tous deux **valables uniquement à la création**, et le
+mode d'échec est pire qu'un apply rejeté. Dans l'ordre :
+
+1. Vous modifiez la valeur et appliquez. Terraform propose une mise à jour sur place.
+2. L'API **la rejette** — `[BAD_REQUEST] Invalid request parameters`.
+3. Cette requête rejetée efface tout de même le champ côté serveur, et la lecture du
+   fournisseur ne le signale pas. L'état Terraform est désormais en désaccord avec l'objet
+   réel.
+4. Chaque plan ultérieur propose **le même changement en échec**, indéfiniment.
+
+Terraform ne bascule donc pas vers le remplacement du site. Il reste bloqué, et demeure bloqué
+jusqu'à ce que vous remplaciez délibérément le site et sa machine virtuelle CE. Migrer une
+flotte vers une version différente est une **reconstruction à planifier**, non une modification
+à appliquer.
+
+<Aside type="danger" title="Toutes les conséquences du remplacement d'un CE s'appliquent">
+Nouvelles clés d'hôte SSH, adresses internes réaffectées, une nouvelle inscription, et la perte
+de tout ce qui résidait uniquement sur le nœud. Cloud-init s'exécute à nouveau sur la nouvelle
+VM, donc l'accès SSH configuré de cette façon survit — mais il ne s'exécute *qu'au premier
+démarrage*, donc tout ce qui a été ajouté manuellement à l'ancien nœud est perdu.
+
+Lisez [SSH](./access/ssh/) sur les conséquences concernant les clés d'hôte et les adresses
+avant de planifier cette opération.
+</Aside>
+
+<Aside type="note" title="Signalé, non reproduit ici">
+Le rejet et la divergence d'état sont consignés dans les commentaires de
+`terraform/modules/xc-site` de ce dépôt — vérifiés dans les deux sens, épinglage et
+désépinglage, sur les trois sites — et par rapport au problème du fournisseur `xcsh#1387`.
+Cette page n'a pas ré-testé cela, car le test laisse le déploiement proposer un changement en
+échec à chaque plan.
+</Aside>
+
+## Quelle build la documentation décrit
+
+Le guide de référence des commandes sur ce site décrit **`crt-20250613-3382`**, la build
+qu'exécute cette flotte. Les commandes observées uniquement sur des builds plus récentes sont
+répertoriées par nom dans `sitecli/command-classification.json` sous `not_on_this_build`, et ne
+sont pas documentées comme exécutables. Voir [commandes embarquées](./commands/on-box/).
+
+<Aside type="caution" title="Ne planifiez pas une reconstruction pour accéder à des commandes plus récentes">
+Une build plus récente est disponible, et si elle s'installe correctement sur cette topologie
+reste incertain — il existe un rapport d'échec sur des sites Azure Secure Mesh v2 à nœud unique,
+et une contre-observation d'un Customer Edge qui l'exécute. Ni l'un ni l'autre ne peut être
+confirmé à partir de ce qui reste dans le tenant.
+
+Puisqu'un changement de version est une reconstruction de flotte, cette incertitude est le fait
+opérant : considérez l'accès à ces commandes comme non éprouvé, non comme une mise à niveau
+planifiée. Les preuves et l'expérience qui permettraient de trancher sont consignées dans
+`sitecli/README.md`.
+</Aside>
