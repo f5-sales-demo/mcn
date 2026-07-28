@@ -1,16 +1,19 @@
-IF RX Discard                 5
-Invalid ARP                   14
+IF RX Discard                 3
+Invalid ARP                   12
 
-Flow Action Drop              428
-Flow Unusable (Eviction)      4603
+Flow Action Drop              285
+Flow Unusable (Eviction)      198
 
 
-Discards                      174
+Discards                      20
+Cloned Original               56
 
+Invalid NH                    2
 Invalid Protocol              28
 
-Duplicated                    14
-Invalid Packets               37088
+Duplicated                    5
+Invalid Packets               625
 
-Invalid Source                4
+Misc                          83
+Invalid Source                8
 Invalid VLAN                  2

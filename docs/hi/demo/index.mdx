@@ -1,0 +1,114 @@
+---
+title: मल्टी-क्लाउड नेटवर्किंग CE-HA डेमो
+description: >-
+  यह रिपॉज़िटरी क्या तैनात करती है — N सिंगल-नोड Customer Edges जो eBGP के
+  माध्यम से एक VIP को Azure Route Server में equal-cost multipath के लिए
+  ओरिजिनेट करते हैं, उनके सामने कोई Azure लोड बैलेंसर नहीं — यह डेमो क्या साबित
+  करने के लिए है, और इसे तैनात करने, स्वस्थ साबित करने तथा प्रस्तुत करने के लिए
+  कहाँ जाएँ।
+sidebar:
+  order: 5
+  label: डेमो
+i18n:
+  sourceHash: 4fbc25642229
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+यह तैनाती **Azure में active/active Customer Edge उच्च उपलब्धता** को प्रदर्शित करती है,
+जिसमें CEs के सामने कोई Azure लोड बैलेंसर नहीं होता। प्रत्येक CE eBGP द्वारा उसी होस्ट रूट को
+ओरिजिनेट करता है, और Azure Route Server उन सभी को VNet में equal-cost next hops के रूप में स्थापित करता है।
+इसलिए ट्रैफ़िक वितरण और विफल नोड को हटाने का कार्य लोड बैलेंसर के बजाय रूटिंग फ़ैब्रिक में
+होना निर्धारित है।
+
+इन पृष्ठों की प्रत्येक बात लाइव तैनाती के विरुद्ध चलाई गई थी, और दिखाया गया आउटपुट वही आउटपुट है
+जो उसने उत्पन्न किया। उस वाक्य में जो *शामिल नहीं* है — फेलओवर, और ट्रैफ़िक next hops के बीच कैसे
+विभाजित होता है — उसे मान लेने के बजाय स्पष्ट रूप से उल्लेखित किया गया है।
+
+## यह क्या तैनात करता है
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| भाग | यह क्या है |
+| --- | --- |
+| F5 Distributed Cloud टेनेंट | `var.expected_xc_tenant` — एकमात्र स्थान जहाँ टेनेंट का नाम दिया गया है |
+| नेमस्पेस | CE साइटें `system` में; ऑरिजिन पूल और लोड बैलेंसर `var.xc_app_namespace` में |
+| Customer Edges | `var.ce_count` सिंगल-नोड Secure Mesh v2 साइटें, 1 से 3, प्रति उपलब्धता ज़ोन एक |
+| CE सॉफ़्टवेयर | `var.ce_sw_version` / `var.ce_os_version` द्वारा पिन किया गया |
+| Azure VMs | प्रत्येक में तीन NICs — management/SLO, external, internal/SLI |
+| रूट एक्सचेंज | एक Azure Route Server, ASN `var.rs_asn`, दो instance addresses |
+| पीयरिंग | प्रति CE एक, नाम `<key>-bgp`, CE ASN `var.ce_asn` |
+| विज्ञापित VIP | `var.vip` एक `/32` के रूप में, प्रत्येक CE द्वारा समान रूप से ओरिजिनेट किया गया |
+| लोड बैलेंसर | `var.lb_domain` की सेवा करता है, `var.origin_ip` पर एक ऑरिजिन पूल द्वारा समर्थित |
+| परीक्षण क्लाइंट | उसी VNet के भीतर एक VM, VIP पर ट्रैफ़िक चलाने के लिए |
+
+ऊपर दिया गया कुछ भी ऐसा शाब्दिक मान नहीं है जिसे आपको कॉपी करना चाहिए। प्रत्येक मान तैनाती से पढ़ा जा सकता है,
+और प्रत्येक पृष्ठ उसे नाम देने के बजाय पढ़ता है:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="VIP को प्रत्येक VNet CIDR के बाहर होना चाहिए">
+`terraform/main.tf` में एक `check` ब्लॉक है जो यह अभिकथन करता है कि VIP हब और स्पोक दोनों CIDRs के
+बाहर है, और अन्यथा प्लान को अस्वीकार कर देता है। इसका बताया गया कारण यह है कि VNet CIDR के भीतर स्थित
+VIP, BGP रूट अधिक विशिष्ट होने के बावजूद, VNet के अपने सिस्टम रूट से हार जाता है।
+
+इस गार्ड को अनुबंध की तरह मानें: यदि आप इस डेमो को भिन्न एड्रेसिंग पर पुनः इंगित करते हैं, तो VIP को भी
+VNet रेंज से बाहर जाना होगा।
+</Aside>
+
+<Aside type="caution" title="नाम बदलना पुनर्निर्माण है, नाम-परिवर्तन नहीं">
+चूँकि प्रत्येक नाम `var.component` से व्युत्पन्न होता है, इसे बदलने से पूरी तैनाती का नाम बदल जाता है —
+लेकिन `site_prefix` कोई सतही बदलाव नहीं है। यह प्रत्येक CE के cloud-init में `ClusterName` बन जाता है,
+`custom_data` केवल replace-only है, और cloud-init केवल CE के पहले बूट पर चलता है। इसलिए इसे बदलने से
+**प्रत्येक CE VM और उसकी XC साइट प्रतिस्थापित हो जाती है**, और तब ECMP के पुनः अभिसरण तक VIP कुछ समय
+के लिए हानिपूर्ण रहता है।
+
+यह सैद्धांतिक नहीं है: चल रहे डेमो पर इन व्युत्पन्न नामों को अपनाने से तीन CE VMs, तीन साइटें, तीन BGP
+ऑब्जेक्ट, लोड बैलेंसर, ऑरिजिन पूल, Azure Route Server, Bastion और परीक्षण क्लाइंट प्रतिस्थापित हो गए —
+`23 to add, 3 to change, 26 to destroy`।
+जब आपको चाहिए कि मौजूदा साइटें यथावत रहें, तो `site_prefix` को वर्तमान मान पर पिन करें।
+</Aside>
+
+## आगे कहाँ जाएँ
+
+<CardGrid>
+  <LinkCard
+    title="इसे तैनात करें"
+    description="पूर्वापेक्षाएँ, वे दो मान जो आपको देने आवश्यक हैं, पहला apply दो-चरणों में क्यों होता है, और इसे कैसे हटाया जाए।"
+    href="./deploy/"
+  />
+  <LinkCard
+    title="Terraform"
+    description="कॉन्फ़िगरेशन स्वयं, उन फ़ाइलों से पढ़ा गया जो इसे तैनात करती हैं, दोबारा टाइप किया हुआ नहीं।"
+    href="./terraform/"
+  />
+  <LinkCard
+    title="इसे स्वस्थ साबित करें"
+    description="क्रम में चार जाँचें, और वे सामान्य दिखने वाले परिणाम जो आउटेज जैसे लगते हैं पर हैं नहीं।"
+    href="./verify/"
+  />
+  <LinkCard
+    title="इसे प्रस्तुत करें"
+    description="यह डेमो क्या दिखा सकता है, अभी क्या नहीं दिखा सकता, और वह एक कमांड जो ECMP को दृश्यमान बनाता है।"
+    href="./present/"
+  />
+</CardGrid>

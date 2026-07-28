@@ -1,0 +1,114 @@
+---
+title: การสาธิต CE-HA เครือข่ายมัลติคลาวด์
+description: >-
+  สิ่งที่ repository นี้ deploy — Customer Edge แบบโหนดเดียวจำนวน N ตัวที่ประกาศ
+  VIP หนึ่งรายการผ่าน eBGP เข้าสู่ Azure Route Server เพื่อทำ equal-cost
+  multipath โดยไม่มี Azure load balancer อยู่ด้านหน้า —
+  สิ่งที่การสาธิตนี้ต้องการพิสูจน์ และที่ที่ควรไปเพื่อ deploy พิสูจน์ความสมบูรณ์
+  และนำเสนอ
+sidebar:
+  order: 5
+  label: การสาธิต
+i18n:
+  sourceHash: 4fbc25642229
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+การ deploy นี้สาธิต **ความพร้อมใช้งานสูงของ Customer Edge แบบ active/active ใน Azure**
+โดยไม่มี Azure load balancer อยู่ด้านหน้า CE แต่ละ CE จะประกาศ host route เดียวกันด้วย
+eBGP และ Azure Route Server จะติดตั้งทั้งหมดเป็น next hop แบบ equal-cost ภายใน VNet
+ดังนั้นโครงสร้าง routing fabric จึงเป็นจุดที่การกระจายทราฟฟิกและการนำโหนดที่ล้มเหลวออก
+เกิดขึ้น แทนที่จะเป็น load balancer
+
+ทุกสิ่งในหน้าเหล่านี้ถูกรันกับการ deploy ที่ใช้งานจริง และผลลัพธ์ที่แสดงคือผลลัพธ์ที่
+เกิดขึ้นจริง สิ่งที่ประโยคนั้น *ไม่* ครอบคลุม — คือ failover และวิธีที่ทราฟฟิกถูกแบ่ง
+ระหว่าง next hop ต่าง ๆ — จะถูกระบุไว้อย่างชัดเจนแทนที่จะปล่อยให้เป็นการคาดเดา
+
+## สิ่งที่มันจะ deploy
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| ส่วนประกอบ | คืออะไร |
+| --- | --- |
+| F5 Distributed Cloud tenant | `var.expected_xc_tenant` — ที่เดียวที่มีการระบุชื่อ tenant |
+| Namespaces | CE site อยู่ใน `system`; origin pool และ load balancer อยู่ใน `var.xc_app_namespace` |
+| Customer Edges | ไซต์ Secure Mesh v2 แบบโหนดเดียวจำนวน `var.ce_count` ตั้งแต่ 1 ถึง 3 หนึ่งตัวต่อ availability zone |
+| ซอฟต์แวร์ CE | ตรึงเวอร์ชันด้วย `var.ce_sw_version` / `var.ce_os_version` |
+| Azure VMs | สาม NIC ต่อเครื่อง — management/SLO, external, internal/SLI |
+| Route exchange | Azure Route Server หนึ่งตัว, ASN `var.rs_asn`, สอง instance address |
+| Peerings | หนึ่งรายการต่อ CE ตั้งชื่อว่า `<key>-bgp`, CE ASN `var.ce_asn` |
+| VIP ที่ประกาศ | `var.vip` เป็น `/32` ประกาศเหมือนกันโดยทุก CE |
+| Load balancer | ให้บริการ `var.lb_domain` โดยมี origin pool ที่ `var.origin_ip` รองรับ |
+| Test client | VM ภายใน VNet เดียวกัน สำหรับส่งทราฟฟิกไปยัง VIP |
+
+ไม่มีสิ่งใดข้างต้นที่เป็นค่าตายตัวที่คุณควรคัดลอกไปใช้ ทุกค่าสามารถอ่านได้จากการ deploy
+และแต่ละหน้าจะอ่านค่าแทนที่จะระบุชื่อค่านั้น:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="VIP ต้องอยู่นอก CIDR ของทุก VNet">
+`terraform/main.tf` มี `check` block ที่ยืนยันว่า VIP อยู่นอกทั้ง CIDR ของ hub และ
+spoke และจะปฏิเสธ plan หากไม่เป็นเช่นนั้น เหตุผลที่ระบุไว้คือ VIP ที่อยู่ภายใน CIDR ของ
+VNet จะแพ้ให้กับ system route ของ VNet เอง แม้ว่า BGP route จะมีความเฉพาะเจาะจงมากกว่า
+
+จงถือว่า guard นี้เป็นข้อสัญญา: หากคุณเปลี่ยนการสาธิตนี้ไปใช้การกำหนดที่อยู่แบบอื่น
+VIP ก็ต้องย้ายออกจากช่วงของ VNet ไปด้วย
+</Aside>
+
+<Aside type="caution" title="การเปลี่ยนชื่อคือการสร้างใหม่ ไม่ใช่การเปลี่ยนชื่อ">
+เนื่องจากทุกชื่อได้มาจาก `var.component` การเปลี่ยนค่านี้จะเปลี่ยนชื่อทั้งการ
+deploy — แต่ `site_prefix` ไม่ใช่การเปลี่ยนแปลงเพียงผิวเผิน มันกลายเป็น `ClusterName`
+ใน cloud-init ของแต่ละ CE, `custom_data` เป็นแบบ replace-only เท่านั้น และ cloud-init
+จะรันเฉพาะตอนที่ CE บูตครั้งแรก ดังนั้นการเปลี่ยนค่านี้จึง **แทนที่ CE VM ทุกตัวและ
+ไซต์ XC ของมัน** และ VIP จะสูญเสียทราฟฟิกช่วงสั้น ๆ ระหว่างที่ ECMP รวมเส้นทางใหม่
+
+นี่ไม่ใช่เรื่องทฤษฎี: การนำชื่อที่ได้มาเหล่านี้มาใช้กับการสาธิตที่กำลังทำงานอยู่ได้แทนที่
+CE VM สามตัว, ไซต์สามแห่ง, BGP object สามรายการ, load balancer, origin pool, Azure
+Route Server, Bastion และ test client — `23 to add, 3 to change, 26 to destroy`
+ตรึงค่า `site_prefix` ไว้ที่ค่าปัจจุบันเมื่อคุณต้องการให้ไซต์ที่มีอยู่คงอยู่ที่เดิม
+</Aside>
+
+## ขั้นตอนต่อไป
+
+<CardGrid>
+  <LinkCard
+    title="Deploy it"
+    description="Prerequisites, the two values you must supply, why the first apply is two-phase, and how to tear it down."
+    href="./deploy/"
+  />
+  <LinkCard
+    title="The Terraform"
+    description="The configuration itself, read from the files that deploy it rather than retyped."
+    href="./terraform/"
+  />
+  <LinkCard
+    title="Prove it healthy"
+    description="Four checks in order, and the normal-looking results that read as an outage and are not."
+    href="./verify/"
+  />
+  <LinkCard
+    title="Present it"
+    description="What this demo can show, what it cannot yet show, and the one command that makes ECMP visible."
+    href="./present/"
+  />
+</CardGrid>

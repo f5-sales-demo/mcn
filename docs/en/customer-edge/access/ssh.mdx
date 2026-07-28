@@ -9,6 +9,10 @@ sidebar:
 import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
+Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
+records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
+surface against a live CE.
+
 SSH reaches the appliance `admin` account, whose login shell is the Site CLI
 (`/opt/bin/vpmu`). This is the only route to the **full on-box command surface** — the
 [debug API](../debug-api/) exposes 34 commands, and the appliance itself offers many more
@@ -35,8 +39,8 @@ those looks identical to "SSH is not enabled".
 name is stable even though the address is not:
 
 ```bash
-az network nic show -g rg-mcn-ce-ha-rmordasiewicz \
-  -n f5-xc-ce-vm-01-internal-nic \
+az network nic show -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -json ce_vm_names | jq -r '.eastus01')-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
@@ -165,7 +169,8 @@ management/SLO address. For anything else, match on the address in
 
 The CE public addresses have no listener on 22 either, which is why the command above
 goes through `-J`: an operator VM inside the VNet, in the same subnet as the SLI
-addresses. On this deployment `ar-ecmp-client` is that VM.
+addresses. This deployment builds one for the purpose —
+`terraform output -raw client_vm_name` names it.
 
 <Aside type="caution" title="-J does not pass your options to the jump leg">
 Options given on the command line apply to the final hop. `-o UserKnownHostsFile=/dev/null`

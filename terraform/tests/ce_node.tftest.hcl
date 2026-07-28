@@ -13,7 +13,7 @@ run "ce_vm_and_nics" {
 
   variables {
     hostname            = "f5-xc-ce-vm-01"
-    resource_group_name = "rmordasiewicz-f5-xc-ce-infra"
+    resource_group_name = "rg-mcn-ce-ha-testdeployer"
     location            = "eastus"
     zone                = "1"
     vm_size             = "Standard_D8_v4"
@@ -103,7 +103,7 @@ run "vm_instance_id_is_the_instance_id_not_the_arm_resource_id" {
 
   variables {
     hostname            = "f5-xc-ce-vm-01"
-    resource_group_name = "rmordasiewicz-f5-xc-ce-infra"
+    resource_group_name = "rg-mcn-ce-ha-testdeployer"
     location            = "eastus"
     zone                = "1"
     vm_size             = "Standard_D8_v4"

@@ -1,102 +1,112 @@
 ---
 title: Console del sito
 description: >-
-  La Console del sito di F5 per singolo nodo, esposta sulla porta TCP 65500 e
-  raggiungibile attraverso un tunnel Azure Bastion. Non richiede chiavi SSH, né
-  jump host, né indirizzi IP pubblici — l'accesso è una decisione di Azure RBAC
-  e risponde anche quando la registrazione del sito è fallita. Illustra i
-  comandi esatti e il loro output reale, il certificato che genererà un avviso,
-  perché il tunnel deve puntare al resource id della VM e come gestire la
-  credenziale admin.
+  La Console del sito di F5, disponibile per ogni nodo sulla porta TCP 65500 e
+  raggiungibile tramite un tunnel Azure Bastion. Non richiede chiavi SSH, host
+  di salto né IP pubblici — l'accesso è una decisione di Azure RBAC, e risponde
+  anche quando il sito non è riuscito a registrarsi. Copre i comandi esatti e il
+  loro output reale, il certificato per cui riceverete un avviso, perché il
+  tunnel deve puntare all'id della risorsa VM e come gestire la credenziale
+  admin.
 sidebar:
   order: 22
   label: Console del sito
 i18n:
-  sourceHash: e514eb8fdcfe
+  sourceHash: d33e2716256e
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Ogni Customer Edge espone la Console del sito di F5 su `https://<sli-ip>:65500`. In questo
-deployment è di solito la via da provare per prima.
+Acquisito il 2026-07-28 da un CE di questa distribuzione. `sitecli/capture-manifest.json`
+registra quale nodo, e `scripts/capture-sitecli.sh --check` riverifica la superficie dei
+comandi rispetto a un CE attivo.
 
-È quella che richiede meno: nessuna chiave SSH da distribuire, nessun jump host da mantenere, nessun IP pubblico sul
-nodo e nessuna sostituzione della VM per abilitarla. Chi può connettersi diventa una **decisione di Azure
-RBAC**. E non richiede che il sito sia registrato: questa pagina è stata acquisita inizialmente
-mentre tutti e tre i siti riportavano `site_state: FAILED`, ed è stata riverificata senza variazioni sugli
-stessi nodi una volta passati a `ONLINE`.
+Ogni Customer Edge espone la Console del sito di F5 su `https://<sli-ip>:65500`. In questa
+distribuzione è di solito il percorso da provare per primo.
 
-Il rovescio della medaglia è che la Console del sito risponde solo sull'indirizzo interno (SLI) del nodo,
-raggiungibile soltanto dall'interno della VNet. Azure Bastion colma quel divario senza aggiungere
-nulla di ulteriore sulla rete.
+È quello che richiede meno: nessuna chiave SSH da distribuire, nessun host di salto da
+mantenere, nessun IP pubblico sul nodo e nessuna sostituzione della VM per abilitarlo. Chi
+può connettersi diventa una **decisione di Azure RBAC**. E non richiede che il sito sia
+registrato: questa pagina è stata acquisita la prima volta mentre tutti e tre i siti
+riportavano `site_state: FAILED`, ed è stata riverificata invariata sugli stessi nodi una
+volta che erano `ONLINE`.
 
-<Aside type="note" title="Che cosa è verificato qui e che cosa non lo è">
-Ogni comando e ogni output di questa pagina è stato eseguito su `f5-xc-ce-vm-01` in questo
-deployment ed è riprodotto testualmente, inclusi gli errori.
+Il rovescio della medaglia è che la Console del sito risponde solo sull'indirizzo interno
+(SLI) del nodo, raggiungibile solo dall'interno della VNet. Azure Bastion colma questa
+lacuna senza aggiungere nient'altro sulla rete.
 
-**L'autenticazione è verificata**: la credenziale `admin` dell'appliance restituisce `200` attraverso il
-tunnel. Ciò che *non* viene esercitato è la console stessa — nulla di quanto segue descrive ciò che è possibile
-vedere o fare una volta entrati.
+<Aside type="note" title="Cosa è verificato qui, e cosa no">
+Ogni comando e ogni output di questa pagina è stato eseguito su `f5-xc-ce-vm-01` in questa
+distribuzione ed è riprodotto testualmente, inclusi i fallimenti.
 
-**Azure RBAC non è verificato.** Ogni esecuzione è avvenuta come proprietario della sottoscrizione, quindi il requisito Reader
-al passaggio 2 è il requisito documentato da Microsoft e non qualcosa di misurato
-qui.
+**L'autenticazione è verificata**: la credenziale `admin` dell'appliance restituisce `200`
+attraverso il tunnel. Ciò che *non* viene esercitato è la console stessa — nulla di quanto
+segue descrive cosa si può vedere o fare una volta entrati.
+
+**Azure RBAC non è verificato.** Ogni esecuzione è avvenuta come proprietario della
+sottoscrizione, quindi il requisito Reader del passaggio 2 è il requisito documentato da
+Microsoft e non qualcosa misurato qui.
 </Aside>
 
-<Aside type="caution" title="Bastion è opt-in e non viene distribuito per impostazione predefinita">
-`enable_bastion` vale `false` per impostazione predefinita, quindi con un `terraform apply` predefinito non esiste alcun host Bastion
-e `terraform output -raw bastion_name` è `null`. Impostare `enable_bastion = true` in
-`terraform/terraform.tfvars` — in questo deployment è `true`.
+<Aside type="caution" title="Bastion è opzionale e non viene distribuito per impostazione predefinita">
+`enable_bastion` è impostato su `false` per impostazione predefinita, quindi con un
+`terraform apply` predefinito non esiste alcun host Bastion e
+`terraform output -raw bastion_name` restituisce `null`. Impostare `enable_bastion = true`
+in `terraform/terraform.tfvars` — in questa distribuzione è `true`.
 
-Il motivo per cui è opt-in è il costo, non il rischio: un host con SKU Standard addebita una tariffa oraria fissa
-dal momento in cui viene provisionato, indipendentemente dal fatto che qualcuno apra un tunnel — USD
-0,29/ora in `eastus` per le due scale unit incluse (prezzo di listino, 2026-07), circa USD 212 al
-mese. Disattivarlo di nuovo quando la demo non richiede l'accesso alla console.
+Il motivo per cui è opzionale è il costo, non il rischio: un host con SKU Standard fattura
+un canone orario fisso dal momento in cui viene fornito, che qualcuno apra un tunnel o meno
+— USD 0,29/ora in `eastus` per le due unità di scala incluse (prezzo al pubblico,
+2026-07), circa USD 212 al mese. Disattivarlo quando la demo non necessita dell'accesso
+alla console.
 </Aside>
 
 ## Prima di iniziare
 
 <Steps>
 
-1. Accedere ad Azure e aggiungere l'estensione Bastion. Il tunneling è una funzionalità del client nativo
-   e l'estensione non è installata per impostazione predefinita.
+1. Accedere ad Azure e aggiungere l'estensione Bastion. Il tunneling è una funzionalità del
+   client nativo e l'estensione non è installata per impostazione predefinita.
 
    ```bash
    az login
    az extension add --name bastion
    ```
 
-2. Disporre del ruolo **Reader** sulla macchina virtuale CE, sulla sua interfaccia di rete e sull'host Bastion.
-   Questo è il requisito documentato da Microsoft ed è **non verificato qui** — ogni esecuzione in questo
-   deployment è avvenuta come proprietario della sottoscrizione, quindi non è stato dimostrato che alcun ruolo inferiore sia
-   sufficiente o insufficiente.
+2. Disporre del ruolo **Reader** sulla macchina virtuale CE, sulla sua interfaccia di rete e
+   sull'host Bastion. Questo è il requisito documentato da Microsoft ed è **non verificato
+   qui** — ogni esecuzione in questa distribuzione è avvenuta come proprietario della
+   sottoscrizione, quindi nessun ruolo inferiore è stato dimostrato sufficiente o
+   insufficiente.
 
-3. Verificare che Bastion sia distribuito e idoneo. Lo SKU Basic non supporta né il tunneling né
-   la connessione basata su IP, quindi qui `Standard` e `True` sono entrambi determinanti.
+3. Confermare che Bastion sia distribuito e adeguato. Lo SKU Basic non supporta né il
+   tunneling né la connessione basata su IP, quindi qui sia `Standard` sia `True` sono
+   essenziali.
 
    ```bash
-   az network bastion list -g rg-mcn-ce-ha-rmordasiewicz \
+   az network bastion list -g "$(terraform output -raw resource_group_name)" \
      --query "[].{name:name, sku:sku.name, tunneling:enableTunneling}" -o table
    ```
 
    ```text
    Name               Sku       Tunneling
    -----------------  --------  -----------
-   ce-ha-lab-bastion  Standard  True
+   mcn-ce-ha-bastion  Standard  True
    ```
 
 </Steps>
 
 ## Aprire il tunnel
 
-Prelevare i valori da `terraform output` anziché digitarli — il resource id non è
+Prelevare i valori da `terraform output` anziché digitarli — l'id della risorsa non è
 qualcosa da comporre a mano.
 
 <Steps>
 
-1. Leggere il nome dell'host Bastion, il gruppo di risorse e il resource id della VM del CE di destinazione.
+1. Leggere il nome dell'host Bastion, il gruppo di risorse e l'id della risorsa VM del CE di
+   destinazione.
 
    ```bash
    cd terraform
@@ -106,15 +116,15 @@ qualcosa da comporre a mano.
    ```
 
    ```text
-   ce-ha-lab-bastion
+   mcn-ce-ha-bastion
    rg-mcn-ce-ha-rmordasiewicz
    /subscriptions/…/providers/Microsoft.Compute/virtualMachines/f5-xc-ce-vm-01
    ```
 
-   <Aside type="caution" title="La mappa è indicizzata per sito, non per nome della VM">
-   Le chiavi di `ce_vm_ids` sono `eastus01`, `eastus02`, `eastus03` — **non** i nomi delle VM. Un
-   filtro come `jq -r '."f5-xc-ce-vm-01"'` restituisce `null`, e il tunnel fallisce quindi su un
-   resource id vuoto. In caso di dubbio, elencarle:
+   <Aside type="caution" title="La mappa è indicizzata per sito, non per nome VM">
+   Le chiavi di `ce_vm_ids` sono `eastus01`, `eastus02`, `eastus03` — **non** i nomi delle
+   VM. Un filtro come `jq -r '."f5-xc-ce-vm-01"'` restituisce `null`, e il tunnel fallisce
+   quindi con un id di risorsa vuoto. Elencarle in caso di dubbio:
 
    ```bash
    terraform output -json ce_vm_ids | jq -r 'keys | join(", ")'
@@ -126,8 +136,8 @@ qualcosa da comporre a mano.
 
    </Aside>
 
-2. Avviare il tunnel. Mantiene la porta aperta fino all'arresto, quindi eseguirlo in background o usare un
-   secondo terminale.
+2. Avviare il tunnel. Mantiene la porta aperta finché non viene arrestato, quindi eseguirlo
+   in background o usare un secondo terminale.
 
    ```bash
    az network bastion tunnel \
@@ -144,10 +154,11 @@ qualcosa da comporre a mano.
    WARNING: Ctrl + C to close
    ```
 
-   Tutte e tre le righe hanno il prefisso `WARNING:`. È l'interfaccia CLI di Azure che scrive l'avanzamento su
-   stderr, non un problema. Attendere `Tunnel is ready` prima di connettersi.
+   Tutte e tre le righe hanno il prefisso `WARNING:`. Si tratta dell'interfaccia CLI di
+   Azure che scrive l'avanzamento su stderr, non di un problema. Attendere
+   `Tunnel is ready` prima di connettersi.
 
-3. Verificare che il listener sia locale, su loopback:
+3. Confermare che il listener sia locale, su loopback:
 
    ```bash
    lsof -nP -iTCP:65500 -sTCP:LISTEN
@@ -166,15 +177,16 @@ qualcosa da comporre a mano.
    xdg-open https://localhost:65500/      # Linux
    ```
 
-5. Arrestare il tunnel al termine — `Ctrl-C`, oppure `kill %1` se è stato messo in background.
-   Lasciarlo aperto mantiene occupata la porta locale 65500 e la sessione Bastion.
+5. Arrestare il tunnel al termine — `Ctrl-C`, oppure `kill %1` se è stato messo in
+   background. Lasciarlo aperto occupa la porta locale 65500 e la sessione Bastion.
 
 </Steps>
 
-## Che cosa si vedrà
+## Cosa si vedrà
 
-**Una finestra di dialogo per le credenziali, non una pagina di login.** La console usa l'autenticazione HTTP Basic, quindi
-il browser mostra il proprio prompt per nome utente e password. Non c'è alcun form da osservare:
+**Una finestra di dialogo per le credenziali, non una pagina di accesso.** La console usa
+l'autenticazione HTTP Basic, quindi il browser mostra la propria richiesta di nome utente e
+password. Non c'è alcun modulo da guardare:
 
 ```bash
 curl -skI https://localhost:65500/
@@ -187,9 +199,9 @@ Content-Type: text/html; charset=utf-8
 Content-Length: 0
 ```
 
-Un `401` con quel realm indica che la console funziona correttamente. È ciò che una richiesta non autenticata
-deve ottenere — e fornire la credenziale `admin` allo stesso URL risponde
-`200`, che è il modo per confermare la credenziale prima di aprire un browser:
+Un `401` con quel realm significa che la console funziona correttamente. È ciò che una
+richiesta non autenticata deve ricevere — e fornendo la credenziale `admin` allo stesso URL
+si ottiene `200`, che è il modo per confermare la credenziale prima di aprire un browser:
 
 ```bash
 curl -sk -u admin -o /dev/null -w '%{http_code}\n' https://localhost:65500/
@@ -200,10 +212,11 @@ Enter host password for user 'admin':
 200
 ```
 
-`-u admin` senza i due punti fa sì che `curl` richieda la password anziché prelevarla dalla
+`-u admin` senza i due punti fa sì che `curl` richieda la password anziché prenderla dalla
 riga di comando, dove finirebbe nella cronologia della shell e nell'elenco dei processi.
 
-**Un avviso sul certificato, per tre motivi contemporaneamente.** Verificando direttamente il certificato:
+**Un avviso relativo al certificato, per tre motivi contemporaneamente.** Controllando il
+certificato direttamente:
 
 ```bash
 openssl s_client -connect localhost:65500 -servername localhost </dev/null 2>/dev/null \
@@ -217,54 +230,58 @@ notBefore=Oct 25 04:51:31 2024 GMT
 notAfter=Oct 25 04:51:31 2025 GMT
 ```
 
-Il subject coincide con l'issuer, quindi è autofirmato. Il nome è `site-local.volterra.io` mentre
-la connessione avviene verso `localhost`, quindi non corrisponderà. E sulla build usata da questo
-deployment, **il certificato è scaduto il 25 ottobre 2025** — l'appliance lo fornisce e nulla
-in questo repository lo rinnova.
+Il soggetto coincide con l'emittente, quindi è autofirmato. Il nome è
+`site-local.volterra.io` mentre ci si connette a `localhost`, quindi non corrisponderà. E
+sulla build eseguita da questa distribuzione, **il certificato è scaduto il 25 ottobre
+2025** — l'appliance lo fornisce, e nulla in questo repository lo rinnova.
 
-Aspettarsi un avviso netto del browser, e aspettarselo ogni volta. La riga subject sopra è la
-parte utile: è il modo per confermare di aver raggiunto l'appliance e non qualcos'altro
-in ascolto sulla porta locale 65500.
+Attendersi un avviso schietto del browser, e attenderselo ogni volta. La riga del soggetto
+qui sopra è la parte utile: è così che si conferma di aver raggiunto l'appliance e non
+qualcos'altro in ascolto sulla porta locale 65500.
 
 ## La credenziale admin
 
-Accedere come `admin`. **Questa documentazione non pubblica la password, e non deve farlo.**
+Accedere come `admin`. **Questa documentazione non pubblica la password, e non deve
+farlo.**
 
-<Aside type="danger" title="In questo deployment quella password è ancora l'impostazione predefinita di fabbrica di F5">
-Si tratta di un dato misurato, non di un sospetto: la credenziale predefinita di fabbrica si autentica e
-restituisce `200` su tutti e tre i CE ad oggi. F5 pubblica quel valore predefinito e richiede che venga
-modificato, e ciò non è avvenuto.
+<Aside type="danger" title="In questa distribuzione quella password è ancora l'impostazione predefinita di fabbrica di F5">
+Questo è un dato misurato, non un sospetto: la credenziale predefinita di fabbrica si
+autentica e restituisce `200` su tutti e tre i CE ad oggi. F5 pubblica tale valore
+predefinito e richiede che venga modificato, e non lo è stato.
 
-La conseguenza pratica è che in questo deployment "dispone del ruolo Reader su Bastion" equivale
-all'accesso completo alla console dell'appliance, per chiunque conosca un valore presente nella
-documentazione pubblica di F5. Modificarla, e considerare tale modifica parte del deployment di un nodo anziché
-un intervento di hardening successivo.
+La conseguenza pratica è che in questa distribuzione "disporre di Reader sul Bastion"
+equivale all'accesso completo alla console dell'appliance, per chiunque conosca un valore
+presente nella documentazione pubblica di F5. Modificatela, e considerate la modifica come
+parte della distribuzione di un nodo anziché come un rafforzamento successivo.
 </Aside>
 
-Due motivi per cui non pubblicarla conta qui più di quanto possa sembrare:
+Due motivi per cui non pubblicarla conta più qui di quanto possa sembrare:
 
-- Questa documentazione è pubblica. Riportare l'attuale password della console della flotta trasformerebbe
-  "dispone del ruolo Reader su Bastion" in accesso completo all'appliance per chiunque legga la pagina.
-- Una password pubblicata nella documentazione diventa errata nel momento in cui qualcuno la ruota, ed è
-  errata nel modo più fuorviante — il lettore conclude che il proprio accesso è compromesso anziché
-  che la pagina è obsoleta.
+- Questa documentazione è pubblica. Stampare la password attuale della console della flotta
+  trasformerebbe "disporre di Reader sul Bastion" in accesso completo all'appliance per
+  chiunque legga la pagina.
+- Una password pubblicata nella documentazione è errata dal momento in cui qualcuno la
+  ruota, ed errata nel modo più fuorviante — il lettore conclude che il proprio accesso è
+  interrotto anziché che la pagina è obsoleta.
 
 Una volta ruotata, recuperarla da dove il vostro team conserva i segreti operativi.
 
 <Aside type="caution" title="L'impostazione della password da Terraform non è verificata">
-`admin_user_credentials.admin_password` sull'oggetto site sembra il modo dichiarativo
-per impostarla. **Non** è stato confermato che raggiunga la Console del sito su questa build, quindi non
-darlo per scontato.
+`admin_user_credentials.admin_password` sull'oggetto site sembra il modo dichiarativo per
+impostarla. **Non** è stato confermato che raggiunga la Console del sito su questa build,
+quindi non date per scontato che lo faccia.
 
-Non interpretare la [pagina SSH](../ssh/) come prova in un senso o nell'altro. Il suo riscontro secondo cui
-`admin_password` "non ha cambiato nulla" è stato misurato sull'autenticazione SSH, che `vpm`
-salta completamente per l'utente `admin`. Ciò non dice nulla sulla console.
+Non interpretate la [pagina SSH](../ssh/) come prova in un senso o nell'altro. La sua
+constatazione che `admin_password` "non ha cambiato nulla" è stata misurata rispetto
+all'autenticazione SSH, che `vpm` salta interamente per l'utente `admin`. Questo non dice
+nulla sulla console.
 </Aside>
 
-## Perché il tunnel deve puntare al resource id
+## Perché il tunnel deve puntare all'id della risorsa
 
-`--target-resource-id` è obbligatorio. Puntare all'indirizzo del nodo viene invece rifiutato —
-qualunque indirizzo si usi, quindi qui non ne è deliberatamente riportato uno reale:
+`--target-resource-id` è obbligatorio. Puntare invece all'indirizzo del nodo viene
+rifiutato — qualunque indirizzo si usi, quindi deliberatamente qui non ne viene stampato
+uno reale:
 
 ```bash
 az network bastion tunnel --name "$BASTION" -g "$RG" \
@@ -276,31 +293,32 @@ ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is
 ```
 
 Il motivo **non** è che la connessione basata su IP sia disabilitata — su questo Bastion
-`ip_connect_enabled` è `true`. Microsoft non supporta porte personalizzate sulle connessioni con client nativo
-basate su IP, indipendentemente da tale impostazione
-([documentazione Azure](https://learn.microsoft.com/azure/bastion/connect-ip-address)), e 65500 è
-una porta personalizzata. Esaminare qui la configurazione di Bastion non porta a nulla; usare il resource
-id.
+`ip_connect_enabled` è `true`. Microsoft non supporta porte personalizzate sulle connessioni
+con client nativo basate su IP indipendentemente da tale impostazione
+([documentazione Azure](https://learn.microsoft.com/azure/bastion/connect-ip-address)), e
+65500 è una porta personalizzata. Ispezionare la configurazione di Bastion qui non porta a
+nulla; usare l'id della risorsa.
 
 ## Quando non funziona
 
 | Sintomo | Causa | Soluzione |
 | --- | --- | --- |
 | `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | È stato usato `--target-ip-address` | Usare `--target-resource-id` |
-| `ERROR: Defined port is currently unavailable` | Un altro tunnel occupa già quella porta locale | Arrestare l'altro tunnel, oppure passare una `--port` diversa; `--resource-port` resta 65500 |
+| `ERROR: Defined port is currently unavailable` | Un altro tunnel occupa già quella porta locale | Arrestare l'altro tunnel, oppure passare un `--port` diverso; `--resource-port` resta 65500 |
 | `terraform output -raw bastion_name` è `null` o vuoto | Bastion non è distribuito | Impostare `enable_bastion = true` ed eseguire apply |
-| Il tunnel si avvia ma il resource id è vuoto | Il filtro `jq` ha usato il nome della VM anziché la chiave del sito | Usare come chiave `eastus01`/`02`/`03` |
+| Il tunnel si avvia ma l'id della risorsa è vuoto | Il filtro `jq` ha usato il nome della VM anziché la chiave del sito | Indicizzare su `eastus01`/`02`/`03` |
 | `401 Unauthorized`, realm `Volterra Site Console` | Non è un guasto — richiesta non autenticata | Fornire la credenziale `admin` |
-| Il browser rifiuta il certificato | Autofirmato, nome non corrispondente e scaduto da ottobre 2025 | Comportamento previsto; verificare che il subject sia `CN=site-local.volterra.io` e procedere |
+| Il browser rifiuta il certificato | Autofirmato, nome non corrispondente e scaduto da ottobre 2025 | Previsto; confermare che il soggetto sia `CN=site-local.volterra.io` e procedere |
 
 <Aside type="note" title="I fallimenti di autorizzazione non sono stati riprodotti">
-Un RBAC insufficiente è l'altro modo evidente in cui questo può fallire, ma riprodurlo comporterebbe
-la rimozione di assegnazioni di ruolo da un deployment condiviso, quindi non è documentato qui con un
-errore testuale. Se il tunnel fallisce all'avvio con un errore di autorizzazione, verificare il ruolo Reader su
-tutti e tre gli elementi: la VM, la sua NIC e l'host Bastion.
+Un RBAC insufficiente è l'altro modo evidente in cui questo fallisce, ma riprodurlo
+significherebbe rimuovere assegnazioni di ruolo da una distribuzione condivisa, quindi non è
+documentato qui con un errore testuale. Se il tunnel fallisce all'avvio con un errore di
+autorizzazione, verificare il ruolo Reader su tutti e tre gli elementi: la VM, la sua NIC e
+l'host Bastion.
 </Aside>
 
-## Le altre vie
+## Gli altri percorsi
 
 <CardGrid>
   <LinkCard
@@ -315,7 +333,7 @@ tutti e tre gli elementi: la VM, la sua NIC e l'host Bastion.
   />
   <LinkCard
     title="Console seriale"
-    description="Per un nodo senza alcun percorso di rete funzionante. Una sessione per VM, limite di incolla di 2.048 caratteri."
+    description="Per un nodo senza alcun percorso di rete funzionante. Una sessione per VM, limite di incollaggio di 2.048 caratteri."
     href="../serial-console/"
   />
 </CardGrid>

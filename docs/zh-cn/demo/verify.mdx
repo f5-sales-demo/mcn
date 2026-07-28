@@ -1,0 +1,239 @@
+---
+title: 验证健康状态
+description: >-
+  按顺序执行四项检查，每一项都会进一步缩小故障范围；此外还有四种看起来正常却被误读为故障的结果——单个对等会话查询、裸 IP 返回
+  404、新建部署上出现丢包的 VIP，以及从错误接口或错误网络发起的端口探测。
+sidebar:
+  order: 30
+  label: 验证
+i18n:
+  sourceHash: 200ef0fb5d0c
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+在演示之前先运行这些检查。每项检查都会缩小故障可能存在的范围，因此一旦失败，你能得到的不只是"出问题了"这一信息。
+
+每条命令都会从部署中读取所需内容。设置一次以下变量，其余命令即可沿用：
+
+```bash
+cd terraform
+RG=$(terraform output -raw resource_group_name)
+RS=$(terraform output -raw route_server_name)
+CLIENT=$(terraform output -raw client_vm_name)
+DOMAIN=$(terraform output -raw lb_domain)
+VIP=$(terraform output -raw vip)
+NIC=$(terraform output -raw client_nic_name)
+```
+
+## 四项检查，按此顺序进行
+
+<Steps>
+
+1. **每个站点均为 `ONLINE`。** 如果这一点不成立，后续任何结论都不可能成立。
+
+   ```bash
+   for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
+     printf '%s -> ' "$s"
+     curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+       "$XCSH_API_URL/api/config/namespaces/system/sites/$s" | jq -r '.spec.site_state'
+   done
+   ```
+
+   2026-07-28 观测结果，三个 CE：
+
+   ```text
+   mcn-ce-ha-eastus01 -> ONLINE
+   mcn-ce-ha-eastus02 -> ONLINE
+   mcn-ce-ha-eastus03 -> ONLINE
+   ```
+
+2. **每个对等会话都学习到了对应 CE 的 VIP 通告。** 分别查询每个对等会话——参见下方第一个陷阱，因为这里最常出现演示看起来坏了但其实没坏的情况。
+
+   ```bash
+   for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
+     echo "--- ${k}-bgp"
+     az network routeserver peering list-learned-routes \
+       --name "${k}-bgp" --routeserver "$RS" -g "$RG" \
+       --query "RouteServiceRole_IN_0[?network=='${VIP}/32'].{net:network,nextHop:nextHop,asPath:asPath,origin:origin}" \
+       -o table
+   done
+   ```
+
+   2026-07-28 观测结果：
+
+   ```text
+   --- eastus01-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.4   64512     EBgp
+   --- eastus02-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.5   64512     EBgp
+   --- eastus03-bgp
+   Net             NextHop    AsPath    Origin
+   --------------  ---------  --------  --------
+   10.250.0.10/32  10.0.1.6   64512     EBgp
+   ```
+
+   三个对等会话、三个不同的下一跳、一个前缀。这就证明了 ECMP 的通告侧。
+
+3. **客户端的有效路由包含每一个下一跳。** 这才是 ECMP 本身——是 VNet 实际编程的结果，不是 CE 声称的内容，而是 Azure 对其所做的处理。
+
+   ```bash
+   az network nic show-effective-route-table -g "$RG" -n "$NIC" \
+     --query "value[?addressPrefix[0]=='${VIP}/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,type:nextHopType,state:state}" \
+     -o json
+   ```
+
+   2026-07-28 观测结果：
+
+   ```json
+   [
+     {
+       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+       "prefix": "10.250.0.10/32",
+       "state": "Active",
+       "type": "VirtualNetworkGateway"
+     }
+   ]
+   ```
+
+   检查点是 `state: Active`，且 `nh` 中每个 CE 各有一条条目。**顺序没有意义，也不稳定**——Azure 在不同调用之间返回的顺序不同，因此应统计数量，而不是与上一次运行结果比对。本应有三个下一跳而只有一个，说明某个 CE 已停止通告，第 2 步可以指出是哪一个。
+
+4. **VIP 能正常处理流量。** 从客户端 VM 发起，并且**带上 `Host` 头**——参见第二个陷阱。采样量要足够大才能发现问题：即使在下文所述的收敛窗口内，几十个请求也会显示为 100 %。
+
+   ```bash
+   az vm run-command invoke -g "$RG" -n "$CLIENT" \
+     --command-id RunShellScript --query "value[0].message" -o tsv \
+     --scripts "ok=0; fail=0
+                for i in \$(seq 1 60); do
+                  c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                        -H 'Host: ${DOMAIN}' http://${VIP}/)
+                  [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
+                done
+                echo \"OK=\$ok FAIL=\$fail\""
+   ```
+
+   2026-07-28 观测结果：
+
+   ```text
+   VIP with Host header: OK=60 FAIL=0
+   bare IP (no Host): 404
+   ```
+
+</Steps>
+
+## 陷阱：某个对等会话只显示一条路由，而这是正确的
+
+`list-learned-routes` 的作用范围仅限于你指定的那个对等会话。它报告的是**那个**对等体所通告的内容，而不是 Route Server 的整张路由表。
+
+因此单独查询一个对等会话只会返回经由单个下一跳的一条 VIP `/32`，很容易被解读为"只有一个 CE 在通告——其他都挂了"。其实什么都没挂。其他通告在各自的对等会话上可见，这正是第 2 步所循环遍历的内容。
+
+从单次对等会话查询无法确认 ECMP。要么遍历所有对等会话，要么读取客户端的有效路由表，后者可以在一次调用中显示合并后的结果。
+
+## 陷阱：裸 IP 请求返回 404
+
+负载均衡器依据 `Host` 进行匹配。VIP 并不是一个会向任何连接该地址的人提供服务的虚拟服务器。
+
+以下两条结果来自针对健康部署的同一次运行：
+
+```text
+curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
+curl                     http://$VIP/   ->  404
+```
+
+**裸 IP 返回 404 恰恰证明路径是通的**——请求到达了 CE，CE 的代理作出了响应，并因为没有匹配到已配置的域名而拒绝了它。把它当成故障，会让你去查 BGP，而那里根本没有问题。
+
+演示过程中同理：如果你在浏览器里直接输入地址，而不是把域名解析到该地址，你就会得到 404。
+
+## VIP 在最初的三刻钟内丢弃请求，随后停止
+
+在刚构建好的环境中，CE 达到 `ONLINE` 之后大约最初 45 分钟内，VIP 会丢失一小部分请求，随后即可干净地提供服务。从客户端 VM 发出的 1,470 个请求（全部带 `Host` 头）测得：
+
+| 窗口 | 请求数 | 失败数 | 比率 |
+| --- | --- | --- | --- |
+| ECMP 建立后最初约 45 分钟 | 570 | 12 | **2.11 %** |
+| 随后的 23 分钟 | 900 | **0** | **0.00 %** |
+
+所有失败都是 `curl: (28)`——超时且未收到任何字节——而不是 HTTP 错误状态码。最后一次失败发生在 ECMP 建立后约 43 分钟。在 900 个成功请求中，有 400 个使用了 30 秒超时，且全部在 2 秒内完成，因此不存在被过短超时掩盖的情况。
+
+同一天的后续重建中再次复现，而那次运行的图景更清晰，因为它是在窗口期内随时间采样，而非事后采样。360 个请求，全部带 `Host` 头，每一批都配有一组直连源站的对照：
+
+| `ONLINE` 之后的时间 | 请求数 | 失败数 | 比率 | 源站对照 |
+| --- | --- | --- | --- | --- |
+| 立即 | 60 | 8 | **13.3 %** | 30/30 正常 |
+| 约 25–40 分钟（3 批） | 180 | 3 | **1.67 %** | 60/60 正常 |
+| 约 50 分钟 | 120 | **0** | **0.00 %** | 40/40 正常 |
+
+比率单调递减至零，而每一批的源站都是正常的——包括每八个 VIP 请求就失败一个的那一批。
+
+**源站不是原因。** 一组直连源站（`terraform output -raw origin_ip`，绕过 VIP）的对照批次在与失败的 VIP 批次*同时进行*的情况下，120 个请求全部成功。故障出在 VIP、ECMP 或 CE 路径上的某处。
+
+有两点是刻意不这样描述的：
+
+- **这不是稳态缺陷。** 它会完全消失并保持消失——50 分钟节点上 120 个请求全部成功，已运行数小时的环境上 60 个请求全部成功。
+- **不要因为早期一次小样本就断定它不存在。** 某次重建后立即执行的 60 个请求批次返回 60/60，看起来"没有瞬时故障"；而同一部署在一小时后的下一次重建中却在 60 个请求中丢了 8 个。60 个请求不足以发现突发性丢包。请采样 100 个以上，并分成在时间上彼此分隔的批次——上面那张表需要 360 个请求才能呈现出趋势。
+- **它无法归因于某个特定的 CE。** 该拓扑中没有任何机制提供逐节点的 HTTP 侦听器，因此无法把被丢弃的请求绑定到丢弃它的节点上。CE 的外部接口完全没有 HTTP 侦听器——只有 VIP `/32` 会响应。
+
+它在另一个租户的一次干净重建中也复现了，因此它跟随拓扑而非环境。
+
+<Aside type="caution" title="不要只采样 40 个请求就断定一切正常">
+即使处于失败窗口内，40 到 50 个请求的批次大多数时候也会显示为 100 %。正是因此，这个现象最初先被误判为持续存在的低比率故障，随后又被误判为完全没有故障。请采样 100 个以上，并分成在时间上彼此分隔的批次。
+</Aside>
+
+## 另外两个测量陷阱
+
+这两者都在本环境中给出过自信但错误的答案，而且都不显而易见。
+
+- **从 VNet 内部探测，而不是从你的工作站。** 企业代理可能会在常见端口上自行完成 TCP 握手，因此工作站上的探测会把一个实际关闭的端口报告为**开放**。从工作站探测 CE 公网地址时，80 和 443 端口显示为开放，而从 VNet 内部探测时则是关闭的。请使用客户端 VM。
+- **CE 上的 22 端口仅在内部（SLI）地址上响应。** 从客户端 VM 探测时，每个 CE 的内部地址都会返回 OpenSSH 横幅，而其管理地址和外部地址则超时——作为对照的一个未使用地址同样超时。eth0 被重命名为 `a-i-eth0` 且不承载主机 IP，因为数据平面占用了它。因此，探测你所熟知的那个节点地址，无法说明该节点的 SSH 状态。
+
+<Aside type="danger" title="切勿硬编码 CE 内部地址——每次重建都会重新分配">
+Azure 不会保留哪个 CE 在内部子网中获得哪个地址，而且这些地址也不按节点顺序排列。2026-07-28 观测到三个 CE 分别持有 `10.0.3.7`、`10.0.3.5` 和 `10.0.3.4`——既不连续，也与该次重建之前所持有的地址不同。
+
+决定它们是否变动的是 **NIC**，而不是 VM。仅替换 CE VM 会保留 NIC，所有地址都会保持不变：同一天已验证——在采用派生对象名称时替换了全部三个 CE VM，三个内部地址完全一致地回来了。而移除 NIC 的销毁操作会从子网的空闲池中重新分配地址，顺序完全取决于 Azure 如何填充。
+
+测试客户端的 NIC 位于同一子网，因此你记忆中属于某个 CE 的地址现在可能属于客户端——在本部署中它持有 `10.0.3.6`，而这个地址在更早一次重建之前是由某个 CE 持有的。
+
+请读取它们，而不要凭记忆：
+
+```bash
+terraform output -json ce_sli_private_ips
+```
+
+若手边没有 Terraform 状态，可按 NIC 名称向 Azure 查询，NIC 名称*是*稳定的：
+
+```bash
+az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
+  --query ipConfigurations[0].privateIPAddress -o tsv
+```
+
+连接到记忆中的地址，会让你落到错误的节点、落到一台并非 CE 的 VM 上，或者哪里都到不了——而最后这种情况看起来与"SSH 未启用"完全一样。
+</Aside>
+
+## 确认盒内命令界面仍与文档一致
+
+```bash
+bash scripts/capture-sitecli.sh --check \
+  --site "$(terraform output -json xc_site_names | jq -r '.eastus01')" \
+  --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
+```
+
+`--check` 不会写入任何内容，因此对正在运行的演示是安全的。
+
+<CardGrid>
+  <LinkCard
+    title="接入 Customer Edge"
+    description="适用哪种访问途径、每种途径所需的凭据，以及为何这一选择并非偏好问题。"
+    href="../../customer-edge/access/"
+  />
+  <LinkCard
+    title="BGP 命令"
+    description="来自 FRR 的盒内视图——对等状态、完整路由表，以及本节点所通告的内容。"
+    href="../../customer-edge/commands/network/bgp/"
+  />
+</CardGrid>

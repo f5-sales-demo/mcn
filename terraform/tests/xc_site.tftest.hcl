@@ -11,9 +11,9 @@ run "site_and_interface_binding" {
   }
 
   variables {
-    site_name         = "ar-bgp-eastus01"
+    site_name         = "mcn-ce-ha-eastus01"
     hostname          = "f5-xc-ce-vm-01"
-    interface_name    = "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    interface_name    = "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     mgmt_nic_mac      = "7c:1e:52:18:c1:77"
     ce_vm_instance_id = "89e6c538-6bc2-4c2c-a37e-d6149c1708ce"
     rs_peer_ips       = ["10.0.4.4", "10.0.4.5"]
@@ -26,12 +26,12 @@ run "site_and_interface_binding" {
   }
 
   assert {
-    condition     = output.site_name == "ar-bgp-eastus01"
-    error_message = "Site name should be ar-bgp-eastus01."
+    condition     = output.site_name == "mcn-ce-ha-eastus01"
+    error_message = "Site name should be mcn-ce-ha-eastus01."
   }
 
   assert {
-    condition     = output.interface_name == "ves-io-securemesh-site-v2-ar-bgp-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    condition     = output.interface_name == "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
     error_message = "Interface name should be the XC auto-derived object name the BGP peer binds to."
   }
 

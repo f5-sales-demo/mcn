@@ -1,0 +1,188 @@
+---
+title: Desplegar la demostración
+description: >-
+  Requisitos previos, las dos variables que no tienen valor predeterminado y por
+  qué, cómo el tenant queda fijado por configuración en lugar de por tu shell,
+  por qué el primer apply no planifica ninguna aprobación de registro y un
+  segundo sí las crea, y cómo desmantelar el despliegue.
+sidebar:
+  order: 10
+  label: Desplegar
+i18n:
+  sourceHash: 2eed6da34e4c
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+## Requisitos previos
+
+- **Terraform** en la versión mínima indicada en `terraform/versions.tf` — `>= 1.8`, para
+  las funciones definidas por el proveedor y el bloque `check` que protege la VIP.
+- **El proveedor `xcsh`.** Nada fija una versión: `.terraform.lock.hcl` está en gitignore y
+  la restricción es un mínimo abierto, por lo que cada `init` resuelve la última versión
+  publicada. Esto es deliberado en un proyecto en prelanzamiento: la demostración debe fallar
+  ante una regresión del proveedor en lugar de quedarse en una versión obsoleta que la oculte.
+- **Una credencial de API de F5 XC** para el tenant en `var.expected_xc_tenant`, exportada como
+  `XCSH_API_TOKEN` (o el par P12/PEM). Exporta únicamente la credencial, nunca una URL — consulta
+  más abajo.
+- **Credenciales de Azure** con permisos para crear un grupo de recursos, una VNet, un Route Server y VMs.
+- **Un namespace de F5 XC preexistente** para la capa de aplicación. El despliegue lo *lee* y nunca
+  lo crea ni lo destruye, de modo que un namespace que contenga demostraciones no relacionadas jamás
+  acabará en la lista de destrucción de este stack.
+
+<Aside type="caution" title="dev_overrides reemplaza silenciosamente el proveedor que crees estar probando">
+Si `~/.terraformrc` contiene un bloque `dev_overrides` para `xcsh`, cada comando local de Terraform
+usa el binario de ese directorio e **ignora tanto la restricción de versión como el
+archivo de lock**. Una compilación de hace unos días basta para fallar con `Blocks of type "…" are not
+expected here` en una configuración perfectamente válida frente al proveedor publicado.
+
+Mantenlo fuera de la ruta predeterminada y actívalo solo cuando estés desarrollando el proveedor:
+
+```bash
+mv ~/.terraformrc ~/.terraformrc.provider-dev
+TF_CLI_CONFIG_FILE=~/.terraformrc.provider-dev terraform plan   # when you mean it
+```
+
+</Aside>
+
+## Proporciona los dos valores que no tienen predeterminado
+
+Todas las demás variables tienen un valor predeterminado funcional, y cada nombre de objeto deriva de
+`var.component`. Dos se dejan deliberadamente sin él:
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+```
+
+| Variable | Por qué no tiene valor predeterminado |
+| --- | --- |
+| `origin_ip` | Cualquier valor predeterminado es una máquina concreta. Uno obsoleto envía el tráfico de un despliegue nuevo al host de otra persona en lugar de fallar. |
+| `lb_domain` | El balanceador de carga hace coincidencia por `Host`, así que esto es lo que debe enviar cada petición. Pertenece a quien ejecute el despliegue. |
+
+Ambos se validan por formato, de modo que una errata hace fallar el plan en lugar de la demostración.
+
+`terraform.tfvars` está en gitignore, y debe seguir así: contiene un id de suscripción y
+valores propios de cada ingeniero.
+
+## El tenant es configuración, no lo que sea que tu shell esté exportando
+
+`var.expected_xc_tenant` nombra el tenant y es el único lugar donde se nombra.
+`providers.tf` deriva de él el `api_url` del proveedor `xcsh`, lo que deliberadamente
+anula cualquier `XCSH_API_URL` presente en el entorno, y una `postcondition` en
+`terraform/main.tf` hace fallar el **plan** cuando el entorno nombra un tenant distinto.
+
+Consulta cualquiera de las dos mitades sin ejecutar nada que modifique el estado:
+
+```bash
+terraform output -raw xc_tenant       # what the deployment targets
+terraform output -raw xc_env_tenant   # what your shell claims — diagnostic only
+```
+
+```text
+f5-sales-demo
+f5-sales-demo
+```
+
+<Aside type="danger" title="Esta salvaguarda existe porque la demostración se reubicó silenciosamente en el tenant equivocado">
+La demostración se construyó en un tenant. Más tarde, un archivo de credenciales empezó a exportar el
+`XCSH_API_URL` de un tenant *distinto*; los applies posteriores generaron un token para ese tenant, las VMs
+de CE se volvieron a registrar allí y sus registros originales quedaron abandonados. Todos los planes
+intermedios estaban limpios, porque nada en la configuración tenía una opinión sobre el tenant
+([issue 696](https://github.com/f5-sales-demo/mcn/issues/696), corregido en
+[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). Recuperarlo implicó destruir el
+stack en el tenant equivocado y reconstruirlo en el correcto.
+
+El síntoma que hay que reconocer, porque no se describe a sí mismo: un token generado para otro
+tenant falla contra el endpoint fijado con un simple `401`, que se lee exactamente igual que una credencial
+caducada. Si una credencial que crees válida devuelve `401`, compara las dos salidas
+anteriores antes de generar otro token.
+</Aside>
+
+## Apply
+
+<Steps>
+
+1. **Inicializa.** La configuración del backend no se incluye en el repositorio; proporciona la tuya.
+
+   ```bash
+   terraform init -backend-config=backend.hcl
+   ```
+
+2. **Primer apply.** Esto construye Azure, los sitios CE y el token de registro, y arranca
+   los CE.
+
+   ```bash
+   terraform apply
+   ```
+
+3. **Vuelve a aplicar una vez que los CE se hayan registrado.** Esto no es opcional, y la razón está
+   más abajo en lugar de ser algo que descubras.
+
+   ```bash
+   terraform apply
+   ```
+
+</Steps>
+
+Después ve a [comprobar que está saludable](../verify/) antes de mostrárselo a nadie.
+
+## La aprobación de registro está automatizada, y el apply sigue siendo de dos fases
+
+La aprobación de registro ya no necesita a una persona en la consola: el recurso
+`xcsh_registration_approval` la realiza, y el módulo del sitio resuelve qué
+registro aprobar.
+
+Eso sigue sin convertir el despliegue en un único `apply` desatendido, y merece la pena
+entender la razón antes de observar una primera ejecución y concluir que ha fallado:
+
+- El objeto de registro de un CE se llama **`r-<uuid>`**. Nunca se nombra según el sitio, así que
+  nada puede predecir el nombre en tiempo de plan.
+- El registro solo existe después de que la VM haya arrancado y `vpm` se haya registrado.
+- Por eso el **primer apply no planifica ninguna aprobación**. Vuelve a aplicar una vez que los CE se hayan registrado
+  y las aprobaciones se crearán.
+
+`terraform/main.tf` documenta este orden en la parte superior del archivo, que es la
+versión autoritativa: la secuencia de despliegue vive junto al código que la implementa.
+
+<Aside type="caution" title="Un sitio recién creado no es accesible de inmediato mediante la API operate">
+Durante aproximadamente 25 a 30 minutos después de que un sitio nuevo informe `ONLINE`, los endpoints `vpm/debug`
+responden con una página `503` de BIG-IP que dice `The requested URL was rejected`. Parece un
+bloqueo de un firewall de aplicaciones web o un token revocado, y no es ninguno de los dos. Espera y luego reintenta.
+
+Esto afecta a una demostración recién construida, no a una en marcha.
+</Aside>
+
+## El SSH del operador es una decisión de tiempo de construcción
+
+El despliegue escribe una clave de operador en la cuenta `admin` del appliance, cuyo shell de inicio
+de sesión es la CLI del sitio. La escribe `write_files` de cloud-init, que se ejecuta una sola vez en el primer arranque.
+
+<Aside type="caution" title="No se puede añadir a CE que ya están en ejecución">
+`custom_data` solo admite reemplazo, así que adoptar esto en CE en ejecución **reemplaza todas las VMs de CE**.
+Eso es una reconstrucción de la flota, no un cambio de configuración. Lo mismo ocurre con cualquier otra cosa en
+la plantilla de cloud-init — incluido un comentario, porque `custom_data` es
+`base64encode` del archivo renderizado.
+
+Antes era peor: un CE reemplazado nunca podía volver a registrarse, porque el registro del nodo destruido
+seguía ocupando el índice único `(tenant, cluster_name, hostname)` del plano de control —
+y `terraform plan` informaba "No changes" durante todo el tiempo que la flota estaba caída.
+La recuperación requirió dos reconstrucciones completas. Eso está corregido
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674), cerrado por
+[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)): el ciclo de vida del objeto de sitio ahora está
+acoplado a la instancia de VM del CE, de modo que reemplazar la VM reemplaza el sitio, y eliminar el sitio
+se lleva sus registros consigo antes de que arranque el nodo de reemplazo.
+
+Quien adopte esto en otro lugar debería leer primero la
+[página de SSH](../../customer-edge/access/ssh/).
+</Aside>
+
+## Desmantelarlo
+
+```bash
+terraform destroy
+```
+
+El namespace de la aplicación sobrevive: se lee, nunca se gestiona, por lo que `destroy` no puede llevarse consigo un namespace
+que contenga demostraciones no relacionadas. Todo lo demás en el grupo de recursos desaparece.

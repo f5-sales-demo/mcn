@@ -1,0 +1,184 @@
+---
+title: เทอร์ราฟอร์ม
+description: >-
+  การกำหนดค่าที่ใช้ปรับใช้เดโมนี้ อ่านจากไฟล์ที่ใช้ปรับใช้จริงแทนที่จะพิมพ์ซ้ำ —
+  โมดูลรากและโมดูลลูกทั้งหกตัว พร้อมหมายเหตุว่าแต่ละไฟล์รับผิดชอบอะไร
+sidebar:
+  order: 20
+  label: เทอร์ราฟอร์ม
+i18n:
+  sourceHash: b8380b6bc381
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import { Code } from "@astrojs/starlight/components";
+import backend from "../../_includes/terraform/backend.tf?raw";
+import data from "../../_includes/terraform/data.tf?raw";
+import locals from "../../_includes/terraform/locals.tf?raw";
+import main from "../../_includes/terraform/main.tf?raw";
+import outputs from "../../_includes/terraform/outputs.tf?raw";
+import providers from "../../_includes/terraform/providers.tf?raw";
+import variables from "../../_includes/terraform/variables.tf?raw";
+import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
+import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
+import variablesXc from "../../_includes/terraform/variables_xc.tf?raw";
+import versions from "../../_includes/terraform/versions.tf?raw";
+import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
+import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
+import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
+import modulesAzureHubVersions from "../../_includes/terraform/modules/azure-hub/versions.tf?raw";
+import modulesAzureRouteServerBgpMain from "../../_includes/terraform/modules/azure-route-server-bgp/main.tf?raw";
+import modulesAzureRouteServerBgpVersions from "../../_includes/terraform/modules/azure-route-server-bgp/versions.tf?raw";
+import modulesCeNodeMain from "../../_includes/terraform/modules/ce-node/main.tf?raw";
+import modulesCeNodeOutputs from "../../_includes/terraform/modules/ce-node/outputs.tf?raw";
+import modulesCeNodeVariables from "../../_includes/terraform/modules/ce-node/variables.tf?raw";
+import modulesCeNodeVersions from "../../_includes/terraform/modules/ce-node/versions.tf?raw";
+import modulesCeTopologyMain from "../../_includes/terraform/modules/ce-topology/main.tf?raw";
+import modulesClientVmMain from "../../_includes/terraform/modules/client-vm/main.tf?raw";
+import modulesClientVmVariables from "../../_includes/terraform/modules/client-vm/variables.tf?raw";
+import modulesClientVmVersions from "../../_includes/terraform/modules/client-vm/versions.tf?raw";
+import modulesXcSiteMain from "../../_includes/terraform/modules/xc-site/main.tf?raw";
+import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outputs.tf?raw";
+import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
+import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
+
+ทุกไฟล์ด้านล่างนี้คือไฟล์ที่ใช้ปรับใช้จริง ซึ่งถูกนำเข้ามาในขั้นตอนการบิลด์แทนการคัดลอกวาง
+สำเนาที่สามารถคลาดเคลื่อนได้ย่อมคลาดเคลื่อนในที่สุด ดังนั้นการตรวจสอบใน CI จะล้มเหลวทันทีที่สิ่งที่
+เผยแพร่ในหน้านี้แตกต่างจากสิ่งที่อยู่ใน `terraform/`
+
+<Aside type="note" title="เหตุใดการกำหนดค่าจึงถูกนำเข้ามาแทนที่จะแสดงแบบอินไลน์">
+หากวางไว้ในโค้ดเฟนซ์ การกำหนดค่านี้จะกลายเป็นส่วนหนึ่งของซอร์สของหน้า และซอร์สของหน้า
+จะถูกแปลเป็นสิบสองภาษา ความคิดเห็นภายในนั้นจะถูกแปลไปด้วย และแต่ละภาษาจะเผยแพร่
+การกำหนดค่าที่แตกต่างกันและไม่ถูกต้อง เมื่อนำเข้ามา มันจะไม่เข้าไปอยู่ในซอร์สของหน้าเลย
+</Aside>
+
+## โมดูลราก
+
+### `terraform/backend.tf`
+
+แบ็กเอนด์ Azure storage; การกำหนดค่าของมันถูกส่งให้ในขณะ init และไม่ถูกคอมมิต
+
+<Code code={backend} lang="hcl" title="terraform/backend.tf" />
+
+### `terraform/data.tf`
+
+การค้นหาแบบอ่านอย่างเดียว รวมถึงข้อมูลระบุตัวตน Azure AD ที่ใช้เพื่อหาผู้ปรับใช้
+
+<Code code={data} lang="hcl" title="terraform/data.tf" />
+
+### `terraform/locals.tf`
+
+ที่ซึ่งชื่ออ็อบเจ็กต์ที่ได้มาถูกเก็บไว้ ค่าเริ่มต้นของตัวแปร Terraform ไม่สามารถอ้างอิงตัวแปรอื่นได้ ดังนั้นตัวแปรชื่อแต่ละตัวจะมีค่าเริ่มต้นเป็น null และถูกแก้ค่าที่นี่
+
+<Code code={locals} lang="hcl" title="terraform/locals.tf" />
+
+### `terraform/main.tf`
+
+การเชื่อมต่อระดับบนสุด ตัวป้องกันเทนแนนต์ และการตรวจสอบ VIP ที่อยู่ภายนอก VNet ลำดับการปรับใช้ถูกจัดทำเป็นเอกสารไว้ที่ส่วนต้นของไฟล์นี้ ซึ่งเป็นเวอร์ชันที่เชื่อถือได้
+
+<Code code={main} lang="hcl" title="terraform/main.tf" />
+
+### `terraform/outputs.tf`
+
+ทุกสิ่งที่เอกสารอ่านค่ามาแทนการระบุชื่อ หากหน้าใดแสดงคำสั่ง จะมีเอาต์พุตที่นี่อยู่เบื้องหลัง
+
+<Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
+
+### `terraform/providers.tf`
+
+ตรึงเอนด์พอยต์ xcsh ไว้กับ var.expected_xc_tenant ซึ่งเป็นสิ่งที่ทำให้เทนแนนต์เป็นคุณสมบัติหนึ่งของการกำหนดค่า
+
+<Code code={providers} lang="hcl" title="terraform/providers.tf" />
+
+### `terraform/variables.tf`
+
+ส่วนประกอบ สภาพแวดล้อม ผู้ปรับใช้ และแท็ก
+
+<Code code={variables} lang="hcl" title="terraform/variables.tf" />
+
+### `terraform/variables_azure.tf`
+
+การสมัครใช้บริการ ภูมิภาค CIDR, Bastion และชื่ออ็อบเจ็กต์ของ Azure
+
+<Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
+
+### `terraform/variables_ce.tf`
+
+จำนวน CE, คำนำหน้าไซต์, ASN, เวอร์ชันอิมเมจ และขนาด VM
+
+<Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
+
+### `terraform/variables_xc.tf`
+
+เทนแนนต์ เนมสเปซของแอป โหลดบาลานเซอร์ พูลต้นทาง และ VIP
+
+<Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
+
+### `terraform/versions.tf`
+
+ระดับขั้นต่ำของ Terraform และข้อจำกัดของผู้ให้บริการ ข้อจำกัดของ xcsh เป็นระดับขั้นต่ำแบบปลายเปิด และไฟล์ล็อกถูก gitignore ไว้ ดังนั้นทุกครั้งที่ init จะได้ผู้ให้บริการเวอร์ชันล่าสุดที่เผยแพร่
+
+<Code code={versions} lang="hcl" title="terraform/versions.tf" />
+
+## โมดูล
+
+### `terraform/modules/azure-hub/`
+
+รีซอร์สกรุ๊ป, hub VNet, ซับเน็ตทั้งสี่, Azure Route Server และ Bastion ที่เป็นตัวเลือก RouteServerSubnet ถูกกำหนดโดยเจตนาให้ไม่มี NSG หรือตารางเส้นทาง
+
+<Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
+
+<Code code={modulesAzureHubOutputs} lang="hcl" title="terraform/modules/azure-hub/outputs.tf" />
+
+<Code code={modulesAzureHubVariables} lang="hcl" title="terraform/modules/azure-hub/variables.tf" />
+
+<Code code={modulesAzureHubVersions} lang="hcl" title="terraform/modules/azure-hub/versions.tf" />
+
+### `terraform/modules/azure-route-server-bgp/`
+
+ฝั่ง Azure ของแต่ละเซสชัน eBGP — หนึ่ง bgpConnection ต่อหนึ่ง CE โดยทำ peering ระหว่าง Route Server กับที่อยู่ eth0/SLO ของ CE นั้น
+
+<Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
+
+<Code code={modulesAzureRouteServerBgpVersions} lang="hcl" title="terraform/modules/azure-route-server-bgp/versions.tf" />
+
+### `terraform/modules/ce-node/`
+
+หนึ่ง CE VM ต่อหนึ่งโหนด: NIC สามตัวที่เปิดใช้ IP forwarding, บล็อกแผน marketplace และ cloud-init ที่ส่งต่อไปเป็น custom_data
+
+<Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
+
+<Code code={modulesCeNodeOutputs} lang="hcl" title="terraform/modules/ce-node/outputs.tf" />
+
+<Code code={modulesCeNodeVariables} lang="hcl" title="terraform/modules/ce-node/variables.tf" />
+
+<Code code={modulesCeNodeVersions} lang="hcl" title="terraform/modules/ce-node/versions.tf" />
+
+### `terraform/modules/ce-topology/`
+
+การคำนวณล้วน ไม่มีผู้ให้บริการและไม่มีแหล่งข้อมูล: ขยาย ce_count ออกเป็นแมประดับ CE ที่ขับเคลื่อนทุก for_each สามารถทดสอบแผนได้ที่ค่า N ใดก็ได้โดยไม่ต้องใช้ข้อมูลรับรอง
+
+<Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
+
+### `terraform/modules/client-vm/`
+
+ไคลเอนต์ทดสอบภายใน VNet ใช้เพื่ออ่านเส้นทางที่มีผลบังคับใช้และส่งทราฟฟิกไปที่ VIP
+
+<Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
+
+<Code code={modulesClientVmVariables} lang="hcl" title="terraform/modules/client-vm/variables.tf" />
+
+<Code code={modulesClientVmVersions} lang="hcl" title="terraform/modules/client-vm/versions.tf" />
+
+### `terraform/modules/xc-site/`
+
+อ็อบเจ็กต์ไซต์ XC, การทำ BGP peering ของมัน และการอนุมัติการลงทะเบียนที่แก้ไขการลงทะเบียน `r-<uuid>` ตามชื่อไซต์
+
+<Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
+
+<Code code={modulesXcSiteOutputs} lang="hcl" title="terraform/modules/xc-site/outputs.tf" />
+
+<Code code={modulesXcSiteVariables} lang="hcl" title="terraform/modules/xc-site/variables.tf" />
+
+<Code code={modulesXcSiteVersions} lang="hcl" title="terraform/modules/xc-site/versions.tf" />

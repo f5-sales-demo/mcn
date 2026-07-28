@@ -8,6 +8,10 @@ sidebar:
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
+Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
+records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
+surface against a live CE.
+
 <Aside type="danger" title="The API cannot debug this">
 The debug API reaches the node through the F5 Distributed Cloud control plane, over
 the tunnel that registration establishes. If registration failed there is no tunnel,
@@ -84,12 +88,12 @@ so every command on this site is unavailable for this exact failure. Work from
    ```
 
    ```text
-   Name            Power
-   --------------  ----------
-   ar-ecmp-client  VM running
-   f5-xc-ce-vm-01  VM running
-   f5-xc-ce-vm-02  VM running
-   f5-xc-ce-vm-03  VM running
+   Name              Power
+   ----------------  ----------
+   f5-xc-ce-vm-01    VM running
+   f5-xc-ce-vm-02    VM running
+   f5-xc-ce-vm-03    VM running
+   mcn-ce-ha-client  VM running
    ```
 
 5. **Attach the serial console.** Interactively this needs a real terminal; the attach

@@ -11,47 +11,47 @@ Id:2          Type:Receive        Fmly: AF_INET  Rid:0  Vrf:1
 Id:3          Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:1
               Flags:Valid, Policy, Tunnel: None
 
-Id:4          Type:Encap          Fmly: AF_INET  Rid:0  Vrf:1
+Id:4          Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:2
+              Flags:Valid, Policy, Tunnel: None
+
+Id:5          Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:3
+              Flags:Valid, Policy, Tunnel: None
+
+Id:6          Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:4
+              Flags:Valid, Policy, Tunnel: None
+
+Id:7          Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:5
+              Flags:Valid, Policy, Tunnel: None
+
+Id:8          Type:Encap          Fmly: AF_INET  Rid:0  Vrf:1
               Flags:Valid, Policy, Tunnel: None
               Oif:2  Len:14
               Encap Data: 02 01 02 03 04 05 00 00 5e 00 01 00 08 00
 
-Id:5          Type:Receive        Fmly: AF_INET  Rid:0  Vrf:2
-              Flags:Valid, Policy, Tunnel: Udp,
-              Oif:0
-
-Id:6          Type:Receive        Fmly: AF_INET  Rid:0  Vrf:3
-              Flags:Valid, Policy, Tunnel: Udp,
-              Oif:0
-
-Id:7          Type:Receive        Fmly: AF_INET  Rid:0  Vrf:4
-              Flags:Valid, Policy, Tunnel: Udp,
-              Oif:0
-
-Id:8          Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:2
-              Flags:Valid, Policy, Tunnel: None
-
-Id:9          Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:3
-              Flags:Valid, Policy, Tunnel: None
-
-Id:10         Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:4
-              Flags:Valid, Policy, Tunnel: None
-
-Id:11         Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:5
-              Flags:Valid, Policy, Tunnel: None
-
-Id:12         Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:6
-              Flags:Valid, Policy, Tunnel: None
-
-Id:13         Type:Encap          Fmly: AF_INET  Rid:0  Vrf:2
+Id:9          Type:Encap          Fmly: AF_INET  Rid:0  Vrf:2
               Flags:Valid, Policy, Tunnel: None
               Oif:4  Len:14
               Encap Data: 02 01 02 03 04 06 00 00 5e 00 01 00 08 00
 
-Id:14         Type:Encap          Fmly: AF_INET  Rid:0  Vrf:3
+Id:10         Type:Encap          Fmly: AF_INET  Rid:0  Vrf:3
               Flags:Valid, Policy, Tunnel: None
               Oif:6  Len:14
               Encap Data: 00 00 5e 00 02 00 00 00 5e 00 01 00 08 00
+
+Id:11         Type:Receive        Fmly: AF_INET  Rid:0  Vrf:2
+              Flags:Valid, Policy, Tunnel: Udp,
+              Oif:0
+
+Id:12         Type:Receive        Fmly: AF_INET  Rid:0  Vrf:3
+              Flags:Valid, Policy, Tunnel: Udp,
+              Oif:0
+
+Id:13         Type:Vrf_Translate  Fmly: AF_INET  Rid:0  Vrf:6
+              Flags:Valid, Policy, Tunnel: None
+
+Id:14         Type:Receive        Fmly: AF_INET  Rid:0  Vrf:4
+              Flags:Valid, Policy, Tunnel: Udp,
+              Oif:0
 
 Id:15         Type:Encap          Fmly: AF_INET  Rid:0  Vrf:6
               Flags:Valid, Policy, Tunnel: None

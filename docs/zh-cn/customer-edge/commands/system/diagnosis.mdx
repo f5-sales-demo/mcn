@@ -1,15 +1,19 @@
 ---
 title: diagnosis
-description: 节点针对自身运行的连通性与 DNS 探测，以 JSON 返回。它告诉你节点对自身可达性的判断。
+description: 节点针对自身运行的连通性与 DNS 探测，以 JSON 形式返回。它告诉你节点对自身可达性的认知。
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: fe68c321f801
+  sourceHash: 6bd26ad47105
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+
+采集于 2026-07-28，来自本部署中的某个 CE。`sitecli/capture-manifest.json`
+记录了具体是哪个节点，而 `scripts/capture-sitecli.sh --check`
+会针对一个实际运行的 CE 重新校验命令接口。
 
 ## `diagnosis`
 
@@ -26,26 +30,26 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-结果按节点分别报告，因此在多节点站点上你会得到每个节点各一个数据块。
-`gateway_connectivity` 和 `dns_connectivity` 各自携带一份 ping 摘要 —— `dest_ip`、`sent`、
+结果按节点分别报告，因此在多节点站点上，每个节点各占一个区块。
+`gateway_connectivity` 和 `dns_connectivity` 各自带有一份 ping 汇总 —— `dest_ip`、`sent`、
 `received`、`lost` 以及往返时间。
 
-<Aside type="danger" title="两项 ping 探测在完全健康的节点上都会报告 100% 丢包">
-在此拓扑中，**两者** —— `gateway_connectivity`（指向 `10.0.1.1`）与 `dns_connectivity`（指向
-`168.63.129.16`）—— 都会报告 `sent: 5, received: 0, lost: 100`，而站点却是 `ONLINE`、
-正在转发流量、且 `registration_status: OK` —— 撰写本文时再次验证过。同一响应中出现两个
-`lost: 100` 数据块，是本页面上看起来最令人警觉的事情，而它其实是正常状态。
+<Aside type="danger" title="在完全健康的节点上，两个 ping 探测都报告 100% 丢包">
+在此拓扑中，**两个**探测 —— `gateway_connectivity`（到 `10.0.1.1`）和 `dns_connectivity`（到
+`168.63.129.16`）—— 都报告 `sent: 5, received: 0, lost: 100`，而站点状态为 `ONLINE`、
+正在转发流量、且 `registration_status: OK` —— 撰写本文时再次验证过。一个响应中出现两个
+`lost: 100` 区块，是本页面上看起来最令人警觉的现象，而它恰恰是正常状态。
 
-`dns_connectivity` 是二者中更具误导性的一个，因为 DNS 明显是正常工作的：同一响应中的
-`dns_query_result` 包含了针对那个完全相同的解析器的十次成功查询，结果为 `NOERROR`。
-该探测测量的是 ICMP 可达性，而 Azure 平台地址并不响应 ICMP；它并不测量 DNS。
+`dns_connectivity` 是两者中更具误导性的一个，因为 DNS 显然是正常工作的：同一响应中的
+`dns_query_result` 包含针对那个完全相同的解析器发起的十次成功查询，结果均为 `NOERROR`。
+该探测衡量的是 ICMP 可达性，而 Azure 平台地址并不响应 ICMP；它并不衡量 DNS。
 
-只有当你已经有其他证据表明存在问题时，或者当该字段发生变化时，才把这两个字段中的任一个当作信号。
+只有当你已经掌握其他问题证据，或者该字段发生变化时，才应把这两个字段视为信号。
 </Aside>
 
-值得优先查看的字段在响应的其他位置：`registration_status`、
-`curl_response`（节点所需的每个 F5 端点一条记录，各自为 `OK` 或非 `OK`）、
+首先值得关注的字段位于响应的其他部分：`registration_status`、
+`curl_response`（节点所需的每个 F5 端点各占一条，标记为 `OK` 或非 `OK`）、
 `dns_query_result` 以及 `ntp_sync_status`。
 
-`resolv_conf` 显示节点实际将使用的解析器，在花时间使用 [`dig`](../../network/dig/) 之前，
-值得先将它与你的预期进行比对。
+`resolv_conf` 显示节点实际会使用的解析器，在花时间使用 [`dig`](../../network/dig/) 之前，
+值得将它与你的预期进行比对。

@@ -1,27 +1,31 @@
 ---
 title: API de depuración
 description: >-
-  Cómo ejecutar un comando de la CLI del Site en un nodo ONLINE a través de
-  HTTP, incluida la regla de nivel a endpoint que determina cuál de los tres
+  Cómo ejecutar un comando de Site CLI en un nodo ONLINE a través de HTTP,
+  incluida la regla de nivel a endpoint que determina cuál de los tres
   transportes necesita un comando y la llamada de descubrimiento que los
   enumera.
 sidebar:
   order: 20
   label: API de depuración
 i18n:
-  sourceHash: ee7f5b2d1442
+  sourceHash: 0f194b45e362
   translator: machine
 ---
 
 import { Aside, Steps, Badge } from "@astrojs/starlight/components";
 
-La API `vpm/debug` ejecuta comandos de la CLI del Site en un nodo registrado y devuelve su
+Capturado el 2026-07-28 desde un CE de esta implementación. `sitecli/capture-manifest.json`
+registra qué nodo, y `scripts/capture-sitecli.sh --check` vuelve a verificar la superficie
+de comandos contra un CE en vivo.
+
+La API `vpm/debug` ejecuta comandos de Site CLI en un nodo registrado y devuelve su
 salida. Todo lo que aparece a continuación se estableció contra un nodo en vivo; nada de ello está
-publicado en la documentación oficial.
+publicado en el origen.
 
 ## El catálogo de comandos es autodescriptivo
 
-Pregunte al nodo qué admite enviando un POST a `exec-user` con la clave `command`
+Pregunte al nodo qué admite haciendo un POST a `exec-user` con la clave `command`
 **omitida**:
 
 ```bash
@@ -47,7 +51,7 @@ Cada entrada es `[category, tier, exampleArgument?, scope?]`, y esos campos no s
 documentación: determinan cómo debe invocarse el comando.
 
 <Aside type="caution" title="Omita la clave; no envíe un valor incorrecto">
-El descubrimiento funciona dejando fuera `command`. Enviar un valor desconocido en su lugar devuelve
+El descubrimiento funciona dejando fuera `command`. Enviar en su lugar un valor desconocido devuelve
 un error, no el catálogo:
 
 ```json
@@ -55,7 +59,7 @@ un error, no el catálogo:
 ```
 
 Ese mensaje es también lo que se obtiene para un comando *real* enviado al endpoint incorrecto,
-por lo que es fácil interpretarlo erróneamente como «este comando no existe».
+por lo que es fácil malinterpretarlo como «este comando no existe».
 </Aside>
 
 ## Tres transportes, elegidos por la entrada del catálogo
@@ -83,13 +87,13 @@ curl -sS -X POST \
 { "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
 ```
 
-Los argumentos son elementos separados del array, no una sola cadena:
+Los argumentos son elementos separados del array, no una única cadena:
 
 ```json
 { "command": ["journalctl", "-u", "vpm", "-n", "200"] }
 ```
 
-### `GLOBAL` — a nivel de todo el site, y un transporte completamente distinto <Badge text="2 comandos" variant="tip" />
+### `GLOBAL` — de ámbito global del sitio, y con un transporte completamente distinto <Badge text="2 comandos" variant="tip" />
 
 `health` y `diagnosis` son los dos únicos. Son solicitudes `GET` a una ruta `global`,
 no toman argumentos y devuelven JSON estructurado en lugar de texto de terminal.
@@ -116,7 +120,7 @@ GET .../vpm/debug/global/health
 
 ### `Exec` — el nivel privilegiado <Badge text="1 comando en esta compilación" variant="danger" />
 
-Un endpoint aparte, y el nivel se aplica de forma obligatoria en lugar de orientativa: `exec` rechaza
+Un endpoint separado, y el nivel se aplica de forma estricta en lugar de ser orientativo: `exec` rechaza
 un comando `ExecUser` con el mismo mensaje `command not supported`. Cada miembro
 o modifica el nodo o lee un marcador de estado.
 
@@ -126,13 +130,13 @@ añaden `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
 comandos `marker-exists-*`.
 
 <Aside type="danger" title="Nada de lo aquí descrito ejecuta un comando Exec">
-El arnés de captura rechaza este nivel y lee el nivel desde el catálogo en vivo
-en lugar de una lista fija, de modo que una futura compilación que promueva un comando a `Exec`
+El arnés de captura rechaza este nivel y lee el nivel del catálogo en vivo
+en lugar de una lista fija, de modo que una compilación futura que promueva un comando a `Exec`
 se respeta sin que nadie tenga que editar código. Ejecute uno solo de forma deliberada, en un nodo que
 esté dispuesto a interrumpir.
 </Aside>
 
-## Encontrar los nombres del site y del nodo
+## Encontrar los nombres del sitio y del nodo
 
 El nombre del nodo es el nombre de la VM de Azure, y `list-service` es una forma económica de confirmarlo
 junto con los servicios que se ejecutan en él:
@@ -154,13 +158,13 @@ y no en la [referencia de comandos](../../commands/).
 
 ## Reproducir las capturas de este repositorio
 
-Cada página de comando incorpora la salida capturada por `scripts/capture-sitecli.sh`, que
+Cada página de comando incrusta la salida capturada por `scripts/capture-sitecli.sh`, que
 implementa las tres reglas anteriores.
 
 <Steps>
 
 1. Apúntelo a un tenant. Lee `XCSH_API_URL` y `XCSH_API_TOKEN`, o recurre
-   al contexto `xcsh` activo.
+   al contexto activo de `xcsh`.
 
 2. Actualice el catálogo y confirme que el nodo no ha cambiado por debajo de la
    documentación:
@@ -172,7 +176,7 @@ implementa las tres reglas anteriores.
    Esto compara únicamente el catálogo confirmado y la compilación de software. Informa de un
    cambio de compilación por separado de los comandos añadidos o eliminados.
 
-3. Vuelva a capturar cuando desee evidencia actualizada:
+3. Vuelva a capturar cuando quiera evidencia reciente:
 
    ```bash
    bash scripts/capture-sitecli.sh
@@ -188,22 +192,22 @@ recorta y termina con un marcador explícito, de modo que una tabla truncada nun
 estuviera completa.
 </Aside>
 
-<Aside type="danger" title="Capturar desde un nodo de cliente: compruebe el perfil de redacción">
+<Aside type="danger" title="Capturar desde un nodo de cliente: revise el perfil de redacción">
 La salida de los comandos contiene la identidad de la infraestructura —direccionamiento interno, direcciones MAC,
-números AS, nombres de host— y para un cliente eso constituye información identificativa sobre la
+números de AS, nombres de host— y, para un cliente, eso es información identificativa sobre la
 organización.
 
 Por ello, el filtro de depuración usa por defecto un perfil **strict** que elimina todo eso.
 Este repositorio declara `lab` en `sitecli/capture-manifest.json`, lo que conserva ese
-detalle, y solo es correcto aquí porque estas capturas provienen de infraestructura de demostración
+detalle, y solo es correcto aquí porque estas capturas proceden de infraestructura de demostración
 propiedad de F5.
 
-**No trasladar esa configuración a una captura de cliente.** Los tokens, las claves privadas, el identificador
-del tenant, los UUID de objetos, las direcciones de correo electrónico y las rutas de directorios personales se eliminan con
+**No traslade esa configuración a una captura de cliente.** Los tokens, las claves privadas, el identificador
+del tenant, los UUID de objetos, las direcciones de correo electrónico y las rutas del directorio de inicio se eliminan con
 ambos perfiles.
 
-Vale la pena conocer una limitación: una tabla de vecinos BGP imprime el AS como una columna sin
+Conviene conocer una limitación: una tabla de vecinos BGP imprime el AS como una columna sin
 etiqueta en la que anclar un patrón, por lo que los ASN se comparan por valor contra los
-rangos privados. Un ASN **público** allí sobrevive al perfil strict y requiere una revisión manual de
+rangos privados. Un ASN **público** ahí sobrevive al perfil strict y requiere una revisión manual de
 la salida de `show-ip-bgp*` antes de publicarla.
 </Aside>

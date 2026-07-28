@@ -8,11 +8,15 @@ sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 8a6e8bdbb3fa
+  sourceHash: 91512c977f72
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+
+Capturado el 2026-07-28 desde un CE de esta implementación. `sitecli/capture-manifest.json`
+registra qué nodo, y `scripts/capture-sitecli.sh --check` vuelve a verificar la superficie
+de comandos contra un CE en vivo.
 
 El CE ejecuta FRR para BGP. En esta topología establece peering con las dos instancias de
 Azure Route Server, anuncia la VIP y aprende el prefijo de la VNet.
@@ -29,16 +33,16 @@ permanecido estable.
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-Lea primero `State/PfxRcd`. Un número es el recuento de prefijos recibidos y significa que la
-sesión está establecida; cualquier otra cosa — `Active`, `Connect`, `Idle` — es una sesión
-que no está activa. `Up/Down` muestra cuánto tiempo ha durado el estado actual, de modo que una
-sesión que se reinicia continuamente muestra un valor sospechosamente pequeño.
+Lea primero `State/PfxRcd`. Un número es la cantidad de prefijos recibidos y significa que la
+sesión está establecida; cualquier otro valor — `Active`, `Connect`, `Idle` — corresponde a una
+sesión que no está activa. `Up/Down` muestra cuánto ha durado el estado actual, de modo que una
+sesión que se reinicia constantemente muestra un valor sospechosamente pequeño.
 
-<Aside type="caution" title="El vrf id que aparece aquí no es el que rt espera">
-Esta salida informa `vrf-id 3`. Esa es la numeración de FRR. El plano de datos de Argo usa un
+<Aside type="caution" title="El vrf id que aparece aquí no es el que rt necesita">
+Esta salida informa `vrf-id 3`. Esa es la numeración de FRR. El plano de datos de Argo utiliza un
 identificador de tabla distinto, y pasar el número de FRR a
 [`rt --dump`](../dataplane-forwarding/) devuelve `No such file or directory`, lo que
-parece un nodo averiado en lugar del argumento equivocado.
+parece un nodo averiado en lugar del argumento incorrecto.
 </Aside>
 
 ## `show-ip-bgp`
@@ -53,17 +57,17 @@ La tabla completa, con la selección de la mejor ruta visible.
 ```
 
 `*` es una ruta válida, `>` la mejor ruta seleccionada, `=` un miembro de multipath. En la captura
-anterior, el prefijo de la VNet aprendido `10.0.0.0/16` tiene dos rutas — una por cada instancia
-de Route Server — marcadas `*=` y `*>`: una mejor ruta más un miembro de multipath, de modo que el nodo
-reparte la carga de su tráfico de retorno entre ambas instancias. La VIP `10.250.0.10/32` tiene una única ruta `*>`
-porque este nodo la origina.
+anterior, el prefijo aprendido de la VNet `10.0.0.0/16` tiene dos rutas —una a través de cada instancia
+de Route Server— marcadas como `*=` y `*>`: una mejor ruta más un miembro de multipath, por lo que el
+nodo reparte la carga de su tráfico de retorno entre ambas instancias. La VIP `10.250.0.10/32` tiene una
+única ruta `*>` porque este nodo la origina.
 
-<Aside type="caution" title="El ECMP de tres vías de la demostración no es visible en esta salida">
-`show-ip-bgp` es la tabla de un solo nodo. El ECMP que demuestra esta implementación consiste en tres CE *distintos*
-que anuncian el mismo `/32`, y se programa en el lado de Azure — por lo que la tabla BGP de ningún CE individual
-puede mostrarlo, y la ausencia de un marcador de multipath en la VIP aquí no es un fallo.
-Demuéstrelo en su lugar desde los peerings del Route Server o desde la tabla de rutas efectiva del cliente;
-ambas están en la [página de as-built](../../../../as-built/).
+<Aside type="caution" title="El multipath de coste igual de la demostración no es visible en esta salida">
+`show-ip-bgp` es la tabla de un solo nodo. El ECMP que demuestra esta implementación consiste en varios
+CE *distintos* anunciando el mismo `/32`, y se programa en el lado de Azure — por lo que la tabla BGP de
+ningún CE individual puede mostrarlo, y la ausencia de un marcador de multipath en la VIP aquí no
+constituye un fallo. Compruébelo en su lugar desde los peerings del Route Server o desde la tabla de rutas
+efectiva del cliente; ambas opciones están en la [página de verificación](../../../../demo/verify/).
 </Aside>
 
 ## `show-ip-bgp-neighbors`
@@ -83,13 +87,13 @@ Esta captura no puede confirmarse hasta que se integre `f5-sales-demo/docs-contr
 escribe mal una palabra en su línea de Graceful Restart, y `codespell` rechaza el archivo.
 
 Corregir el texto capturado haría que esta documentación describiera una salida que nunca
-se produjo, así que se está corrigiendo aguas arriba en su lugar. Mientras tanto, ejecute el comando contra su propio
-nodo.
+ocurrió, así que se está corrigiendo aguas arriba en su lugar. Mientras tanto, ejecute el comando
+contra su propio nodo.
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
 
-Lo que este nodo está comunicando a sus pares, en contraposición a lo que conoce.
+Lo que este nodo está comunicando a sus peers, en contraposición a lo que conoce.
 
 ```bash
 {"command":["show-ip-bgp-neighbors-advertised-route"]}
@@ -98,11 +102,10 @@ Lo que este nodo está comunicando a sus pares, en contraposición a lo que cono
 ```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 ```
 
-Este es el comando para «la VIP no es alcanzable desde la VNet». Si la VIP está
-ausente aquí, el problema está en este nodo y por mucho que observe al par no
-conseguirá nada.
+Este es el comando para «la VIP no es alcanzable desde la VNet». Si la VIP no aparece
+aquí, el problema está en este nodo y no servirá de nada examinar el peer.
 
-La salida repite un bloque `bgp neighbor:` **por par**, de modo que en esta topología obtiene los
-mismos dos prefijos dos veces — uno por cada instancia de Route Server. Eso no es una renderización
-duplicada: es lo que confirma que el nodo está anunciando a ambos. Un bloque que está presente para un
-par y falta o es corto para el otro es el caso interesante.
+La salida repite un bloque `bgp neighbor:` **por cada peer**, de modo que en esta topología obtiene
+los mismos dos prefijos dos veces — una vez por cada instancia de Route Server. No se trata de una
+representación duplicada: es lo que confirma que el nodo está anunciando a ambos. El caso interesante
+es un bloque que está presente para un peer y ausente o incompleto para el otro.

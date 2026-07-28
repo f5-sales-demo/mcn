@@ -1,14 +1,14 @@
 
 Instance 4094:
-BGP table version is 5, local router ID is 10.0.1.4, vrf id 3
+BGP table version is 2, local router ID is 10.0.1.4, vrf id 3
 Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,
                i internal, r RIB-failure, S Stale, R Removed
 Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self
 Origin codes:  i - IGP, e - EGP, ? - incomplete
 
    Network          Next Hop            Metric LocPrf Weight Path
-*= 10.0.0.0/16      10.0.4.4                               0 65515 i
-*>                  10.0.4.5                               0 65515 i
+*= 10.0.0.0/16      10.0.4.5                               0 65515 i
+*>                  10.0.4.4                               0 65515 i
 *> 10.250.0.10/32   10.0.1.4               255         32768 ?
 
 Displayed  2 routes and 3 total paths

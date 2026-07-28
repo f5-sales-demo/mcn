@@ -1,23 +1,27 @@
 ---
 title: diagnosis
 description: >-
-  Konnektivitäts- und DNS-Prüfungen, die der Knoten gegen sich selbst ausführt
-  und als JSON zurückgibt. Zeigt, was der Knoten über seine eigene
-  Erreichbarkeit annimmt.
+  Konnektivitäts- und DNS-Prüfungen, die der Knoten gegen sich selbst ausführt,
+  als JSON zurückgegeben. Zeigt, was der Knoten über seine eigene Erreichbarkeit
+  annimmt.
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: fe68c321f801
+  sourceHash: 6bd26ad47105
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
+Erfasst am 28.07.2026 von einem CE dieses Deployments. `sitecli/capture-manifest.json`
+dokumentiert, welcher Knoten verwendet wurde, und `scripts/capture-sitecli.sh --check` überprüft die Befehlsoberfläche
+erneut gegen ein laufendes CE.
+
 ## `diagnosis`
 
 <Aside type="caution" title="GLOBAL-Scope — ein anderer Transportweg">
-Wie bei `health` ein `GET` auf den `global`-Pfad und nicht über `exec-user` erreichbar.
+Wie bei `health` handelt es sich um ein `GET` auf den `global`-Pfad, das nicht über `exec-user` erreichbar ist.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -29,29 +33,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-Die Ergebnisse werden pro Knoten ausgegeben, an einem Standort mit mehreren Knoten erhalten Sie also jeweils einen Block.
+Die Ergebnisse werden pro Knoten ausgegeben, sodass Sie bei einem Standort mit mehreren Knoten jeweils einen Block erhalten.
 `gateway_connectivity` und `dns_connectivity` enthalten jeweils eine Ping-Zusammenfassung — `dest_ip`, `sent`,
-`received`, `lost` sowie Laufzeiten.
+`received`, `lost` sowie Round-Trip-Zeiten.
 
 <Aside type="danger" title="Beide Ping-Prüfungen melden 100 % Verlust auf einem völlig gesunden Knoten">
-In dieser Topologie melden **beide**, `gateway_connectivity` (an `10.0.1.1`) und `dns_connectivity` (an
-`168.63.129.16`), `sent: 5, received: 0, lost: 100`, während der Standort `ONLINE` ist,
-Datenverkehr weiterleitet und `registration_status: OK` lautet — beim Schreiben dieses Textes erneut überprüft. Zwei
-`lost: 100`-Blöcke in einer Antwort sind das alarmierendste Erscheinungsbild auf dieser Seite und
-gleichzeitig der Normalzustand.
+In dieser Topologie melden **beide** — `gateway_connectivity` (zu `10.0.1.1`) und `dns_connectivity` (zu
+`168.63.129.16`) — `sent: 5, received: 0, lost: 100`, während der Standort `ONLINE` ist,
+Datenverkehr weiterleitet und `registration_status: OK` lautet — beim Schreiben dieses Texts erneut verifiziert. Zwei
+`lost: 100`-Blöcke in einer Antwort sind das alarmierendste Element auf dieser Seite und
+zugleich der Normalzustand.
 
 `dns_connectivity` ist von beiden das irreführendere Feld, denn DNS funktioniert nachweislich: Das
-`dns_query_result` derselben Antwort enthält zehn erfolgreiche Abfragen mit `NOERROR` gegen genau
+`dns_query_result` derselben Antwort enthält zehn erfolgreiche Abfragen, `NOERROR`, gegen genau
 diesen Resolver. Die Prüfung misst die ICMP-Erreichbarkeit, die von den Azure-Plattformadressen
-nicht beantwortet wird; sie misst nicht DNS.
+nicht beantwortet wird; sie misst kein DNS.
 
 Betrachten Sie beide Felder nur dann als Signal, wenn Sie bereits andere Hinweise auf ein Problem haben oder
 wenn sich der Wert ändert.
 </Aside>
 
-Die Felder, die zuerst gelesen werden sollten, finden sich an anderer Stelle in der Antwort: `registration_status`,
+Die Felder, die Sie zuerst lesen sollten, finden sich an anderer Stelle in der Antwort: `registration_status`,
 `curl_response` (ein Eintrag pro F5-Endpunkt, den der Knoten benötigt, jeweils `OK` oder nicht),
 `dns_query_result` und `ntp_sync_status`.
 
-`resolv_conf` zeigt den Resolver, den der Knoten tatsächlich verwenden wird — es lohnt sich, diesen mit
-Ihren Erwartungen zu vergleichen, bevor Sie Zeit in [`dig`](../../network/dig/) investieren.
+`resolv_conf` zeigt den Resolver, den der Knoten tatsächlich verwenden wird — ein Vergleich mit
+Ihren Erwartungen lohnt sich, bevor Sie Zeit in [`dig`](../../network/dig/) investieren.

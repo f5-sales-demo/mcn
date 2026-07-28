@@ -1,22 +1,26 @@
 ---
-title: Um site que nunca ficou online
+title: Um site que nunca entrou em operação
 description: >-
-  Sequência ordenada para um CE que falhou ao registrar, onde a API de depuração
-  não pode ajudar porque depende do registro que falhou.
+  Sequência ordenada para um CE que falhou ao registrar, na qual a API de
+  depuração não pode ajudar porque depende do registro que falhou.
 sidebar:
   order: 10
   label: Registro
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: c687d28cce5d
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-<Aside type="danger" title="A API não pode depurar isso">
+Capturado em 28/07/2026 de um CE deste deployment. `sitecli/capture-manifest.json`
+registra qual nó, e `scripts/capture-sitecli.sh --check` reverifica a superfície de
+comandos em um CE ativo.
+
+<Aside type="danger" title="A API não pode depurar isto">
 A API de depuração alcança o nó através do control plane do F5 Distributed Cloud, pelo
-túnel que o registro estabelece. Se o registro falhou, não há túnel,
-portanto todos os comandos deste site ficam indisponíveis para exatamente essa falha. Trabalhe a partir do
+túnel que o registro estabelece. Se o registro falhou, não existe túnel,
+portanto todos os comandos deste site ficam indisponíveis exatamente para essa falha. Trabalhe a partir do
 [Site Console](../../access/site-console/) se o nó ainda tiver um caminho de rede, e a partir do
 [console serial](../../access/serial-console/) se não tiver.
 </Aside>
@@ -24,8 +28,8 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
 <Steps>
 
 1. **Confirme que você está consultando o tenant correto.** Isso custa um comando e vem
-   primeiro porque errar isso faz com que todas as etapas seguintes mintam para você: uma frota saudável no tenant
-   que você não está olhando é indistinguível de uma frota que nunca se registrou.
+   primeiro porque errar aqui faz com que todos os passos seguintes mintam para você: uma frota saudável no tenant
+   que você não está olhando é indistinguível de uma frota que nunca registrou.
 
    ```bash
    cd terraform
@@ -38,12 +42,12 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
    f5-sales-demo
    ```
 
-   Divergentes, ou uma credencial que você acredita ser válida retornando um `401` puro? Esse é o
-   sintoma de um token emitido para outro tenant, e isso já custou a este deployment uma
-   reconstrução completa ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
+   Divergentes, ou uma credencial que você acredita ser válida retornando um simples `401`? Esse é o
+   sintoma de um token emitido para outro tenant, e isso já custou a este deployment um
+   rebuild completo ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
 
-2. **Confirme o que o tenant acredita.** Ausente da lista de sites é um problema
-   diferente de presente mas não `ONLINE`.
+2. **Confirme o que o tenant acredita.** Estar ausente da lista de sites é um problema
+   diferente de estar presente mas não `ONLINE`.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -51,9 +55,9 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
    ```
 
    Se o site existe e reporta `ONLINE`, o registro foi bem-sucedido e você está no
-   workflow errado.
+   fluxo de trabalho errado.
 
-3. **Encontre o registro do site e seu estado.** Um nó pode se registrar e então aguardar
+3. **Encontre o registro do site e o seu estado.** Um nó pode registrar e depois aguardar
    aprovação, o que parece idêntico a uma falha visto de fora.
 
    ```bash
@@ -66,8 +70,8 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
    r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
    ```
 
-   Nenhum item significa que o nó ainda não se registrou — vá para o console serial. Um item
-   em um estado diferente de `ONLINE` significa que ele se registrou e algo depois disso falhou, o que
+   Nenhum item significa que o nó ainda não registrou — vá para o console serial. Um item
+   em um estado diferente de `ONLINE` significa que ele registrou e algo depois disso falhou, o que
    é uma investigação diferente.
 
    Para varrer todo o namespace em busca de qualquer coisa aguardando aprovação, `listregistrationsbystate`
@@ -89,54 +93,54 @@ portanto todos os comandos deste site ficam indisponíveis para exatamente essa 
    ```
 
    ```text
-   Name            Power
-   --------------  ----------
-   ar-ecmp-client  VM running
-   f5-xc-ce-vm-01  VM running
-   f5-xc-ce-vm-02  VM running
-   f5-xc-ce-vm-03  VM running
+   Name              Power
+   ----------------  ----------
+   f5-xc-ce-vm-01    VM running
+   f5-xc-ce-vm-02    VM running
+   f5-xc-ce-vm-03    VM running
+   mcn-ce-ha-client  VM running
    ```
 
 5. **Conecte-se ao console serial.** De forma interativa isso exige um terminal real; a própria
-   conexão pode ser automatizada via websocket — veja
+   conexão pode ser automatizada via websocket — consulte
    [console serial](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   Se recusar, verifique se o boot diagnostics está habilitado na VM antes de concluir que o
-   nó está inacessível; esse pré-requisito e seus modos de falha estão descritos na página do
+   Se houver recusa, verifique se o boot diagnostics está habilitado na VM antes de concluir que o
+   nó está inacessível; esse pré-requisito e seus modos de falha são abordados na página
    [console serial](../../access/serial-console/).
 
 6. **Leia o que o console mostra, nesta ordem.** cloud-init primeiro — um nó cujo
-   cloud-init nunca foi concluído não tem configuração com a qual se registrar. Depois as
+   cloud-init nunca foi concluído não tem configuração com a qual registrar. Depois as
    próprias tentativas de registro, então o DNS: se o nó não conseguir resolver
    `register.ves.volterra.io`, nada a jusante pode funcionar.
 
-7. **Quando o nó estiver `ONLINE`**, verifique com [`health`](../../commands/system/health/)
+7. **Assim que o nó estiver `ONLINE`**, verifique com [`health`](../../commands/system/health/)
    e espere `state: PROVISIONED`.
 
 </Steps>
 
 <Aside type="caution" title="Um registro é nomeado por um UUID, nunca pelo seu site">
-Registros são nomeados `r-<uuid>`, e não existe endpoint que aceite um nome de site onde um
+Os registros são nomeados `r-<uuid>`, e não existe endpoint que aceite um nome de site onde um
 nome de registro é esperado.
 `GET .../registrations/<site>` retorna `404`, o que se lê como "este site não tem
-registro" e na verdade é "esse não é um nome de registro". O mapeamento de site para registro
-só vem de `registrations_by_site/<site>`, como na etapa 3, ou listando
+registro" e na verdade significa "esse não é um nome de registro". O mapeamento de site para registro
+vem apenas de `registrations_by_site/<site>`, como no passo 3, ou listando
 `registrations` e correspondendo por `gc_spec.passport.cluster_name`.
 
-Essa mesma armadilha fez parecer que uma frota saudável tinha zero registros.
+A mesma armadilha fez parecer que uma frota saudável tinha zero registros.
 </Aside>
 
 ## As causas habituais
 
-- **Você está apontado para o tenant errado**, então uma frota que está bem parece ausente. Etapa 1.
+- **Você está apontando para o tenant errado**, então uma frota que está bem parece ausente. Passo 1.
 - O cloud-init não foi concluído, então `/etc/vpm/config.yaml` está ausente ou incorreto.
 - O token de registro está expirado, já consumido, ou é de outro tenant.
 - Nenhuma rota de saída para `register.ves.volterra.io`.
 - Desvio de relógio grande o suficiente para invalidar certificados — rápido de descartar depois com
-  [`chronyc-sources`](../../commands/network/chronyc-sources/), mas não acessível
-  até que o nó esteja online. O banner de login por [SSH](../../access/ssh/) reporta `NTP: Synced`
+  [`chronyc-sources`](../../commands/network/chronyc-sources/), mas inacessível
+  até que o nó esteja online. O banner de login do [SSH](../../access/ssh/) reporta `NTP: Synced`
   e o status do resolver antes de você executar qualquer coisa, quando o SSH está disponível.

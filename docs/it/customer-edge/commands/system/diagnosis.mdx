@@ -2,22 +2,26 @@
 title: diagnosis
 description: >-
   Sonde di connettività e DNS che il nodo esegue verso se stesso, restituite in
-  formato JSON. Indicano ciò che il nodo ritiene riguardo alla propria
+  formato JSON. Indica ciò che il nodo ritiene riguardo alla propria
   raggiungibilità.
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: fe68c321f801
+  sourceHash: 6bd26ad47105
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
+Acquisito il 28-07-2026 da un CE di questo deployment. `sitecli/capture-manifest.json`
+registra quale nodo, e `scripts/capture-sitecli.sh --check` verifica nuovamente la
+superficie dei comandi su un CE attivo.
+
 ## `diagnosis`
 
 <Aside type="caution" title="Ambito GLOBAL — un trasporto differente">
-Come `health`, si tratta di una `GET` al percorso `global` e non è raggiungibile tramite `exec-user`.
+Come `health`, un `GET` al percorso `global` e non raggiungibile tramite `exec-user`.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -29,29 +33,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-I risultati sono riportati per nodo, quindi su un sito multi-nodo si ottiene un blocco per ciascuno.
-`gateway_connectivity` e `dns_connectivity` includono ciascuno un riepilogo del ping — `dest_ip`, `sent`,
+I risultati vengono riportati per nodo, quindi in un sito multi-nodo si ottiene un blocco per ciascuno.
+`gateway_connectivity` e `dns_connectivity` contengono ciascuno un riepilogo del ping — `dest_ip`, `sent`,
 `received`, `lost` e i tempi di andata e ritorno.
 
 <Aside type="danger" title="Entrambe le sonde ping riportano il 100% di perdita su un nodo perfettamente sano">
-Su questa topologia **entrambe** le sonde `gateway_connectivity` (verso `10.0.1.1`) e `dns_connectivity` (verso
+In questa topologia **entrambe** le sonde `gateway_connectivity` (verso `10.0.1.1`) e `dns_connectivity` (verso
 `168.63.129.16`) riportano `sent: 5, received: 0, lost: 100` mentre il sito è `ONLINE`,
 inoltra traffico e presenta `registration_status: OK` — verificato di nuovo durante la stesura di questo testo. Due
-blocchi `lost: 100` in una singola risposta sono la cosa dall'aspetto più allarmante di questa pagina e
+blocchi `lost: 100` in un'unica risposta sono la cosa dall'aspetto più allarmante di questa pagina e
 rappresentano lo stato normale.
 
-`dns_connectivity` è il più fuorviante dei due, perché il DNS funziona in modo dimostrabile: nella
-stessa risposta, `dns_query_result` contiene dieci risoluzioni riuscite, `NOERROR`, verso quel
-preciso resolver. La sonda misura la raggiungibilità ICMP, alla quale gli indirizzi della piattaforma Azure
-non rispondono; non misura il DNS.
+`dns_connectivity` è il più fuorviante dei due, perché il DNS funziona in modo dimostrabile: il
+campo `dns_query_result` della stessa risposta contiene dieci lookup riusciti, `NOERROR`, verso quel
+resolver esatto. La sonda misura la raggiungibilità ICMP, a cui gli indirizzi della piattaforma Azure non
+rispondono; non misura il DNS.
 
-Considerate entrambi i campi come un segnale solo quando disponete già di altre prove di un problema, oppure
-quando il valore cambia.
+Considerate entrambi i campi come un segnale solo quando avete già altre prove di un problema, oppure
+quando cambiano.
 </Aside>
 
 I campi da leggere per primi si trovano altrove nella risposta: `registration_status`,
-`curl_response` (una voce per ciascun endpoint F5 di cui il nodo ha bisogno, ognuna `OK` o meno),
+`curl_response` (una voce per ogni endpoint F5 di cui il nodo ha bisogno, ciascuna `OK` o meno),
 `dns_query_result` e `ntp_sync_status`.
 
-`resolv_conf` mostra il resolver che il nodo utilizzerà effettivamente, valore che conviene confrontare con
-quello che vi aspettate prima di dedicare tempo a [`dig`](../../network/dig/).
+`resolv_conf` mostra il resolver che il nodo utilizzerà effettivamente, il che vale la pena confrontare con
+quanto vi aspettate prima di dedicare tempo a [`dig`](../../network/dig/).

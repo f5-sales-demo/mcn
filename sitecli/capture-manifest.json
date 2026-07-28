@@ -33,7 +33,7 @@
     "Capturing from a customer node: do NOT set this to lab."
   ],
   "defaults": {
-    "site": "ar-bgp-eastus01",
+    "site": "mcn-ce-ha-eastus01",
     "node": "f5-xc-ce-vm-01",
     "max_lines": 60,
     "scrub_profile": "lab"

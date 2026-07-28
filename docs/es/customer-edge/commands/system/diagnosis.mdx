@@ -1,22 +1,26 @@
 ---
 title: diagnosis
 description: >-
-  Sondas de conectividad y DNS que el nodo ejecuta contra sí mismo, devueltas
-  como JSON. Indican lo que el nodo cree acerca de su propia alcanzabilidad.
+  Sondeos de conectividad y DNS que el nodo ejecuta contra sí mismo, devueltos
+  como JSON. Indica qué cree el nodo sobre su propia accesibilidad.
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: fe68c321f801
+  sourceHash: 6bd26ad47105
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
+Capturado el 2026-07-28 desde un CE de esta implementación. `sitecli/capture-manifest.json`
+registra qué nodo, y `scripts/capture-sitecli.sh --check` vuelve a verificar la superficie de
+comandos contra un CE en vivo.
+
 ## `diagnosis`
 
 <Aside type="caution" title="Ámbito GLOBAL — un transporte diferente">
-Igual que `health`, es un `GET` a la ruta `global` y no es accesible mediante `exec-user`.
+Como `health`, un `GET` a la ruta `global` y no accesible mediante `exec-user`.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -28,29 +32,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-Los resultados se informan por nodo, por lo que en un sitio con varios nodos se obtiene un bloque por cada uno.
-`gateway_connectivity` y `dns_connectivity` incluyen cada uno un resumen de ping — `dest_ip`, `sent`,
-`received`, `lost` y los tiempos de ida y vuelta.
+Los resultados se informan por nodo, así que en un sitio de varios nodos obtiene un bloque
+para cada uno. `gateway_connectivity` y `dns_connectivity` incluyen cada uno un resumen de
+ping — `dest_ip`, `sent`, `received`, `lost` y tiempos de ida y vuelta.
 
-<Aside type="danger" title="Ambas sondas de ping informan un 100 % de pérdida en un nodo perfectamente saludable">
-En esta topología **ambas**, `gateway_connectivity` (hacia `10.0.1.1`) y `dns_connectivity` (hacia
+<Aside type="danger" title="Ambos sondeos de ping informan 100% de pérdida en un nodo perfectamente sano">
+En esta topología **ambos**, `gateway_connectivity` (a `10.0.1.1`) y `dns_connectivity` (a
 `168.63.129.16`), informan `sent: 5, received: 0, lost: 100` mientras el sitio está `ONLINE`,
 reenviando tráfico y con `registration_status: OK` — verificado de nuevo al redactar esto. Dos
-bloques con `lost: 100` en una misma respuesta es lo más alarmante a la vista en esta página y
-es el estado normal.
+bloques con `lost: 100` en una sola respuesta es lo más alarmante en apariencia de esta página
+y es el estado normal.
 
-`dns_connectivity` es el más engañoso de los dos, porque el DNS funciona de forma demostrable: el
-`dns_query_result` de la misma respuesta contiene diez búsquedas exitosas, `NOERROR`, contra ese
-mismo resolutor. La sonda mide la alcanzabilidad ICMP, que las direcciones de la plataforma Azure
-no responden; no mide el DNS.
+`dns_connectivity` es el más engañoso de los dos, porque el DNS funciona de forma
+demostrable: el `dns_query_result` de la misma respuesta contiene diez búsquedas exitosas,
+`NOERROR`, contra ese resolutor exacto. El sondeo mide la accesibilidad ICMP, que las
+direcciones de la plataforma de Azure no responden; no mide DNS.
 
-Considere cualquiera de estos campos como una señal solo cuando ya disponga de otras pruebas de un problema, o
-cuando cambie.
+Trate cualquiera de los dos campos como una señal solo cuando ya tenga otras pruebas de un
+problema, o cuando cambie.
 </Aside>
 
-Los campos que conviene leer primero están en otras partes de la respuesta: `registration_status`,
-`curl_response` (una entrada por cada endpoint de F5 que el nodo necesita, cada uno `OK` o no),
-`dns_query_result` y `ntp_sync_status`.
+Los campos que conviene leer primero están en otra parte de la respuesta:
+`registration_status`, `curl_response` (una entrada por cada punto de conexión de F5 que el
+nodo necesita, cada uno `OK` o no), `dns_query_result` y `ntp_sync_status`.
 
-`resolv_conf` muestra el resolutor que el nodo utilizará realmente, lo cual conviene comparar con
-lo que usted espera antes de invertir tiempo en [`dig`](../../network/dig/).
+`resolv_conf` muestra el resolutor que el nodo usará realmente, lo cual vale la pena comparar
+con lo que espera antes de dedicar tiempo a [`dig`](../../network/dig/).

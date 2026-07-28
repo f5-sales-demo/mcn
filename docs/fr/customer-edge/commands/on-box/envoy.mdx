@@ -2,25 +2,30 @@
 title: Envoy
 description: >-
   Les quatre wrappers autour de l'interface d'administration d'Envoy sur un
-  Customer Edge — listeners, clusters et deux dumps de configuration. Explique
+  Customer Edge — listeners, clusters et deux vidages de configuration. Explique
   pourquoi chacun d'eux commence par un indicateur de progression curl, et ce
-  que la sortie des listeners vous indique sur le VIP annoncé.
+  que la sortie des listeners vous apprend sur la VIP annoncée.
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 6ca185ca6ece
+  sourceHash: 7b786fa58fb2
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Envoy termine et proxifie le trafic applicatif sur le Customer Edge. Ces quatre commandes
-interrogent son interface d'administration, et aucune d'entre elles ne figure dans
-[l'API de débogage](../../../access/debug-api/).
+Capturé le 2026-07-28 depuis un CE de ce déploiement. Ce sont des commandes exécutées sur l'appliance, elles passent donc
+par la CLI du site plutôt que par l'API de débogage ; `sitecli/exec-catalog.json` enregistre la
+surface et `sitecli/capture-manifest.json` enregistre le nœud concerné.
+
+Envoy termine et relaie le trafic applicatif sur le Customer Edge. Ces quatre commandes
+interrogent son interface d'administration, et aucune d'elles ne figure sur l'
+[API de débogage](../../../access/debug-api/).
 
 <Aside type="note" title="Chacune d'elles commence par un indicateur de progression curl">
-Ce sont des wrappers `curl` autour du point de terminaison d'administration d'Envoy, invoqués sans `-s`, donc les deux ou trois premières lignes de chaque capture ci-dessous correspondent à l'indicateur de progression du transfert de curl écrit sur stderr :
+Ce sont des wrappers `curl` autour du point de terminaison d'administration d'Envoy, invoqués sans `-s`, de sorte que les deux ou trois
+premières lignes de chaque capture ci-dessous correspondent à la progression du transfert écrite par curl sur stderr :
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -28,12 +33,14 @@ Ce sont des wrappers `curl` autour du point de terminaison d'administration d'En
   0     0    0     0 …
 ```
 
-Il ne s'agit pas d'une sortie Envoy ni d'une erreur. C'est également utile : le compteur d'octets `% Received` vous indique si Envoy a renvoyé quoi que ce soit, ce qui permet de distinguer « aucun listener configuré » de « l'interface d'administration n'a pas répondu ».
+Il ne s'agit pas d'une sortie d'Envoy ni d'une erreur. C'est même utile : le décompte d'octets `% Received`
+vous indique si Envoy a renvoyé quelque chose, ce qui permet de distinguer « aucun listener
+configuré » de « l'interface d'administration n'a pas répondu ».
 </Aside>
 
 ## `envoy-listeners`
 
-Chaque listener installé par Envoy, sous la forme `nom:adresse:port`.
+Tous les listeners installés par Envoy, sous la forme `name:address:port`.
 
 ```bash
 execcli envoy-listeners
@@ -42,19 +49,21 @@ execcli envoy-listeners
 ```text file=../../../../_data/sitecli-envoy-listeners.txt
 ```
 
-**Ce qu'il faut rechercher.** Sur ce déploiement, le listener porte `10.250.0.10:80` — le VIP que le
-CE annonce dans BGP. Cette unique ligne relie trois couches entre elles : si
-[`show-ip-bgp-summary`](../../network/bgp/) indique que le préfixe est annoncé mais que ce
-listener est absent, la route est attirée vers un nœud qui ne pourra pas la servir, ce qui constitue
-le pire mode de défaillance dans un ensemble ECMP, car le trafic est réparti par équilibrage de charge vers un trou noir.
+**Ce qu'il faut observer.** Sur ce déploiement, le listener porte `10.250.0.10:80` — la VIP que
+le CE annonce dans BGP. Cette seule ligne relie trois couches entre elles : si
+[`show-ip-bgp-summary`](../../network/bgp/) montre que le préfixe est annoncé mais que ce
+listener est absent, la route attire du trafic vers un nœud qui ne le servira pas, ce qui est
+le pire mode de défaillance dans un ensemble ECMP car le trafic est réparti dans un trou noir.
 
-Le `[fe80:…]:80` final correspond à l'adresse link-local de l'interface à laquelle le listener est lié.
+L'adresse `[fe80:…]:80` en fin de ligne est l'adresse link-local de l'interface à laquelle le listener est
+lié.
 
-**Ce qu'il ne vous indique pas.** Rien sur l'état de santé des serveurs en amont — un listener existe qu'il y ait ou non quelque chose d'accessible derrière lui. Utilisez `envoy-clusters` pour cela.
+**Ce qu'il ne vous dit pas.** Rien sur la santé des upstreams — un listener existe que
+quelque chose derrière lui soit joignable ou non. Utilisez `envoy-clusters` pour cela.
 
 ## `envoy-clusters`
 
-Chaque cluster, avec ses limites de connexions et de requêtes par priorité.
+Tous les clusters, avec leurs limites de connexions et de requêtes par priorité.
 
 ```bash
 execcli envoy-clusters
@@ -63,10 +72,11 @@ execcli envoy-clusters
 ```text file=../../../../_data/sitecli-envoy-clusters.txt
 ```
 
-**Ce qu'il faut rechercher.** Les lignes sont de la forme `cluster::scope::clé::valeur`. L'entrée `observability_name`
+**Ce qu'il faut observer.** Les lignes ont la forme `cluster::scope::key::value`. L'entrée `observability_name`
 identifie chaque cluster, et le triplet `default_priority::max_connections`,
 `max_pending_requests` et `max_requests` est l'endroit où apparaissent les limites de requêtes — un cluster
-bloqué à sa valeur `max_pending_requests` est limité par la configuration et non par le serveur en amont.
+bloqué à son `max_pending_requests` est bridé par la configuration plutôt que par
+l'upstream.
 
 ## `envoy-config-dump`
 
@@ -79,13 +89,13 @@ execcli envoy-config-dump
 ```text file=../../../../_data/sitecli-envoy-config-dump.txt
 ```
 
-**Ce qu'il faut rechercher.** Le tableau `configs` de niveau supérieur contient un objet par type de configuration —
-bootstrap, clusters, listeners, routes, secrets. Utilisez cette commande lorsqu'un listener ou un cluster
-existe mais se comporte de manière inattendue, et effectuez des recherches dans le résultat plutôt que de le lire intégralement.
+**Ce qu'il faut observer.** Le tableau `configs` de premier niveau contient un objet par type de configuration —
+bootstrap, clusters, listeners, routes, secrets. Recourez-y lorsqu'un listener ou un cluster
+existe mais se comporte de manière inattendue, et faites une recherche dedans plutôt que de le lire intégralement.
 
 ## `envoy-hc-config-dump`
 
-La configuration de vérification de l'état (health-check) spécifiquement.
+La configuration des contrôles de santé spécifiquement.
 
 ```bash
 execcli envoy-hc-config-dump
@@ -94,5 +104,7 @@ execcli envoy-hc-config-dump
 ```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
 ```
 
-**Ce qu'il faut rechercher.** Sur ce déploiement, la commande renvoie un **seul octet** — visible sous la forme `100 1`
-dans l'indicateur curl — ce qui signifie qu'aucune configuration de vérification de l'état n'est installée. Il s'agit de l'état attendu pour un CE sans pools d'origine soumis à des vérifications de l'état, et il est important de le reconnaître : un résultat vide ici n'indique pas une requête ayant échoué.
+**Ce qu'il faut observer.** Sur ce déploiement, elle renvoie **un seul octet** — visible sous la forme `100 1`
+dans l'indicateur curl — ce qui signifie qu'aucune configuration de contrôle de santé n'est installée. C'est l'état attendu
+pour un CE sans pools d'origine soumis à des contrôles de santé, et il vaut la peine de le reconnaître : un résultat vide
+ici n'est pas une requête en échec.

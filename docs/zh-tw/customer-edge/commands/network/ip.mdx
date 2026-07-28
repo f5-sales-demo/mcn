@@ -1,22 +1,27 @@
 ---
-title: 網路介面
-description: 節點上 Linux 端的介面與連結狀態，以及唯一會變更它的特權指令。Linux 所認定的狀態，資料平面可能有不同看法。
+title: 介面
+description: 節點上 Linux 端的介面與連結狀態，以及唯一會變更它的特權指令。Linux 所認定的狀態，可能與資料平面相牴觸。
 sidebar:
   order: 60
-  label: 網路介面
+  label: 介面
 i18n:
-  sourceHash: 3d2e9fd4cf74
+  sourceHash: c5b78c1a0b8c
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-這些指令回報的是核心的觀點。Argo 資料平面維護自己的一套狀態，可透過
-[`vif`](../dataplane-forwarding/) 檢視，兩者可能不一致。
+擷取自本次部署其中一台 CE，時間為 2026-07-28。`sitecli/capture-manifest.json`
+記錄了擷取的節點，而 `scripts/capture-sitecli.sh --check` 會針對線上 CE
+重新驗證指令介面。
+
+這些指令回報的是核心的觀點。Argo 資料平面則保有自己的觀點，可透過
+[`vif`](../dataplane-forwarding/) 查看，兩者可能不一致。
 
 ## `ip`
 
-接受一個 `ip` 子指令。`addr` 是最常用的；`route`、`link` 與 `neigh` 也可以使用。
+接受一個 `ip` 子指令。`addr` 是最常用的；`route`、`link` 與 `neigh` 也
+可以使用。
 
 ```bash
 {"command":["ip","addr"]}
@@ -25,32 +30,33 @@ import { Aside, Badge } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-CE 依設計具有三張 Azure 網卡——管理/SLO、外部、內部/SLI——但客體作業系統呈現它們的方式
-並非那個排序所暗示的樣子，而這正是誤讀輸出會耗費時間的地方。
+CE 依設計具有三張 Azure 網卡 —— 管理/SLO、外部、內部/SLI —— 但
+客體作業系統並非依照該順序所暗示的方式呈現它們，而這正是誤讀
+輸出會浪費時間的地方。
 
-| 在客體中 | 承載 |
+| 在客體系統中 | 承載 |
 | --- | --- |
-| `a-i-eth0` | **完全沒有位址**——這是被重新命名的物理 eth0，由 Argo 資料平面所擁有 |
-| `vhost0` | 管理/SLO 位址，也就是 BGP 對等連線所使用、且站點物件所回報的那一個 |
-| `eth1` 與 `eth2` | 外部與內部/SLI 位址——但**順序並不固定** |
+| `a-i-eth0` | **完全沒有位址** —— 這是被重新命名的實體 eth0，由 Argo 資料平面所擁有 |
+| `vhost0` | 管理/SLO 位址，也就是 BGP 對等連線的來源位址，以及站點物件所回報的位址 |
+| `eth1` 與 `eth2` | 外部與內部/SLI 位址 —— 但**順序並不固定** |
 
 <Aside type="danger" title="eth1 與 eth2 之中哪一個是內部介面，各節點並不相同">
-從這一個部署中的三台 CE 即時讀取：在 `f5-xc-ce-vm-01` 與
+從本次部署的三台 CE 上即時讀取的結果：在 `f5-xc-ce-vm-01` 與
 `f5-xc-ce-vm-03` 上，內部/SLI 位址位於 `eth2`；而在 `f5-xc-ce-vm-02` 上則位於
-`eth1`。設定中沒有任何項目決定這件事。
+`eth1`。設定中並沒有任何項目決定這一點。
 
-因此，切勿從介面名稱推斷子網路，也切勿把某個節點的對應關係套用到另一個節點。
-請改為以位址進行比對——CE 位址所屬的子網路是穩定的，即使承載它的介面並不穩定。
-
+因此，絕不要從介面名稱推斷子網路，也絕不要把某個節點的對應關係套用到
+另一個節點。請改以位址進行比對 —— CE 位址所屬的子網路是穩定的，即使
+承載它的介面並不穩定。
 </Aside>
 
-`a-i-eth0` 沒有承載任何位址，也正是為什麼無法透過管理位址連上 `sshd` 的全部原因：
-那裡根本沒有監聽者，而不是連接埠被封鎖。請參閱
+`a-i-eth0` 沒有承載任何位址，也正是為什麼無法透過管理位址連上
+`sshd` 的完整原因：那裡根本沒有監聽程序，而不是連接埠被封鎖。請參閱
 [SSH](../../../access/ssh/)。
 
 ## `ip-link-show`
 
-僅顯示連結層資訊：狀態、MTU、排隊規則、MAC。
+僅顯示連結層資訊：狀態、MTU、佇列規則、MAC。
 
 ```bash
 {"command":["ip-link-show"]}
@@ -59,23 +65,23 @@ CE 依設計具有三張 Azure 網卡——管理/SLO、外部、內部/SLI—�
 ```text file=../../../../_data/sitecli-ip-link-show.txt
 ```
 
-當問題是「連結是否已啟用、它的 MTU 是多少」時，這比 `ip addr` 更快。
-MTU 不一致是隧道能建立卻無法傳遞流量的常見原因。
+當問題是「連結是否已啟用，以及它的 MTU 是多少」時，這比 `ip addr` 更快。
+MTU 不一致是隧道能夠建立但無法傳遞流量的常見原因。
 
-## `ip-link-set` <Badge text="Exec 層級 — 具變更性" variant="danger" />
+## `ip-link-set` <Badge text="Exec 層級 —— 具變更性" variant="danger" />
 
-將某個介面或群組設為啟用或停用。
+啟用或停用某個介面或群組。
 
 ```
 ip-link-set (<device>||<group>) (up||down)
 ```
 
-<Aside type="danger" title="此處未執行，且無法以慣常方式存取">
-這是此組建中唯一的 `Exec` 層級指令。它送往 `exec` 端點
-而非 `exec-user`，且它會變更節點：在遠端 CE 上將 `eth0` 停用，
+<Aside type="danger" title="此處未執行，且無法以通常方式存取">
+這是此版本中唯一屬於 `Exec` 層級的指令。它會送往 `exec` 端點
+而非 `exec-user`，並且會變更節點：在遠端 CE 上停用 `eth0`
 會移除你用來管理它的路徑，包括除錯 API 本身。
 
 本頁刻意沒有擷取任何輸出。擷取工具會拒絕整個 `Exec` 層級，
-且它是從即時目錄讀取層級資訊，而非依據硬編碼清單，
-因此即使未來的組建將其他指令提升至該層級，這項說明仍然成立。
+並且是從線上目錄讀取層級資訊，而非使用硬編碼清單，因此即使
+未來版本將其他指令提升至該層級，這一點依然成立。
 </Aside>

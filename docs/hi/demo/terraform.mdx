@@ -1,0 +1,186 @@
+---
+title: Terraform
+description: >-
+  वह कॉन्फ़िगरेशन जो इस डेमो को तैनात करता है, दोबारा टाइप किए जाने के बजाय
+  उन्हीं फ़ाइलों से पढ़ा गया जो इसे तैनात करती हैं — रूट मॉड्यूल और उसके छह
+  चाइल्ड मॉड्यूल, साथ में इस नोट के साथ कि प्रत्येक फ़ाइल किसके लिए ज़िम्मेदार
+  है।
+sidebar:
+  order: 20
+  label: Terraform
+i18n:
+  sourceHash: b8380b6bc381
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import { Code } from "@astrojs/starlight/components";
+import backend from "../../_includes/terraform/backend.tf?raw";
+import data from "../../_includes/terraform/data.tf?raw";
+import locals from "../../_includes/terraform/locals.tf?raw";
+import main from "../../_includes/terraform/main.tf?raw";
+import outputs from "../../_includes/terraform/outputs.tf?raw";
+import providers from "../../_includes/terraform/providers.tf?raw";
+import variables from "../../_includes/terraform/variables.tf?raw";
+import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
+import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
+import variablesXc from "../../_includes/terraform/variables_xc.tf?raw";
+import versions from "../../_includes/terraform/versions.tf?raw";
+import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
+import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
+import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
+import modulesAzureHubVersions from "../../_includes/terraform/modules/azure-hub/versions.tf?raw";
+import modulesAzureRouteServerBgpMain from "../../_includes/terraform/modules/azure-route-server-bgp/main.tf?raw";
+import modulesAzureRouteServerBgpVersions from "../../_includes/terraform/modules/azure-route-server-bgp/versions.tf?raw";
+import modulesCeNodeMain from "../../_includes/terraform/modules/ce-node/main.tf?raw";
+import modulesCeNodeOutputs from "../../_includes/terraform/modules/ce-node/outputs.tf?raw";
+import modulesCeNodeVariables from "../../_includes/terraform/modules/ce-node/variables.tf?raw";
+import modulesCeNodeVersions from "../../_includes/terraform/modules/ce-node/versions.tf?raw";
+import modulesCeTopologyMain from "../../_includes/terraform/modules/ce-topology/main.tf?raw";
+import modulesClientVmMain from "../../_includes/terraform/modules/client-vm/main.tf?raw";
+import modulesClientVmVariables from "../../_includes/terraform/modules/client-vm/variables.tf?raw";
+import modulesClientVmVersions from "../../_includes/terraform/modules/client-vm/versions.tf?raw";
+import modulesXcSiteMain from "../../_includes/terraform/modules/xc-site/main.tf?raw";
+import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outputs.tf?raw";
+import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
+import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
+
+नीचे दी गई प्रत्येक फ़ाइल वही फ़ाइल है जो तैनात होती है, चिपकाई गई नहीं बल्कि बिल्ड समय पर आयात की गई।
+जो प्रतिलिपि भिन्न हो सकती है, वह भिन्न हो ही जाएगी, इसलिए CI में एक जाँच उसी क्षण विफल हो जाती है जब यहाँ
+प्रकाशित सामग्री `terraform/` में मौजूद सामग्री से अलग होती है।
+
+<Aside type="note" title="Why the configuration is imported rather than shown inline">
+कोड फ़ेंस में चिपकाए जाने पर यह कॉन्फ़िगरेशन पृष्ठ स्रोत का हिस्सा बन जाता, और
+पृष्ठ स्रोत बारह भाषाओं में अनुवादित होता है। इसके भीतर की टिप्पणियाँ भी उसके साथ
+अनुवादित हो जातीं, और प्रत्येक लोकेल एक अलग, ग़लत कॉन्फ़िगरेशन प्रकाशित करता। आयात किए जाने पर, यह पृष्ठ स्रोत में कभी प्रवेश ही नहीं करता।
+</Aside>
+
+## रूट मॉड्यूल
+
+### `terraform/backend.tf`
+
+Azure स्टोरेज बैकएंड; इसका कॉन्फ़िगरेशन init समय पर दिया जाता है और कमिट नहीं किया जाता।
+
+<Code code={backend} lang="hcl" title="terraform/backend.tf" />
+
+### `terraform/data.tf`
+
+केवल-पढ़ने योग्य लुकअप, जिसमें डिप्लॉयर निकालने के लिए उपयोग की जाने वाली Azure AD पहचान शामिल है।
+
+<Code code={data} lang="hcl" title="terraform/data.tf" />
+
+### `terraform/locals.tf`
+
+जहाँ व्युत्पन्न ऑब्जेक्ट नाम रहते हैं। Terraform वेरिएबल डिफ़ॉल्ट अन्य वेरिएबल्स को संदर्भित नहीं कर सकते, इसलिए प्रत्येक नाम वेरिएबल डिफ़ॉल्ट रूप से null होता है और यहाँ हल किया जाता है।
+
+<Code code={locals} lang="hcl" title="terraform/locals.tf" />
+
+### `terraform/main.tf`
+
+शीर्ष-स्तरीय वायरिंग, टेनेंट गार्ड और VIP-के-VNet-से-बाहर होने की जाँच। तैनाती का क्रम इस फ़ाइल के शीर्ष पर दस्तावेज़ित है, जो आधिकारिक संस्करण है।
+
+<Code code={main} lang="hcl" title="terraform/main.tf" />
+
+### `terraform/outputs.tf`
+
+वह सब कुछ जो दस्तावेज़ीकरण नाम देने के बजाय पढ़ता है। यदि कोई पृष्ठ कोई कमांड दिखाता है, तो उसके पीछे यहाँ कोई आउटपुट है।
+
+<Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
+
+### `terraform/providers.tf`
+
+xcsh एंडपॉइंट को var.expected_xc_tenant पर पिन करता है, जो टेनेंट को कॉन्फ़िगरेशन की एक विशेषता बनाता है।
+
+<Code code={providers} lang="hcl" title="terraform/providers.tf" />
+
+### `terraform/variables.tf`
+
+घटक, परिवेश, डिप्लॉयर और टैग।
+
+<Code code={variables} lang="hcl" title="terraform/variables.tf" />
+
+### `terraform/variables_azure.tf`
+
+सब्सक्रिप्शन, क्षेत्र, CIDR, Bastion, और Azure ऑब्जेक्ट नाम।
+
+<Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
+
+### `terraform/variables_ce.tf`
+
+CE संख्या, साइट प्रीफ़िक्स, ASN, इमेज संस्करण और VM आकार।
+
+<Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
+
+### `terraform/variables_xc.tf`
+
+टेनेंट, ऐप नेमस्पेस, लोड बैलेंसर, ऑरिजिन पूल और VIP।
+
+<Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
+
+### `terraform/versions.tf`
+
+Terraform का न्यूनतम स्तर और प्रोवाइडर अवरोध। xcsh अवरोध एक खुला-अंत न्यूनतम स्तर है, और लॉक फ़ाइल gitignored है, इसलिए प्रत्येक init नवीनतम प्रकाशित प्रोवाइडर लेता है।
+
+<Code code={versions} lang="hcl" title="terraform/versions.tf" />
+
+## मॉड्यूल
+
+### `terraform/modules/azure-hub/`
+
+रिसोर्स ग्रुप, हब VNet, चार सबनेट, Azure Route Server और वैकल्पिक Bastion। RouteServerSubnet जानबूझकर कोई NSG या रूट टेबल नहीं रखता।
+
+<Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
+
+<Code code={modulesAzureHubOutputs} lang="hcl" title="terraform/modules/azure-hub/outputs.tf" />
+
+<Code code={modulesAzureHubVariables} lang="hcl" title="terraform/modules/azure-hub/variables.tf" />
+
+<Code code={modulesAzureHubVersions} lang="hcl" title="terraform/modules/azure-hub/versions.tf" />
+
+### `terraform/modules/azure-route-server-bgp/`
+
+प्रत्येक eBGP सत्र का Azure पक्ष — प्रति CE एक bgpConnection, जो Route Server को उस CE के eth0/SLO पते के साथ पीयर करता है।
+
+<Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
+
+<Code code={modulesAzureRouteServerBgpVersions} lang="hcl" title="terraform/modules/azure-route-server-bgp/versions.tf" />
+
+### `terraform/modules/ce-node/`
+
+प्रति नोड एक CE VM: IP फ़ॉरवर्डिंग वाले तीन NIC, मार्केटप्लेस प्लान ब्लॉक, और custom_data के रूप में सौंपा गया cloud-init।
+
+<Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
+
+<Code code={modulesCeNodeOutputs} lang="hcl" title="terraform/modules/ce-node/outputs.tf" />
+
+<Code code={modulesCeNodeVariables} lang="hcl" title="terraform/modules/ce-node/variables.tf" />
+
+<Code code={modulesCeNodeVersions} lang="hcl" title="terraform/modules/ce-node/versions.tf" />
+
+### `terraform/modules/ce-topology/`
+
+शुद्ध गणना, कोई प्रोवाइडर नहीं और कोई डेटा स्रोत नहीं: ce_count को उस प्रति-CE मैप में विस्तारित करता है जो प्रत्येक for_each को चलाता है। किसी भी N पर क्रेडेंशियल्स के बिना प्लान-परीक्षण योग्य।
+
+<Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
+
+### `terraform/modules/client-vm/`
+
+VNet के भीतर परीक्षण क्लाइंट, जिसका उपयोग प्रभावी रूट पढ़ने और VIP पर ट्रैफ़िक चलाने के लिए किया जाता है।
+
+<Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
+
+<Code code={modulesClientVmVariables} lang="hcl" title="terraform/modules/client-vm/variables.tf" />
+
+<Code code={modulesClientVmVersions} lang="hcl" title="terraform/modules/client-vm/versions.tf" />
+
+### `terraform/modules/xc-site/`
+
+XC साइट ऑब्जेक्ट, उसकी BGP पीयरिंग, और वह पंजीकरण अनुमोदन जो साइट नाम द्वारा किसी `r-<uuid>` पंजीकरण को हल करता है।
+
+<Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
+
+<Code code={modulesXcSiteOutputs} lang="hcl" title="terraform/modules/xc-site/outputs.tf" />
+
+<Code code={modulesXcSiteVariables} lang="hcl" title="terraform/modules/xc-site/variables.tf" />
+
+<Code code={modulesXcSiteVersions} lang="hcl" title="terraform/modules/xc-site/versions.tf" />

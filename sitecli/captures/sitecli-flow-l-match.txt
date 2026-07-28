@@ -1,12 +1,12 @@
-Flow table(size 161218560, entries 629760) @ Time 192989234
+Flow table(size 161218560, entries 629760) @ Time 3431321
 
 ICMP Aging time: 5000ms, UDP Aging time: 20000ms, TCP Aging time: 600000ms, Default Aging time: 30000ms
 Flow eviction threshold: 50, Overflow eviction threshold: 25, Eviction count: 0
-Entries: Created 388063 Added 387875 Deleted 13
-Changed 1370 Processed 388062 Used Overflow entries 0
-Add/Change Fails 0 Delete Fails 0
+Entries: Created 7235 Added 7105 Deleted 9
+Changed 597 Processed 7154 Used Overflow entries 0
+Add/Change Fails 1 Delete Fails 0
 Eviction cycles:( )
-(Created Flows/CPU: 0 0 0 0 0 0 0 0 0 0 0 0 164330 223733)(oflows 0)
+(Created Flows/CPU: 0 0 0 0 0 0 0 0 0 0 0 0 2979 4256)(oflows 0)
 
 Action:F=Forward, D=Drop N=NAT(S=SNAT, D=DNAT, Ps=SPAT, Pd=DPAT, L=Link Local Port)
  Other:K(nh)=Key_Nexthop, S(nh)=RPF_Nexthop D(nh)=Destination NH D(L)=Destination Label

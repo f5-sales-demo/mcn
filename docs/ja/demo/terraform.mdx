@@ -1,0 +1,185 @@
+---
+title: Terraform 構成
+description: >-
+  このデモをデプロイする構成を、書き写したものではなくデプロイに使われるファイルそのものから読み込んで掲載します。ルートモジュールと 6
+  つの子モジュール、そして各ファイルが担う役割の解説を添えています。
+sidebar:
+  order: 20
+  label: Terraform
+i18n:
+  sourceHash: b8380b6bc381
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import { Code } from "@astrojs/starlight/components";
+import backend from "../../_includes/terraform/backend.tf?raw";
+import data from "../../_includes/terraform/data.tf?raw";
+import locals from "../../_includes/terraform/locals.tf?raw";
+import main from "../../_includes/terraform/main.tf?raw";
+import outputs from "../../_includes/terraform/outputs.tf?raw";
+import providers from "../../_includes/terraform/providers.tf?raw";
+import variables from "../../_includes/terraform/variables.tf?raw";
+import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
+import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
+import variablesXc from "../../_includes/terraform/variables_xc.tf?raw";
+import versions from "../../_includes/terraform/versions.tf?raw";
+import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
+import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
+import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
+import modulesAzureHubVersions from "../../_includes/terraform/modules/azure-hub/versions.tf?raw";
+import modulesAzureRouteServerBgpMain from "../../_includes/terraform/modules/azure-route-server-bgp/main.tf?raw";
+import modulesAzureRouteServerBgpVersions from "../../_includes/terraform/modules/azure-route-server-bgp/versions.tf?raw";
+import modulesCeNodeMain from "../../_includes/terraform/modules/ce-node/main.tf?raw";
+import modulesCeNodeOutputs from "../../_includes/terraform/modules/ce-node/outputs.tf?raw";
+import modulesCeNodeVariables from "../../_includes/terraform/modules/ce-node/variables.tf?raw";
+import modulesCeNodeVersions from "../../_includes/terraform/modules/ce-node/versions.tf?raw";
+import modulesCeTopologyMain from "../../_includes/terraform/modules/ce-topology/main.tf?raw";
+import modulesClientVmMain from "../../_includes/terraform/modules/client-vm/main.tf?raw";
+import modulesClientVmVariables from "../../_includes/terraform/modules/client-vm/variables.tf?raw";
+import modulesClientVmVersions from "../../_includes/terraform/modules/client-vm/versions.tf?raw";
+import modulesXcSiteMain from "../../_includes/terraform/modules/xc-site/main.tf?raw";
+import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outputs.tf?raw";
+import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
+import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
+
+以下に掲載するすべてのファイルは、実際にデプロイに使われるファイルそのものであり、貼り付けたものではなくビルド時にインポートされています。
+乖離しうるコピーは必ず乖離するため、ここで公開される内容が `terraform/` の内容と異なった瞬間に
+CI のチェックが失敗します。
+
+<Aside type="note" title="構成をインラインで示さずインポートしている理由">
+コードフェンスに貼り付けた場合、この構成はページソースの一部となり、
+ページソースは 12 の言語に翻訳されます。内部のコメントも一緒に翻訳され、
+各ロケールがそれぞれ異なる誤った構成を公開することになります。
+インポートすれば、構成がページソースに入り込むことは一切ありません。
+</Aside>
+
+## ルートモジュール
+
+### `terraform/backend.tf`
+
+Azure ストレージバックエンド。その構成は init 時に与えられ、コミットされません。
+
+<Code code={backend} lang="hcl" title="terraform/backend.tf" />
+
+### `terraform/data.tf`
+
+読み取り専用のルックアップ。デプロイヤーを導出するために使用する Azure AD ID を含みます。
+
+<Code code={data} lang="hcl" title="terraform/data.tf" />
+
+### `terraform/locals.tf`
+
+導出されたオブジェクト名を置く場所です。Terraform の変数デフォルト値は他の変数を参照できないため、各名前の変数はデフォルトで null とし、ここで解決します。
+
+<Code code={locals} lang="hcl" title="terraform/locals.tf" />
+
+### `terraform/main.tf`
+
+トップレベルの結線、テナントガード、そして VNet 外 VIP のチェック。デプロイ順序はこのファイルの先頭に記載されており、それが正式版です。
+
+<Code code={main} lang="hcl" title="terraform/main.tf" />
+
+### `terraform/outputs.tf`
+
+ドキュメントが名前を書き下す代わりに読み取るすべての値です。あるページがコマンドを示している場合、その背後にはここの出力があります。
+
+<Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
+
+### `terraform/providers.tf`
+
+xcsh のエンドポイントを var.expected_xc_tenant に固定します。これによりテナントが構成のプロパティになります。
+
+<Code code={providers} lang="hcl" title="terraform/providers.tf" />
+
+### `terraform/variables.tf`
+
+コンポーネント、環境、デプロイヤー、そしてタグ。
+
+<Code code={variables} lang="hcl" title="terraform/variables.tf" />
+
+### `terraform/variables_azure.tf`
+
+サブスクリプション、リージョン、CIDR、Bastion、および Azure のオブジェクト名。
+
+<Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
+
+### `terraform/variables_ce.tf`
+
+CE 数、サイトプレフィックス、ASN、イメージバージョン、VM サイズ。
+
+<Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
+
+### `terraform/variables_xc.tf`
+
+テナント、アプリ名前空間、ロードバランサー、オリジンプール、そして VIP。
+
+<Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
+
+### `terraform/versions.tf`
+
+Terraform の下限バージョンとプロバイダーの制約。xcsh の制約は上限のない下限指定であり、ロックファイルは gitignore されているため、init のたびに公開済みの最新プロバイダーが取得されます。
+
+<Code code={versions} lang="hcl" title="terraform/versions.tf" />
+
+## モジュール
+
+### `terraform/modules/azure-hub/`
+
+リソースグループ、ハブ VNet、4 つのサブネット、Azure Route Server、およびオプションの Bastion。RouteServerSubnet には意図的に NSG もルートテーブルも付与していません。
+
+<Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
+
+<Code code={modulesAzureHubOutputs} lang="hcl" title="terraform/modules/azure-hub/outputs.tf" />
+
+<Code code={modulesAzureHubVariables} lang="hcl" title="terraform/modules/azure-hub/variables.tf" />
+
+<Code code={modulesAzureHubVersions} lang="hcl" title="terraform/modules/azure-hub/versions.tf" />
+
+### `terraform/modules/azure-route-server-bgp/`
+
+各 eBGP セッションの Azure 側 — CE ごとに 1 つの bgpConnection を作成し、Route Server をその CE の eth0/SLO アドレスとピアリングします。
+
+<Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
+
+<Code code={modulesAzureRouteServerBgpVersions} lang="hcl" title="terraform/modules/azure-route-server-bgp/versions.tf" />
+
+### `terraform/modules/ce-node/`
+
+ノードごとに 1 台の CE VM：IP 転送を有効にした 3 つの NIC、マーケットプレイスの plan ブロック、そして custom_data として引き渡す cloud-init。
+
+<Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
+
+<Code code={modulesCeNodeOutputs} lang="hcl" title="terraform/modules/ce-node/outputs.tf" />
+
+<Code code={modulesCeNodeVariables} lang="hcl" title="terraform/modules/ce-node/variables.tf" />
+
+<Code code={modulesCeNodeVersions} lang="hcl" title="terraform/modules/ce-node/versions.tf" />
+
+### `terraform/modules/ce-topology/`
+
+純粋な計算のみで、プロバイダーもデータソースもありません：ce_count を展開して、すべての for_each を駆動する CE 単位のマップを生成します。資格情報なしで任意の N について plan によるテストが可能です。
+
+<Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
+
+### `terraform/modules/client-vm/`
+
+VNet 内のテストクライアント。実効ルートの確認と VIP へのトラフィック生成に使用します。
+
+<Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
+
+<Code code={modulesClientVmVariables} lang="hcl" title="terraform/modules/client-vm/variables.tf" />
+
+<Code code={modulesClientVmVersions} lang="hcl" title="terraform/modules/client-vm/versions.tf" />
+
+### `terraform/modules/xc-site/`
+
+XC サイトオブジェクト、その BGP ピアリング、および `r-<uuid>` 形式の登録をサイト名で解決する登録承認。
+
+<Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
+
+<Code code={modulesXcSiteOutputs} lang="hcl" title="terraform/modules/xc-site/outputs.tf" />
+
+<Code code={modulesXcSiteVariables} lang="hcl" title="terraform/modules/xc-site/variables.tf" />
+
+<Code code={modulesXcSiteVersions} lang="hcl" title="terraform/modules/xc-site/versions.tf" />
