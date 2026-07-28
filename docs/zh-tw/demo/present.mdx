@@ -1,0 +1,121 @@
+---
+title: 進行示範
+description: >-
+  本部署能夠示範什麼、以及如何用一道命令展示它 —— 由路由架構而非負載平衡器所編排的等成本多路徑 ——
+  另外還有三件它目前尚無法展示的事，明白列出，讓排練時不會在觀眾面前才發現。
+sidebar:
+  order: 40
+  label: 示範
+i18n:
+  sourceHash: 5e23dca1c815
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+本示範所支持的主張範圍狹窄，而且值得精確陳述，因為更寬泛的主張禁不起提問：
+
+> 多個 Customer Edge 各自透過 eBGP 宣告同一條主機路由，而 Azure 將它們全部安裝為等成本
+> 的下一躍點。因此流量分配與節點移除都是路由架構的性質 —— CE 前方並沒有 Azure 負載平衡器。
+
+請先執行[四項健康檢查](../verify/)。以下內容皆假設它們已通過。
+
+## 讓它可見的那一道命令
+
+有效路由是最有力的單一證物：它們是 Azure 實際編排的內容，而非 CE 所聲稱的內容。
+
+```bash
+cd terraform
+az network nic show-effective-route-table \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_nic_name)" \
+  --query "value[?addressPrefix[0]=='$(terraform output -raw vip)/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,state:state}" \
+  -o json
+```
+
+於 2026-07-28 觀察到：
+
+```json
+[
+  {
+    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+    "prefix": "10.250.0.10/32",
+    "state": "Active"
+  }
+]
+```
+
+一條前綴、三個下一躍點、`Active`。這就是整個示範的重點，濃縮在單一輸出中，而且值得停下來
+強調：畫面中沒有任何一項是負載平衡器。
+
+接著從 VNet 內部、帶上 `Host` 標頭，展示它正在提供服務：
+
+```bash
+az vm run-command invoke \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_vm_name)" \
+  --command-id RunShellScript --query "value[0].message" -o tsv \
+  --scripts "curl -s -o /dev/null -w '%{http_code}\n' \
+               -H 'Host: $(terraform output -raw lb_domain)' \
+               http://$(terraform output -raw vip)/"
+```
+
+<Aside type="caution" title="請勿以在瀏覽器輸入位址的方式進行示範">
+負載平衡器是以 `Host` 進行比對，所以純 IP 的請求會回傳 **404** —— 即使部署完全健康也是如此。
+請不是送出該標頭，就是先將網域解析到 VIP。在觀眾面前出現 404 很難挽回，即使實際上什麼問題都
+沒有。
+</Aside>
+
+## 建議順序
+
+<Steps>
+
+1. **建立框架。** 一個 VIP、多個 CE、沒有負載平衡器。路由架構就是 HA 機制。
+2. **展示宣告的一側。** 逐一列出對等連線（[檢查 2](../verify/)）—— 每個 CE 都以自己的下一躍點
+   宣告同一條前綴，且 AS path 相同，因此沒有任何一個被優先選擇。
+3. **展示 Azure 如何處理它。** 上方的有效路由表：一條前綴、N 個下一躍點、`Active`。
+4. **展示它正在提供服務。** 上方帶有標頭的 `curl`。
+5. **展示組態。** [Terraform](../terraform/) 已發佈於此，內容直接讀取自部署它的檔案 —— 當有人
+   問這是否可重現時很有用。
+
+</Steps>
+
+## 本示範目前尚無法展示的內容
+
+在此明白說明，而非現場才發現。以下三項都是缺乏證據，而非已知的失敗。
+
+<Aside type="danger" title="請勿依據這些頁面排練容錯移轉的故事">
+**容錯移轉尚未經過測試。** 等成本下一躍點已驗證為已安裝；但當某個 CE 被停止或停止宣告時，
+路由表會發生什麼事，尚未針對此部署實際演練過。預期的機制是撤回其中一個 CE 的宣告，並觀察
+下一躍點數量下降，但在那真正被執行並量測之前，它只是一項計畫，而非結果 —— 因此請不要承諾它，
+也不要在觀眾面前臨場發揮。
+
+追蹤於 [issue 700](https://github.com/f5-sales-demo/mcn/issues/700)。它需要一段沒有其他人
+使用該環境的時段，因為它會改動實際的宣告狀態。
+</Aside>
+
+- **各下一躍點之間的流量分配尚未經過量測。** [驗證頁面](../verify/)已記錄對 VIP 發出的 1,470
+  次請求，這確立了該路徑可運作以及它隨時間的表現。但那些都無法顯示請求如何分散到各個下一躍點，
+  而此拓撲也沒有提供各節點的 HTTP 監聽器可用來歸屬這些請求。若有人問「分配平均嗎？」，誠實的
+  答案是此處尚未量測。
+- **全新建置時收斂暫態現象的成因尚未確立。** 它已被描述特徵 —— 何時發生、持續多久、以及來源端
+  全程都乾淨 —— 但尚未被解釋。
+
+<Aside type="note" title="若你要在剛建置好的堆疊上進行示範，請先等待">
+在 CE 達到 `ONLINE` 之後的大約前 45 分鐘內，VIP 會遺失一小部分請求。之後會完全消失。請在需要
+使用之前充分提早建置示範環境，並在示範前立即重新執行檢查 4。
+</Aside>
+
+<CardGrid>
+  <LinkCard
+    title="證明它是健康的"
+    description="四項檢查，以及那些看起來正常、讀起來像是故障但其實不是的結果。"
+    href="../verify/"
+  />
+  <LinkCard
+    title="Terraform 組態"
+    description="組態本身，用來回答這是否可重現的問題。"
+    href="../terraform/"
+  />
+</CardGrid>

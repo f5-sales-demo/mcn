@@ -1,27 +1,31 @@
 ---
 title: 从未上线的站点
-description: 针对注册失败的 CE 的有序排查流程；由于调试 API 依赖于失败的那次注册，因此它无法提供帮助。
+description: 针对注册失败的 CE 的有序排查流程；由于调试 API 依赖于失败的注册过程，因此无法提供帮助。
 sidebar:
   order: 10
   label: 注册
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: c687d28cce5d
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-<Aside type="danger" title="API 无法调试此问题">
-调试 API 通过 F5 Distributed Cloud 控制平面、经由注册所建立的隧道到达节点。如果注册失败，就没有隧道，
-因此针对这一具体故障，该站点上的每条命令都不可用。如果节点仍有网络通路，请从
+于 2026-07-28 从本部署的一个 CE 上采集。`sitecli/capture-manifest.json`
+记录了采集自哪个节点，`scripts/capture-sitecli.sh --check` 会针对实时 CE
+重新校验命令接口。
+
+<Aside type="danger" title="该 API 无法调试此问题">
+调试 API 通过 F5 Distributed Cloud 控制平面、经由注册过程建立的隧道到达节点。如果注册失败，
+就没有隧道，因此针对这一特定故障，本站点上的所有命令都不可用。如果节点仍有网络通路，请从
 [站点控制台](../../access/site-console/)着手；如果没有，则从
 [串行控制台](../../access/serial-console/)着手。
 </Aside>
 
 <Steps>
 
-1. **确认你查询的租户是否正确。** 这只需一条命令，且被放在第一步，因为一旦搞错，
-   后续每一步都会给出误导性结果：你没有查看的那个租户中一支健康的机群，与一支从未注册的机群看起来毫无区别。
+1. **确认你查询的租户是否正确。** 这只需一条命令，之所以放在首位，是因为一旦搞错，后续每一步都会
+   给你错误的结论：在你没有查看的那个租户中运行良好的机群，与一个从未注册过的机群在表现上无从区分。
 
    ```bash
    cd terraform
@@ -34,10 +38,10 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    f5-sales-demo
    ```
 
-   两者不匹配，或者你认为有效的凭据只返回了一个裸的 `401`？这正是为另一个租户签发令牌的
-   典型症状，而它已经让这次部署付出了一次完整重建的代价（[issue 696](https://github.com/f5-sales-demo/mcn/issues/696)）。
+   两者不一致，或者你认为有效的凭据却返回了一个裸的 `401`？这正是为另一个租户签发的令牌所表现出的
+   症状，它已经让本部署付出了一次完整重建的代价（[issue 696](https://github.com/f5-sales-demo/mcn/issues/696)）。
 
-2. **确认租户端的认知。** 在站点列表中缺失，与存在但状态不是 `ONLINE`，是两个不同的问题。
+2. **确认租户端的认知。** 站点未出现在站点列表中，与出现但状态不是 `ONLINE`，是两个不同的问题。
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -46,8 +50,7 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
    如果站点存在且报告为 `ONLINE`，说明注册已成功，你走错了排查流程。
 
-3. **找到该站点的注册记录及其状态。** 节点可以先完成注册，然后等待审批，
-   从外部看这与失败完全一样。
+3. **找到该站点的注册记录及其状态。** 一个节点可能已完成注册但仍在等待审批，从外部看起来与失败完全一样。
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -59,11 +62,11 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
    ```
 
-   完全没有条目意味着节点尚未注册——请转到串行控制台。存在条目但状态不是 `ONLINE`，
-   意味着它已完成注册，而之后的某个环节失败了，这属于另一项排查。
+   完全没有条目意味着节点尚未注册 —— 请前往串行控制台。存在条目但状态不是 `ONLINE`，
+   意味着它已注册而之后的某个环节失败了，那属于另一项排查。
 
-   若要在整个命名空间中扫描所有等待审批的项，`listregistrationsbystate`
-   需要将状态作为 **`POST` 请求体**传入：
+   若要在整个命名空间中排查所有等待审批的项，`listregistrationsbystate`
+   以 **`POST` 请求体**的形式接收状态：
 
    ```bash
    curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -72,59 +75,59 @@ import { Aside, Steps } from "@astrojs/starlight/components";
      "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
    ```
 
-   在一支健康的机群上这不会返回任何内容，因为审批是自动化的。
+   在健康的机群上，该命令不返回任何内容，因为审批是自动化的。
 
-4. 在假定是软件故障之前，**确认虚拟机确实正在运行**。
+4. **确认虚拟机确实在运行**，不要先假定是软件故障。
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
    ```
 
    ```text
-   Name            Power
-   --------------  ----------
-   ar-ecmp-client  VM running
-   f5-xc-ce-vm-01  VM running
-   f5-xc-ce-vm-02  VM running
-   f5-xc-ce-vm-03  VM running
+   Name              Power
+   ----------------  ----------
+   f5-xc-ce-vm-01    VM running
+   f5-xc-ce-vm-02    VM running
+   f5-xc-ce-vm-03    VM running
+   mcn-ce-ha-client  VM running
    ```
 
-5. **接入串行控制台。** 交互式使用需要一个真实终端；接入本身也可以通过 websocket 脚本化完成——参见
+5. **接入串行控制台。** 交互式使用需要一个真实终端；接入过程本身也可以改用 websocket 脚本化 —— 参见
    [串行控制台](../../access/serial-console/)。
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   如果连接被拒绝，请先检查该虚拟机是否启用了引导诊断，再断定节点不可达；
-   该前提条件及其失败模式在[串行控制台](../../access/serial-console/)页面有说明。
+   如果连接被拒绝，请先检查该虚拟机是否已启用引导诊断，再断定节点不可达；该前置条件及其失败模式在
+   [串行控制台](../../access/serial-console/)页面中有说明。
 
-6. **按此顺序阅读控制台输出。** 先看 cloud-init——cloud-init 从未完成的节点没有任何可用于注册的配置。
+6. **按此顺序阅读控制台输出。** 先看 cloud-init —— 一个 cloud-init 从未完成的节点没有任何可用于注册的配置。
    然后看注册尝试本身，接着看 DNS：如果节点无法解析
-   `register.ves.volterra.io`，后续一切都不可能正常工作。
+   `register.ves.volterra.io`，后续的一切都无法工作。
 
 7. **一旦节点变为 `ONLINE`**，用 [`health`](../../commands/system/health/) 进行验证，
-   并期望看到 `state: PROVISIONED`。
+   并预期看到 `state: PROVISIONED`。
 
 </Steps>
 
-<Aside type="caution" title="注册记录以 UUID 命名，而非以其站点命名">
-注册记录的名称形如 `r-<uuid>`，并且没有任何接口会在需要注册名称的位置接受站点名称。
-`GET .../registrations/<site>` 返回 `404`，看起来像是"该站点没有注册记录"，
-实际上是"那不是一个注册名称"。站点到注册记录的映射只能通过
-`registrations_by_site/<site>`（如步骤 3）获得，或者列出 `registrations`
-并按 `gc_spec.passport.cluster_name` 进行匹配。
+<Aside type="caution" title="注册记录以 UUID 命名，绝不会以其站点命名">
+注册记录的命名形式为 `r-<uuid>`，并且不存在任何在需要注册名的位置接受站点名的端点。
+`GET .../registrations/<site>` 会返回 `404`，读起来像是"该站点没有注册记录"，
+而实际含义是"那不是一个注册名"。站点到注册记录的映射只能通过
+`registrations_by_site/<site>` 获得（如步骤 3 所示），或者列出
+`registrations` 并按 `gc_spec.passport.cluster_name` 匹配。
 
-正是这个陷阱让一支健康的机群看起来像是零注册记录。
+同一个陷阱曾让一个健康的机群看起来没有任何注册记录。
 </Aside>
 
 ## 常见原因
 
-- **你指向了错误的租户**，于是一支正常的机群看起来并不存在。见步骤 1。
-- cloud-init 未完成，导致 `/etc/vpm/config.yaml` 缺失或有误。
+- **你指向了错误的租户**，因此一个正常的机群看起来像不存在。见步骤 1。
+- cloud-init 未完成，因此 `/etc/vpm/config.yaml` 缺失或有误。
 - 注册令牌已过期、已被使用，或来自另一个租户。
-- 没有通往 `register.ves.volterra.io` 的出口路由。
-- 时钟偏差大到足以使证书失效——稍后可用
-  [`chronyc-sources`](../../commands/network/chronyc-sources/) 快速排除，
-  但在节点上线之前无法使用。当 SSH 可用时，[SSH](../../access/ssh/) 登录横幅会在你运行任何命令之前
-  报告 `NTP: Synced` 以及解析器的状态。
+- 没有到 `register.ves.volterra.io` 的出站路由。
+- 时钟偏差过大导致证书失效 —— 之后可以用
+  [`chronyc-sources`](../../commands/network/chronyc-sources/) 快速排除，但在节点上线前无法执行。
+  在可以使用 SSH 时，[SSH](../../access/ssh/) 登录横幅会在你运行任何命令之前报告 `NTP: Synced`
+  以及解析器的状态。

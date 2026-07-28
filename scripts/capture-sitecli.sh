@@ -123,8 +123,19 @@ if [ -f "$MANIFEST" ]; then
   [ -n "$SITE" ] || SITE=$(jq -r '.defaults.site // empty' "$MANIFEST")
   [ -n "$NODE" ] || NODE=$(jq -r '.defaults.node // empty' "$MANIFEST")
 fi
-[ -n "$SITE" ] || SITE="ar-bgp-eastus01"
-[ -n "$NODE" ] || NODE="f5-xc-ce-vm-01"
+# No hardcoded fallback. A literal site name here is wrong for every deployment but
+# one, and the failure it produces is unhelpful: the operate API answers 404 for a site
+# that does not exist, which reads as a broken endpoint or a bad token rather than as
+# "you did not say which site". Object names now derive from var.component, so the
+# previous default stopped existing the moment the demo was renamed.
+if [ -z "$SITE" ] || [ -z "$NODE" ]; then
+  echo "capture-sitecli: no site/node to target." >&2
+  echo "  Pass --site and --node, or set defaults.site / defaults.node in ${MANIFEST}." >&2
+  echo "  Read them from the deployment:" >&2
+  echo "    terraform output -json xc_site_names | jq -r .eastus01" >&2
+  echo "    terraform output -json ce_vm_names   | jq -r .eastus01" >&2
+  exit 2
+fi
 
 SITE_BASE="${API_URL}/api/operate/namespaces/${NAMESPACE}/sites/${SITE}"
 

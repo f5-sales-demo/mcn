@@ -1,23 +1,26 @@
 ---
 title: SSH
 description: >-
-  运维人员通过 SSH 连接到 Customer Edge 的 admin 账户，其登录 shell 即 Site
-  CLI。本文说明为何那个看起来能启用此功能的 API 字段实际上毫无作用、为何 sshd 仅在内部地址上响应、Site CLI
-  所需的终端机制，以及在运行中的部署上启用它的代价。
+  运维人员通过 SSH 登录 Customer Edge 的 admin 账户，其登录 shell 即为 Site CLI。本文说明为何那个看似能启用此功能的
+  API 字段实际毫无作用、为何 sshd 仅在内部地址上应答、Site CLI 所要求的终端机制，以及在运行中的部署上启用该功能的代价。
 sidebar:
   order: 25
   label: SSH
 i18n:
-  sourceHash: 0b30669de4ec
+  sourceHash: d548e61de069
   translator: machine
 ---
 
 import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-SSH 连接到设备的 `admin` 账户，其登录 shell 是 Site CLI
-(`/opt/bin/vpmu`)。这是通往**完整的机上命令面**的唯一途径 ——
-[debug API](../debug-api/) 仅暴露 34 条命令，而设备本身提供的命令远多于此，其中许多根本不在该 API 上。
+于 2026-07-28 从本部署的一台 CE 上采集。`sitecli/capture-manifest.json`
+记录了采集自哪个节点，`scripts/capture-sitecli.sh --check` 可对照运行中的 CE
+重新校验命令面。
+
+SSH 连接到设备的 `admin` 账户，其登录 shell 即为 Site CLI
+（`/opt/bin/vpmu`）。这是通往**完整机上命令面**的唯一路径 ——
+[debug API](../debug-api/) 暴露 34 条命令，而设备本身还提供许多根本不在该 API 上的命令。
 
 ```bash
 cd terraform
@@ -25,57 +28,83 @@ SLI=$(terraform output -json ce_sli_private_ips | jq -r '.eastus01')
 ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> "admin@$SLI"
 ```
 
-该命令行的每一部分都不可或缺，接下来的三节将分别说明每一部分所避免的故障。
+该命令行的每一部分都不可或缺，接下来三节将说明每一部分各自避免了哪种故障。
 
-<Aside type="danger" title="请查询内部地址 —— 切勿沿用上一次会话中的地址">
-Azure 在每次重建时都会重新分配内部子网，且不按节点顺序分配。在最近一次重建之后，`f5-xc-ce-vm-01`、`-02` 和 `-03` 分别持有 `10.0.3.7`、`10.0.3.5` 和 `10.0.3.4`；而之前的一次构建中它们的顺序完全不同，并且测试客户端的 NIC 位于同一子网内，还曾持有某个 CE 之前使用过的地址。因此，连接到一个凭记忆得来的地址会落到错误的节点上、落到一台并非 CE 的 VM 上，或者哪儿都到不了 —— 而最后这种情况看起来与"SSH 未启用"完全一样。
+<Aside type="danger" title="务必现场查询内部地址 —— 切勿沿用上一次会话中的地址">
+Azure 在每次重建时都会重新分配内部子网，且并不按节点顺序分配。在最近一次重建后，
+`f5-xc-ce-vm-01`、`-02` 和 `-03` 分别持有 `10.0.3.7`、`10.0.3.5` 和 `10.0.3.4`；
+之前的一次构建中顺序完全不同，而测试客户端的网卡处在同一子网内，并曾持有某台 CE
+之前使用过的地址。因此连接到记忆中的地址会落到错误的节点上、落到一台并非 CE 的
+VM 上，或者根本无处可去 —— 而最后这种情况看起来与"SSH 未启用"完全相同。
 
-`terraform output -json ce_sli_private_ips` 就是这份映射。如果手边没有 state，NIC 名称是稳定的，即使地址不是：
+`terraform output -json ce_sli_private_ips` 给出映射关系。若手头没有 state，
+网卡名称是稳定的，尽管地址并不稳定：
 
 ```bash
-az network nic show -g rg-mcn-ce-ha-rmordasiewicz \
-  -n f5-xc-ce-vm-01-internal-nic \
+az network nic show -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -json ce_vm_names | jq -r '.eastus01')-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
 </Aside>
 
-<Aside type="caution" title="仅在引导阶段生效 —— 已存在的 CE 无法在不重建的情况下获得 SSH">
-cloud-init 的 `write_files` **只在首次启动时运行一次**。此后节点上会存在
-`/etc/cloud/cloud-init.disabled` 标记文件，cloud-init 不再运行。
+<Aside type="caution" title="仅限引导阶段 —— 已有的 CE 无法在不重建的情况下获得 SSH">
+cloud-init 的 `write_files` **仅在首次启动时运行一次**。之后节点上会存在
+`/etc/cloud/cloud-init.disabled` 标记文件，cloud-init 不会再次运行。
 
-因此，对于运行中的 CE 没有原地生效的途径。`custom_data` 在 Azure 中是仅可替换的，这意味着在现有部署上采用此方案会**替换每一台 CE VM**。为已经运行的节点授予运维 SSH 访问是一次重建，而不是一次配置变更 —— 下一条警告说明的就是这次重建过去的代价，以及为何现在不再如此。
+因此不存在对运行中 CE 的原地启用路径。在 Azure 中 `custom_data` 是仅可替换的，
+这意味着在现有部署上采用此方案会**替换每一台 CE VM**。为已经在运行的节点授予运维 SSH
+访问是一次重建，而非一次配置变更 —— 下一条警告说明这种重建过去的代价，以及为何如今不再如此。
 </Aside>
 
-<Aside type="caution" title="替换 CE VM 曾会永久卡死注册 —— 该问题已修复，这也是站点对象与 VM 耦合的原因">
-在规划重建之前值得了解，因为该故障的形态解释了你将在 plan 中看到的耦合关系。
+<Aside type="caution" title="替换 CE VM 过去会永久性地卡住注册 —— 该问题已修复，这也是站点对象与 VM 相耦合的原因">
+在计划重建之前值得了解，因为故障的形态解释了你将在 plan 中看到的那种耦合。
 
-过去的情况是：被销毁节点的注册仍占据着控制平面的唯一索引 `(tenant, cluster_name, hostname)`，因此替换节点的注册会被以 `UniqueSecondaryIndexViolationError` 拒绝并无限重试。仅删除注册本身并不足够：残留的 `StatusObject` 随后会对工作负载请求返回 `500`，而到那时每个节点都已持久化了一份 `registration-obj.yml`，将其固定到你刚删除的那个注册上，于是它在 `404` 上循环且无法自行恢复。恢复过程耗费了两次完整重建。在整个过程中 `terraform plan` 都报告 **"No changes"**，因为从 Terraform 的视角看，期望状态已经达成。
+过去的情形是：被销毁节点的注册仍占据着控制平面的唯一
+`(tenant, cluster_name, hostname)` 索引，因此替换节点的注册会被拒绝并抛出
+`UniqueSecondaryIndexViolationError`，然后无限重试。仅删除注册并不足够：
+残留的 `StatusObject` 随后会对工作负载请求返回 `500`，而到那时每个节点都已持久化了一个
+`registration-obj.yml`，将其固定到你已删除的那条注册上，于是它在 `404` 上循环且无法自我恢复。
+恢复过程花费了两次完整重建。在整个过程中 `terraform plan` 都报告 **"No changes"**，
+因为从 Terraform 的视角看，期望状态已经达成。
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) 已通过
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 关闭。`modules/xc-site` 现在在 `replace_triggered_by` 中引用了 CE VM 实例，因此替换 VM 会替换站点对象，而删除站点会连带删除其注册 —— 索引键在替换节点启动之前就已释放。此后整个集群已从零重建，三个站点均无需干预即达到 `ONLINE`。
+[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) 已由
+[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 关闭。`modules/xc-site` 现在在
+`replace_triggered_by` 中引用了 CE VM 实例，因此替换 VM 就会替换站点对象，
+而删除站点会连带删除其注册 —— 索引键在替换节点启动之前就已释放。此后整个机群已从零重建，
+三个站点均无需人工干预即进入 `ONLINE`。
 
-这种耦合是可观测的，而非假定的。每个站点都绑定到一个 VM *实例* id，而对应的注册会以 `infra.instance_id` 报告相同的值：
+这种耦合是可观测的，而非假定的。每个站点都绑定到一个 VM *实例* id，
+匹配的注册会以 `infra.instance_id` 报告相同的值：
 
 ```bash
 cd terraform && terraform output -json ce_bound_instance_ids
 ```
 
-两者不一致意味着某个站点仍绑定在一个已不存在的节点上，而这正是重建后的 CE 永远无法注册脱离的状态。读取注册那一侧的值仍需直接调用 API —— provider issue
-[1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376) 就是要把它加入数据源的那一项。
+两者不一致意味着某个站点仍绑定到一个已不存在的节点上，而这正是重建后的 CE
+永远无法注册脱离的状态。读取注册那一侧仍需直接调用 API —— provider issue
+[1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376)
+将会把它纳入 data source。
 </Aside>
 
-## 为何由 cloud-init 写入密钥，而不是 API
+## 为何是 cloud-init 写入密钥，而不是 API
 
-站点对象上的 `admin_user_credentials.ssh_key` 看起来完全就是为此设计的字段。它会被接受，能通过回读验证，却什么都不配置。`vpm` 拥有节点的本地用户，但拒绝触碰这一个 —— 从节点自身的日志中可见，单次启动过程中出现三次：
+站点对象上的 `admin_user_credentials.ssh_key` 看起来完全就是为此设计的字段。
+它会被接受，能通过回读，但什么都不配置。`vpm` 拥有节点的本地用户，并拒绝改动这一个 ——
+以下摘自节点自身的日志，单次启动中出现三次：
 
 ```text
 vpm  users.go:165: Won't do any change for user admin (internal skip)
 ```
 
-其余一切都由这一行推导而来。无论站点是否已达到 `ONLINE`，`/var/home/admin/.ssh` 都从未存在过。`admin` 的 shadow 最后修改日期一直停留在镜像构建日期，而 `vesbkp` 和 `vesopcon` 显示的是当前日期，因为 `vpm` 设置了这两个账户而跳过了 `admin`。并且 `vpm` 在任何时候都不会记录关于 `ssh_key` 或 `authorized_keys` 的日志。
+其余一切都源自这一行。`/var/home/admin/.ssh` 从不存在，无论在站点达到 `ONLINE`
+之前还是之后。`admin` 的 shadow 最后变更日期始终停留在镜像构建日期，而
+`vesbkp` 和 `vesopcon` 显示的是当前日期，因为 `vpm` 设置了那两个而跳过了 `admin`。
+并且 `vpm` 在任何时候都不会记录任何关于 `ssh_key` 或 `authorized_keys` 的日志。
 
-所以该文件必须在 `vpm` 之外写入。`admin` 的 uid 是 2202，已固化在节点镜像中，因此它在 cloud-init 运行之前就已存在，`owner: admin:admin` 在写入时即可解析 —— 无需 `runcmd`，无需修正所有权：
+因此该文件必须在 `vpm` 之外写入。`admin` 的 uid 是 2202，已固化在节点镜像中，
+所以它在 cloud-init 运行之前就已存在，`owner: admin:admin` 在写入时即可解析 ——
+无需 `runcmd`，无需事后修正所有权：
 
 ```yaml
 - path: /var/home/admin/.ssh/authorized_keys
@@ -85,20 +114,24 @@ vpm  users.go:165: Won't do any change for user admin (internal skip)
     ${ssh_public_key}
 ```
 
-`sshd` 一直是愿意配合的。`sshd -T` 报告 `pubkeyauthentication yes`，并且 `admin`
-出现在节点自带的两个 `sshd_config` 文件的 `AllowUsers` 中。从来没有什么需要启用的东西 —— 只是缺了一个文件。
+`sshd` 一直都是愿意配合的。`sshd -T` 报告 `pubkeyauthentication yes`，且节点上附带的两个
+`sshd_config` 文件中 `AllowUsers` 都包含 `admin`。从来就没有什么需要启用的东西 ——
+只是缺了一个文件。
 
 <Aside type="danger" title="不要重新添加 admin_user_credentials，也不要编辑 sshd_config">
-`admin_user_credentials` 曾接入 `terraform/modules/xc-site`，在收集到这些证据后已被回退（#660、PR #663）。它不是一个等待填补的缺口。
+`admin_user_credentials` 曾被接入 `terraform/modules/xc-site`，并在收集到上述证据后被回退（#660、PR #663）。
+它不是一个等待填补的空缺。
 
-`sshd_config` 会在注册过程中被替换，因此对它的编辑会在最不合适的时刻被丢弃。
+`sshd_config` 在注册过程中会被替换，因此对它的编辑会在最不合时宜的时刻被丢弃。
 </Aside>
 
-## 为何它只在一个地址上响应
+## 为何只在一个地址上应答
 
-`sshd` 绑定 `0.0.0.0:22`，但只有**内部（SLI）**地址以 `sshd` 会响应的方式存在于主机网络栈上。eth0 被重命名为 `a-i-eth0` 且完全不携带主机 IP —— Argo 数据平面拥有该接口，而它本应携带的管理/SLO 地址则出现在 `vhost0` 上。另外两块 NIC 以各自的名称留在主机网络栈上。
+`sshd` 绑定 `0.0.0.0:22`，但只有**内部（SLI）**地址以 `sshd` 会应答的方式存在于主机网络栈上。
+eth0 被重命名为 `a-i-eth0` 且完全不携带主机 IP —— Argo 数据平面拥有该接口，
+而它本应携带的管理/SLO 地址则出现在 `vhost0` 上。另外两块网卡以各自的名称留在主机栈上。
 
-从 VNet 内的一台 VM 对一个 CE 进行探测：
+从 VNet 内部的一台 VM 对一台 CE 进行探测：
 
 ```text
 management/SLO address    timed out
@@ -107,10 +140,12 @@ internal/SLI address      OPEN     SSH-2.0-OpenSSH_8.7
 an unused address         timed out    (control)
 ```
 
-因此，针对你所熟知的那个节点地址进行探测，返回的结果与安全组关闭时完全相同。并没有任何东西在阻断它；只是该地址上没有监听器。
+因此，对你所熟知的那个节点地址进行探测，返回的结果与被安全组阻断时完全一致。
+其实没有任何东西在阻断；那个地址上根本没有监听器。
 
-<Aside type="caution" title="不要通过读取 guest 接口名称来判断你处于哪个子网">
-`eth1` 与 `eth2` 中哪一个承载内部地址，**在同一部署内的不同节点之间也不一样**。从三台 CE 实时读取：
+<Aside type="caution" title="不要通过读取客户机接口名来判断自己处在哪个子网">
+`eth1` 和 `eth2` 中哪一个承载内部地址，**在同一部署内的不同节点之间是不同的**。
+从三台 CE 上实时读取：
 
 ```text
 f5-xc-ce-vm-01    eth1 -> external      eth2 -> internal/SLI
@@ -118,15 +153,19 @@ f5-xc-ce-vm-02    eth2 -> external      eth1 -> internal/SLI
 f5-xc-ce-vm-03    eth1 -> external      eth2 -> internal/SLI
 ```
 
-在每个节点上只有两点恒定成立：`a-i-eth0` 没有地址，`vhost0` 承载管理/SLO 地址。除此之外的一切，请以
-[`ip addr`](../../commands/network/ip/) 输出中的地址来匹配，而不是以接口名称。
+在每个节点上只有两点始终成立：`a-i-eth0` 没有地址，`vhost0` 承载管理/SLO 地址。
+除此之外的任何判断，都应基于
+[`ip addr`](../../commands/network/ip/) 输出中的地址来匹配，而不是基于接口名。
 </Aside>
 
-CE 的公网地址在 22 端口上也没有监听器，这就是上面的命令要经由 `-J` 的原因：一台位于 VNet 内、与 SLI 地址处于同一子网的运维 VM。在本部署中，`ar-ecmp-client` 就是这台 VM。
+CE 的公网地址上也没有 22 端口的监听器，这正是上面的命令要经由 `-J` 的原因：
+一台位于 VNet 内、与 SLI 地址同子网的运维 VM。本部署专为此目的构建了一台 ——
+`terraform output -raw client_vm_name` 给出它的名称。
 
-<Aside type="caution" title="-J 不会把你的选项传递给跳板那一跳">
-命令行上给出的选项作用于最后一跳。因此，与 `-J` 一起使用的 `-o UserKnownHostsFile=/dev/null`
-仍会为*跳板*主机查询并写入你真实的 `known_hosts`，如果你试图让重建后的集群不进入其中，这就是意外之处。当这一点重要时，请把第一跳明确写出来：
+<Aside type="caution" title="-J 不会把你的选项传递给跳板那一段">
+命令行上给出的选项作用于最后一跳。因此与 `-J` 一起使用 `-o UserKnownHostsFile=/dev/null`
+时，对*跳板*主机仍会读取并写入你真实的 `known_hosts`，如果你正试图让重建后的机群不进入其中，
+这就是意外之处。当这一点重要时，请把第一跳显式写出来：
 
 ```bash
 ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@<operator-vm>" \
@@ -135,37 +174,48 @@ ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@
 
 </Aside>
 
-<Aside type="caution" title="两种会给出自信却错误结论的测量错误">
-针对 eth0、外部接口或公网地址探测 22 端口，无论节点的 SSH 状态如何都会报告关闭，因此它根本无法告诉你任何信息。只有 SLI 地址会响应。
+<Aside type="caution" title="会得出自信却错误结论的两种测量失误">
+对 eth0、外部接口或公网地址探测 22 端口，无论节点的 SSH 状态如何都会报告关闭，
+因此它根本无法告诉你任何信息。只有 SLI 地址会应答。
 
-而从企业工作站发起的探测可能把一个实际关闭的端口报告为**开放**：Netskope 会在常用端口上自行完成 TCP 握手。从工作站看，CE 公网地址的 80 和 443 端口显示为开放，而从 VNet 内部探测时它们是关闭的。请从 VNet 内的 VM 进行探测。
+另外，从企业工作站发起的探测可能把实际关闭的端口报告为**开放**：
+Netskope 会自行在常见端口上完成 TCP 握手。从工作站看，CE 公网地址上的 80 和 443
+端口显示为开放，而从 VNet 内部探测时它们是关闭的。请从 VNet 内的 VM 发起探测。
 </Aside>
 
 ## Site CLI 需要一个终端，以及一个回车符
 
-`admin` 的登录 shell 并不是 shell。它是一个 `go-prompt` 应用，会将终端置于 raw 模式并逐按键读取，而不是逐行读取。由此产生四个后果，每一个的失败表现都像是另一个不同的问题：
+`admin` 的登录 shell 并不是 shell。它是一个 `go-prompt` 应用程序，
+会把终端置于原始模式并逐个按键而非逐行读取。由此产生四个后果，
+每一个的失败表现看起来都像是另一个问题：
 
-| 机制 | 缺失时会发生什么 |
+| 机制 | 缺少它会发生什么 |
 | --- | --- |
-| 分配一个终端（`ssh -tt`） | `go-prompt.NewStandardInputParser` 抛出 `panic: no such device or address`，看起来像是设备崩溃 |
-| Enter 发送回车符（CR），而不是换行符（LF） | 该行永远不会被提交，会话在输入结束时关闭且什么都没有打印 |
-| 保持标准输入打开 | 连接在命令渲染完成之前就结束了，因此一条正常工作的命令看起来毫无输出 |
-| **分开**写入命令文本和 Enter 字节 | 换行符会作为一个字面字符落入缓冲区，CLI 回应 `unknown command`，看起来像是该命令不存在 |
+| 分配终端（`ssh -tt`） | `go-prompt.NewStandardInputParser` 抛出 `panic: no such device or address`，看起来像设备崩溃 |
+| Enter 发送回车符（CR），而不是换行符（LF） | 该行永远不会被提交，会话在输入结束时关闭且什么都没打印 |
+| 保持标准输入打开 | 连接在命令渲染完成之前就结束，因此一条正常工作的命令看起来毫无输出 |
+| **分开**写入命令文本和 Enter 字节 | 换行符作为字面字符进入缓冲区，CLI 回答 `unknown command`，看起来就像该命令不存在 |
 
-因此 `ssh host 'some-command'` 无法工作：该参数会被忽略，交互式提示符仍会启动。要么以终端方式驱动它，要么根本别用。
+因此 `ssh host 'some-command'` 不起作用：参数被忽略，交互式提示符照样启动。
+要么把它当作终端来驱动，要么就别用。
 `scripts/sitecli_ssh_harvest.py` 是参考实现。
 
-<Aside type="caution" title="读到 'no such device or address' 的 panic 意味着认证已成功">
-`vpmu` 是在登录**之后**、发现没有可附着的终端时抛出它的。如果把它当作崩溃来读，看起来像是最糟糕的结果，而实际上它是成功前的最后一个错误。加上 `-tt` 再连一次。
+<Aside type="caution" title="出现内容为 'no such device or address' 的 panic 意味着认证已经成功">
+`vpmu` 在登录**之后**、发现没有可附着的终端时才发出它。若把它读作崩溃，
+它看起来像最糟糕的结果，而实际上它是成功前的最后一个错误。加上
+`-tt` 再连接一次即可。
 </Aside>
 
 <Aside type="caution" title="替换 CE 会改变其主机密钥">
-替换节点会在同一地址上呈现不同的主机密钥，因此下一次连接会警告 `REMOTE HOST IDENTIFICATION HAS CHANGED` 并拒绝连接。清除该地址的旧条目后重新连接。由于授予 SSH 本身就会替换 VM，请预期在采用它之后的第一次连接就会遇到这种情况。
+替换后的节点在同一地址上呈现不同的主机密钥，因此下一次连接会警告
+`REMOTE HOST IDENTIFICATION HAS CHANGED` 并拒绝连接。清除该地址的旧条目后重新连接。
+由于授予 SSH 本身就会替换这些 VM，在采用它之后的第一次连接就应预期到这一点。
 </Aside>
 
-## 登录横幅就是一次免费的健康检查
+## 登录横幅是一次免费的健康检查
 
-在你输入任何内容之前，登录横幅就已经回答了若干本来需要花费命令去查的问题。以下来自 `f5-xc-ce-vm-01`，ASCII 艺术图和公网 IP 已省略：
+在你输入任何内容之前，登录横幅就已经回答了若干本来需要花命令去查的问题。
+以下来自 `f5-xc-ce-vm-01`，ASCII 图案和公网 IP 已省略：
 
 ```text
 UNAUTHORIZED ACCESS TO THIS DEVICE IS PROHIBITED
@@ -185,8 +235,10 @@ SLO IP: 10.0.1.4/26
 WELCOME IN SITE CLI
 ```
 
-`Registration Status` 区分仍在启动中的节点（`PROVISIONING`）与已完成的节点（`PROVISIONED`）。`Software` 是决定哪些命令存在的构建字符串。
-`DNS` 和 `NTP` 涵盖了最先破坏注册的两项依赖，因此一个从未上线的节点通常在这里就已经告诉你原因了 —— 完全无需动用
+`Registration Status` 可区分仍在启动中的节点（`PROVISIONING`）与已完成的节点（`PROVISIONED`）。
+`Software` 是决定哪些命令存在的构建字符串。
+`DNS` 和 `NTP` 覆盖了最先导致注册失败的两项依赖，因此一个从未上线的节点通常已经在这里告诉你原因了 ——
+甚至根本用不上
 [`chronyc-sources`](../../commands/network/chronyc-sources/) 或
 [`dig`](../../commands/network/dig/)。
 
@@ -194,21 +246,23 @@ WELCOME IN SITE CLI
 
 <Steps>
 
-1. 如果尚无密钥对，先生成一个。使用 Ed25519 而非 RSA：更短，且被设备的 `sshd` 接受。
+1. 如果你还没有密钥对，先生成一个。使用 Ed25519 而非 RSA：更短，
+   且被设备的 `sshd` 接受。
 
    ```bash
    ssh-keygen -t ed25519 -C "ce-operator" -f ~/.ssh/id_ed25519
    ```
 
-2. 让部署指向**公钥**那一半。根模块读取该文件一次，并将字符串下传给每个节点：
+2. 让部署指向**公钥**那一半。根模块读取该文件一次，
+   并把字符串传递给每个节点：
 
    ```hcl
    # terraform/terraform.tfvars
    ssh_public_key_path = "~/.ssh/id_ed25519.pub"
    ```
 
-   `ssh_public_key` 则直接内联接收密钥内容，plan 测试使用的就是这种方式。
-   私钥永远不会离开你的工作站。
+   `ssh_public_key` 则是以内联方式接收密钥内容，plan 测试使用的就是这种方式。
+   私钥那一半永远不会离开你的工作站。
 
 3. 执行 apply。请先阅读本页顶部的警告 —— 在现有部署上这会替换 CE VM。
 
@@ -216,49 +270,59 @@ WELCOME IN SITE CLI
 
 <Aside type="note" title="VM 自身的 admin_ssh_key 是另一回事">
 `modules/ce-node` 中的 `azurerm_linux_virtual_machine.admin_ssh_key` 授权的是 Azure
-VM 管理员，而不是设备的 `admin` 账户。它不授予任何 Site CLI 访问权限，设置了它也不能作为 CE SSH 已配置的证据。
+VM 管理员，而不是设备的 `admin` 账户。它不授予任何 Site CLI 访问权，
+设置了它并不能证明 CE SSH 已配置。
 </Aside>
 
 ## 这些都不是原因
 
-以下每一项都在该途径仍被认为不可能的时候经过测试并被排除。每一项都足够可信，足以耗掉一天时间。
+以下每一项都在该路径仍被认为不可能时被测试并排除。
+每一项都足够合理，足以耗掉一天时间。
 
 | 并非原因 | 如何被排除 |
 | --- | --- |
-| 该凭据仅在创建时生效 | `sshd` 在首次启动约 90 秒后就启动了，早于站点对象存在。`admin_user_credentials` 也出现在 `ReplaceSpecType` 中并可原地生效。 |
-| `block_all_services` | 无论服务是否被阻断，管理地址上 22 端口的关闭状态完全一致。 |
-| 密钥末尾的换行符 | 两种方式都测试过，没有变化。cloud-init 仍会去掉它，因为字面块否则会渲染出第二行空行。 |
-| 固定的旧版 CE 软件 | 在三个构建上均可复现，其中一个运行 OpenSSH 9.9。 |
-| 缺少 `admin_password` | 在一台全新的 CE 上同时设置 `admin_password` 和 `ssh_key`，没有任何变化。 |
+| 该凭据仅在创建时生效 | `sshd` 在首次启动约 90 秒后启动，早于站点对象存在之时。`admin_user_credentials` 也出现在 `ReplaceSpecType` 中，并可原地生效。 |
+| `block_all_services` | 无论服务是否被阻断，管理地址上 22 端口的关闭表现完全相同。 |
+| 密钥末尾的换行符 | 两种方式都测试过，没有变化。cloud-init 仍会将其剥除，因为字面块否则会渲染出第二行空行。 |
+| 固定的旧版 CE 软件 | 在三次构建上均可复现，其中一次运行 OpenSSH 9.9。 |
+| 缺少 `admin_password` | 在一台全新构建的 CE 上同时设置 `admin_password` 和 `ssh_key`，毫无变化。 |
 
-<Aside type="caution" title="两个看起来像判别依据但实际不是的 API 字段">
-`gc_spec.admin_ssh_key` 在 **`f5-sales-demo` 的全部 58 个站点上**都为空或缺失 —— 包括那两个确实设置了 `admin_user_credentials.ssh_key` 的站点。在一个正常站点与一个异常站点之间比较该字段毫无意义，因为即使在凭据*确实*已配置的站点上它也读作空。
+<Aside type="caution" title="两个看似区分性指标、实则不是的 API 字段">
+`gc_spec.admin_ssh_key` 在 **`f5-sales-demo` 的全部 58 个站点上**都是空的或不存在 ——
+包括那两个确实设置了 `admin_user_credentials.ssh_key` 的站点。
+在一个正常和一个异常的站点之间比较它不会告诉你任何信息，因为即便对于凭据*已*配置的站点，
+它读出来也是空的。
 
-`registrations_by_site` 完全省略了该字段并为其返回 `None`，这读起来像"未配置"，而实际是"未报告"。
+`registrations_by_site` 完全省略该字段并为其返回 `None`，读起来像是"未配置"，
+而实际上是"未报告"。
 </Aside>
 
-## 其他途径
+## 其他路径
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Covers 34 commands and needs the site <code>ONLINE</code>."
+    description="可脚本化，无需 VNet 内部访问权限，是获取可重复证据的正确选择。覆盖 34 条命令，要求站点处于 <code>ONLINE</code>。"
     href="../debug-api/"
   />
   <LinkCard
-    title="Site Console"
-    description="F5's node troubleshooting UI over an Azure Bastion tunnel. No key, no jump host, and it answers before the site registers."
+    title="站点控制台"
+    description="通过 Azure Bastion 隧道访问 F5 的节点故障排查界面。无需密钥、无需跳板机，并且在站点注册之前就能应答。"
     href="../site-console/"
   />
   <LinkCard
-    title="Serial console"
-    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
+    title="串行控制台"
+    description="适用于从未注册成功、或没有可用网络路径的节点。需要一个终端，或使用 websocket 工具框架。"
     href="../serial-console/"
   />
 </CardGrid>
 
-<Aside type="caution" title="新创建的站点需要约半小时后 operate API 才会响应">
-在一个新站点报告 `ONLINE` 之后的大约 25 到 30 分钟内，`vpm/debug` 端点会返回一个 BIG-IP `503` 页面，内容为 `The requested URL was rejected`。这看起来像是 Web 应用防火墙拦截，或是令牌被吊销，但两者都不是：站点还没准备好中继。请等待并重试，而不是去改动任何东西。
+<Aside type="caution" title="新建站点需要大约半小时后 operate API 才会应答">
+在新站点报告 `ONLINE` 之后的大约 25 到 30 分钟内，`vpm/debug` 端点会返回一个
+BIG-IP `503` 页面，内容为 `The requested URL was rejected`。这看起来像是 Web
+应用防火墙拦截，或者令牌被吊销，但两者都不是：站点尚未准备好进行中继。
+请等待并重试，而不是去改动任何东西。
 
-SSH 没有这样的预热期。只要 `sshd` 起来它就会响应，这也正是为什么在节点仍在注册期间它是唯一可用的途径。
+SSH 没有这样的预热期。只要 `sshd` 起来了它就会应答，这正是为何在节点仍在注册时
+它是唯一可用的路径。
 </Aside>

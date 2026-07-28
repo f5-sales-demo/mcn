@@ -1,25 +1,31 @@
 ---
 title: Envoy
 description: >-
-  wrapper สี่ตัวรอบอินเทอร์เฟซ admin ของ Envoy บน Customer Edge — listeners,
-  clusters และ config dumps สองตัว อธิบายว่าเหตุใดแต่ละตัวจึงเริ่มต้นด้วย curl
-  progress meter และสิ่งที่ผลลัพธ์ listener บอกคุณเกี่ยวกับ VIP ที่ประกาศ
+  ตัวห่อสี่รายการรอบอินเทอร์เฟซผู้ดูแลของ Envoy บน Customer Edge — listeners,
+  clusters และ config dump สองรายการ
+  อธิบายว่าเหตุใดทุกคำสั่งจึงเริ่มต้นด้วยมาตรวัดความคืบหน้าของ curl
+  และผลลัพธ์ของ listener บอกอะไรคุณเกี่ยวกับ VIP ที่ถูกประกาศ
 sidebar:
   order: 20
   label: Envoy
 i18n:
-  sourceHash: 6ca185ca6ece
+  sourceHash: 7b786fa58fb2
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Envoy ทำหน้าที่ terminate และ proxy ทราฟฟิกแอปพลิเคชันบน Customer Edge คำสั่งทั้งสี่นี้
-ส่งคำถามไปยังอินเทอร์เฟซ admin และไม่มีคำสั่งใดอยู่ใน
+บันทึกเมื่อ 2026-07-28 จาก CE หนึ่งเครื่องของการปรับใช้นี้ คำสั่งเหล่านี้เป็นคำสั่งบนเครื่อง จึงเข้าถึงผ่าน
+Site CLI แทนที่จะเป็น debug API โดย `sitecli/exec-catalog.json` บันทึก
+surface และ `sitecli/capture-manifest.json` บันทึกว่าเป็นโหนดใด
+
+Envoy ทำหน้าที่ terminate และ proxy ทราฟฟิกของแอปพลิเคชันบน Customer Edge คำสั่งทั้งสี่นี้
+สอบถามอินเทอร์เฟซผู้ดูแลของ Envoy และไม่มีคำสั่งใดอยู่บน
 [debug API](../../../access/debug-api/)
 
-<Aside type="note" title="ทุกคำสั่งเริ่มต้นด้วย curl progress meter">
-คำสั่งเหล่านี้คือ wrapper ของ `curl` รอบ endpoint admin ของ Envoy ซึ่งเรียกใช้โดยไม่มี `-s` ดังนั้นสองหรือสามบรรทัดแรกของผลลัพธ์ทุกชุดด้านล่างคือความคืบหน้าการถ่ายโอนของ curl ที่เขียนไปยัง stderr:
+<Aside type="note" title="ทุกคำสั่งเหล่านี้เริ่มต้นด้วยมาตรวัดความคืบหน้าของ curl">
+คำสั่งเหล่านี้เป็นตัวห่อ `curl` รอบ endpoint ผู้ดูแลของ Envoy ซึ่งเรียกใช้โดยไม่มี `-s` ดังนั้นสองหรือสาม
+บรรทัดแรกของทุกการบันทึกด้านล่างจึงเป็นความคืบหน้าการถ่ายโอนของ curl ที่เขียนไปยัง stderr:
 
 ```text
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -27,14 +33,14 @@ Envoy ทำหน้าที่ terminate และ proxy ทราฟฟิ�
   0     0    0     0 …
 ```
 
-นั่นไม่ใช่ผลลัพธ์ของ Envoy และไม่ใช่ข้อผิดพลาด และยังมีประโยชน์ด้วย: จำนวนไบต์ `% Received`
-บอกให้คุณทราบว่า Envoy ส่งคืนข้อมูลใดๆ หรือไม่ ซึ่งช่วยแยกแยะระหว่าง "ไม่มี listeners ที่กำหนดค่าไว้"
-กับ "อินเทอร์เฟซ admin ไม่ตอบสนอง"
+นั่นไม่ใช่ผลลัพธ์จาก Envoy และไม่ใช่ข้อผิดพลาด และยังมีประโยชน์อีกด้วย: จำนวนไบต์ใน `% Received`
+บอกคุณว่า Envoy ส่งคืนอะไรกลับมาหรือไม่ ซึ่งช่วยแยกแยะระหว่าง "ไม่มี listener
+ที่ถูกกำหนดค่า" กับ "อินเทอร์เฟซผู้ดูแลไม่ตอบสนอง"
 </Aside>
 
 ## `envoy-listeners`
 
-listener ทุกตัวที่ Envoy ติดตั้งไว้ ในรูปแบบ `name:address:port`
+ทุก listener ที่ Envoy ติดตั้งไว้ ในรูปแบบ `name:address:port`
 
 ```bash
 execcli envoy-listeners
@@ -43,18 +49,20 @@ execcli envoy-listeners
 ```text file=../../../../_data/sitecli-envoy-listeners.txt
 ```
 
-**สิ่งที่ควรมองหา** ในการปรับใช้นี้ listener มี `10.250.0.10:80` — VIP ที่
-CE ประกาศเข้าสู่ BGP บรรทัดเดียวนั้นเชื่อมสามชั้นเข้าด้วยกัน: หาก
-[`show-ip-bgp-summary`](../../network/bgp/) แสดงว่า prefix กำลังถูกประกาศ แต่ไม่มี
-listener นี้ แสดงว่า route กำลังถูกดึงไปยัง node ที่จะไม่ให้บริการ ซึ่งเป็นโหมดความล้มเหลวที่เลวร้ายที่สุดใน ECMP set เพราะทราฟฟิกจะถูกแบ่งโหลดเข้าสู่ black hole
+**สิ่งที่ควรมองหา** ในการปรับใช้นี้ listener มี `10.250.0.10:80` — ซึ่งเป็น VIP ที่
+CE ประกาศเข้าไปใน BGP บรรทัดเดียวนั้นเชื่อมโยงสามชั้นเข้าด้วยกัน: หาก
+[`show-ip-bgp-summary`](../../network/bgp/) แสดงว่า prefix ถูกประกาศออกไปแต่
+listener นี้ไม่มีอยู่ เส้นทางจะถูกดึงไปยังโหนดที่จะไม่ให้บริการมัน ซึ่งเป็น
+โหมดความล้มเหลวที่แย่ที่สุดในชุด ECMP เพราะทราฟฟิกจะถูกกระจายโหลดเข้าไปในหลุมดำ
 
-`[fe80:…]:80` ที่ตามมาคือที่อยู่ link-local ของอินเทอร์เฟซที่ listener ผูกอยู่
+`[fe80:…]:80` ที่ต่อท้ายคือ link-local address ของอินเทอร์เฟซที่ listener ผูกอยู่
 
-**สิ่งที่ไม่บอกคุณ** ไม่มีข้อมูลเกี่ยวกับสถานะ upstream — listener มีอยู่ไม่ว่าจะมีสิ่งใดอยู่เบื้องหลังสามารถเข้าถึงได้หรือไม่ ใช้ `envoy-clusters` สำหรับสิ่งนั้น
+**สิ่งที่ไม่ได้บอกคุณ** ไม่มีข้อมูลใดเกี่ยวกับสุขภาพของ upstream — listener มีอยู่ได้ไม่ว่า
+จะมีสิ่งใดอยู่เบื้องหลังที่เข้าถึงได้หรือไม่ ใช้ `envoy-clusters` สำหรับเรื่องนั้น
 
 ## `envoy-clusters`
 
-ทุก cluster พร้อมข้อจำกัดการเชื่อมต่อและคำขอต่อ priority
+ทุก cluster พร้อมด้วยขีดจำกัดการเชื่อมต่อและคำขอตามลำดับความสำคัญ
 
 ```bash
 execcli envoy-clusters
@@ -63,13 +71,15 @@ execcli envoy-clusters
 ```text file=../../../../_data/sitecli-envoy-clusters.txt
 ```
 
-**สิ่งที่ควรมองหา** บรรทัดมีรูปแบบ `cluster::scope::key::value` รายการ `observability_name`
-ระบุแต่ละ cluster และชุดสาม `default_priority::max_connections`,
-`max_pending_requests` และ `max_requests` คือที่ที่ข้อจำกัดคำขอปรากฏ — cluster ที่ถึงขีดจำกัด `max_pending_requests` กำลังถูก throttle โดยการกำหนดค่า ไม่ใช่โดย upstream
+**สิ่งที่ควรมองหา** บรรทัดต่าง ๆ อยู่ในรูป `cluster::scope::key::value` รายการ `observability_name`
+ระบุแต่ละ cluster และชุดสามรายการ `default_priority::max_connections`,
+`max_pending_requests` และ `max_requests` คือจุดที่ขีดจำกัดคำขอปรากฏขึ้น — cluster
+ที่ค้างอยู่ที่ `max_pending_requests` ของตัวเองกำลังถูกจำกัดด้วยการกำหนดค่า ไม่ใช่ด้วย
+upstream
 
 ## `envoy-config-dump`
 
-การกำหนดค่าทั้งหมดของ Envoy ในรูปแบบ JSON ขนาดใหญ่: 126 KB บน demo node ที่ไม่ได้ใช้งาน
+การกำหนดค่าทั้งหมดของ Envoy ในรูปแบบ JSON มีขนาดใหญ่: 126 KB บนโหนดสาธิตที่ไม่ได้ทำงานอะไร
 
 ```bash
 execcli envoy-config-dump
@@ -78,12 +88,13 @@ execcli envoy-config-dump
 ```text file=../../../../_data/sitecli-envoy-config-dump.txt
 ```
 
-**สิ่งที่ควรมองหา** อาร์เรย์ `configs` ระดับบนสุดมีออบเจ็กต์หนึ่งรายการต่อประเภทการกำหนดค่า —
-bootstrap, clusters, listeners, routes, secrets ใช้คำสั่งนี้เมื่อ listener หรือ cluster มีอยู่แต่ทำงานผิดปกติ และค้นหาแทนการอ่านทั้งหมด
+**สิ่งที่ควรมองหา** อาร์เรย์ `configs` ระดับบนสุดเก็บหนึ่งอ็อบเจ็กต์ต่อหนึ่งประเภทการกำหนดค่า —
+bootstrap, clusters, listeners, routes, secrets ใช้คำสั่งนี้เมื่อ listener หรือ cluster
+มีอยู่แต่ทำงานผิดไปจากที่คาดไว้ และควรค้นหาภายในผลลัพธ์แทนที่จะอ่านทั้งหมด
 
 ## `envoy-hc-config-dump`
 
-การกำหนดค่า health-check โดยเฉพาะ
+การกำหนดค่าการตรวจสอบสุขภาพโดยเฉพาะ
 
 ```bash
 execcli envoy-hc-config-dump
@@ -92,5 +103,7 @@ execcli envoy-hc-config-dump
 ```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
 ```
 
-**สิ่งที่ควรมองหา** ในการปรับใช้นี้จะส่งคืน **หนึ่งไบต์** — มองเห็นได้เป็น `100 1`
-ใน curl meter — หมายความว่าไม่มีการกำหนดค่า health-check ที่ติดตั้งไว้ นั่นคือสถานะที่คาดหวังสำหรับ CE ที่ไม่มี origin pools ที่ตรวจสอบสุขภาพ และควรจดจำไว้: ผลลัพธ์ว่างที่นี่ไม่ใช่คำถามที่ล้มเหลว
+**สิ่งที่ควรมองหา** ในการปรับใช้นี้ผลลัพธ์คือ **หนึ่งไบต์** — มองเห็นได้เป็น `100 1`
+ในมาตรวัดของ curl — ซึ่งหมายความว่าไม่มีการกำหนดค่าการตรวจสอบสุขภาพติดตั้งอยู่ นั่นเป็น
+สถานะที่คาดหมายได้สำหรับ CE ที่ไม่มี origin pool ซึ่งมีการตรวจสอบสุขภาพ และควรทำความเข้าใจไว้ว่า:
+ผลลัพธ์ที่ว่างเปล่าในที่นี้ไม่ใช่การสอบถามที่ล้มเหลว

@@ -8,6 +8,10 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
+Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
+records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
+surface against a live CE.
+
 The CE runs FRR for BGP. On this topology it peers with the two Azure Route Server
 instances, advertises the VIP, and learns the VNet prefix.
 
@@ -52,12 +56,12 @@ instance — marked `*=` and `*>`: a best path plus a multipath member, so the n
 its return traffic over both instances. The VIP `10.250.0.10/32` has a single `*>` path
 because this node originates it.
 
-<Aside type="caution" title="The demo's three-way ECMP is not visible in this output">
-`show-ip-bgp` is one node's table. The ECMP this deployment demonstrates is three *different*
-CEs advertising the same `/32`, and it is programmed on the Azure side — so no single CE's
-BGP table can show it, and the absence of a multipath marker on the VIP here is not a fault.
-Prove that from the Route Server peerings or the client's effective route table instead;
-both are on the [as-built page](../../../../as-built/).
+<Aside type="caution" title="The demo's equal-cost multipath is not visible in this output">
+`show-ip-bgp` is one node's table. The ECMP this deployment demonstrates is several
+*different* CEs advertising the same `/32`, and it is programmed on the Azure side — so no
+single CE's BGP table can show it, and the absence of a multipath marker on the VIP here is
+not a fault. Prove that from the Route Server peerings or the client's effective route table
+instead; both are on the [verify page](../../../../demo/verify/).
 </Aside>
 
 ## `show-ip-bgp-neighbors`

@@ -1,0 +1,117 @@
+---
+title: 演示展示
+description: >-
+  本次部署能够演示什么内容，以及如何用一条命令进行展示——由路由架构而非负载均衡器编排的等价多路径——以及它目前还无法展示的三件事，明确说明以避免在观众面前才发现这些问题。
+sidebar:
+  order: 40
+  label: 演示
+i18n:
+  sourceHash: 5e23dca1c815
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+本演示所支持的论点范围很窄，值得精确表述，因为更宽泛的说法经不起提问：
+
+> 多个 Customer Edge 各自通过 eBGP 通告同一条主机路由，Azure 将它们全部安装为等价下一跳。
+> 因此流量分布和节点移除是路由架构的特性——CE 前面并没有 Azure 负载均衡器。
+
+请先运行[四项健康检查](../verify/)。以下内容均假定检查已通过。
+
+## 让它可见的那一条命令
+
+有效路由是最有力的单一证据：它们是 Azure 实际编排的内容，而不是 CE 声称的内容。
+
+```bash
+cd terraform
+az network nic show-effective-route-table \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_nic_name)" \
+  --query "value[?addressPrefix[0]=='$(terraform output -raw vip)/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,state:state}" \
+  -o json
+```
+
+观测于 2026-07-28：
+
+```json
+[
+  {
+    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+    "prefix": "10.250.0.10/32",
+    "state": "Active"
+  }
+]
+```
+
+一条前缀、三个下一跳、`Active`。这一条输出就是整个演示的要点所在，值得停下来强调：画面中没有任何负载均衡器。
+
+然后展示它正在提供服务，从 VNet 内部发起并带上 `Host` 头：
+
+```bash
+az vm run-command invoke \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_vm_name)" \
+  --command-id RunShellScript --query "value[0].message" -o tsv \
+  --scripts "curl -s -o /dev/null -w '%{http_code}\n' \
+               -H 'Host: $(terraform output -raw lb_domain)' \
+               http://$(terraform output -raw vip)/"
+```
+
+<Aside type="caution" title="不要通过在浏览器中输入地址来演示">
+负载均衡器基于 `Host` 进行匹配，因此裸 IP 请求会返回 **404**——即使部署完全健康也是如此。
+要么发送该请求头，要么先将域名解析到 VIP。在观众面前出现 404 很难挽回，即便实际上一切正常。
+</Aside>
+
+## 建议的顺序
+
+<Steps>
+
+1. **搭建框架。** 一个 VIP、多个 CE、没有负载均衡器。路由架构就是 HA 机制。
+2. **展示通告一侧。** 循环查看对等会话（[检查 2](../verify/)）——每个 CE 使用各自的下一跳通告同一条前缀，
+   且 AS path 相同，因此没有哪一条会被优选。
+3. **展示 Azure 对此做了什么。** 上面的有效路由表：一条前缀、N 个下一跳、`Active`。
+4. **展示它在提供服务。** 上面那条带请求头的 `curl`。
+5. **展示配置。** [Terraform](../terraform/) 已在此发布，直接从部署所用的文件中读取——
+   当有人询问这是否可复现时会很有用。
+
+</Steps>
+
+## 本演示目前还无法展示的内容
+
+在此明确说明，而不是在现场才发现。这三点都是缺少证据，而非已知的故障。
+
+<Aside type="danger" title="不要基于这些页面排练故障切换的说法">
+**故障切换尚未测试。** 已验证等价下一跳被安装；但当某个 CE 被停止或停止通告时路由表会发生什么，
+尚未在本部署上实际验证过。预期机制是撤回某个 CE 的通告并观察下一跳数量下降，
+但在真正运行并测量之前，这只是一个计划，而不是结果——所以不要做出承诺，也不要在观众面前临场发挥。
+
+跟踪于 [issue 700](https://github.com/f5-sales-demo/mcn/issues/700)。它需要一个无人使用该环境的时间窗口，
+因为它会改变实时的通告状态。
+</Aside>
+
+- **各下一跳之间的流量分布尚未测量。** [验证页面](../verify/)记录了向 VIP 发出的 1,470 个请求，
+  这证明了路径可用以及它随时间的表现。但这些都没有显示请求如何在下一跳之间分散，
+  而且该拓扑没有提供按节点的 HTTP 监听器来归因这些请求。如果被问到"分布是否均匀？"，
+  诚实的回答是这里尚未测量。
+- **全新构建时收敛瞬态的成因尚未确定。** 它已被描述特征——何时发生、持续多久、以及源站在整个过程中都是正常的——
+  但没有得到解释。
+
+<Aside type="note" title="如果你要在刚构建的环境上演示，请等待">
+在 CE 达到 `ONLINE` 之后的大约前 45 分钟内，VIP 会丢失一小部分请求。之后会完全恢复。
+请在真正需要之前就构建好演示环境，并在演示前立即重新运行检查 4。
+</Aside>
+
+<CardGrid>
+  <LinkCard
+    title="证明它是健康的"
+    description="四项检查，以及那些看似正常却读起来像故障、但实际并非故障的结果。"
+    href="../verify/"
+  />
+  <LinkCard
+    title="Terraform 配置"
+    description="配置本身，用于回答这是否可复现的问题。"
+    href="../terraform/"
+  />
+</CardGrid>

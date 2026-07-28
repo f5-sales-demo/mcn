@@ -1,5 +1,5 @@
 
-2026/07/24 03:02:24 Starting voucherd version branch: https://gitlab.com/f5/volterra/ves.io/voucher/-/commits/release-2025-6-1 <br>commit-sha: https://gitlab.com/f5/volterra/ves.io/voucher/-/commit/4ce0769270464dbecdecd8457cb80e85cc172f25 2025-09-05T11:36:14+00:00 s.batra 11258447641 2025-09-05T11:36:14+00:00 <br>dependent-repo-versions: {
+2026/07/28 18:23:34 Starting voucherd version branch: https://gitlab.com/f5/volterra/ves.io/voucher/-/commits/release-2025-6-1 <br>commit-sha: https://gitlab.com/f5/volterra/ves.io/voucher/-/commit/4ce0769270464dbecdecd8457cb80e85cc172f25 2025-09-05T11:36:14+00:00 s.batra 11258447641 2025-09-05T11:36:14+00:00 <br>dependent-repo-versions: {
     "codegen": {
         "SHA1URL": "https://gitlab.com/f5/volterra/ves.io/codegen/-/commit/v1.9.0"
     },
@@ -13,50 +13,50 @@
         "SHA1URL": "https://gitlab.com/f5/volterra/ves.io/stdlib/-/tags/v1.57.7"
     }
 }
-2026/07/24 03:02:24 Using config file /etc/ves/voucher.yml
-{"severity":"INFO","time":"2026-07-24T03:02:24.534Z","message":"Running without rdbms connection","messageid":"<uuid>"}
-{"level":"warn","ts":"2026-07-24T03:02:24.535259Z","caller":"embed/config.go:687","msg":"Running http and grpc server on single port. This is not recommended for production."}
-{"level":"info","ts":"2026-07-24T03:02:24.535306Z","caller":"embed/etcd.go:128","msg":"configuring peer listeners","listen-peer-urls":["http://127.0.0.1:65338"]}
-{"level":"info","ts":"2026-07-24T03:02:24.535636Z","caller":"embed/etcd.go:136","msg":"configuring client listeners","listen-client-urls":["http://127.0.0.1:65337"]}
-{"level":"info","ts":"2026-07-24T03:02:24.535779Z","caller":"embed/etcd.go:310","msg":"starting an etcd server","etcd-version":"3.5.15","git-sha":"Not provided (use ./build instead of go build)","go-version":"go1.23.9 (Red Hat 1.23.9-1.el9_6)","go-os":"linux","go-arch":"amd64","max-cpu-set":8,"max-cpu-available":8,"member-initialized":false,"name":"default","data-dir":"embed_etcd_datadir","wal-dir":"","wal-dir-dedicated":"","member-dir":"embed_etcd_datadir/member","force-new-cluster":false,"heartbeat-interval":"100ms","election-timeout":"1s","initial-election-tick-advance":true,"snapshot-count":100000,"max-wals":5,"max-snapshots":5,"snapshot-catchup-entries":5000,"initial-advertise-peer-urls":["http://127.0.0.1:65338"],"listen-peer-urls":["http://127.0.0.1:65338"],"advertise-client-urls":["http://127.0.0.1:65337"],"listen-client-urls":["http://127.0.0.1:65337"],"listen-metrics-urls":[],"cors":["*"],"host-whitelist":["*"],"initial-cluster":"default=http://127.0.0.1:65338","initial-cluster-state":"new","initial-cluster-token":"etcd-cluster","quota-backend-bytes":2147483648,"max-request-bytes":1572864,"max-concurrent-streams":4294967295,"pre-vote":true,"initial-corrupt-check":false,"corrupt-check-time-interval":"0s","compact-check-time-enabled":false,"compact-check-time-interval":"1m0s","auto-compaction-mode":"","auto-compaction-retention":"0s","auto-compaction-interval":"0s","discovery-url":"","discovery-proxy":"","downgrade-check-interval":"5s"}
-{"level":"info","ts":"2026-07-24T03:02:24.565727Z","caller":"etcdserver/backend.go:81","msg":"opened backend db","path":"embed_etcd_datadir/member/snap/db","took":"270.605µs"}
-{"level":"info","ts":"2026-07-24T03:02:24.566428Z","caller":"etcdserver/raft.go:495","msg":"starting local member","local-member-id":"3f0f284b9cf6ab1e","cluster-id":"1b83681fd38245a1"}
-{"level":"info","ts":"2026-07-24T03:02:24.566489Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e switched to configuration voters=()"}
-{"level":"info","ts":"2026-07-24T03:02:24.566538Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became follower at term 0"}
-{"level":"info","ts":"2026-07-24T03:02:24.566552Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"newRaft 3f0f284b9cf6ab1e [peers: [], term: 0, commit: 0, applied: 0, lastindex: 0, lastterm: 0]"}
-{"level":"info","ts":"2026-07-24T03:02:24.566562Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became follower at term 1"}
-{"level":"info","ts":"2026-07-24T03:02:24.566599Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e switched to configuration voters=(4543894854261189406)"}
-{"level":"warn","ts":"2026-07-24T03:02:24.567179Z","caller":"auth/store.go:1241","msg":"simple token is not cryptographically signed"}
-{"level":"info","ts":"2026-07-24T03:02:24.567383Z","caller":"mvcc/kvstore.go:418","msg":"kvstore restored","current-rev":1}
-{"level":"info","ts":"2026-07-24T03:02:24.567500Z","caller":"etcdserver/quota.go:94","msg":"enabled backend quota with default value","quota-name":"v3-applier","quota-size-bytes":2147483648,"quota-size":"2.1 GB"}
-{"level":"info","ts":"2026-07-24T03:02:24.567588Z","caller":"etcdserver/server.go:867","msg":"starting etcd server","local-member-id":"3f0f284b9cf6ab1e","local-server-version":"3.5.15","cluster-version":"to_be_decided"}
-{"level":"info","ts":"2026-07-24T03:02:24.567689Z","caller":"fileutil/purge.go:50","msg":"started to purge file","dir":"embed_etcd_datadir/member/snap","suffix":"snap.db","max":5,"interval":"30s"}
-{"level":"info","ts":"2026-07-24T03:02:24.567765Z","caller":"fileutil/purge.go:50","msg":"started to purge file","dir":"embed_etcd_datadir/member/snap","suffix":"snap","max":5,"interval":"30s"}
-{"level":"info","ts":"2026-07-24T03:02:24.567779Z","caller":"fileutil/purge.go:50","msg":"started to purge file","dir":"embed_etcd_datadir/member/wal","suffix":"wal","max":5,"interval":"30s"}
-{"level":"info","ts":"2026-07-24T03:02:24.567724Z","caller":"etcdserver/server.go:751","msg":"started as single-node; fast-forwarding election ticks","local-member-id":"3f0f284b9cf6ab1e","forward-ticks":9,"forward-duration":"900ms","election-ticks":10,"election-timeout":"1s"}
-{"level":"info","ts":"2026-07-24T03:02:24.567876Z","caller":"v3rpc/health.go:61","msg":"grpc service status changed","service":"","status":"SERVING"}
-{"level":"info","ts":"2026-07-24T03:02:24.567914Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e switched to configuration voters=(4543894854261189406)"}
-{"level":"info","ts":"2026-07-24T03:02:24.568071Z","caller":"membership/cluster.go:421","msg":"added member","cluster-id":"1b83681fd38245a1","local-member-id":"3f0f284b9cf6ab1e","added-peer-id":"3f0f284b9cf6ab1e","added-peer-peer-urls":["http://127.0.0.1:65338"]}
-{"level":"info","ts":"2026-07-24T03:02:24.569814Z","caller":"embed/etcd.go:599","msg":"serving peer traffic","address":"127.0.0.1:65338"}
-{"level":"info","ts":"2026-07-24T03:02:24.569880Z","caller":"embed/etcd.go:571","msg":"cmux::serve","address":"127.0.0.1:65338"}
-{"level":"info","ts":"2026-07-24T03:02:24.569944Z","caller":"embed/etcd.go:279","msg":"now serving peer/client/metrics","local-member-id":"3f0f284b9cf6ab1e","initial-advertise-peer-urls":["http://127.0.0.1:65338"],"listen-peer-urls":["http://127.0.0.1:65338"],"advertise-client-urls":["http://127.0.0.1:65337"],"listen-client-urls":["http://127.0.0.1:65337"],"listen-metrics-urls":[]}
-{"level":"info","ts":"2026-07-24T03:02:25.367255Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e is starting a new election at term 1"}
-{"level":"info","ts":"2026-07-24T03:02:25.367307Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became pre-candidate at term 1"}
-{"level":"info","ts":"2026-07-24T03:02:25.367357Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e received MsgPreVoteResp from 3f0f284b9cf6ab1e at term 1"}
-{"level":"info","ts":"2026-07-24T03:02:25.367373Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became candidate at term 2"}
-{"level":"info","ts":"2026-07-24T03:02:25.367408Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e received MsgVoteResp from 3f0f284b9cf6ab1e at term 2"}
-{"level":"info","ts":"2026-07-24T03:02:25.367417Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became leader at term 2"}
-{"level":"info","ts":"2026-07-24T03:02:25.367426Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"raft.node: 3f0f284b9cf6ab1e elected leader 3f0f284b9cf6ab1e at term 2"}
-{"level":"info","ts":"2026-07-24T03:02:25.367677Z","caller":"etcdserver/server.go:2118","msg":"published local member to cluster through raft","local-member-id":"3f0f284b9cf6ab1e","local-member-attributes":"{Name:default ClientURLs:[http://127.0.0.1:65337]}","request-path":"/0/members/3f0f284b9cf6ab1e/attributes","cluster-id":"1b83681fd38245a1","publish-timeout":"7s"}
-{"level":"info","ts":"2026-07-24T03:02:25.367730Z","caller":"embed/serve.go:103","msg":"ready to serve client requests"}
-{"level":"info","ts":"2026-07-24T03:02:25.367759Z","caller":"etcdserver/server.go:2629","msg":"setting up initial cluster version using v2 API","cluster-version":"3.5"}
-{"level":"info","ts":"2026-07-24T03:02:25.367957Z","caller":"membership/cluster.go:584","msg":"set initial cluster version","cluster-id":"1b83681fd38245a1","local-member-id":"3f0f284b9cf6ab1e","cluster-version":"3.5"}
-{"level":"info","ts":"2026-07-24T03:02:25.368042Z","caller":"api/capability.go:75","msg":"enabled capabilities for version","cluster-version":"3.5"}
-{"level":"info","ts":"2026-07-24T03:02:25.368068Z","caller":"etcdserver/server.go:2653","msg":"cluster version is updated","cluster-version":"3.5"}
-{"severity":"INFO","time":"2026-07-24T03:02:25.368Z","message":"Starting fetch of TLS assets","messageid":"<uuid>"}
-{"level":"info","ts":"2026-07-24T03:02:25.368776Z","caller":"v3rpc/health.go:61","msg":"grpc service status changed","service":"","status":"SERVING"}
-{"level":"info","ts":"2026-07-24T03:02:25.369984Z","caller":"embed/serve.go:187","msg":"serving client traffic insecurely; this is strongly discouraged!","traffic":"grpc+http","address":"127.0.0.1:65337"}
-{"severity":"INFO","time":"2026-07-24T03:02:25.370Z","message":"Successfully finished fetch of TLS assets","site":"ar-bgp-eastus01","service":"UNKNOWN","messageid":"<uuid>"}
-{"severity":"INFO","time":"2026-07-24T03:02:25.376Z","message":"Server is listening on address","type":"gRPC TLS","addr":"[::]:8444","messageid":"<uuid>"}
+2026/07/28 18:23:34 Using config file /etc/ves/voucher.yml
+{"severity":"INFO","time":"2026-07-28T18:23:34.246Z","message":"Running without rdbms connection","messageid":"<uuid>"}
+{"level":"warn","ts":"2026-07-28T18:23:34.246388Z","caller":"embed/config.go:687","msg":"Running http and grpc server on single port. This is not recommended for production."}
+{"level":"info","ts":"2026-07-28T18:23:34.246414Z","caller":"embed/etcd.go:128","msg":"configuring peer listeners","listen-peer-urls":["http://127.0.0.1:65338"]}
+{"level":"info","ts":"2026-07-28T18:23:34.246624Z","caller":"embed/etcd.go:136","msg":"configuring client listeners","listen-client-urls":["http://127.0.0.1:65337"]}
+{"level":"info","ts":"2026-07-28T18:23:34.246724Z","caller":"embed/etcd.go:310","msg":"starting an etcd server","etcd-version":"3.5.15","git-sha":"Not provided (use ./build instead of go build)","go-version":"go1.23.9 (Red Hat 1.23.9-1.el9_6)","go-os":"linux","go-arch":"amd64","max-cpu-set":8,"max-cpu-available":8,"member-initialized":false,"name":"default","data-dir":"embed_etcd_datadir","wal-dir":"","wal-dir-dedicated":"","member-dir":"embed_etcd_datadir/member","force-new-cluster":false,"heartbeat-interval":"100ms","election-timeout":"1s","initial-election-tick-advance":true,"snapshot-count":100000,"max-wals":5,"max-snapshots":5,"snapshot-catchup-entries":5000,"initial-advertise-peer-urls":["http://127.0.0.1:65338"],"listen-peer-urls":["http://127.0.0.1:65338"],"advertise-client-urls":["http://127.0.0.1:65337"],"listen-client-urls":["http://127.0.0.1:65337"],"listen-metrics-urls":[],"cors":["*"],"host-whitelist":["*"],"initial-cluster":"default=http://127.0.0.1:65338","initial-cluster-state":"new","initial-cluster-token":"etcd-cluster","quota-backend-bytes":2147483648,"max-request-bytes":1572864,"max-concurrent-streams":4294967295,"pre-vote":true,"initial-corrupt-check":false,"corrupt-check-time-interval":"0s","compact-check-time-enabled":false,"compact-check-time-interval":"1m0s","auto-compaction-mode":"","auto-compaction-retention":"0s","auto-compaction-interval":"0s","discovery-url":"","discovery-proxy":"","downgrade-check-interval":"5s"}
+{"level":"info","ts":"2026-07-28T18:23:34.247300Z","caller":"etcdserver/backend.go:81","msg":"opened backend db","path":"embed_etcd_datadir/member/snap/db","took":"215.606µs"}
+{"level":"info","ts":"2026-07-28T18:23:34.247854Z","caller":"etcdserver/raft.go:495","msg":"starting local member","local-member-id":"3f0f284b9cf6ab1e","cluster-id":"1b83681fd38245a1"}
+{"level":"info","ts":"2026-07-28T18:23:34.247903Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e switched to configuration voters=()"}
+{"level":"info","ts":"2026-07-28T18:23:34.247925Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became follower at term 0"}
+{"level":"info","ts":"2026-07-28T18:23:34.247936Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"newRaft 3f0f284b9cf6ab1e [peers: [], term: 0, commit: 0, applied: 0, lastindex: 0, lastterm: 0]"}
+{"level":"info","ts":"2026-07-28T18:23:34.247943Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became follower at term 1"}
+{"level":"info","ts":"2026-07-28T18:23:34.247969Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e switched to configuration voters=(4543894854261189406)"}
+{"level":"warn","ts":"2026-07-28T18:23:34.250160Z","caller":"auth/store.go:1241","msg":"simple token is not cryptographically signed"}
+{"level":"info","ts":"2026-07-28T18:23:34.251700Z","caller":"mvcc/kvstore.go:418","msg":"kvstore restored","current-rev":1}
+{"level":"info","ts":"2026-07-28T18:23:34.251848Z","caller":"etcdserver/quota.go:94","msg":"enabled backend quota with default value","quota-name":"v3-applier","quota-size-bytes":2147483648,"quota-size":"2.1 GB"}
+{"level":"info","ts":"2026-07-28T18:23:34.251934Z","caller":"etcdserver/server.go:867","msg":"starting etcd server","local-member-id":"3f0f284b9cf6ab1e","local-server-version":"3.5.15","cluster-version":"to_be_decided"}
+{"level":"info","ts":"2026-07-28T18:23:34.252011Z","caller":"fileutil/purge.go:50","msg":"started to purge file","dir":"embed_etcd_datadir/member/snap","suffix":"snap.db","max":5,"interval":"30s"}
+{"level":"info","ts":"2026-07-28T18:23:34.252121Z","caller":"fileutil/purge.go:50","msg":"started to purge file","dir":"embed_etcd_datadir/member/snap","suffix":"snap","max":5,"interval":"30s"}
+{"level":"info","ts":"2026-07-28T18:23:34.252138Z","caller":"fileutil/purge.go:50","msg":"started to purge file","dir":"embed_etcd_datadir/member/wal","suffix":"wal","max":5,"interval":"30s"}
+{"level":"info","ts":"2026-07-28T18:23:34.252066Z","caller":"etcdserver/server.go:751","msg":"started as single-node; fast-forwarding election ticks","local-member-id":"3f0f284b9cf6ab1e","forward-ticks":9,"forward-duration":"900ms","election-ticks":10,"election-timeout":"1s"}
+{"level":"info","ts":"2026-07-28T18:23:34.252201Z","caller":"v3rpc/health.go:61","msg":"grpc service status changed","service":"","status":"SERVING"}
+{"level":"info","ts":"2026-07-28T18:23:34.252235Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e switched to configuration voters=(4543894854261189406)"}
+{"level":"info","ts":"2026-07-28T18:23:34.252319Z","caller":"membership/cluster.go:421","msg":"added member","cluster-id":"1b83681fd38245a1","local-member-id":"3f0f284b9cf6ab1e","added-peer-id":"3f0f284b9cf6ab1e","added-peer-peer-urls":["http://127.0.0.1:65338"]}
+{"level":"info","ts":"2026-07-28T18:23:34.253619Z","caller":"embed/etcd.go:599","msg":"serving peer traffic","address":"127.0.0.1:65338"}
+{"level":"info","ts":"2026-07-28T18:23:34.253676Z","caller":"embed/etcd.go:571","msg":"cmux::serve","address":"127.0.0.1:65338"}
+{"level":"info","ts":"2026-07-28T18:23:34.253692Z","caller":"embed/etcd.go:279","msg":"now serving peer/client/metrics","local-member-id":"3f0f284b9cf6ab1e","initial-advertise-peer-urls":["http://127.0.0.1:65338"],"listen-peer-urls":["http://127.0.0.1:65338"],"advertise-client-urls":["http://127.0.0.1:65337"],"listen-client-urls":["http://127.0.0.1:65337"],"listen-metrics-urls":[]}
+{"level":"info","ts":"2026-07-28T18:23:34.348857Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e is starting a new election at term 1"}
+{"level":"info","ts":"2026-07-28T18:23:34.348938Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became pre-candidate at term 1"}
+{"level":"info","ts":"2026-07-28T18:23:34.348959Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e received MsgPreVoteResp from 3f0f284b9cf6ab1e at term 1"}
+{"level":"info","ts":"2026-07-28T18:23:34.348978Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became candidate at term 2"}
+{"level":"info","ts":"2026-07-28T18:23:34.349030Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e received MsgVoteResp from 3f0f284b9cf6ab1e at term 2"}
+{"level":"info","ts":"2026-07-28T18:23:34.349043Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"3f0f284b9cf6ab1e became leader at term 2"}
+{"level":"info","ts":"2026-07-28T18:23:34.349064Z","logger":"raft","caller":"etcdserver/zap_raft.go:77","msg":"raft.node: 3f0f284b9cf6ab1e elected leader 3f0f284b9cf6ab1e at term 2"}
+{"level":"info","ts":"2026-07-28T18:23:34.349327Z","caller":"etcdserver/server.go:2118","msg":"published local member to cluster through raft","local-member-id":"3f0f284b9cf6ab1e","local-member-attributes":"{Name:default ClientURLs:[http://127.0.0.1:65337]}","request-path":"/0/members/3f0f284b9cf6ab1e/attributes","cluster-id":"1b83681fd38245a1","publish-timeout":"7s"}
+{"level":"info","ts":"2026-07-28T18:23:34.349421Z","caller":"etcdserver/server.go:2629","msg":"setting up initial cluster version using v2 API","cluster-version":"3.5"}
+{"level":"info","ts":"2026-07-28T18:23:34.349397Z","caller":"embed/serve.go:103","msg":"ready to serve client requests"}
+{"level":"info","ts":"2026-07-28T18:23:34.349839Z","caller":"membership/cluster.go:584","msg":"set initial cluster version","cluster-id":"1b83681fd38245a1","local-member-id":"3f0f284b9cf6ab1e","cluster-version":"3.5"}
+{"level":"info","ts":"2026-07-28T18:23:34.350187Z","caller":"v3rpc/health.go:61","msg":"grpc service status changed","service":"","status":"SERVING"}
+{"severity":"INFO","time":"2026-07-28T18:23:34.350Z","message":"Starting fetch of TLS assets","messageid":"<uuid>"}
+{"level":"info","ts":"2026-07-28T18:23:34.350384Z","caller":"api/capability.go:75","msg":"enabled capabilities for version","cluster-version":"3.5"}
+{"level":"info","ts":"2026-07-28T18:23:34.350414Z","caller":"etcdserver/server.go:2653","msg":"cluster version is updated","cluster-version":"3.5"}
+{"level":"info","ts":"2026-07-28T18:23:34.350636Z","caller":"embed/serve.go:187","msg":"serving client traffic insecurely; this is strongly discouraged!","traffic":"grpc+http","address":"127.0.0.1:65337"}
+{"severity":"INFO","time":"2026-07-28T18:23:34.350Z","message":"Successfully finished fetch of TLS assets","site":"mcn-ce-ha-eastus01","service":"UNKNOWN","messageid":"<uuid>"}
+{"severity":"INFO","time":"2026-07-28T18:23:34.355Z","message":"Server is listening on address","type":"gRPC TLS","addr":"[::]:8444","messageid":"<uuid>"}
 
-... [capture trimmed: first 60 of 244 lines]
+... [capture trimmed: first 60 of 95 lines]

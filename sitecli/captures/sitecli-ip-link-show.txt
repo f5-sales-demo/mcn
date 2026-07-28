@@ -1,36 +1,36 @@
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 2: a-i-eth0: <BROADCAST,MULTICAST,ALLMULTI,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000
-    link/ether 7c:1e:52:7f:f8:12 brd ff:ff:ff:ff:ff:ff
-3: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000
-    link/ether 7c:1e:52:7f:fb:66 brd ff:ff:ff:ff:ff:ff
-4: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000
-    link/ether 7c:1e:52:7f:f5:60 brd ff:ff:ff:ff:ff:ff
+    link/ether 38:33:c5:e0:e9:4d brd ff:ff:ff:ff:ff:ff
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000
+    link/ether 38:33:c5:e0:ef:f2 brd ff:ff:ff:ff:ff:ff
+4: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000
+    link/ether 38:33:c5:e0:ee:b4 brd ff:ff:ff:ff:ff:ff
 5: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default
-    link/ether 02:42:6c:df:39:fe brd ff:ff:ff:ff:ff:ff
-40: tap_eth0: <BROADCAST,MULTICAST,ALLMULTI,UP,LOWER_UP> mtu 1500 qdisc multiq state UNKNOWN mode DEFAULT group default qlen 1000
-    link/ether 7c:1e:52:7f:f8:12 brd ff:ff:ff:ff:ff:ff
-41: vhost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN mode DEFAULT group default qlen 1000
-    link/ether 7c:1e:52:7f:f8:12 brd ff:ff:ff:ff:ff:ff
-43: vethfrr0@if42: <BROADCAST,MULTICAST,PROMISC,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/ether 02:42:1d:c2:87:42 brd ff:ff:ff:ff:ff:ff
+34: tap_eth0: <BROADCAST,MULTICAST,ALLMULTI,UP,LOWER_UP> mtu 1500 qdisc multiq state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 38:33:c5:e0:e9:4d brd ff:ff:ff:ff:ff:ff
+35: vhost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 38:33:c5:e0:e9:4d brd ff:ff:ff:ff:ff:ff
+37: vethfrr0@if36: <BROADCAST,MULTICAST,PROMISC,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
     link/ether 02:01:02:03:04:05 brd ff:ff:ff:ff:ff:ff link-netns frrns
-45: argo-envoy-0@if44: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1520 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+39: argo-envoy-0@if38: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1520 qdisc noqueue state UP mode DEFAULT group default qlen 1000
     link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netns envoy-ns
-47: host-envoy-0@if46: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
-    link/ether 12:8e:6c:12:35:ae brd ff:ff:ff:ff:ff:ff link-netns envoy-ns
-48: xc-br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
-    link/ether 56:e2:45:b7:c1:ba brd ff:ff:ff:ff:ff:ff
-49: argo-end@xc-br0-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
-    link/ether c2:3e:6d:c9:47:dd brd ff:ff:ff:ff:ff:ff
-50: xc-br0-end@argo-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master xc-br0 state UP mode DEFAULT group default qlen 1000
-    link/ether 56:e2:45:b7:c1:ba brd ff:ff:ff:ff:ff:ff
-52: linkquality0@if51: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 590 qdisc noqueue state UP mode DEFAULT group default
+41: host-envoy-0@if40: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/ether 72:b3:5f:81:31:d4 brd ff:ff:ff:ff:ff:ff link-netns envoy-ns
+42: xc-br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/ether 36:b8:24:39:f2:0f brd ff:ff:ff:ff:ff:ff
+43: argo-end@xc-br0-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/ether ce:f8:7f:3b:06:f0 brd ff:ff:ff:ff:ff:ff
+44: xc-br0-end@argo-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master xc-br0 state UP mode DEFAULT group default qlen 1000
+    link/ether 36:b8:24:39:f2:0f brd ff:ff:ff:ff:ff:ff
+46: linkquality0@if45: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 590 qdisc noqueue state UP mode DEFAULT group default
     link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netns ns-link-quality
-54: vethbfd0@if53: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+48: vethbfd0@if47: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
     link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netns bfdns
-56: vethpmtud0@if55: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+50: vethpmtud0@if49: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
     link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netnsid 4
-57: keepalived-tap: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel state DOWN mode DEFAULT group default qlen 1000
-    link/ether 32:24:d8:03:de:0d brd ff:ff:ff:ff:ff:ff
-59: vethdnsmasq0@if58: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+51: keepalived-tap: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel state DOWN mode DEFAULT group default qlen 1000
+    link/ether 3e:a1:7f:22:74:c9 brd ff:ff:ff:ff:ff:ff
+53: vethdnsmasq0@if52: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
     link/ether 02:01:02:03:04:07 brd ff:ff:ff:ff:ff:ff link-netnsid 5

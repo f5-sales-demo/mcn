@@ -1,0 +1,114 @@
+---
+title: Multi-Cloud-Netzwerk CE-HA-Demo
+description: >-
+  Was dieses Repository bereitstellt — N Single-Node-Customer-Edges, die eine
+  VIP per eBGP an einen Azure Route Server ankündigen, um Equal-Cost-Multipath
+  zu erreichen, ohne vorgelagerten Azure-Load-Balancer — was die Demo belegen
+  soll und wo Sie sie bereitstellen, ihren einwandfreien Zustand nachweisen und
+  sie präsentieren können.
+sidebar:
+  order: 5
+  label: Demo
+i18n:
+  sourceHash: 4fbc25642229
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Diese Bereitstellung demonstriert **Active/Active-Hochverfügbarkeit von Customer Edges in Azure**
+ohne vorgelagerten Azure-Load-Balancer vor den CEs. Jeder CE kündigt dieselbe Hostroute per
+eBGP an, und der Azure Route Server installiert sie alle als Next Hops mit gleichen Kosten im VNet.
+Damit findet die Verteilung des Datenverkehrs und die Entfernung ausgefallener Knoten im
+Routing-Fabric statt und nicht in einem Load Balancer.
+
+Alles auf diesen Seiten wurde gegen die laufende Bereitstellung ausgeführt, und die gezeigte Ausgabe ist die
+Ausgabe, die dabei entstanden ist. Was dieser Satz *nicht* abdeckt — Failover und die Frage, wie sich der
+Datenverkehr auf die Next Hops verteilt — wird ausdrücklich benannt und nicht stillschweigend vorausgesetzt.
+
+## Was bereitgestellt wird
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| Bestandteil | Was es ist |
+| --- | --- |
+| F5 Distributed Cloud Tenant | `var.expected_xc_tenant` — die einzige Stelle, an der der Tenant benannt wird |
+| Namespaces | CE-Sites in `system`; Origin Pool und Load Balancer in `var.xc_app_namespace` |
+| Customer Edges | `var.ce_count` Single-Node-Secure-Mesh-v2-Sites, 1 bis 3, eine pro Availability Zone |
+| CE-Software | festgelegt durch `var.ce_sw_version` / `var.ce_os_version` |
+| Azure-VMs | jeweils drei NICs — Management/SLO, extern, intern/SLI |
+| Routenaustausch | ein Azure Route Server, ASN `var.rs_asn`, zwei Instanzadressen |
+| Peerings | eines pro CE, benannt `<key>-bgp`, CE-ASN `var.ce_asn` |
+| Angekündigte VIP | `var.vip` als `/32`, von jedem CE identisch angekündigt |
+| Load Balancer | bedient `var.lb_domain`, gestützt auf einen Origin Pool unter `var.origin_ip` |
+| Testclient | eine VM im selben VNet, um Datenverkehr an die VIP zu senden |
+
+Nichts davon ist ein Literal, das Sie kopieren sollten. Jeder Wert ist aus der Bereitstellung auslesbar,
+und jede Seite liest ihn aus, statt ihn zu benennen:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="Die VIP muss außerhalb jedes VNet-CIDR liegen">
+`terraform/main.tf` enthält einen `check`-Block, der sicherstellt, dass die VIP außerhalb des Hub- und
+des Spoke-CIDR liegt, und andernfalls den Plan verweigert. Die angegebene Begründung lautet, dass eine VIP innerhalb eines
+VNet-CIDR gegenüber der eigenen Systemroute des VNet verliert, obwohl die BGP-Route spezifischer ist.
+
+Betrachten Sie die Absicherung als verbindliche Vorgabe: Wenn Sie diese Demo auf eine andere Adressierung umstellen, muss die
+VIP mit umziehen und außerhalb der VNet-Bereiche liegen.
+</Aside>
+
+<Aside type="caution" title="Umbenennen ist ein Neuaufbau, keine Umbenennung">
+Da jeder Name von `var.component` abgeleitet wird, benennt eine Änderung die gesamte
+Bereitstellung um — `site_prefix` ist jedoch keine kosmetische Änderung. Er wird zum `ClusterName`
+im cloud-init jedes CE, `custom_data` kann nur durch Ersetzen geändert werden, und cloud-init läuft nur beim
+ersten Start eines CE. Eine Änderung **ersetzt daher jede CE-VM und ihre XC-Site**, und die VIP ist
+anschließend kurzzeitig verlustbehaftet, während ECMP neu konvergiert.
+
+Das ist nicht theoretisch: Die Übernahme dieser abgeleiteten Namen in der laufenden Demo hat drei
+CE-VMs, drei Sites, drei BGP-Objekte, den Load Balancer, den Origin Pool, den Azure
+Route Server, die Bastion und den Testclient ersetzt — `23 to add, 3 to change, 26 to destroy`.
+Fixieren Sie `site_prefix` auf den aktuellen Wert, wenn bestehende Sites erhalten bleiben sollen.
+</Aside>
+
+## Wie es weitergeht
+
+<CardGrid>
+  <LinkCard
+    title="Bereitstellen"
+    description="Voraussetzungen, die beiden Werte, die Sie angeben müssen, warum das erste Apply zweiphasig ist und wie Sie alles wieder abbauen."
+    href="./deploy/"
+  />
+  <LinkCard
+    title="Das Terraform"
+    description="Die Konfiguration selbst, gelesen aus den Dateien, die sie bereitstellen, statt abgetippt."
+    href="./terraform/"
+  />
+  <LinkCard
+    title="Einwandfreien Zustand nachweisen"
+    description="Vier Prüfungen der Reihe nach und die normal wirkenden Ergebnisse, die wie ein Ausfall aussehen, aber keiner sind."
+    href="./verify/"
+  />
+  <LinkCard
+    title="Präsentieren"
+    description="Was diese Demo zeigen kann, was sie noch nicht zeigen kann und der eine Befehl, der ECMP sichtbar macht."
+    href="./present/"
+  />
+</CardGrid>

@@ -1,21 +1,25 @@
 ---
 title: Interfaces
 description: >-
-  Estado de interfaces e de links do lado Linux no nó, além do único comando
-  privilegiado que o altera. O que o Linux acredita, e que o plano de dados pode
+  Estado de interfaces e de link do lado Linux no nó, além do único comando
+  privilegiado que o altera. O que o Linux acredita, o que o plano de dados pode
   contradizer.
 sidebar:
   order: 60
   label: Interfaces
 i18n:
-  sourceHash: 3d2e9fd4cf74
+  sourceHash: c5b78c1a0b8c
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-Estes reportam a visão do kernel. O plano de dados Argo mantém a sua própria, visível através de
-[`vif`](../dataplane-forwarding/), e as duas podem divergir.
+Capturado em 2026-07-28 de um CE desta implantação. `sitecli/capture-manifest.json`
+registra qual nó, e `scripts/capture-sitecli.sh --check` reverifica a superfície de
+comandos contra um CE ativo.
+
+Estes reportam a visão do kernel. O plano de dados Argo mantém a sua própria, visível por
+meio de [`vif`](../dataplane-forwarding/), e as duas podem divergir.
 
 ## `ip`
 
@@ -29,33 +33,34 @@ funcionam.
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-O CE possui três NICs do Azure por design — gerenciamento/SLO, externa, interna/SLI — mas o
-guest não as apresenta da forma que essa ordenação sugere, e é aqui que ler a
-saída de forma errada custa tempo.
+O CE tem três NICs do Azure por design — gerenciamento/SLO, externa, interna/SLI — mas o
+guest não as apresenta da forma que essa ordenação sugere, e é aqui que ler a saída de
+forma equivocada custa tempo.
 
-| No guest | Transporta |
+| No guest | Carrega |
 | --- | --- |
-| `a-i-eth0` | **nenhum endereço** — esta é a eth0 física renomeada, e o plano de dados Argo é o proprietário dela |
-| `vhost0` | o endereço de gerenciamento/SLO, aquele a partir do qual o BGP faz peering e o que o objeto de site reporta |
+| `a-i-eth0` | **nenhum endereço** — este é o eth0 físico renomeado, e o plano de dados Argo é o proprietário dele |
+| `vhost0` | o endereço de gerenciamento/SLO, aquele do qual o BGP faz peering e aquele que o objeto de site reporta |
 | `eth1` e `eth2` | os endereços externo e interno/SLI — mas **não em uma ordem fixa** |
 
-<Aside type="danger" title="Qual entre eth1 e eth2 é a interface interna difere entre nós">
-Lido ao vivo dos três CEs desta mesma implantação: em `f5-xc-ce-vm-01` e
-`f5-xc-ce-vm-03` o endereço interno/SLI está em `eth2`, e em `f5-xc-ce-vm-02` está em
-`eth1`. Nada na configuração define isso.
+<Aside type="danger" title="Qual entre eth1 e eth2 é a interface interna difere entre os nós">
+Lido ao vivo dos três CEs desta única implantação: em `f5-xc-ce-vm-01` e
+`f5-xc-ce-vm-03` o endereço interno/SLI está em `eth2`, e em `f5-xc-ce-vm-02` ele está em
+`eth1`. Nada na configuração determina isso.
 
-Portanto, nunca inferir uma sub-rede a partir de um nome de interface, e nunca transportar um mapeamento de um nó para
-outro. Em vez disso, faça a correspondência pelo endereço — a sub-rede à qual um endereço de CE pertence é estável, mesmo
-que a interface que o contém não seja.
+Portanto, nunca infira uma subrede a partir de um nome de interface, e nunca transporte um
+mapeamento de um nó para outro. Em vez disso, faça a correspondência pelo endereço — a
+subrede à qual um endereço de CE pertence é estável, mesmo que a interface que o contém não
+seja.
 </Aside>
 
-O fato de `a-i-eth0` não transportar nenhum endereço é também toda a razão pela qual o `sshd` não pode ser alcançado no
-endereço de gerenciamento: não há nenhum listener ali, não é uma porta bloqueada. Consulte
-[SSH](../../../access/ssh/).
+O fato de `a-i-eth0` não carregar nenhum endereço também é toda a razão pela qual o `sshd`
+não pode ser alcançado no endereço de gerenciamento: não há listener ali, não é uma porta
+bloqueada. Consulte [SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 
-Somente camada de enlace: estado, MTU, disciplina de enfileiramento, MAC.
+Apenas camada de enlace: estado, MTU, disciplina de enfileiramento, MAC.
 
 ```bash
 {"command":["ip-link-show"]}
@@ -64,23 +69,25 @@ Somente camada de enlace: estado, MTU, disciplina de enfileiramento, MAC.
 ```text file=../../../../_data/sitecli-ip-link-show.txt
 ```
 
-Mais rápido que `ip addr` quando a pergunta é "o link está ativo e qual é seu MTU".
-Incompatibilidades de MTU são uma causa recorrente de túneis que se estabelecem mas não passam tráfego.
+Mais rápido que `ip addr` quando a pergunta é "o link está ativo e qual é o seu MTU".
+Incompatibilidades de MTU são uma causa recorrente de túneis que se estabelecem, mas não
+passam tráfego.
 
-## `ip-link-set` <Badge text="Camada Exec — mutante" variant="danger" />
+## `ip-link-set` <Badge text="Camada Exec — mutável" variant="danger" />
 
-Coloca uma interface ou grupo em estado ativo ou inativo.
+Ativa ou desativa uma interface ou grupo.
 
 ```
 ip-link-set (<device>||<group>) (up||down)
 ```
 
-<Aside type="danger" title="Não executado aqui, e não alcançável da forma usual">
-Este é o único comando da camada `Exec` nesta build. Ele vai para o endpoint `exec`
-em vez de `exec-user`, e ele altera o nó: derrubar `eth0` em um CE remoto
+<Aside type="danger" title="Não executado aqui, e não alcançável pelo caminho usual">
+Este é o único comando da camada `Exec` neste build. Ele vai para o endpoint `exec`
+em vez de `exec-user`, e altera o nó: desativar o `eth0` em um CE remoto
 remove o caminho pelo qual você o está gerenciando, incluindo a própria API de depuração.
 
-Deliberadamente não há saída capturada nesta página. O harness de captura recusa
-toda a camada `Exec`, e lê a camada do catálogo ao vivo em vez de uma
-lista fixa no código, de modo que isso permanece verdadeiro se uma build futura promover outros comandos para ela.
+Não há saída capturada nesta página, deliberadamente. O harness de captura recusa
+toda a camada `Exec`, e lê a camada a partir do catálogo ativo em vez de uma
+lista fixa no código, de modo que isso permanece verdadeiro se um build futuro promover
+outros comandos para ela.
 </Aside>

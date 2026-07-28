@@ -8,19 +8,23 @@ sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 8a6e8bdbb3fa
+  sourceHash: 91512c977f72
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Il CE esegue FRR per BGP. In questa topologia effettua il peering con le due istanze di
-Azure Route Server, annuncia il VIP e apprende il prefisso della VNet.
+Acquisito il 2026-07-28 da un CE di questo deployment. `sitecli/capture-manifest.json`
+registra quale nodo, e `scripts/capture-sitecli.sh --check` verifica nuovamente la
+superficie dei comandi rispetto a un CE attivo.
+
+Il CE esegue FRR per BGP. In questa topologia effettua il peering con le due istanze
+di Azure Route Server, annuncia il VIP e apprende il prefisso della VNet.
 
 ## `show-ip-bgp-summary`
 
-Iniziare da qui. Una singola schermata indica se il peering è attivo e da quanto tempo è
-stabile.
+Iniziare da qui. Una singola schermata indica se il peering è attivo e da quanto tempo
+è stabile.
 
 ```bash
 {"command":["show-ip-bgp-summary"]}
@@ -29,16 +33,17 @@ stabile.
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-Leggere prima `State/PfxRcd`. Un numero rappresenta il conteggio dei prefissi ricevuti e
-indica che la sessione è stabilita; qualsiasi altro valore — `Active`, `Connect`, `Idle` — è
-una sessione non attiva. `Up/Down` mostra da quanto tempo dura lo stato corrente, quindi una
-sessione che continua a resettarsi mostra un valore sospettosamente piccolo.
+Leggere prima `State/PfxRcd`. Un numero indica il conteggio dei prefissi ricevuti e
+significa che la sessione è stabilita; qualsiasi altro valore — `Active`, `Connect`,
+`Idle` — indica una sessione non attiva. `Up/Down` mostra da quanto tempo dura lo stato
+corrente, quindi una sessione che continua a ripristinarsi mostra un valore
+sospettosamente piccolo.
 
-<Aside type="caution" title="Il vrf id indicato qui non è quello richiesto da rt">
-Questo output riporta `vrf-id 3`. Si tratta della numerazione di FRR. Il data plane Argo usa
-un id di tabella separato e passare il numero di FRR a
-[`rt --dump`](../dataplane-forwarding/) restituisce `No such file or directory`, che
-sembra un nodo malfunzionante anziché un argomento errato.
+<Aside type="caution" title="Il vrf id riportato qui non è quello richiesto da rt">
+Questo output riporta `vrf-id 3`. Si tratta della numerazione di FRR. Il data plane Argo
+utilizza un id di tabella separato, e passare il numero di FRR a
+[`rt --dump`](../dataplane-forwarding/) restituisce `No such file or directory`, il che
+sembra un nodo guasto anziché un argomento errato.
 </Aside>
 
 ## `show-ip-bgp`
@@ -52,18 +57,19 @@ La tabella completa, con la selezione del best path visibile.
 ```text file=../../../../_data/sitecli-show-ip-bgp.txt
 ```
 
-`*` indica una rotta valida, `>` il best path selezionato, `=` un membro multipath. Nella
-cattura sopra il prefisso VNet appreso `10.0.0.0/16` ha due percorsi — uno per ciascuna
-istanza di Route Server — contrassegnati `*=` e `*>`: un best path più un membro multipath,
-quindi il nodo distribuisce il carico del traffico di ritorno su entrambe le istanze. Il VIP
-`10.250.0.10/32` ha un unico percorso `*>` perché questo nodo lo origina.
+`*` indica una rotta valida, `>` il best path selezionato, `=` un membro multipath.
+Nell'acquisizione sopra il prefisso VNet appreso `10.0.0.0/16` ha due percorsi — uno per
+ciascuna istanza di Route Server — contrassegnati `*=` e `*>`: un best path più un membro
+multipath, quindi il nodo distribuisce il carico del traffico di ritorno su entrambe le
+istanze. Il VIP `10.250.0.10/32` ha un unico percorso `*>` perché questo nodo lo origina.
 
-<Aside type="caution" title="L'ECMP a tre vie della demo non è visibile in questo output">
-`show-ip-bgp` è la tabella di un singolo nodo. L'ECMP dimostrato da questo deployment consiste
-in tre CE *diversi* che annunciano lo stesso `/32`, ed è programmato sul lato Azure — quindi la
-tabella BGP di nessun singolo CE può mostrarlo, e l'assenza di un marcatore multipath sul VIP
-qui non è un guasto. Verificarlo invece dai peering del Route Server o dalla tabella di rotte
-effettiva del client; entrambi si trovano nella [pagina as-built](../../../../as-built/).
+<Aside type="caution" title="Il multipath a costo uguale della demo non è visibile in questo output">
+`show-ip-bgp` è la tabella di un singolo nodo. L'ECMP che questo deployment dimostra
+consiste in diversi CE *differenti* che annunciano lo stesso `/32`, ed è programmato sul lato
+Azure — quindi nessuna tabella BGP di un singolo CE può mostrarlo, e l'assenza di un
+indicatore multipath sul VIP qui non è un guasto. Dimostrarlo invece dai peering del Route
+Server o dalla tabella delle rotte effettive del client; entrambi si trovano nella
+[pagina di verifica](../../../../demo/verify/).
 </Aside>
 
 ## `show-ip-bgp-neighbors`
@@ -76,16 +82,16 @@ dell'ultimo reset.
 ```
 
 Utilizzarlo quando il riepilogo mostra una sessione instabile e occorre capirne il motivo.
-`Last reset` e la relativa causa sono le righe utili.
+`Last reset` e la relativa motivazione sono le righe utili.
 
-<Aside type="note" title="Nessun output catturato ancora in questa pagina">
-Questa cattura non può essere sottoposta a commit fino a quando non verrà integrata
-`f5-sales-demo/docs-control#795`. FRR contiene un errore di ortografia nella riga relativa a
-Graceful Restart e `codespell` rifiuta il file.
+<Aside type="note" title="Nessun output acquisito in questa pagina per ora">
+Questa acquisizione non può essere committata finché `f5-sales-demo/docs-control#795` non
+viene integrato. FRR contiene un errore ortografico nella riga Graceful Restart e
+`codespell` rifiuta il file.
 
-Correggere il testo catturato farebbe sì che questa documentazione descriva un output mai
-prodotto, quindi la correzione viene applicata a monte. Nel frattempo, eseguire il comando sul
-proprio nodo.
+Correggere il testo acquisito farebbe sì che questa documentazione descriva un output mai
+prodotto, quindi la correzione viene effettuata a monte. Nel frattempo, eseguire il comando
+sul proprio nodo.
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
@@ -99,10 +105,10 @@ Ciò che questo nodo comunica ai suoi peer, in contrapposizione a ciò che conos
 ```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 ```
 
-Questo è il comando da usare per il caso "il VIP non è raggiungibile dalla VNet". Se il VIP è
-assente qui, il problema è su questo nodo e osservare il peer non sarà di alcun aiuto.
+Questo è il comando per «il VIP non è raggiungibile dalla VNet». Se il VIP è assente qui,
+il problema è su questo nodo e non serve a nulla esaminare il peer.
 
 L'output ripete un blocco `bgp neighbor:` **per ciascun peer**, quindi in questa topologia si
-ottengono gli stessi due prefissi due volte — una per ciascuna istanza di Route Server. Non si
-tratta di un rendering duplicato: è ciò che conferma che il nodo sta annunciando a entrambi. Il
-caso interessante è un blocco presente per un peer e mancante o incompleto per l'altro.
+ottengono gli stessi due prefissi due volte — una per ogni istanza di Route Server. Non si
+tratta di un rendering duplicato: è ciò che conferma che il nodo sta annunciando a entrambi.
+Il caso interessante è un blocco presente per un peer e mancante o incompleto per l'altro.

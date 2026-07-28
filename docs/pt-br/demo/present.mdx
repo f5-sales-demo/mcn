@@ -1,0 +1,135 @@
+---
+title: Apresente a demonstração
+description: >-
+  O que esta implantação pode demonstrar e como mostrá-la em um único comando —
+  multipath de custo igual programado pela malha de roteamento em vez de um
+  balanceador de carga — além das três coisas que ela ainda não pode mostrar,
+  declaradas com clareza para que um ensaio não as descubra diante de uma
+  plateia.
+sidebar:
+  order: 40
+  label: Apresentar
+i18n:
+  sourceHash: 5e23dca1c815
+  translator: machine
+---
+
+import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+A afirmação que esta demonstração sustenta é restrita e vale a pena declará-la com precisão, porque uma afirmação mais ampla não
+sobreviverá às perguntas:
+
+> Vários Customer Edges anunciam cada um a mesma rota de host por eBGP, e o Azure instala todos
+> eles como próximos saltos de custo igual. A distribuição de tráfego e a remoção de nós são, portanto,
+> propriedades da malha de roteamento — não há balanceador de carga do Azure à frente dos CEs.
+
+Execute [as quatro verificações de saúde](../verify/) primeiro. Tudo o que vem abaixo pressupõe que elas passaram.
+
+## O único comando que torna isso visível
+
+As rotas efetivas são o artefato individual mais forte: elas são o que o Azure realmente programou,
+não o que os CEs afirmam.
+
+```bash
+cd terraform
+az network nic show-effective-route-table \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_nic_name)" \
+  --query "value[?addressPrefix[0]=='$(terraform output -raw vip)/32'].{prefix:addressPrefix[0],nh:nextHopIpAddress,state:state}" \
+  -o json
+```
+
+Observado em 2026-07-28:
+
+```json
+[
+  {
+    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
+    "prefix": "10.250.0.10/32",
+    "state": "Active"
+  }
+]
+```
+
+Um prefixo, três próximos saltos, `Active`. Esse é todo o propósito da demonstração em uma única
+saída, e vale a pena fazer uma pausa nisso: nada no quadro é um balanceador de carga.
+
+Depois, mostre-o atendendo, de dentro da VNet e com o cabeçalho `Host`:
+
+```bash
+az vm run-command invoke \
+  -g "$(terraform output -raw resource_group_name)" \
+  -n "$(terraform output -raw client_vm_name)" \
+  --command-id RunShellScript --query "value[0].message" -o tsv \
+  --scripts "curl -s -o /dev/null -w '%{http_code}\n' \
+               -H 'Host: $(terraform output -raw lb_domain)' \
+               http://$(terraform output -raw vip)/"
+```
+
+<Aside type="caution" title="Não demonstre digitando o endereço em um navegador">
+O balanceador de carga faz a correspondência pelo `Host`, então uma requisição com IP puro retorna **404** — em uma implantação completamente
+saudável. Envie o cabeçalho ou resolva o domínio para o VIP antes. Um 404 diante
+de uma plateia é difícil de contornar, mesmo que nada esteja errado.
+</Aside>
+
+## Ordem sugerida
+
+<Steps>
+
+1. **Contextualize.** Um VIP, vários CEs, nenhum balanceador de carga. A malha de roteamento é o
+   mecanismo de HA.
+2. **Mostre o lado do anúncio.** Percorra os peerings ([verificação 2](../verify/)) — cada CE
+   anunciando o mesmo prefixo com seu próprio próximo salto, todos com o mesmo AS path, de modo que nenhum é
+   preferido.
+3. **Mostre o que o Azure fez com isso.** A tabela de rotas efetivas acima: um prefixo, N próximos
+   saltos, `Active`.
+4. **Mostre-o atendendo.** O `curl` acima, com o cabeçalho.
+5. **Mostre a configuração.** [O Terraform](../terraform/) está publicado aqui, lido a partir
+   dos arquivos que o implantam — útil quando alguém pergunta se isso é reproduzível.
+
+</Steps>
+
+## O que esta demonstração ainda não pode mostrar
+
+Declarado aqui em vez de descoberto ao vivo. Todos os três são ausências de evidência, não falhas
+conhecidas.
+
+<Aside type="danger" title="Não ensaie uma história de failover a partir destas páginas">
+**O failover não foi testado.** Os próximos saltos de custo igual foram verificados como instalados; o que
+acontece com a tabela de rotas quando um CE é interrompido ou deixa de anunciar não foi exercitado
+contra esta implantação. O mecanismo pretendido é retirar o anúncio de um CE e
+observar a contagem de próximos saltos cair, mas até que isso tenha sido realmente executado e medido, é um
+plano, não um resultado — portanto, não prometa isso e não improvise diante de uma plateia.
+
+Acompanhado na [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). Isso exige uma janela
+em que ninguém mais esteja usando o ambiente, já que altera o estado de anúncio ao vivo.
+</Aside>
+
+- **A distribuição de tráfego entre os próximos saltos não foi medida.** 1.470 requisições ao
+  VIP estão contabilizadas na [página de verificação](../verify/), o que estabelece que o caminho
+  funciona e como se comporta ao longo do tempo. Nada disso mostra como as requisições foram distribuídas entre os
+  próximos saltos, e esta topologia não oferece um listener HTTP por nó para atribuí-las. Se
+  perguntarem "está uniforme?", a resposta honesta é que isso não foi medido aqui.
+- **A causa do transiente de convergência em builds recém-criados não está estabelecida.** Ela está
+  caracterizada — quando acontece, por quanto tempo, e que a origem permanece limpa durante todo o período —
+  e não explicada.
+
+<Aside type="note" title="Se você vai apresentar em uma stack recém-criada, espere">
+O VIP perde uma pequena fração das requisições durante aproximadamente os primeiros 45 minutos após os CEs
+atingirem `ONLINE`. Isso se resolve completamente. Construa a demonstração bem antes de precisar dela, e execute
+novamente a verificação 4 imediatamente antes.
+</Aside>
+
+<CardGrid>
+  <LinkCard
+    title="Prove que está saudável"
+    description="As quatro verificações e os resultados de aparência normal que parecem uma indisponibilidade e não são."
+    href="../verify/"
+  />
+  <LinkCard
+    title="O Terraform"
+    description="A configuração em si, para a pergunta sobre se isso é reproduzível."
+    href="../terraform/"
+  />
+</CardGrid>

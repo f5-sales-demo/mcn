@@ -1,0 +1,106 @@
+---
+title: Multi-cloud networking CE-HA demo
+description: What this repository deploys — N single-node Customer Edges originating one VIP over eBGP into an Azure Route Server for equal-cost multipath, with no Azure load balancer in front of them — what the demo is meant to prove, and where to go to deploy it, prove it healthy, and present it.
+sidebar:
+  order: 5
+  label: Demo
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+This deployment demonstrates **active/active Customer Edge high availability in Azure**
+with no Azure load balancer in front of the CEs. Each CE originates the same host route by
+eBGP, and the Azure Route Server installs all of them as equal-cost next hops in the VNet.
+The routing fabric, rather than a load balancer, is therefore where traffic distribution
+and failed-node removal are meant to happen.
+
+Everything in these pages was run against the live deployment, and the output shown is the
+output it produced. What that sentence does *not* cover — failover, and how traffic divides
+across the next hops — is called out explicitly rather than left to be assumed.
+
+## What it deploys
+
+```text
+                     Azure Route Server            ASN 65515
+                      two instance addresses
+                                 |
+             +-------------------+-------------------+
+             |                   |                   |
+        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
+             |                   |                   |         CE ASN 64512
+        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
+          CE site             CE site             CE site
+             |                   |                   |
+             +--- each advertises the same VIP /32 ---+
+                    equal-cost multipath into the VNet
+```
+
+| Piece | What it is |
+| --- | --- |
+| F5 Distributed Cloud tenant | `var.expected_xc_tenant` — the only place the tenant is named |
+| Namespaces | CE sites in `system`; origin pool and load balancer in `var.xc_app_namespace` |
+| Customer Edges | `var.ce_count` single-node Secure Mesh v2 sites, 1 to 3, one per availability zone |
+| CE software | pinned by `var.ce_sw_version` / `var.ce_os_version` |
+| Azure VMs | three NICs each — management/SLO, external, internal/SLI |
+| Route exchange | one Azure Route Server, ASN `var.rs_asn`, two instance addresses |
+| Peerings | one per CE, named `<key>-bgp`, CE ASN `var.ce_asn` |
+| Advertised VIP | `var.vip` as a `/32`, originated identically by every CE |
+| Load balancer | serves `var.lb_domain`, backed by an origin pool at `var.origin_ip` |
+| Test client | a VM inside the same VNet, for driving traffic at the VIP |
+
+Nothing above is a literal you should copy. Every value is readable from the deployment,
+and each page reads it rather than naming it:
+
+```bash
+cd terraform
+terraform output -raw resource_group_name
+terraform output -json xc_site_names
+```
+
+<Aside type="caution" title="The VIP must sit outside every VNet CIDR">
+`terraform/main.tf` carries a `check` block that asserts the VIP is outside both the hub
+and spoke CIDRs, and refuses the plan otherwise. Its stated reason is that a VIP inside a
+VNet CIDR loses to the VNet's own system route despite the BGP route being more specific.
+
+Treat the guard as the contract: if you re-point this demo at different addressing, the
+VIP has to move out of the VNet ranges with it.
+</Aside>
+
+<Aside type="caution" title="Renaming is a rebuild, not a rename">
+Because every name derives from `var.component`, changing it renames the whole
+deployment — but `site_prefix` is not a cosmetic change. It becomes the `ClusterName`
+in each CE's cloud-init, `custom_data` is replace-only, and cloud-init runs only on a
+CE's first boot. So changing it **replaces every CE VM and its XC site**, and the VIP is
+then briefly lossy while ECMP reconverges.
+
+That is not theoretical: adopting these derived names on the running demo replaced three
+CE VMs, three sites, three BGP objects, the load balancer, the origin pool, the Azure
+Route Server, the Bastion and the test client — `23 to add, 3 to change, 26 to destroy`.
+Pin `site_prefix` to the current value when you need existing sites to stay put.
+</Aside>
+
+## Where to go next
+
+<CardGrid>
+  <LinkCard
+    title="Deploy it"
+    description="Prerequisites, the two values you must supply, why the first apply is two-phase, and how to tear it down."
+    href="./deploy/"
+  />
+  <LinkCard
+    title="The Terraform"
+    description="The configuration itself, read from the files that deploy it rather than retyped."
+    href="./terraform/"
+  />
+  <LinkCard
+    title="Prove it healthy"
+    description="Four checks in order, and the normal-looking results that read as an outage and are not."
+    href="./verify/"
+  />
+  <LinkCard
+    title="Present it"
+    description="What this demo can show, what it cannot yet show, and the one command that makes ECMP visible."
+    href="./present/"
+  />
+</CardGrid>

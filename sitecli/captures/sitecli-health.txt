@@ -1,5 +1,5 @@
 {
-  "fqdn": "f5-xc-ce-vm-01.ar-bgp-eastus01.<tenant>.tenant.int.ves.io",
+  "fqdn": "f5-xc-ce-vm-01.mcn-ce-ha-eastus01.<tenant>.tenant.int.ves.io",
   "hostname": "f5-xc-ce-vm-01",
   "initial_password_changed": false,
   "lte_support": false,
@@ -12,13 +12,13 @@
     "board": {
       "asset_tag": "",
       "name": "Virtual Machine",
-      "serial": "0000-0010-8188-8100-3906-9242-45",
+      "serial": "0000-0011-5966-0393-0598-5028-95",
       "vendor": "Microsoft Corporation",
       "version": "7.0"
     },
     "chassis": {
       "asset_tag": "7783-7084-3265-9085-8269-3286-77",
-      "serial": "4606-7519-9061-8256-6452-0422-83",
+      "serial": "5374-6447-6281-6257-0245-9554-01",
       "type": 3,
       "vendor": "Microsoft Corporation",
       "version": "7.0"
@@ -50,7 +50,7 @@
         "ip_address": [],
         "link_quality": "QUALITY_UNKNOWN",
         "link_type": "LINK_TYPE_UNKNOWN",
-        "mac_address": "7c:1e:52:7f:f8:12",
+        "mac_address": "38:33:c5:e0:e9:4d",
         "name": "a-i-eth0",
         "port": "",
         "speed": 0
@@ -58,11 +58,11 @@
       {
         "driver": "hv_netvsc",
         "ip_address": [
-          "10.0.3.5/26"
+          "10.0.2.6/26"
         ],
         "link_quality": "QUALITY_UNKNOWN",
         "link_type": "LINK_TYPE_UNKNOWN",
-        "mac_address": "7c:1e:52:7f:f5:60",
+        "mac_address": "38:33:c5:e0:ef:f2",
         "name": "eth1",
         "port": "",
         "speed": 0
@@ -70,11 +70,11 @@
       {
         "driver": "hv_netvsc",
         "ip_address": [
-          "10.0.2.4/26"
+          "10.0.3.7/26"
         ],
         "link_quality": "QUALITY_UNKNOWN",
         "link_type": "LINK_TYPE_UNKNOWN",
-        "mac_address": "7c:1e:52:7f:fb:66",
+        "mac_address": "38:33:c5:e0:ee:b4",
         "name": "eth2",
         "port": "",
         "speed": 0
@@ -90,7 +90,7 @@
     },
     "product": {
       "name": "Virtual Machine",
-      "serial": "0000-0008-0950-8923-7674-0527-50",
+      "serial": "0000-0004-1882-3508-8414-3279-17",
       "vendor": "Microsoft Corporation",
       "version": "7.0"
     },
@@ -99,7 +99,7 @@
         "driver": "sd",
         "model": "Virtual Disk",
         "name": "sda",
-        "serial": "600224807e1be5b8bba4f8f8ea9561bc",
+        "serial": "60022480a73c21ed6a015924c66a07db",
         "size_gb": 31,
         "vendor": "Msft"
       }

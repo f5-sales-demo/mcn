@@ -7,18 +7,22 @@ sidebar:
   order: 10
   label: Registro
 i18n:
-  sourceHash: fb8362ea5f14
+  sourceHash: c687d28cce5d
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
+Capturado el 2026-07-28 desde un CE de este despliegue. `sitecli/capture-manifest.json`
+registra qué nodo, y `scripts/capture-sitecli.sh --check` vuelve a verificar la superficie
+de comandos contra un CE en vivo.
+
 <Aside type="danger" title="La API no puede depurar esto">
 La API de depuración llega al nodo a través del plano de control de F5 Distributed Cloud, por
 el túnel que establece el registro. Si el registro falló no hay túnel,
-por lo que todos los comandos de este site no están disponibles para este fallo concreto. Trabaje desde
+así que todos los comandos de este site no están disponibles para este fallo exacto. Trabaje desde
 [Site Console](../../access/site-console/) si el nodo todavía tiene una ruta de red, y desde
-[consola serie](../../access/serial-console/) si no la tiene.
+la [consola serie](../../access/serial-console/) si no la tiene.
 </Aside>
 
 <Steps>
@@ -42,8 +46,8 @@ por lo que todos los comandos de este site no están disponibles para este fallo
    síntoma de un token emitido para otro tenant, y ya le ha costado a este despliegue una
    reconstrucción completa ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
 
-2. **Confirme lo que piensa el tenant.** Estar ausente de la lista de sites es un
-   problema distinto de estar presente pero no `ONLINE`.
+2. **Confirme qué piensa el tenant.** Estar ausente de la lista de sites es un problema
+   distinto a estar presente pero no `ONLINE`.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -53,7 +57,7 @@ por lo que todos los comandos de este site no están disponibles para este fallo
    Si el site existe e informa `ONLINE`, el registro tuvo éxito y usted está en el
    flujo de trabajo equivocado.
 
-3. **Localice el registro del site y su estado.** Un nodo puede registrarse y luego esperar
+3. **Encuentre el registro del site y su estado.** Un nodo puede registrarse y luego esperar
    aprobación, lo que desde fuera parece idéntico a un fallo.
 
    ```bash
@@ -66,12 +70,12 @@ por lo que todos los comandos de este site no están disponibles para este fallo
    r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
    ```
 
-   Que no haya ningún elemento significa que el nodo aún no se ha registrado: vaya a la consola serie. Un elemento
-   en un estado distinto de `ONLINE` significa que se registró y que algo posterior falló, lo cual
+   Ningún elemento en absoluto significa que el nodo todavía no se ha registrado: vaya a la consola serie. Un elemento
+   en un estado distinto de `ONLINE` significa que se registró y algo posterior falló, lo cual
    es una investigación diferente.
 
    Para barrer todo el namespace en busca de cualquier cosa pendiente de aprobación, `listregistrationsbystate`
-   recibe el estado como un **cuerpo `POST`**:
+   toma el estado como un **cuerpo `POST`**:
 
    ```bash
    curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -89,54 +93,54 @@ por lo que todos los comandos de este site no están disponibles para este fallo
    ```
 
    ```text
-   Name            Power
-   --------------  ----------
-   ar-ecmp-client  VM running
-   f5-xc-ce-vm-01  VM running
-   f5-xc-ce-vm-02  VM running
-   f5-xc-ce-vm-03  VM running
+   Name              Power
+   ----------------  ----------
+   f5-xc-ce-vm-01    VM running
+   f5-xc-ce-vm-02    VM running
+   f5-xc-ce-vm-03    VM running
+   mcn-ce-ha-client  VM running
    ```
 
 5. **Conéctese a la consola serie.** De forma interactiva esto necesita un terminal real; la conexión
-   en sí puede automatizarse sobre el websocket — consulte
-   [consola serie](../../access/serial-console/).
+   en sí puede automatizarse a través del websocket — consulte
+   la [consola serie](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   Si se niega, compruebe que el diagnóstico de arranque está habilitado en la VM antes de concluir que el
-   nodo es inalcanzable; ese requisito previo y sus modos de fallo se tratan en la página
+   Si se rechaza, compruebe que el diagnóstico de arranque está habilitado en la VM antes de concluir que el
+   nodo es inalcanzable; ese requisito previo y sus modos de fallo se tratan en la página de la
    [consola serie](../../access/serial-console/).
 
 6. **Lea lo que muestra la consola, en este orden.** cloud-init primero: un nodo cuyo
-   cloud-init nunca se completó no tiene configuración con la que registrarse. Después los
-   propios intentos de registro, y luego DNS: si el nodo no puede resolver
-   `register.ves.volterra.io`, nada de lo que viene después puede funcionar.
+   cloud-init nunca se completó no tiene configuración con la que registrarse. Luego los
+   propios intentos de registro, después DNS: si el nodo no puede resolver
+   `register.ves.volterra.io`, nada de lo posterior puede funcionar.
 
-7. **Una vez que el nodo esté `ONLINE`**, verifíquelo con [`health`](../../commands/system/health/)
+7. **Una vez que el nodo esté `ONLINE`**, verifique con [`health`](../../commands/system/health/)
    y espere `state: PROVISIONED`.
 
 </Steps>
 
-<Aside type="caution" title="Un registro se nombra con un UUID, nunca con el nombre de su site">
-Los registros se nombran `r-<uuid>`, y no existe ningún endpoint que acepte un nombre de site donde se
+<Aside type="caution" title="Un registro se nombra por un UUID, nunca por su site">
+Los registros se llaman `r-<uuid>`, y no existe ningún endpoint que acepte un nombre de site donde se
 espera un nombre de registro.
 `GET .../registrations/<site>` devuelve `404`, lo que se lee como «este site no tiene
-registro» y en realidad significa «ese no es un nombre de registro». La correspondencia entre site y registro
-solo se obtiene con `registrations_by_site/<site>`, como en el paso 3, o listando
-`registrations` y emparejando por `gc_spec.passport.cluster_name`.
+registro» y realmente significa «ese no es un nombre de registro». La correspondencia entre site y registro
+solo proviene de `registrations_by_site/<site>`, como en el paso 3, o de listar
+`registrations` y hacer coincidir con `gc_spec.passport.cluster_name`.
 
 La misma trampa hizo parecer que una flota sana tenía cero registros.
 </Aside>
 
 ## Las causas habituales
 
-- **Está apuntando al tenant equivocado**, por lo que una flota que está bien parece ausente. Paso 1.
+- **Está apuntando al tenant equivocado**, así que una flota que está bien parece ausente. Paso 1.
 - cloud-init no se completó, por lo que `/etc/vpm/config.yaml` está ausente o es incorrecto.
-- El token de registro está caducado, ya consumido, o pertenece a otro tenant.
+- El token de registro ha caducado, ya se ha consumido o es de otro tenant.
 - No hay ruta de salida hacia `register.ves.volterra.io`.
-- Desfase de reloj lo bastante grande para invalidar certificados: rápido de descartar más adelante con
+- Desfase de reloj lo bastante grande para invalidar certificados — rápido de descartar más adelante con
   [`chronyc-sources`](../../commands/network/chronyc-sources/), pero inaccesible
   hasta que el nodo esté en línea. El banner de inicio de sesión de [SSH](../../access/ssh/) informa `NTP: Synced`
-  y el estado del resolver antes de que ejecute nada, cuando SSH está disponible.
+  y el estado del resolutor antes de que ejecute nada, cuando SSH está disponible.

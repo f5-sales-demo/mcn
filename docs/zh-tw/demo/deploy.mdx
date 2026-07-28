@@ -1,0 +1,186 @@
+---
+title: 部署示範環境
+description: >-
+  前置需求、兩個刻意不設預設值的變數及其原因、租戶如何透過設定而非 shell 環境來鎖定、為何第一次 apply
+  不會規劃任何註冊核准而第二次才會建立它們，以及如何拆除此部署。
+sidebar:
+  order: 10
+  label: 部署
+i18n:
+  sourceHash: 2eed6da34e4c
+  translator: machine
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+## 前置需求
+
+- **Terraform** 版本須達到 `terraform/versions.tf` 中的下限 —— `>= 1.8`，以支援
+  provider 定義的函式，以及守護 VIP 的 `check` 區塊。
+- **`xcsh` provider。** 沒有任何地方鎖定版本：`.terraform.lock.hcl` 已被 gitignore，
+  且約束條件只是一個開放式的下限，因此每次 `init` 都會解析出最新發布的
+  版本。對一個預發布專案而言這是刻意的設計 —— 此示範環境應該在 provider
+  出現退步時直接失敗，而不是停留在一個掩蓋問題的過時版本上。
+- **一組 F5 XC API 憑證**，對應 `var.expected_xc_tenant` 中的租戶，並匯出為
+  `XCSH_API_TOKEN`（或 P12/PEM 配對）。只匯出憑證，絕不匯出 URL —— 詳見
+  下文。
+- **Azure 憑證**，具備建立資源群組、VNet、Route Server 與 VM 的權限。
+- **一個既有的 F5 XC 命名空間**，供應用層使用。此部署會*讀取*它，絕不會
+  建立或摧毀它，因此一個存放無關示範內容的命名空間永遠不會落入此
+  堆疊的 destroy 清單中。
+
+<Aside type="caution" title="dev_overrides 會靜默地替換掉你以為正在測試的 provider">
+若 `~/.terraformrc` 內含針對 `xcsh` 的 `dev_overrides` 區塊，則每一個本機 Terraform
+命令都會使用該目錄中的二進位檔，並**同時忽略版本約束與
+lock 檔案**。一個只有幾天前的建置版本就足以在對已發布 provider 完全有效的
+設定上，以 `Blocks of type "…" are not expected here` 失敗。
+
+請將它移出預設路徑，只在開發 provider 時才選擇性啟用：
+
+```bash
+mv ~/.terraformrc ~/.terraformrc.provider-dev
+TF_CLI_CONFIG_FILE=~/.terraformrc.provider-dev terraform plan   # when you mean it
+```
+
+</Aside>
+
+## 提供兩個沒有預設值的值
+
+其他每一個變數都有可運作的預設值，而每一個物件名稱都衍生自
+`var.component`。其中兩個刻意不提供預設值：
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+```
+
+| 變數 | 為何沒有預設值 |
+| --- | --- |
+| `origin_ip` | 任何預設值都會指向某一台特定機器。過時的值會把新部署的流量送到別人的主機上，而不是直接失敗。 |
+| `lb_domain` | 負載平衡器以 `Host` 進行比對，因此這就是每個請求都必須送出的值。它屬於執行此部署的人。 |
+
+兩者都有格式驗證，因此打錯字會讓 plan 失敗，而不是讓示範失敗。
+
+`terraform.tfvars` 已被 gitignore，且必須維持如此：它帶有訂閱 ID 與
+各工程師自己的值。
+
+## 租戶由設定決定，而非由你的 shell 匯出的內容決定
+
+`var.expected_xc_tenant` 指定租戶，也是唯一指定它的地方。
+`providers.tf` 由它衍生出 `xcsh` provider 的 `api_url`，這會刻意
+覆寫環境中任何的 `XCSH_API_URL`；而 `terraform/main.tf` 中的一個
+`postcondition` 會在環境指向不同租戶時，讓 **plan** 失敗。
+
+在不執行任何會改變狀態的操作下讀取這兩者：
+
+```bash
+terraform output -raw xc_tenant       # what the deployment targets
+terraform output -raw xc_env_tenant   # what your shell claims — diagnostic only
+```
+
+```text
+f5-sales-demo
+f5-sales-demo
+```
+
+<Aside type="danger" title="這道防護存在的原因是：此示範環境曾靜默地把自己搬到了錯誤的租戶">
+此示範環境原本建置於某一個租戶。後來某個憑證檔案開始匯出*另一個*
+租戶的 `XCSH_API_URL`；後續的 apply 為該租戶鑄造了 token，CE VM 便
+在那裡重新註冊，而它們原本的註冊被棄置。期間每一次 plan
+都是乾淨的，因為設定中沒有任何地方對租戶有任何主張
+（[issue 696](https://github.com/f5-sales-demo/mcn/issues/696)，已於
+[PR 697](https://github.com/f5-sales-demo/mcn/pull/697) 修正）。要復原就必須摧毀
+錯誤租戶中的堆疊，並在正確的租戶中重建。
+
+需要認得的症狀，因為它並不會自我說明：為另一個
+租戶鑄造的 token 在被鎖定的端點上會以一個裸的 `401` 失敗，看起來就跟過期
+憑證一模一樣。如果你認為有效的憑證回傳 `401`，請先比較上面
+兩個輸出，再去鑄造另一個 token。
+</Aside>
+
+## Apply
+
+<Steps>
+
+1. **初始化。** backend 設定未納入版控；請提供你自己的。
+
+   ```bash
+   terraform init -backend-config=backend.hcl
+   ```
+
+2. **第一次 apply。** 這會建置 Azure、CE 站點與註冊 token，並啟動
+   CE。
+
+   ```bash
+   terraform apply
+   ```
+
+3. **待 CE 完成註冊後再次 apply。** 這不是選擇性步驟，原因說明在
+   下方，而不是留給你自己去發現。
+
+   ```bash
+   terraform apply
+   ```
+
+</Steps>
+
+接著在展示給任何人之前，先前往[驗證健康狀態](../verify/)。
+
+## 註冊核准已自動化，但 apply 仍是兩階段
+
+註冊核准不再需要有人進到 console 操作：
+`xcsh_registration_approval` 資源會執行它，而站點模組會解析出該核准
+哪一個註冊。
+
+但這仍然不會讓此部署變成單次、無需人工介入的 `apply`，而其原因值得
+在你看著第一次執行並斷定它失敗之前先理解：
+
+- CE 的註冊物件命名為 **`r-<uuid>`**。它從不以站點命名，因此
+  在 plan 階段沒有任何方式能預測該名稱。
+- 註冊只有在 VM 啟動且 `vpm` 完成註冊之後才存在。
+- 因此**第一次 apply 完全不會規劃任何核准**。待 CE 註冊完成後重新 apply，
+  核准便會被建立。
+
+`terraform/main.tf` 在檔案開頭記錄了這個順序，那才是
+權威版本 —— 部署順序與實作它的程式碼放在一起。
+
+<Aside type="caution" title="全新的站點不會立即可透過 operate API 存取">
+在新站點回報 `ONLINE` 之後約 25 到 30 分鐘內，`vpm/debug` 端點
+會以 BIG-IP `503` 頁面回應，內容為 `The requested URL was rejected`。它看起來像是
+web 應用防火牆封鎖或 token 被撤銷，但兩者都不是。請稍候後重試。
+
+這只影響剛建置好的示範環境，不影響已在運行的環境。
+</Aside>
+
+## 維運人員 SSH 是建置階段的決定
+
+此部署會將維運人員金鑰寫入設備的 `admin` 帳號，該帳號的登入 shell
+是 Site CLI。它由 cloud-init 的 `write_files` 寫入，而後者只在首次開機時執行一次。
+
+<Aside type="caution" title="無法為已在運行的 CE 加入此設定">
+`custom_data` 只能以替換方式變更，因此在運行中的 CE 上採用此做法會**替換每一台 CE VM**。
+那是整批機隊重建，不是設定變更。cloud-init 範本中的任何其他變動也是如此 ——
+包括一則註解，因為 `custom_data` 是
+渲染後檔案的 `base64encode`。
+
+過去情況更糟：被替換掉的 CE 永遠無法重新註冊，因為已摧毀節點的
+註冊仍持有控制平面唯一的 `(tenant, cluster_name, hostname)`
+索引 —— 而在整批機隊停擺的整段時間裡，`terraform plan` 都回報「No changes」。
+復原花了兩次完整重建。這個問題已修正
+（[issue 674](https://github.com/f5-sales-demo/mcn/issues/674)，由
+[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 關閉）：站點物件的生命週期現在
+與 CE VM 實例耦合，因此替換 VM 就會替換站點，而刪除站點
+會在替換節點開機之前一併帶走它的註冊。
+
+任何要在其他地方採用此做法的人，都應先閱讀
+[SSH 頁面](../../customer-edge/access/ssh/)。
+</Aside>
+
+## 拆除環境
+
+```bash
+terraform destroy
+```
+
+應用命名空間會保留下來：它是被讀取的，從不被管理，因此 `destroy` 無法連帶
+帶走一個存放無關示範內容的命名空間。資源群組中的其他所有東西都會消失。

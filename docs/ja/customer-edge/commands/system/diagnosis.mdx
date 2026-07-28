@@ -1,15 +1,19 @@
 ---
 title: diagnosis
-description: ノードが自身に対して実行する接続性および DNS のプローブを JSON で返します。ノードが自身の到達性についてどう認識しているかがわかります。
+description: ノードが自身に対して実行する接続性と DNS のプローブを JSON で返します。ノードが自身の到達性についてどう認識しているかを示します。
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: fe68c321f801
+  sourceHash: 6bd26ad47105
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+
+このデプロイメントの 1 台の CE から 2026-07-28 に取得しました。`sitecli/capture-manifest.json`
+にどのノードかが記録されており、`scripts/capture-sitecli.sh --check` によって稼働中の CE に対して
+コマンド群を再検証できます。
 
 ## `diagnosis`
 
@@ -26,28 +30,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-結果はノードごとに報告されるため、マルチノードサイトではノード単位でブロックが 1 つずつ返されます。
-`gateway_connectivity` と `dns_connectivity` はそれぞれ ping のサマリー（`dest_ip`、`sent`、
-`received`、`lost`、ラウンドトリップ時間）を保持しています。
+結果はノードごとに報告されるため、マルチノードサイトではノードごとに 1 ブロックが返されます。
+`gateway_connectivity` と `dns_connectivity` はそれぞれ ping のサマリー — `dest_ip`、`sent`、
+`received`、`lost`、およびラウンドトリップ時間 — を含みます。
 
 <Aside type="danger" title="完全に正常なノードでも両方の ping プローブが 100% ロスを報告する">
-このトポロジーでは、サイトが `ONLINE` でトラフィックを転送しており、`registration_status: OK` であるにもかかわらず、
-**両方**の `gateway_connectivity`（宛先 `10.0.1.1`）と `dns_connectivity`（宛先
-`168.63.129.16`）が `sent: 5, received: 0, lost: 100` を報告します。これは本稿執筆時にも改めて確認済みです。1 つのレスポンスに
-`lost: 100` のブロックが 2 つ並ぶのは、このページで最も不安を煽る見た目ですが、
+このトポロジーでは、サイトが `ONLINE` でトラフィックを転送しており `registration_status: OK` であるにもかかわらず、
+**両方**の `gateway_connectivity`（`10.0.1.1` 宛）と `dns_connectivity`（`168.63.129.16` 宛）が
+`sent: 5, received: 0, lost: 100` を報告します — 本稿の執筆中に改めて確認済みです。1 つのレスポンスに
+`lost: 100` のブロックが 2 つ並ぶのは、このページで最も驚かせる見た目のものですが、
 これが正常な状態です。
 
-2 つのうち `dns_connectivity` のほうが誤解を招きます。というのも DNS は明らかに機能しているからです。
-同じレスポンスの `dns_query_result` には、まさにその同じリゾルバーに対する 10 件の成功したルックアップ（`NOERROR`）が
-含まれています。このプローブが計測しているのは ICMP の到達性であり、Azure のプラットフォームアドレスはそれに応答しません。
-DNS を計測しているわけではありません。
+2 つのうち `dns_connectivity` の方がより誤解を招きます。DNS は明らかに機能しているからです。同じ
+レスポンスの `dns_query_result` には、まさにそのリゾルバーに対する 10 件の成功したルックアップ
+（`NOERROR`）が含まれています。このプローブは ICMP 到達性を測定しており、Azure のプラットフォーム
+アドレスはそれに応答しません。つまり DNS を測定しているわけではありません。
 
-これらのフィールドは、すでに他に問題の証跡がある場合、または値が変化した場合にのみシグナルとして扱ってください。
+いずれのフィールドも、すでに問題を示す別の証拠がある場合、または値が変化した場合にのみシグナルとして
+扱ってください。
 </Aside>
 
-まず読むべきフィールドはレスポンスの他の箇所にあります。`registration_status`、
+最初に読むべきフィールドはレスポンスの別の箇所にあります。`registration_status`、
 `curl_response`（ノードが必要とする F5 エンドポイントごとに 1 エントリで、それぞれ `OK` かどうか）、
-`dns_query_result`、そして `ntp_sync_status` です。
+`dns_query_result`、および `ntp_sync_status` です。
 
-`resolv_conf` はノードが実際に使用するリゾルバーを示します。[`dig`](../../network/dig/) に時間を費やす前に、
-想定と一致しているか比較しておく価値があります。
+`resolv_conf` は、ノードが実際に使用するリゾルバーを示します。[`dig`](../../network/dig/) に時間を
+費やす前に、期待している内容と比較する価値があります。

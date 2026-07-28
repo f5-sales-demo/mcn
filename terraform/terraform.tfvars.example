@@ -1,16 +1,35 @@
-# Copy to terraform.tfvars and adjust. All values below are the lab defaults;
-# terraform.tfvars is gitignored.
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
+#
+# Only TWO variables have no default and must be supplied: origin_ip and
+# lb_domain. Everything else has a working default, and every OBJECT NAME derives
+# from var.component — so you get mcn-ce-ha-eastus01/02/03, mcn-ce-ha-f5se,
+# mcn-ce-ha-pool, mcn-ce-ha-rs, mcn-ce-ha-bastion and rg-mcn-ce-ha-<you> without
+# naming any of them here. Change component once and all of them follow.
+
+# --- REQUIRED: no defaults, deliberately ---
+# origin_ip has no default because any default is one specific machine, and a
+# stale one silently sends this deployment's traffic to somebody else's host
+# instead of failing. lb_domain has none because the load balancer matches on
+# Host: this value is what every request must send, and it belongs to whoever
+# runs the deployment.
+origin_ip = "203.0.113.10"                  # the origin this demo's pool targets
+lb_domain = "mcn-ce-ha.f5-sales-demo.com"   # Host the load balancer answers to
 
 # --- Azure ---
-subscription_id     = "<AZURE_SUBSCRIPTION_ID>"
-resource_group_name = "rmordasiewicz-f5-xc-ce-infra"
-location            = "eastus"
+subscription_id = "<AZURE_SUBSCRIPTION_ID>"
+location        = "eastus"
+# resource_group_name: defaults to rg-<component>-<deployer>, where the deployer is
+# resolved from Azure AD. Set it only to adopt a group that already exists.
+# resource_group_name = "rg-mcn-ce-ha-yourname"
 
 # --- Scaling / topology ---
-ce_count     = 3           # 1..3 single-node CE sites (active/active ECMP)
-region_short = "eastus"    # -> sites ar-bgp-eastus01 / 02 / 03
-ce_asn       = 64512
-rs_asn       = 65515
+ce_count = 3 # 1..3 single-node CE sites (active/active ECMP)
+ce_asn   = 64512
+rs_asn   = 65515
+# region_short: defaults to var.location, and forms the per-CE key and site name
+# (component + region -> mcn-ce-ha-eastus01). Set it only when the Azure region
+# name is longer than you want inside object names.
+# region_short = "eastus"
 
 # --- Network CIDRs (VIP MUST be outside all of these) ---
 hub_cidr                   = "10.0.0.0/16"
@@ -19,7 +38,22 @@ mgmt_subnet_prefix         = "10.0.1.0/26"
 external_subnet_prefix     = "10.0.2.0/26"
 internal_subnet_prefix     = "10.0.3.0/26"
 route_server_subnet_prefix = "10.0.4.0/27"
-bastion_subnet_prefix      = "10.0.5.0/26"   # only used when enable_bastion = true
+bastion_subnet_prefix      = "10.0.5.0/26" # only used when enable_bastion = true
+
+# --- Object names: all derived, all overridable ---
+# Left unset, each of these becomes <component>-<suffix>. Override one only to
+# adopt an object that already exists under a different name.
+#
+# ⚠️ site_prefix is the exception that bites. It feeds ClusterName in cloud-init,
+# and cloud-init only runs on a CE's first boot — so changing it REPLACES every CE
+# VM and its XC site, followed by roughly 45 minutes of VIP convergence. Pin it to
+# the current value when you need existing sites to stay exactly where they are.
+#
+# site_prefix       = "mcn-ce-ha"   # -> sites mcn-ce-ha-eastus01 / 02 / 03
+# lb_name           = "mcn-ce-ha-f5se"
+# origin_pool_name  = "mcn-ce-ha-pool"
+# route_server_name = "mcn-ce-ha-rs"
+# bastion_name      = "mcn-ce-ha-bastion"
 
 # --- Azure Bastion (CE Site Console access) ---
 # Off by default: Bastion bills an hourly standing charge whether or not anyone
@@ -59,11 +93,10 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 # A PRE-EXISTING namespace: example-corp, never created or destroyed. It must exist
 # in expected_xc_tenant before the first apply.
 xc_app_namespace = "multi-cloud-networking"
-origin_ip        = "20.98.232.135"
 origin_port      = 80
-lb_domain        = "ar-bgp-ecmp.bankexample.com"
 vip              = "10.250.0.10"
 
-# --- Site registration token (LATER PR) ---
-# Leave empty for the scaffold; supply the tenant site token to actually register CEs.
+# --- Site registration token ---
+# Leave unset: the deployment mints its own tenant-scoped token (xcsh_token.ce) and
+# feeds its value to cloud-init. Set this only to inject an externally-minted token.
 # registration_token = "..."
