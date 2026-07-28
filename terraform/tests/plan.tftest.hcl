@@ -52,6 +52,21 @@ run "root_plans_end_to_end" {
     condition     = output.bastion_name == null
     error_message = "Bastion is opt-in: with enable_bastion = false the root must deploy none."
   }
+
+  # Every CE site is coupled to its own node instance (issue #674): exactly one
+  # binding per node, keyed by that node. The VALUES cannot be checked here —
+  # virtual_machine_id is computed, so at plan time each binding is
+  # known-after-apply — but the SHAPE can, and a binding that is fleet-wide
+  # rather than per-node would show up as a key set that does not match
+  # ce_nodes. That the bound value is the instance id and not the (name-derived,
+  # replacement-stable) ARM resource id is pinned in ce_node.tftest.hcl.
+  assert {
+    condition = (
+      length(output.ce_bound_instance_ids) == length(output.ce_nodes) &&
+      alltrue([for k in keys(output.ce_nodes) : contains(keys(output.ce_bound_instance_ids), k)])
+    )
+    error_message = "Every CE node must contribute exactly one site-to-instance binding, keyed by that node."
+  }
 }
 
 # Azure refuses an AzureBastionSubnet smaller than /26, and it refuses it at APPLY
