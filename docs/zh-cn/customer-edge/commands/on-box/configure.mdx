@@ -1,0 +1,65 @@
+---
+title: 节点配置
+description: >-
+  Site CLI 顶层的四个配置命令——注册、网络、HTTP
+  代理和未认证硬件。这些交互式向导可重新配置运行中的节点，本文档基于设备自身菜单整理，未实际运行，并说明本仓库为何改用 cloud-init 完成全部配置。
+sidebar:
+  order: 80
+  label: 配置
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+有四个命令位于 Site CLI 的**顶层**，而非隐藏在
+[`execcli`](../) 之后——它们是登录时交互菜单所提供的选项，与
+[`health`](../../system/health/) 和 [`diagnosis`](../../system/diagnosis/) 并列。
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+以上为设备自身菜单的原文，这六个条目构成了完整的顶层菜单。
+
+<Aside type="caution" title="五个你可能期望存在的命令并不在此处">
+`factory-reset`、`upgrade`、`reboot`、`show` 和 `clear` 在构建版本
+`crt-20250613-3382` 中**不存在**。这些命令曾被纳入本仓库的命令分类，原因是假设 Site CLI 会包含它们。经过两次独立枚举——一次在 `site_state: PROVISIONING` 状态下，一次在 `PROVISIONED` 状态下——均未发现任何踪迹。请参阅[设备内索引](../)了解测量方式。
+</Aside>
+
+<Aside type="danger" title="交互式命令，会重新配置运行中的节点">
+以上每个命令都是一个向导，会重写节点配置。本文档工作期间未运行任何一个命令，也未捕获任何输出——不存在可供捕获的只读形式。已验证的内容仅为：四个命令均存在，及其来自补全菜单的描述信息。
+</Aside>
+
+## `configure`
+
+节点的初始配置：将节点绑定到租户和站点的注册详情。
+
+## `configure-network`
+
+网络的初始配置——节点接口的地址配置。
+
+## `configure-http-proxy`
+
+为无法直接访问 F5 控制平面的 CE 配置出站 HTTP 代理。
+
+## `configure-generic-hardware`
+
+为 F5 未认证的硬件进行配置。与可通过 [`edit-certified-hardware`](../config-files/) 访问的已认证硬件配置相关：若缺少有效的已认证硬件端点，`vpmd` 将以 *"fail to match certified hardware"* 退出，节点将无法完成注册。
+
+## 本仓库为何不使用这些命令
+
+这些命令属于手动路径，而本部署采用的是自动化路径。注册配置由 cloud-init 在首次启动时写入——`terraform/cloud-init/ce-node.yaml` 将集群名称、令牌和已认证硬件端点写入 `/etc/vpm/config.yaml`——因此节点启动时已完成配置，`configure` 无需介入。
+
+这一点的重要性超出了整洁性本身，原因有二：
+
+- **可重现性。** 通过向导配置的节点，每次执行的人不同，配置结果便可能不同。通过 cloud-init 配置的节点，每次配置结果完全一致，这正是演示环境可重复部署的基础。
+- **这些命令是恢复路径，而非部署路径。** 当节点需要重新指向目标，且 Terraform 不可用时，才应使用 `configure`——例如，某个从未完成注册的节点，只能通过[串口控制台](../../../access/serial-console/)访问，其他方式均无法触达。
+
+<Aside type="note" title="注册是状态，替换节点曾导致其被遗留">
+重新注册并非纯粹的节点端操作：租户持有一个以 `(tenant, cluster_name, hostname)` 为键的注册对象。在保持节点名称不变的情况下替换 CE，曾导致部署永久卡死，原因是已销毁节点的注册仍占用该键。此问题已修复——详见[注册工作流](../../../workflows/registration/)——但这也说明了为何仅靠 `configure` 命令并不总是足以将重建的节点恢复上线。
+</Aside>

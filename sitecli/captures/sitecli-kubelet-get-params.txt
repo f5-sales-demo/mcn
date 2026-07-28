@@ -1,0 +1,1 @@
+Error: failed to read all params: failed to read custom param file: open /etc/vpm/kubelet-custom-params.txt: permission denied

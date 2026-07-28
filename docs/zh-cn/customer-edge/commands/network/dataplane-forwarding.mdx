@@ -1,18 +1,18 @@
 ---
 title: 路由与下一跳
-description: Argo 数据平面实际用于转发的内容，而这不一定与 Linux 所认为的一致。涵盖 vRouter 路由表、下一跳表和虚拟接口。
+description: Argo 数据平面实际转发所依据的内容（不一定与 Linux 的认知一致）。涵盖 vRouter 路由表、下一跳表和虚拟接口。
 sidebar:
   order: 50
   label: 路由与下一跳
 i18n:
-  sourceHash: 80785e30393a
+  sourceHash: 9e8dd5045310
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 Argo 将转发状态与 Linux 内核分开维护。当
-[`ip`](../ip/) 与这些命令的输出不一致时，真正决定流量走向的是这些命令。
+[`ip`](../ip/) 与这些命令的结果不一致时，以这些命令为准来决定流量的转发。
 
 ## `rt`
 
@@ -25,14 +25,14 @@ vRouter 路由表，按 VRF 划分。
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="此处的 VRF id 并不是 BGP 报告的那个">
-`show-ip-bgp-summary` 输出 `vrf-id 3`。那是 FRR 的编号，与 vRouter 表 id 属于不同的命名空间。在此处传入该值会以一种看起来像节点故障的方式失败：
+<Aside type="danger" title="VRF id 与 BGP 报告的并非同一个">
+`show-ip-bgp-summary` 输出 `vrf-id 3`，这是 FRR 的编号，与 vRouter 表 id 属于不同的命名空间。将其传入此处会以一种看似节点故障的方式失败：
 
 ```
 vRouter(Response):  [No such file or directory (2)]
 ```
 
-`--dump 0` 也会返回同样的结果。在此拓扑中，**VRF 2** 才是已填充的 inet4 表，而 VRF 1 中有两条路由。如果你不知道 id，请从 1 开始向上探测，而不要相信 BGP 的输出。
+`--dump 0` 也会返回相同的错误。在此拓扑中，**VRF 2** 是已填充的 inet4 表，VRF 1 持有两条路由。如果不知道 id，请从 1 开始逐步向上探测，而不要轻信 BGP 的输出。
 </Aside>
 
 ## `nh`
@@ -46,21 +46,22 @@ vRouter(Response):  [No such file or directory (2)]
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-每个条目都带有一个 `Type` 以及所属的 VRF。这些节点上出现了八种类型，比例如下——统计后在三台 CE 上完全一致：
+每个条目包含一个 `Type` 以及所属的 VRF。这些节点上共出现八种类型，
+经统计在所有三个 CE 上的分布完全相同：
 
 ```text
 Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
 ```
 
-解析到 `Drop` 下一跳的路由就是黑洞，每当某个前缀存在于 `rt` 中但流量仍然消失时，都值得检查这一组合。
+路由解析到 `Drop` 下一跳即为黑洞路由，当某个前缀存在于 `rt` 中但流量仍然消失时，这种组合值得重点排查。
 
-<Aside type="caution" title="上面的抓取内容经过截断，因此并不包含所有类型">
-它只是 3,849 行中的前 60 行。`Tunnel` 是数量遥遥领先的最常见类型，却完全没有出现在这 60 行中——所以不要把该抓取内容当作完整的类型清单，也不要因为某个类型未出现在截断的抓取中就断定该节点上不存在这种类型。上面的计数来自未截断的响应。
+<Aside type="caution" title="上方抓取的内容已被截断，并不包含所有类型">
+这是 3,849 行中的前 60 行。`Tunnel` 是迄今为止最常见的类型，但在这 60 行中完全没有出现——因此请勿将此抓取内容视为完整的类型清单，也不要因为某类型未出现在截断的抓取中就断定该节点不存在该类型。上方的计数来自完整的未截断响应。
 </Aside>
 
 ## `vif`
 
-虚拟接口表：数据平面绑定了哪些接口，以及每个接口的计数器。
+虚拟接口表：数据平面绑定的内容以及各接口的计数器。
 
 ```bash
 {"command":["vif","--list"]}
@@ -69,4 +70,16 @@ Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Re
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-顶部的标志位图例值得读一遍——`Vp` 标记 vhost 物理接口，`Dpdk` 标记由 DPDK 管理的接口。用它来确认数据平面已经接管了你预期的接口，并查看 Linux 不会显示的 RX 与 TX 计数器（因为这些流量从未到达内核）。
+顶部的标志说明值得仔细阅读一次——`Vp` 标记 vhost 物理接口，`Dpdk` 标记由 DPDK 管理的接口。可借此确认数据平面是否已接管预期的接口，并查看 Linux 无法显示的 RX 和 TX 计数器（因为该流量从未到达内核）。
+
+## `mpls`
+
+```bash
+execcli mpls --help
+```
+
+Argo MPLS 表。**仅可从设备本机访问**——`mpls` 不在调试 API 中，因此与上述 `rt`、`nh`、`vif` 不同，需要通过 [SSH](../../../access/ssh/) 或
+[串口控制台](../../../access/serial-console/)，并借助
+[`execcli`](../../on-box/) 来使用。
+
+此处没有抓取示例输出。在本部署中，CE 使用 BGP 和 ECMP 转发 IPv4，不使用 MPLS 标签，因此抓取内容将显示空表，毫无参考价值。其存在性及 `--help` 参数形式已通过设备自身的补全菜单验证；其填充后的输出不在此处复现。

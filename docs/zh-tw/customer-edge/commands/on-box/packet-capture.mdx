@@ -1,0 +1,78 @@
+---
+title: 封包擷取
+description: >-
+  在 Customer Edge 虛擬介面上擷取封包的五個 vifdump
+  指令。文件內容來自已驗證的目錄元資料，本頁從未實際執行這些指令，因為它們會將擷取檔案寫入節點——包括一次將其作為無害探測指令執行時所發生的事件記錄。
+sidebar:
+  order: 30
+  label: 封包擷取
+i18n:
+  sourceHash: ff41ac658325
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vifdump` 在 Argo 資料平面的虛擬介面上擷取封包。五個指令皆為 F5 所有，均不在 [除錯 API](../../../access/debug-api/) 中。
+
+<Aside type="danger" title="這些指令會寫入節點，且本頁均不執行">
+`vifdump` 與 `vifdump-d` 會啟動擷取作業，並將 `.pcap` 檔案寫入 Argo 容器內的 `/tmp`。在磁碟容量僅 31 GiB 的 CE 上，若擷取作業持續運行，將成為一個有倒數計時的磁碟空間問題。
+
+本頁所有指令均來自設備本身的目錄元資料及其補全選單說明。**本頁不呈現任何擷取輸出**，且採集框架拒絕執行其中任何一個指令。
+</Aside>
+
+## 為何本頁特別沒有輸出
+
+Site CLI 的引數元數（arity）可透過不帶引數執行指令來探查——它會回應 `not sufficient args for command <name>`。這對唯讀指令而言是安全的操作。在本文件編寫過程中對 `vifdump` 套用此方式，結果在一個仍在註冊中的節點上**完全沒有回傳錯誤**。擷取作業是否已啟動不得而知，因為該節點在確認之前便已被銷毀並重建。
+
+這正是採集框架設計的完整理由：執行採用**預設拒絕**，而非拒絕清單。`vifdump` 不在任何拒絕清單上，因為沒有人想到它。只有明確的允許清單，才能拒絕那些無人想到的指令。
+
+## `vifdump`
+
+在指定的 vif 上擷取封包。
+
+```bash
+execcli vifdump <vif-id> [options]
+```
+
+vif id 請從 [`vif --list`](../../network/dataplane-forwarding/) 取得。
+
+## `vifdump-d`
+
+擷取**被丟棄**的封包，可針對單一 vif 或全部 vif。
+
+```bash
+execcli vifdump-d <vif-id|all>
+```
+
+與 [`dropstats`](../../network/dataplane-drops/) 搭配使用：`dropstats` 告知您發生了丟棄以及哪個計數器正在遞增，`vifdump-d` 則顯示具體的封包內容。
+
+## `vifdump-stop`
+
+停止先前執行所遺留的擷取作業。
+
+```bash
+execcli vifdump-stop
+```
+
+設備本身的說明為「若前次執行異常結束，則停止 vifdump 指令」，這說明該失敗模式是預期中的：擷取作業可能在啟動它的工作階段結束後仍繼續運行。若您已執行 `vifdump` 且不確定其是否仍在進行，請執行此指令。
+
+## `vifdump-file-cp`
+
+將擷取檔案從 Argo 容器複製到主機的 `/tmp/vifdump/` 目錄。
+
+```bash
+execcli vifdump-file-cp
+```
+
+等同於 `docker cp $(argo):/tmp/. /tmp/vifdump/`。由於擷取作業寫入*容器內部*，因此此步驟不可或缺。
+
+## `vifdump-file-rm`
+
+從 Argo 容器中刪除 `.pcap` 檔案。
+
+```bash
+execcli vifdump-file-rm
+```
+
+**完成後請執行此指令。** 它與 `vifdump-stop` 共同構成任何擷取作業的清理組合，若您接手一個可能有他人遺留擷取作業的節點，這兩個指令也應優先執行。

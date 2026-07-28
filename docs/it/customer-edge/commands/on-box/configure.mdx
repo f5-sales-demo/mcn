@@ -1,0 +1,92 @@
+---
+title: Configurazione del nodo
+description: >-
+  I quattro comandi configure al livello superiore della Site CLI —
+  registrazione, rete, proxy HTTP e hardware non certificato. Procedure guidate
+  interattive che riconfigurano un nodo attivo, documentate dal menu
+  dell'appliance senza essere eseguite, oltre al motivo per cui questo
+  repository configura tutto tramite cloud-init.
+sidebar:
+  order: 80
+  label: Configura
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Quattro comandi si trovano al **livello superiore** della Site CLI anziché dietro
+[`execcli`](../) — sono ciò che il menu interattivo offre all'accesso, insieme a
+[`health`](../../system/health/) e [`diagnosis`](../../system/diagnosis/).
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+Questo è il testo del menu dell'appliance, e queste sei voci costituiscono l'intero livello superiore.
+
+<Aside type="caution" title="Cinque comandi che ci si potrebbe aspettare non sono presenti">
+`factory-reset`, `upgrade`, `reboot`, `show` e `clear` **non** esistono nella build
+`crt-20250613-3382`. Sono stati inclusi nella classificazione dei comandi di questo repository
+per un certo periodo, partendo dal presupposto che una Site CLI li avrebbe, e due enumerazioni
+indipendenti — una a `site_state: PROVISIONING`, una a `PROVISIONED` — non ne hanno trovato
+traccia. Consultare [l'indice on-box](../) per informazioni su come è stato misurato.
+</Aside>
+
+<Aside type="danger" title="Interattivi e riconfigurano un nodo attivo">
+Ciascuno di questi è una procedura guidata che riscrive la configurazione del nodo. Nessuno è
+stato eseguito durante questo lavoro di documentazione e nessuno ha prodotto output acquisito —
+non esiste una forma di sola lettura da acquisire. Ciò che è verificato è che tutti e quattro
+esistono, e le relative descrizioni, dal menu di completamento.
+</Aside>
+
+## `configure`
+
+Configurazione iniziale del nodo: i dettagli di registrazione che lo associano a un tenant e a
+un sito.
+
+## `configure-network`
+
+Configurazione iniziale della rete — indirizzamento per le interfacce del nodo.
+
+## `configure-http-proxy`
+
+Configura un proxy HTTP in uscita, per un CE che non riesce a raggiungere direttamente il piano
+di controllo F5.
+
+## `configure-generic-hardware`
+
+Configura hardware non certificato da F5. Correlato alla configurazione dell'hardware certificato
+raggiungibile tramite [`edit-certified-hardware`](../config-files/): senza un endpoint hardware
+certificato valido, `vpmd` esce con *"fail to match certified hardware"* e il nodo non si registra
+mai.
+
+## Perché questo repository non li utilizza
+
+Questi rappresentano il percorso manuale, e questa distribuzione adotta quello automatizzato. La
+registrazione viene scritta da cloud-init al primo avvio — `terraform/cloud-init/ce-node.yaml`
+scrive `/etc/vpm/config.yaml` con il nome del cluster, il token e l'endpoint dell'hardware
+certificato — così un nodo si avvia già configurato e `configure` non ha nulla da fare.
+
+Questo è rilevante per due motivi che vanno oltre il semplice ordine:
+
+- **Riproducibilità.** Un nodo configurato tramite procedura guidata viene configurato
+  diversamente ogni volta che qualcuno lo esegue. Un nodo configurato tramite cloud-init viene
+  configurato in modo identico ogni volta, il che rende la demo ridistribuibile.
+- **Sono il percorso di ripristino, non il percorso di distribuzione.** Ricorrere a `configure`
+  quando un nodo deve essere reindirizzato e Terraform non è un'opzione — un nodo che non si è
+  mai registrato, tramite la [console seriale](../../../access/serial-console/), dove nient'altro
+  può raggiungerlo.
+
+<Aside type="note" title="La registrazione è uno stato e la sostituzione di un nodo un tempo la bloccava">
+La nuova registrazione non è un'operazione esclusivamente lato nodo: il tenant conserva un oggetto
+di registrazione indicizzato su `(tenant, cluster_name, hostname)`. La sostituzione di un CE
+mantenendo il suo nome un tempo bloccava definitivamente la distribuzione, perché la registrazione
+del nodo distrutto conservava ancora quella chiave. Questo è stato risolto — vedere il [flusso di
+lavoro di registrazione](../../../workflows/registration/) — ma è il motivo per cui `configure` da
+solo non è sempre sufficiente per riportare online un nodo ricostruito.
+</Aside>

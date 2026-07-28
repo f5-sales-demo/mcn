@@ -7,13 +7,13 @@ sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Docker exécute les services de la Plateforme. Les charges de travail Kubernetes sont gérées par
+Docker exécute les services de la plateforme. Les charges de travail Kubernetes sont sous
 [CRI-O](../crictl/).
 
 ## `docker-ps`
@@ -25,11 +25,11 @@ Docker exécute les services de la Plateforme. Les charges de travail Kubernetes
 ```text file=../../../../_data/sitecli-docker-ps.txt
 ```
 
-<Aside type="tip" title="Trois conteneurs constituent la liste complète, et non un nœud défaillant">
+<Aside type="tip" title="Trois conteneurs, c'est la liste complète, pas un nœud défaillant">
 `vpm`, `argo_watch` et `site-console`. Étant donné que la majeure partie du nœud s'exécute sous CRI-O, un
-`docker-ps` court peut ressembler à une défaillance si vous attendez des charges de travail Kubernetes
-ici. Ce n'est pas le cas — il s'agit de l'ensemble complet des conteneurs Docker sur un CE sain, et
-la présence de `vpm` avec le statut `Up` est la ligne la plus importante de la page.
+`docker-ps` court ressemble à une défaillance si vous attendez des charges de travail Kubernetes
+ici. Ce n'est pas le cas — il s'agit de l'ensemble complet des conteneurs Docker sur un CE en bonne santé, et
+la présence de `vpm` avec l'état `Up` est la ligne la plus importante de la page.
 </Aside>
 
 ## `docker-ps-a`
@@ -41,7 +41,7 @@ la présence de `vpm` avec le statut `Up` est la ligne la plus importante de la 
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-Inclut les conteneurs arrêtés, de sorte qu'un `vpm` qui continue de planter laisse des traces ici.
+Inclut les conteneurs arrêtés, de sorte qu'un `vpm` qui continue de mourir laisse des traces ici.
 
 ## `docker-images`
 
@@ -52,8 +52,8 @@ Inclut les conteneurs arrêtés, de sorte qu'un `vpm` qui continue de planter la
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-Les tags d'image identifient la version de la Plateforme que le nœud exécute réellement, ce qui mérite
-d'être comparé à la version du logiciel indiquée par [`health`](../health/).
+Les tags d'image identifient la version de la plateforme que le nœud exécute réellement, ce qui
+vaut la peine d'être comparé à la version logicielle rapportée par [`health`](../health/).
 
 ## `docker-inspect`
 
@@ -64,8 +64,8 @@ d'être comparé à la version du logiciel indiquée par [`health`](../health/).
 ```text file=../../../../_data/sitecli-docker-inspect.txt
 ```
 
-Accepte un nom ainsi qu'un identifiant, de sorte que `docker-inspect vpm` fonctionne et reste stable entre les
-redémarrages. JSON complet : montages, environnement, politique de redémarrage et état de sortie.
+Accepte un nom aussi bien qu'un identifiant, donc `docker-inspect vpm` fonctionne et reste stable d'un
+redémarrage à l'autre. JSON complet : montages, environnement, politique de redémarrage et état de sortie.
 
 ## `docker-logs`
 
@@ -76,6 +76,28 @@ redémarrages. JSON complet : montages, environnement, politique de redémarrage
 ```text file=../../../../_data/sitecli-docker-logs.txt
 ```
 
-`docker-logs vpm` est le moyen le plus rapide d'accéder aux erreurs d'enregistrement. Pour obtenir les mêmes
-informations avec horodatages et sur plusieurs redémarrages, utilisez
+`docker-logs vpm` est le chemin le plus rapide vers les erreurs d'enregistrement. Pour les mêmes
+informations avec horodatages et entre les redémarrages, utilisez
 [`journalctl`](../journalctl/) à la place.
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+Supprime tous les objets Docker inutilisés — conteneurs arrêtés, réseaux inutilisés, images orphelines et
+cache de construction.
+
+**Uniquement depuis la machine.** `docker-prune` n'est pas disponible sur l'API de débogage ; il nécessite
+[`execcli`](../../on-box/).
+
+<Aside type="danger" title="Destructif, et non capturé ici">
+Cette commande supprime de l'état. Elle figure sur la liste des refus du harnais de collecte et n'a jamais été exécutée, donc cette
+page la documente à partir des métadonnées du catalogue de l'appliance plutôt qu'en affichant une sortie.
+
+La mise en garde spécifique au CE : ce nœud exécute **deux** runtimes de conteneurs. `docker-prune` ne touche
+que le côté Docker — `vpm`, `argo_watch` et `site-console` — et ne peut pas atteindre les
+charges de travail Kubernetes sous [CRI-O](../crictl/). La récupération d'espace du côté CRI-O est une
+commande différente, `systemctl-start-crio-prune`, qui n'est pas présente sur cette version.
+</Aside>

@@ -1,0 +1,69 @@
+---
+title: 組態檔案
+description: >-
+  四個 edit-* 命令，用於開啟 Customer Edge 上由 F5 管理的檔案——應用程式環境、認證硬體、Azure
+  用戶端憑證及網路介面卡命名規則。所有命令均需由支援人員指導操作，在此僅作說明而不實際執行。
+sidebar:
+  order: 60
+  label: 組態檔案
+i18n:
+  sourceHash: d018a3245c8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+四個命令會在 F5 管理的檔案上開啟編輯器。這些命令不在
+[除錯 API](../../../access/debug-api/) 中，其中兩個在自身說明中即已註明：
+*「除非 F5 XC 支援人員要求，否則請勿使用此命令」*。
+
+<Aside type="danger" title="本頁面不提供擷取輸出，此為刻意設計">
+以下每個命令都會在實際運行中的組態檔案上開啟互動式編輯器。由於不存在唯讀模式，因此任何可擷取的輸出同時也是可寫入的機會，自動擷取工具拒絕執行全部四個命令。此處所驗證的，僅為確認命令存在，以及各命令所開啟的檔案——均來自設備自身的命令補全選單。
+</Aside>
+
+## `edit-app-env-file`
+
+開啟 `/etc/vpm/app_env.yaml`，即節點的本機應用程式環境設定。
+
+```bash
+execcli edit-app-env-file
+```
+
+設備的說明結尾為：*「除非 F5 XC 支援人員要求，否則請勿使用此命令」*。
+請照字面理解：此檔案由 `vpm` 於啟動時讀取，若值格式有誤，將影響節點上的每一個平台容器。
+
+## `edit-certified-hardware`
+
+開啟認證硬體組態。
+
+```bash
+execcli edit-certified-hardware
+```
+
+同樣被設備標記為僅限支援人員使用。此組態決定 `vpm` 是否認為自身運行於 F5 認證的硬體上——設定錯誤的後果並非假設性的。若缺少有效的 `CertifiedHardwareEndpoint`，`vpmd` 將以 *「fail to match certified hardware」* 錯誤退出，節點也將無法完成註冊。這正是本儲存庫的 cloud-init 明確設定端點、而非依賴預設值的原因；請參閱
+`terraform/cloud-init/ce-node.yaml`。
+
+## `edit-azure-client-id-secret`
+
+更新此 CE 所使用的 Azure 用戶端 ID 及密鑰，適用於憑證已過期的情況。
+
+```bash
+execcli edit-azure-client-id-secret
+```
+
+**適用情境。** 若某 CE 原本運作正常，但近期開始出現 Azure 操作失敗，且無任何組態變更可以解釋，則此命令正是為此情況而設——憑證已過期，而非任何功能損壞所致。
+
+## `edit-udev-10-nic-name`
+
+開啟 `/etc/udev/rules.d/10-nic-names.rules`，此檔案決定網路介面卡的命名方式。
+
+```bash
+execcli edit-udev-10-nic-name
+```
+
+**修改前請先閱讀介面相關頁面。** CE 上的網路介面卡命名本已出人意料：`eth0` 被重新命名為 `a-i-eth0` 且不帶主機位址，SLO 位址存在於 `vhost0` 上，而 `eth1`/`eth2` 中哪個持有內部位址，在本部署的三個節點之間並不一致。請參閱 [`ip`](../../network/ip/)。若 udev 規則預設了更為整齊的配置，只會使情況更糟。
+
+<Aside type="note" title="另有兩個 edit-* 命令屬於直通命令，不在此列">
+`edit-etc-hosts` 與 `edit-sysctl-conf` 開啟的是一般 Linux 檔案，已在
+[機器端索引](../) 中列為直通命令——作業系統本身的文件已涵蓋其說明，並無任何 CE 特定內容需要補充。
+</Aside>

@@ -1,19 +1,19 @@
 ---
 title: docker
 description: >-
-  وقت تشغيل Docker، الذي يشغّل خدمات منصة CE. خمسة أوامر، والمكان المناسب للبحث
+  وقت تشغيل Docker، الذي يُشغّل خدمات منصة CE. خمسة أوامر، والمكان المناسب للبحث
   عن vpm نفسه.
 sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-يشغّل Docker خدمات المنصة. أعباء عمل Kubernetes موجودة تحت
+يُشغّل Docker خدمات المنصة. أحمال عمل Kubernetes تقع تحت
 [CRI-O](../crictl/).
 
 ## `docker-ps`
@@ -25,11 +25,11 @@ import { Aside } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-docker-ps.txt
 ```
 
-<Aside type="tip" title="ثلاثة حاويات هي القائمة الكاملة، وليست عقدة معطوبة">
+<Aside type="tip" title="ثلاثة حاويات هي القائمة الكاملة، وليست عقدة معطلة">
 `vpm` و`argo_watch` و`site-console`. نظرًا لأن معظم العقدة تعمل تحت CRI-O، فإن
-نتيجة `docker-ps` القصيرة قد تبدو وكأنها فشل إذا كنت تتوقع وجود أعباء عمل Kubernetes
-هنا. لكنها ليست كذلك — هذه هي المجموعة الكاملة من حاويات Docker على CE سليمة، و
-وجود `vpm` وحالته `Up` هو السطر الأهم في الصفحة.
+نتيجة `docker-ps` القصيرة تبدو وكأنها فشل إذا كنت تتوقع أحمال عمل Kubernetes
+هنا. لكنها ليست كذلك — فهذه هي المجموعة الكاملة من حاويات Docker على CE سليم،
+وإن كان `vpm` موجودًا وفي حالة `Up` فهذا أهم سطر في الصفحة.
 </Aside>
 
 ## `docker-ps-a`
@@ -41,7 +41,7 @@ import { Aside } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-يتضمن الحاويات المتوقفة، لذا فإن `vpm` الذي يظل يتعطل يترك آثارًا هنا.
+يشمل الحاويات المنتهية، لذا فإن `vpm` الذي يتعطل باستمرار يترك آثارًا هنا.
 
 ## `docker-images`
 
@@ -52,8 +52,8 @@ import { Aside } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-تحدد وسوم الصور إصدار المنصة الذي تعمل به العقدة فعليًا، وهو أمر يستحق
-المقارنة مع إصدار البرنامج المُبلَّغ عنه بواسطة [`health`](../health/).
+تُحدد علامات الصورة إصدار المنصة الذي تعمل به العقدة فعليًا، وهو ما يستحق
+المقارنة مع بنية البرنامج المُبلَّغ عنها بواسطة [`health`](../health/).
 
 ## `docker-inspect`
 
@@ -64,8 +64,8 @@ import { Aside } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-docker-inspect.txt
 ```
 
-يقبل الاسم إلى جانب المعرّف، لذا يعمل `docker-inspect vpm` ويظل ثابتًا عبر
-عمليات إعادة التشغيل. JSON كاملة: نقاط التحميل، والبيئة، وسياسة إعادة التشغيل وحالة الخروج.
+يقبل الاسم إلى جانب المعرف، لذا فإن `docker-inspect vpm` يعمل ويظل ثابتًا عبر
+عمليات إعادة التشغيل. JSON كامل: نقاط التحميل، والبيئة، وسياسة إعادة التشغيل، وحالة الخروج.
 
 ## `docker-logs`
 
@@ -76,6 +76,28 @@ import { Aside } from "@astrojs/starlight/components";
 ```text file=../../../../_data/sitecli-docker-logs.txt
 ```
 
-`docker-logs vpm` هو أسرع طريق للوصول إلى أخطاء التسجيل. للحصول على نفس
-المعلومات مع الطوابع الزمنية وعبر عمليات إعادة التشغيل، استخدم
+يُعدّ `docker-logs vpm` أسرع طريق للوصول إلى أخطاء التسجيل. للحصول على المعلومات
+ذاتها مع الطوابع الزمنية وعبر عمليات إعادة التشغيل، استخدم
 [`journalctl`](../journalctl/) بدلًا من ذلك.
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+يُزيل كل كائن Docker غير مُستخدم — الحاويات المتوقفة، والشبكات غير المُستخدمة، والصور المعلقة،
+وذاكرة التخزين المؤقت للبناء.
+
+**من الجهاز فقط.** لا يتوفر `docker-prune` في واجهة برمجة التطبيقات للتصحيح؛ فهو يحتاج إلى
+[`execcli`](../../on-box/).
+
+<Aside type="danger" title="عملية تدميرية، وغير مُوثَّقة هنا">
+هذا الأمر يحذف الحالة. إنه مدرج في قائمة الرفض الخاصة بمجموعة الحصاد ولم يُشغَّل قط، لذا
+توثّق هذه الصفحة هذا الأمر من بيانات كتالوج الجهاز الخاص به بدلًا من عرض المخرجات.
+
+التحذير الخاص بـ CE: تعمل هذه العقدة بـ **وقتَي تشغيل** لحاويات. يؤثر `docker-prune`
+فقط على الجانب الخاص بـ Docker — `vpm` و`argo_watch` و`site-console` — ولا يصل إلى
+أحمال عمل Kubernetes الموجودة تحت [CRI-O](../crictl/). استعادة المساحة على جانب CRI-O
+تتطلب أمرًا مختلفًا هو `systemctl-start-crio-prune`، الذي لا يتوفر في هذا الإصدار.
+</Aside>

@@ -105,6 +105,27 @@ def parse_menu(raw: str) -> list[tuple[str, str]]:
     return rows
 
 
+def trim_command_output(raw: str) -> str:
+    """Strip the Site CLI's own interface from a command's output.
+
+    Two pieces of chrome travel with every captured command: the prompt line
+    echoing what was typed, and the completion menu the CLI repaints once the
+    command returns. Committed verbatim, those put `>>> execcli <name>` and the
+    entire six-entry top-level menu into the documentation as though the command
+    had printed them.
+
+    Only lines that *begin* with the prompt are dropped, so real output that
+    happens to contain `>>>` — usage text, for instance — survives.
+    """
+    lines = [ln.rstrip() for ln in strip_ansi(raw).splitlines()]
+    lines = [ln for ln in lines if not ln.lstrip().startswith(PROMPT.strip())]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+
 class MenuAccumulator:
     """Collects rows across a scrolling menu, first-seen order, no duplicates.
 
@@ -225,34 +246,34 @@ def guard(name: str) -> None:
 # --- the live session --------------------------------------------------------
 
 
-class SiteCliSession:
-    """A pty-backed SSH session to the Site CLI."""
+class PtyProcess:
+    """A child process on a pty, with a teardown that cannot block forever.
 
-    def __init__(self, node: str, jump: str, key: str, user: str = "admin") -> None:
-        """Open a pty and start an SSH session to the node's Site CLI."""
+    Split out from SiteCliSession so the process lifecycle is testable without a
+    Customer Edge. That separation is not cosmetic: an earlier version of close()
+    let ExitStack unwind Popen.__exit__, which calls wait() with no timeout, and
+    an `ssh -tt` session in a pty does not reliably die on SIGTERM. A harvest that
+    had already collected every command hung for 26 minutes and then lost the lot,
+    because the catalog is written after close() returns. Nothing in the hermetic
+    tests could see that, because nothing exercised a real child.
+    """
+
+    #: Grace period for each stage of teardown. Bounded on purpose.
+    TERMINATE_GRACE = 5.0
+
+    def __init__(self, argv: list[str], rows: int = 120, cols: int = 220) -> None:
+        """Spawn argv on a fresh pty with an explicit window size."""
         master, slave = pty.openpty()
-        # Declare a large window before login. It does not widen the six-row
-        # completion menu, but it stops long usage text from being wrapped.
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 120, 220, 0, 0))
-        argv = [
-            "ssh",
-            "-tt",
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "StrictHostKeyChecking=accept-new",
-            "-o",
-            "ConnectTimeout=10",
-            "-i",
-            key,
-        ]
-        if jump:
-            argv += ["-o", f"ProxyJump={jump}"]
-        argv.append(f"{user}@{node}")
+        # Declare a large window before the child starts. It does not widen
+        # go-prompt's six-row completion menu, but it stops long usage text from
+        # being wrapped mid-token.
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
         self._stack = contextlib.ExitStack()
-        # The session must outlive this constructor, so the process cannot sit in
-        # a `with` block here — that would terminate it before a single command
-        # ran. An ExitStack gives the same guaranteed teardown, unwound by close().
+        # The child must outlive this constructor, so it cannot sit in a `with`
+        # block here. An ExitStack gives the same guaranteed cleanup — but note
+        # Popen.__exit__ calls wait() with NO timeout, so close() reaps the child
+        # itself, with deadlines, before unwinding this. Reversing that order is
+        # what hung a finished harvest for 26 minutes.
         self.proc = self._stack.enter_context(
             subprocess.Popen(  # noqa: S603 - fixed argv, resolved executable, no shell
                 argv,
@@ -264,6 +285,64 @@ class SiteCliSession:
         )
         os.close(slave)
         self.fd = master
+
+    def send(self, keys: str) -> None:
+        """Write keystrokes to the pty."""
+        os.write(self.fd, keys.encode())
+
+    def close(self) -> None:
+        """End the child and release the pty, in bounded time.
+
+        SIGTERM, then a bounded wait, then SIGKILL, then a bounded wait. Every
+        stage has a deadline, so this returns whether or not the child cooperates.
+        """
+        self.proc.terminate()
+        try:
+            self.proc.wait(timeout=self.TERMINATE_GRACE)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                self.proc.wait(timeout=self.TERMINATE_GRACE)
+        # Safe now: the child is reaped, so the unwind's wait() returns at once.
+        self._stack.close()
+        with contextlib.suppress(OSError):
+            os.close(self.fd)
+
+
+def ssh_argv(node: str, jump: str, key: str, user: str = "admin") -> list[str]:
+    """Build the ssh command line for one CE.
+
+    Note that -o options are NOT inherited by the ProxyJump leg: ssh builds an
+    implicit `ProxyCommand ssh -W ... <jump>` that uses your own defaults. So a
+    jump host whose key is unknown, or has changed, fails the whole connection
+    with a message that points at the CE.
+    """
+    argv = [
+        "ssh",
+        "-tt",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "ConnectTimeout=10",
+        "-i",
+        key,
+    ]
+    if jump:
+        argv += ["-o", f"ProxyJump={jump}"]
+    argv.append(f"{user}@{node}")
+    return argv
+
+
+class SiteCliSession:
+    """A pty-backed SSH session to the Site CLI."""
+
+    def __init__(self, node: str, jump: str, key: str, user: str = "admin") -> None:
+        """Open a pty and start an SSH session to the node's Site CLI."""
+        self.pty = PtyProcess(ssh_argv(node, jump, key, user))
+        self.fd = self.pty.fd
+        self.proc = self.pty.proc
 
     def read_until_idle(self, idle: float = 2.0, hard: float = 30.0) -> str:
         """Read until the stream goes quiet.
@@ -291,7 +370,7 @@ class SiteCliSession:
 
     def send(self, keys: str) -> None:
         """Write keystrokes to the pty."""
-        os.write(self.fd, keys.encode())
+        self.pty.send(keys)
 
     def wait_for_prompt(self, hard: float = 60.0) -> str:
         """Read until the prompt appears.
@@ -311,24 +390,46 @@ class SiteCliSession:
     def scroll_menu(
         self,
         opener: str,
-        max_scrolls: int = 500,
-        patience: int = 30,
+        label: str = "menu",
+        max_scrolls: int = 200,
+        patience: int = 20,
     ) -> dict[str, str]:
-        """Open a completion menu and scroll it to exhaustion."""
+        """Open a completion menu and scroll it to exhaustion.
+
+        Reports progress, because this is the slow part and silence is
+        indistinguishable from a stall. The Site CLI repaints continuously, so a
+        read can consume its whole `hard` budget rather than ending on idle; with
+        an over-generous max_scrolls that turns into tens of minutes of nothing.
+
+        max_scrolls is sized from the largest menu actually observed — 82 commands
+        needing about 101 scrolls — plus headroom, not from an arbitrary ceiling.
+        """
         self.send(opener)
         self.read_until_idle(idle=1.5, hard=10)
         self.send("\t")
         acc = MenuAccumulator()
         acc.absorb(self.read_until_idle(idle=3.0, hard=20))
+        print(f"[{label}] first page: {len(acc.commands)} commands")
         barren = 0
-        for _ in range(max_scrolls):
+        for index in range(max_scrolls):
             self.send("\x1b[B")
             if acc.absorb(self.read_until_idle(idle=0.4, hard=5)):
                 barren = 0
             else:
                 barren += 1
                 if barren >= patience:
+                    print(
+                        f"[{label}] exhausted after {index + 1} scrolls: "
+                        f"{len(acc.commands)} commands"
+                    )
                     break
+            if (index + 1) % 25 == 0:
+                print(f"[{label}] {index + 1} scrolls, {len(acc.commands)} commands")
+        else:
+            print(
+                f"[{label}] hit the {max_scrolls}-scroll ceiling with "
+                f"{len(acc.commands)} commands — the menu may be truncated"
+            )
         # Abandon the half-typed line rather than submitting it.
         self.send("\x03")
         self.read_until_idle(idle=1.0, hard=5)
@@ -345,14 +446,11 @@ class SiteCliSession:
         return strip_ansi(self.read_until_idle(idle=idle, hard=hard))
 
     def close(self) -> None:
-        """Interrupt any half-typed line, end the session and release the pty."""
+        """Interrupt any half-typed line, then end the session in bounded time."""
         with contextlib.suppress(OSError):
             self.send("\x03")
             self.read_until_idle(idle=0.5, hard=3)
-        self.proc.terminate()
-        self._stack.close()
-        with contextlib.suppress(OSError):
-            os.close(self.fd)
+        self.pty.close()
 
 
 # --- entry point -------------------------------------------------------------
@@ -382,8 +480,8 @@ def main(argv: list[str] | None = None) -> int:
     session = SiteCliSession(args.node, args.jump, args.key)
     try:
         session.wait_for_prompt()
-        top_level = session.scroll_menu("")
-        exec_commands = session.scroll_menu("execcli ")
+        top_level = session.scroll_menu("", label="top-level")
+        exec_commands = session.scroll_menu("execcli ", label="execcli")
     finally:
         session.close()
 

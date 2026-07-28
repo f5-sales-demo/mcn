@@ -1,0 +1,96 @@
+---
+title: Envoy
+description: >-
+  wrapper สี่ตัวรอบอินเทอร์เฟซ admin ของ Envoy บน Customer Edge — listeners,
+  clusters และ config dumps สองตัว อธิบายว่าเหตุใดแต่ละตัวจึงเริ่มต้นด้วย curl
+  progress meter และสิ่งที่ผลลัพธ์ listener บอกคุณเกี่ยวกับ VIP ที่ประกาศ
+sidebar:
+  order: 20
+  label: Envoy
+i18n:
+  sourceHash: 6ca185ca6ece
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Envoy ทำหน้าที่ terminate และ proxy ทราฟฟิกแอปพลิเคชันบน Customer Edge คำสั่งทั้งสี่นี้
+ส่งคำถามไปยังอินเทอร์เฟซ admin และไม่มีคำสั่งใดอยู่ใน
+[debug API](../../../access/debug-api/)
+
+<Aside type="note" title="ทุกคำสั่งเริ่มต้นด้วย curl progress meter">
+คำสั่งเหล่านี้คือ wrapper ของ `curl` รอบ endpoint admin ของ Envoy ซึ่งเรียกใช้โดยไม่มี `-s` ดังนั้นสองหรือสามบรรทัดแรกของผลลัพธ์ทุกชุดด้านล่างคือความคืบหน้าการถ่ายโอนของ curl ที่เขียนไปยัง stderr:
+
+```text
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0 …
+```
+
+นั่นไม่ใช่ผลลัพธ์ของ Envoy และไม่ใช่ข้อผิดพลาด และยังมีประโยชน์ด้วย: จำนวนไบต์ `% Received`
+บอกให้คุณทราบว่า Envoy ส่งคืนข้อมูลใดๆ หรือไม่ ซึ่งช่วยแยกแยะระหว่าง "ไม่มี listeners ที่กำหนดค่าไว้"
+กับ "อินเทอร์เฟซ admin ไม่ตอบสนอง"
+</Aside>
+
+## `envoy-listeners`
+
+listener ทุกตัวที่ Envoy ติดตั้งไว้ ในรูปแบบ `name:address:port`
+
+```bash
+execcli envoy-listeners
+```
+
+```text file=../../../../_data/sitecli-envoy-listeners.txt
+```
+
+**สิ่งที่ควรมองหา** ในการปรับใช้นี้ listener มี `10.250.0.10:80` — VIP ที่
+CE ประกาศเข้าสู่ BGP บรรทัดเดียวนั้นเชื่อมสามชั้นเข้าด้วยกัน: หาก
+[`show-ip-bgp-summary`](../../network/bgp/) แสดงว่า prefix กำลังถูกประกาศ แต่ไม่มี
+listener นี้ แสดงว่า route กำลังถูกดึงไปยัง node ที่จะไม่ให้บริการ ซึ่งเป็นโหมดความล้มเหลวที่เลวร้ายที่สุดใน ECMP set เพราะทราฟฟิกจะถูกแบ่งโหลดเข้าสู่ black hole
+
+`[fe80:…]:80` ที่ตามมาคือที่อยู่ link-local ของอินเทอร์เฟซที่ listener ผูกอยู่
+
+**สิ่งที่ไม่บอกคุณ** ไม่มีข้อมูลเกี่ยวกับสถานะ upstream — listener มีอยู่ไม่ว่าจะมีสิ่งใดอยู่เบื้องหลังสามารถเข้าถึงได้หรือไม่ ใช้ `envoy-clusters` สำหรับสิ่งนั้น
+
+## `envoy-clusters`
+
+ทุก cluster พร้อมข้อจำกัดการเชื่อมต่อและคำขอต่อ priority
+
+```bash
+execcli envoy-clusters
+```
+
+```text file=../../../../_data/sitecli-envoy-clusters.txt
+```
+
+**สิ่งที่ควรมองหา** บรรทัดมีรูปแบบ `cluster::scope::key::value` รายการ `observability_name`
+ระบุแต่ละ cluster และชุดสาม `default_priority::max_connections`,
+`max_pending_requests` และ `max_requests` คือที่ที่ข้อจำกัดคำขอปรากฏ — cluster ที่ถึงขีดจำกัด `max_pending_requests` กำลังถูก throttle โดยการกำหนดค่า ไม่ใช่โดย upstream
+
+## `envoy-config-dump`
+
+การกำหนดค่าทั้งหมดของ Envoy ในรูปแบบ JSON ขนาดใหญ่: 126 KB บน demo node ที่ไม่ได้ใช้งาน
+
+```bash
+execcli envoy-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-config-dump.txt
+```
+
+**สิ่งที่ควรมองหา** อาร์เรย์ `configs` ระดับบนสุดมีออบเจ็กต์หนึ่งรายการต่อประเภทการกำหนดค่า —
+bootstrap, clusters, listeners, routes, secrets ใช้คำสั่งนี้เมื่อ listener หรือ cluster มีอยู่แต่ทำงานผิดปกติ และค้นหาแทนการอ่านทั้งหมด
+
+## `envoy-hc-config-dump`
+
+การกำหนดค่า health-check โดยเฉพาะ
+
+```bash
+execcli envoy-hc-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
+```
+
+**สิ่งที่ควรมองหา** ในการปรับใช้นี้จะส่งคืน **หนึ่งไบต์** — มองเห็นได้เป็น `100 1`
+ใน curl meter — หมายความว่าไม่มีการกำหนดค่า health-check ที่ติดตั้งไว้ นั่นคือสถานะที่คาดหวังสำหรับ CE ที่ไม่มี origin pools ที่ตรวจสอบสุขภาพ และควรจดจำไว้: ผลลัพธ์ว่างที่นี่ไม่ใช่คำถามที่ล้มเหลว

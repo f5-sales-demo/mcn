@@ -2,18 +2,18 @@
 title: docker
 description: >-
   Il runtime Docker, che esegue i servizi della piattaforma CE. Cinque comandi e
-  il luogo in cui cercare vpm stesso.
+  il posto in cui cercare vpm stesso.
 sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Docker esegue i servizi della piattaforma. I carichi di lavoro Kubernetes sono gestiti da
+Docker esegue i servizi della piattaforma. I carichi di lavoro Kubernetes si trovano in
 [CRI-O](../crictl/).
 
 ## `docker-ps`
@@ -25,10 +25,10 @@ Docker esegue i servizi della piattaforma. I carichi di lavoro Kubernetes sono g
 ```text file=../../../../_data/sitecli-docker-ps.txt
 ```
 
-<Aside type="tip" title="Tre container rappresentano l'elenco completo, non un nodo non funzionante">
-`vpm`, `argo_watch` e `site-console`. Poiché la maggior parte del nodo viene eseguita sotto CRI-O, un
-output breve di `docker-ps` può sembrare un errore se ci si aspetta carichi di lavoro Kubernetes
-qui. Non è così — questo è l'insieme completo dei container Docker su un CE integro, e
+<Aside type="tip" title="Tre container è l'elenco completo, non un nodo difettoso">
+`vpm`, `argo_watch` e `site-console`. Poiché la maggior parte del nodo viene eseguita in CRI-O, un
+`docker-ps` breve sembra un errore se ci si aspettano carichi di lavoro Kubernetes
+qui. Non lo è — questo è il set completo di container Docker su un CE funzionante, e
 la presenza di `vpm` con stato `Up` è la riga più importante della pagina.
 </Aside>
 
@@ -41,7 +41,7 @@ la presenza di `vpm` con stato `Up` è la riga più importante della pagina.
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-Include i container terminati, quindi un `vpm` che continua a bloccarsi lascia traccia qui.
+Include i container usciti, quindi un `vpm` che continua a terminare lascia traccia qui.
 
 ## `docker-images`
 
@@ -52,8 +52,8 @@ Include i container terminati, quindi un `vpm` che continua a bloccarsi lascia t
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-I tag delle immagini identificano la versione della piattaforma che il nodo sta effettivamente eseguendo, il che
-vale la pena confrontare con la build software riportata da [`health`](../health/).
+I tag delle immagini identificano la versione della piattaforma effettivamente in esecuzione sul nodo, che vale
+la pena confrontare con la build del software riportata da [`health`](../health/).
 
 ## `docker-inspect`
 
@@ -65,7 +65,7 @@ vale la pena confrontare con la build software riportata da [`health`](../health
 ```
 
 Accetta sia un nome che un id, quindi `docker-inspect vpm` funziona ed è stabile tra
-i riavvii. JSON completo: mount, variabili d'ambiente, policy di riavvio e stato di uscita.
+un riavvio e l'altro. JSON completo: mount, variabili d'ambiente, policy di riavvio e lo stato di uscita.
 
 ## `docker-logs`
 
@@ -76,6 +76,28 @@ i riavvii. JSON completo: mount, variabili d'ambiente, policy di riavvio e stato
 ```text file=../../../../_data/sitecli-docker-logs.txt
 ```
 
-`docker-logs vpm` è il percorso più rapido per individuare gli errori di registrazione. Per le stesse
-informazioni con timestamp e tra i riavvii, utilizzare
-[`journalctl`](../journalctl/) invece.
+`docker-logs vpm` è il percorso più rapido per gli errori di registrazione. Per le stesse
+informazioni con timestamp e attraverso i riavvii, utilizzare invece
+[`journalctl`](../journalctl/).
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+Rimuove ogni oggetto Docker inutilizzato — container fermati, reti inutilizzate, immagini dangling e
+cache di build.
+
+**Solo dal box.** `docker-prune` non è disponibile nell'API di debug; richiede
+[`execcli`](../../on-box/).
+
+<Aside type="danger" title="Distruttivo e non acquisito qui">
+Questo elimina lo stato. Si trova nella lista dei rifiuti dell'harness di raccolta e non è mai stato eseguito, quindi questa
+pagina lo documenta dai metadati del catalogo dell'appliance piuttosto che mostrarne l'output.
+
+La cautela specifica per CE: questo nodo esegue **due** runtime di container. `docker-prune` tocca
+solo il lato Docker — `vpm`, `argo_watch` e `site-console` — e non può raggiungere i
+carichi di lavoro Kubernetes in [CRI-O](../crictl/). Il recupero di spazio sul lato CRI-O è un
+comando diverso, `systemctl-start-crio-prune`, che non è presente in questa build.
+</Aside>

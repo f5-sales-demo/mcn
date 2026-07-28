@@ -1,0 +1,61 @@
+---
+title: 輔助 root 存取
+description: >-
+  這兩個指令用於在 Customer Edge 上建立和移除 xuser root 帳戶。由支援人員指引執行，會對節點留下持久性變更，且建立指令是存取
+  admin 帳戶無法讀取之檔案的唯一有據可查方式。
+sidebar:
+  order: 70
+  label: Root 存取
+i18n:
+  sourceHash: c2417b409442
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+這兩個指令用於建立和移除名為 `xuser` 的 root 帳戶。它們屬於 F5 所有，不存在於
+[除錯 API](../../../access/debug-api/) 中，是 `admin` 帳戶無法完成之工作的緊急逃生路徑。
+
+<Aside type="danger" title="這些指令會變更節點的帳戶狀態，請勿在此執行">
+`get-auxilary-root-access-to-node` 會建立一個 **root 使用者**。這是對節點的變更，
+其效果會在您的工作階段結束後持續存在，不應在探索性操作中執行。這兩個指令均記載於
+設備本身的自動完成選單中；兩者均未被執行，且採集框架拒絕執行這兩個指令。
+
+「auxiliary」的拼寫錯誤來自設備本身，並非本頁的錯字。請依所示輸入，否則將找不到該指令。
+</Aside>
+
+## `get-auxilary-root-access-to-node`
+
+建立 `xuser` root 帳戶。
+
+```bash
+execcli get-auxilary-root-access-to-node
+```
+
+**此指令確實是解答的情況。** 部分診斷操作以 `admin` 身份根本無法存取。
+在此版本上最明確的驗證案例為 [`kubelet-get-params`](../kubelet/)，
+該指令會因 `open /etc/vpm/kubelet-custom-params.txt: permission denied` 而失敗——
+該檔案確實存在，但 `admin` 帳戶無法讀取。Root 存取是處理此類問題的有據可查路徑。
+
+**在使用此指令之前**，請先考慮 [除錯 API](../../../access/debug-api/)
+是否已能回答您的問題。其 `exec` 層級可執行特權指令，而無需建立持久性帳戶，
+對節點的變更程度較小。
+
+## `remove-auxilary-root-access-to-node`
+
+刪除 `xuser` 帳戶。
+
+```bash
+execcli remove-auxilary-root-access-to-node
+```
+
+**完成後請執行此指令。** 為某次診斷工作階段所建立的 root 帳戶若未予移除，
+將成為設備上一個長期存在的憑證，且不會有任何提示提醒您。請將建立與移除視為配對操作，
+在同一個工作階段內完成，就如同
+[`vifdump`](../packet-capture/) 與 `vifdump-file-rm` 是配對操作一樣。
+
+<Aside type="note" title="尚未確認的事項">
+兩個指令的輸出均未被記錄，因此本頁無法告知您成功時的樣子、`xuser`
+建立時使用的密碼或金鑰，或是在工作階段開啟時移除是否會被拒絕。
+這些問題需要在您願意進行修改的節點上實際操作才能得知。
+</Aside>

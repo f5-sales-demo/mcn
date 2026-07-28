@@ -1,0 +1,148 @@
+---
+title: 온-박스 명령어
+description: >-
+  어플라이언스 자체 Site CLI가 제공하는 82개 명령어 중 디버그 API로는 전혀 접근할 수 없는 55개를 포함하여 설명합니다. 이
+  명령어들을 실행하는 숨겨진 execcli 명령어, API보다 이 명령어 표면이 더 넓은 이유, 완전히 문서화된 명령어와 목록만 제공되는
+  명령어, 그리고 측정 방법을 설명합니다.
+sidebar:
+  order: 40
+  label: 온-박스
+i18n:
+  sourceHash: 1f8259efff3f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+[디버그 API](../../access/debug-api/)는 **34개 명령어**를 노출합니다. 어플라이언스 자체는
+**82개**를 제공하며, **그 중 55개는 API에 해당하는 기능이 없습니다** — 전체 Vega 컨트롤 플레인,
+Envoy 래퍼, 패킷 캡처, kubelet 파라미터 세트, `edit-*` 파일 및 보조 root 액세스 쌍은
+박스에서만 접근할 수 있습니다.
+
+이에 접근하려면 [SSH](../../access/ssh/) 또는
+[시리얼 콘솔](../../access/serial-console/)이 필요하며, 어디에도 문서화되어 있지 않은 한 가지가 있습니다:
+
+<Aside type="tip" title="execcli는 숨겨진 명령어입니다">
+`execcli`는 Site CLI의 대화형 메뉴에 표시되지 않습니다. 명령어 이름을 인수로 받으며,
+`execcli ` 다음에 **Tab** 키를 입력하면 어플라이언스 자체의 한 줄 설명과 함께 82개 모두가
+나열됩니다. 해당 자동 완성 메뉴가 빌드에 대한 공식 카탈로그이며, `sitecli/exec-catalog.json`에
+기록됩니다.
+</Aside>
+
+## 측정 방법
+
+아래의 세트는 벤더 문서에서 옮겨 적은 것이 아닙니다. 두 개의 라이브 노드에서 읽어 출처와 함께
+`sitecli/exec-catalog.json`에 커밋되었습니다:
+
+| | 최상위 수준 | `execcli` |
+| --- | --- | --- |
+| `site_state: PROVISIONING` 상태에서 측정 | 6 | 82 |
+| `site_state: PROVISIONED` 상태에서 측정 | 6 | 82 |
+
+두 번의 실행 결과 **동일한 세트**가 반환되었습니다. 이는 개수보다 더 중요합니다: 명령어 표면이
+등록 상태에 따라 변하지 않음을 의미하므로, 없는 명령어는 아직 제공되지 않는 것이 아니라 실제로
+존재하지 않는 것입니다.
+
+<Aside type="caution" title="존재하지 않는 다섯 가지 명령어">
+`factory-reset`, `upgrade`, `reboot`, `show`, `clear`는 이 빌드에 **없습니다**. 이것들은
+Site CLI에 있을 법한 종류의 명령어로, 그 가정하에 한동안 이 저장소의 분류에 포함되어 있었으나,
+두 번의 열거 모두에서 발견되지 않았습니다. 최상위 수준에는 정확히 여섯 개의 항목이 있습니다:
+`configure`, `configure-generic-hardware`, `configure-network`, `configure-http-proxy`,
+`diagnosis`, `health`.
+</Aside>
+
+## 문서화된 항목과 목록만 있는 항목
+
+Customer Edge는 Linux와 여러 서드파티 데몬을 실행합니다. 해당 명령어를 문서화하면 자체 참조
+자료와 중복되고 F5가 소유한 것처럼 보일 수 있으므로, 규칙은 다음과 같습니다: **F5의 소프트웨어는
+문서화하고, 나머지는 CE에 특화된 내용만 문서화합니다.**
+
+"우리 것"과 "그들 것"이 명확하게 나뉘지 않기 때문에 세 가지 계층으로 구분합니다. 이 구분은
+`sitecli/command-classification.json`에 기록됩니다.
+
+| 계층 | 처리 방식 |
+| --- | --- |
+| **F5 소프트웨어** | 완전한 문서화 — 목적, 구문, 인수, 캡처된 출력, 확인 사항. Argo, Vega, `vpm`, `vifdump`, `configure*`, `edit-*` 세트, kubelet 파라미터, root 액세스. |
+| **CE 특화 해석** | CE에서 출력이 특별한 의미를 가지는 서드파티 도구. CE 특화 해석은 문서화하고, 도구 자체의 의미는 업스트림에 위임합니다. |
+| **패스스루** | CE에 특화된 내용이 없는 일반 Linux 또는 서드파티. 사용 가능한 것으로 목록화하고 업스트림 포인터를 제공합니다. 산문 없음. |
+
+이 구분이 페이지 존재 여부를 결정하며, 이 문서가 man 페이지의 열화된 복사본으로 전락하지 않도록
+하는 방법입니다.
+
+## F5 소프트웨어
+
+<CardGrid>
+  <LinkCard
+    title="Vega control plane"
+    description="Six <code>vegactl</code> commands: configuration objects, introspection tables, trace buffers, and which node holds the primary role."
+    href="./vega/"
+  />
+  <LinkCard
+    title="Envoy"
+    description="Four wrappers around Envoy's admin interface — listeners, clusters, and two config dumps."
+    href="./envoy/"
+  />
+  <LinkCard
+    title="Packet capture"
+    description="The five <code>vifdump</code> commands. Documented, never run here: they write capture files onto the node."
+    href="./packet-capture/"
+  />
+  <LinkCard
+    title="Kubelet parameters"
+    description="Read, add and remove custom kubelet parameters. Support-directed."
+    href="./kubelet/"
+  />
+  <LinkCard
+    title="vpm service"
+    description="The agent that registers the node and runs the platform containers."
+    href="./vpm/"
+  />
+  <LinkCard
+    title="Configuration files"
+    description="The four <code>edit-*</code> commands that open F5-owned files on the node."
+    href="./config-files/"
+  />
+  <LinkCard
+    title="Auxiliary root access"
+    description="Creating and removing the <code>xuser</code> root account. Support-directed, and it leaves the node modified."
+    href="./root-access/"
+  />
+  <LinkCard
+    title="Node configuration"
+    description="The four <code>configure*</code> commands at the Site CLI top level."
+    href="./configure/"
+  />
+</CardGrid>
+
+## 패스스루
+
+박스에서 사용 가능하며 **여기서는 문서화하지 않습니다** — 이것들은 F5의 소프트웨어가 아닌
+운영 체제와 서드파티 데몬이며, 자체 참조 자료가 이 페이지에서 재술할 수 있는 어떤 내용보다
+더 낫습니다.
+
+| 명령어 | 업스트림 |
+| --- | --- |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, BIND 유틸리티 |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | 파일은 운영 체제의 것입니다 |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — 이 명령어들 각각은 노드의 워크로드를 중단시킵니다 |
+
+이 중 두 가지는 별도의 페이지가 없더라도 알아두어야 합니다. `files`는 파일 작업을 수행하며
+`/tmp` 하위에만 쓸 수 있습니다. 그리고 모든 `systemctl-restart-*`는 정의상 서비스 중단을
+수반합니다 — `crio` 또는 `kubelet`을 재시작하면 해당 노드의 워크로드가 중단됩니다.
+
+<Aside type="note" title="일곱 개 명령어는 최신 빌드에는 있지만 이 빌드에는 없습니다">
+`collect-database-stats`, `iptables-lv`, 세 개의 `marker-exists-*` 명령어,
+`systemctl-restart-NetworkManager`, `systemctl-start-crio-prune`는 빌드
+`crt-20260201-0179`의 디버그 API를 통해 관찰되었습니다. 이것들은 분류에서
+`not_on_this_build.newer_build_debug_api`에 기록되어 있으므로, 여기에 있는 어떤 내용도
+`crt-20250613-3382`에서 실행할 수 있는 것으로 오해되지 않습니다.
+
+`collect-debug-info`는 별도의 경우입니다: 어떤 메뉴나 카탈로그에도 나타나지 않습니다.
+Site CLI 환영 텍스트에는 CLI가 "지원을 위한 디버그 정보 수집을 … 허용한다"고 나와 있으므로,
+이 이름은 관찰된 것이 아니라 해당 산문에서 파생된 것으로 보입니다. 미검증으로 표시되어 있으며
+의도적으로 프로브하지 않습니다 — 라이브 노드에서 알 수 없는 명령어를 추측으로 실행하는 것이
+아직 등록 중인 CE에서 `vifdump` 패킷 캡처를 시작하게 된 경위입니다.
+</Aside>

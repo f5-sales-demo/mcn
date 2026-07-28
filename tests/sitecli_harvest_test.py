@@ -20,7 +20,11 @@ be wrong.
 """
 
 import logging
+import os
+import signal
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -192,12 +196,150 @@ def test_allow_list_contains_no_mutating_verb():
         )
 
 
+# --- process teardown is bounded -------------------------------------------
+#
+# These use a real child on a real pty, because the bug they exist to catch was
+# invisible to pure-function tests. close() used to let ExitStack unwind
+# Popen.__exit__, which calls wait() with no timeout; a child that ignores
+# SIGTERM then hangs the caller forever. A completed harvest was lost that way,
+# since the catalog is written after close() returns. No network, no CE — just a
+# process that refuses to die politely.
+
+
+def test_close_returns_promptly_for_a_cooperative_child():
+    p = h.PtyProcess(["sleep", "60"])
+    started = time.monotonic()
+    p.close()
+    assert time.monotonic() - started < 5, (
+        "close() should not linger on a child that dies"
+    )
+    assert p.proc.poll() is not None, "child must be reaped"
+
+
+def test_close_kills_a_child_that_ignores_sigterm():
+    # sh -c "trap '' TERM; sleep 60" does NOT work: sh exec's the final command,
+    # replacing itself and discarding the trap, so the child dies on SIGTERM and
+    # the SIGKILL path is never exercised. Install the handler in the process that
+    # actually sleeps.
+    #
+    # The child must announce readiness. Closing immediately races interpreter
+    # startup: SIGTERM arriving before the handler is installed kills the child
+    # under the default disposition, and the SIGKILL path is never reached.
+    child = (
+        "import signal, sys, time; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "sys.stdout.write('ARMED\\n'); sys.stdout.flush(); "
+        "time.sleep(60)"
+    )
+    p = h.PtyProcess([sys.executable, "-u", "-c", child])
+    deadline = time.monotonic() + 10
+    armed = ""
+    while "ARMED" not in armed and time.monotonic() < deadline:
+        armed += os.read(p.fd, 4096).decode("utf-8", "replace")
+    assert "ARMED" in armed, "child never installed its SIGTERM handler"
+    started = time.monotonic()
+    p.close()
+    elapsed = time.monotonic() - started
+    assert p.proc.poll() is not None, "close() must reap even a SIGTERM-proof child"
+    assert elapsed < 2 * h.PtyProcess.TERMINATE_GRACE + 2, (
+        f"close() took {elapsed:.1f}s; teardown must stay bounded"
+    )
+    assert p.proc.returncode in (-signal.SIGKILL, signal.SIGKILL, 137), (
+        f"expected SIGKILL, got returncode {p.proc.returncode}"
+    )
+
+
+def test_close_is_idempotent():
+    p = h.PtyProcess(["sleep", "60"])
+    p.close()
+    p.close()  # must not raise on an already-closed pty or a reaped child
+
+
+# --- ssh argv ---------------------------------------------------------------
+
+
+def test_ssh_argv_omits_proxyjump_when_no_jump_host():
+    argv = h.ssh_argv("10.0.3.7", "", "key-path-not-read")
+    assert not any(a.startswith("ProxyJump") for a in argv)
+    assert argv[-1] == "admin@10.0.3.7"
+
+
+def test_ssh_argv_includes_proxyjump_and_user():
+    argv = h.ssh_argv(
+        "10.0.3.7", "azureuser@1.2.3.4", "key-path-not-read", user="admin"
+    )
+    assert "ProxyJump=azureuser@1.2.3.4" in argv
+    assert "BatchMode=yes" in argv
+    assert argv[-1] == "admin@10.0.3.7"
+
+
+# --- command output is trimmed of Site CLI chrome ---------------------------
+#
+# A captured command carries two pieces of interface with it: the prompt line
+# echoing what was typed, and the completion menu the CLI repaints afterwards.
+# Committing those verbatim puts `>>> execcli vegactl-...` and the whole
+# six-entry top-level menu into the documentation as though the command had
+# printed them.
+
+MENU_REPAINT = (
+    ">>>  configure                   Initial configuration of the node"
+    "                configure-generic-hardware  Configure Hardware that isn't"
+    " certified by F5XC.                configure-network           Initial"
+    " configuration of the network"
+)
+
+
+def test_trim_drops_the_prompt_echo():
+    raw = ">>> execcli vegactl-introspect-show-election\nrole: Master\n"
+    assert h.trim_command_output(raw) == "role: Master"
+
+
+def test_trim_drops_a_trailing_menu_repaint():
+    raw = f">>> execcli envoy-listeners\nlistener-1:80\n{MENU_REPAINT}\n"
+    assert h.trim_command_output(raw) == "listener-1:80"
+
+
+def test_trim_keeps_interior_content_and_blank_lines():
+    raw = ">>> execcli x\nfirst\n\nsecond\n>>> \n"
+    assert h.trim_command_output(raw) == "first\n\nsecond"
+
+
+def test_trim_keeps_output_that_merely_mentions_the_prompt_string():
+    # A line containing >>> but not starting the line is real output.
+    raw = ">>> execcli x\nusage: foo >>> bar\n"
+    assert h.trim_command_output(raw) == "usage: foo >>> bar"
+
+
+def test_trim_of_empty_or_prompt_only_output_is_empty():
+    assert h.trim_command_output("") == ""
+    assert h.trim_command_output(">>> execcli x\n>>> \n") == ""
+
+
+#: Failures a test here can plausibly raise other than AssertionError. Enumerated
+#: rather than catching Exception: a test written before the function it exercises
+#: raises AttributeError, and that must be reported as one failing test rather
+#: than aborting the remaining tests. Anything outside this set is unexpected and
+#: is deliberately left to propagate — the run then ends with a traceback and a
+#: non-zero exit, which is loud, rather than being folded into a tidy report.
+EXPECTED_TEST_FAILURES = (
+    AttributeError,
+    IndexError,
+    KeyError,
+    OSError,
+    TypeError,
+    ValueError,
+    subprocess.SubprocessError,
+)
+
+
 def run_one(fn):
     """Run one test and return its failure message, or None if it passed."""
     try:
         fn()
     except AssertionError as exc:
         return str(exc) or "assertion failed"
+    except EXPECTED_TEST_FAILURES as exc:
+        return f"{type(exc).__name__}: {exc}"
     return None
 
 

@@ -1,0 +1,81 @@
+---
+title: vpm and cluster state
+description: The vpm agent that registers the node and runs the platform containers, plus the etcd member status the CE cluster keeps. Includes the verified detail that vpm runs as a privileged Docker container and that etcd reports one member, not three.
+sidebar:
+  order: 50
+  label: vpm
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` is the agent that registers a Customer Edge with the tenant and supervises the
+platform containers. When a node will not come online, its state is the first thing to
+establish.
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**What to look for.**
+
+- `Active: active (running) since …` and the elapsed time. A `vpm` that restarted minutes ago
+  on a node that has been up for hours is the signal — registration failures show up as
+  restart loops long before they show up in the tenant.
+- **`Main PID` is `docker`.** `vpm` runs as a privileged Docker container, not as a native
+  process, launched with `--net=host --privileged` and a long list of host bind mounts
+  including `/`, `/dev` and `/etc`. So `vpm` appears in
+  [`docker-ps`](../../system/docker/) and never in [`crictl-ps`](../../system/crictl/) —
+  which is also why a three-entry `docker-ps` on a CE is complete rather than a symptom.
+- The trailing journal lines. `statusreporter.go: Status reporter loop has finished without
+  error, sleeping for 5m…` is the healthy steady state: `vpm` reports in on a roughly
+  five-minute cycle. `module.go: Running intra-cluster, type: node` confirms it has joined
+  the cluster rather than running standalone.
+
+**What it does not tell you.** Nothing about whether the tenant *accepted* the registration.
+A perfectly healthy `vpm` will loop indefinitely against a control plane that is refusing it
+— read the journal lines for the reason.
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="Disruptive, and not captured here">
+Restarting `vpm` tears down and re-establishes the node's connection to the tenant. It is on
+the harvest harness's refusal list, so it is documented from its catalog metadata and never
+run. Reach for it only when directed.
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+The etcd cluster backing the CE's Kubernetes control plane, queried from the etcd pod on
+this node.
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**What to look for.** `IS LEADER`, `RAFT TERM`, and whether `RAFT INDEX` and
+`RAFT APPLIED INDEX` agree. A persistent gap between those two means the member is applying
+behind the log. `ERRORS` empty is the healthy case.
+
+<Aside type="caution" title="One member, on a three-node deployment">
+This deployment runs three CE nodes, and the command reports a **single** member —
+`https://etcd-0.etcd:2379`, `IS LEADER: true`. That is what the command returned, and it is
+worth stating plainly because the natural assumption is that three CE nodes means a
+three-member etcd and that a one-row table means two members are missing.
+
+What has **not** been established is why: whether each node runs its own single-member etcd,
+or whether the `--cluster` query only ever reaches the local pod. Both are consistent with
+this output. Do not read the one-row table as evidence of a degraded cluster without
+checking the other two nodes.
+</Aside>

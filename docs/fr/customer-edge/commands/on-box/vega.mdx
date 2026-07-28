@@ -1,0 +1,111 @@
+---
+title: Plan de contrôle Vega
+description: >-
+  Les six commandes vegactl qui inspectent le plan de contrôle du Customer Edge
+  — objets de configuration, tables d'introspection, tampons de trace et quel
+  nœud détient le rôle principal. Accessibles uniquement depuis la machine,
+  jamais via l'API de débogage.
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega est le plan de contrôle du Customer Edge. `vegactl` est le client F5 associé, et aucune de ces
+six commandes n'est disponible sur l'[API de débogage](../../../access/debug-api/) — elles existent uniquement sur la
+machine, accessibles via [`execcli`](../).
+
+Consultez cette page lorsque le plan de données semble incorrect alors que les interfaces et les routes semblent correctes.
+Argo transmet ce que Vega a programmé ; si les deux divergent, la réponse se trouve ici.
+
+## `vegactl-introspect-show-election`
+
+Indique quel nœud détient actuellement le rôle principal dans le cluster CE. Il s'agit de la commande
+la plus utile de cette page, et la moins coûteuse.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**Ce qu'il faut rechercher.** Exactement un nœud dans un CE à trois nœuds rapporte `role: Master` ; les autres
+rapportent un rôle suiveur. Deux maîtres, ou aucun, signifie que le cluster n'a pas convergé, et
+rien d'autre que vous lisez depuis le plan de contrôle ne peut être considéré comme fiable tant que ce n'est pas le cas.
+
+**Ce que la commande ne vous dit pas.** Elle ne renseigne pas sur la *santé* du nœud principal élu — uniquement
+sur le fait que l'élection a été résolue.
+
+## `vegactl-configuration-list`
+
+Répertorie les objets de configuration que détient le plan de contrôle. Invoquée sans argument, elle affiche sa propre utilisation,
+ce qui constitue le moyen pratique de découvrir les types d'objets connus de cette version.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**Ce qu'il faut rechercher.** Les blocs `Usage` et `Examples` indiquent les types d'objets
+pleinement qualifiés — `ves.io.<service>.<object>.Object`. Ces noms sont les arguments attendus par les autres
+commandes d'introspection, donc cette sortie est l'endroit où un type d'objet inconnu est
+résolu avant d'être interrogé.
+
+## `vegactl-introspect-list-tracebuffers`
+
+Tous les tampons de trace que maintient le plan de contrôle, avec leur taille et leur occupation actuelle.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**Ce qu'il faut rechercher.** Les noms des tampons constituent l'argument de
+`vegactl-introspect-show-tracebuffer`. Il s'agit d'un répertoire, pas d'un diagnostic — sa valeur réside dans
+l'indication de ce qui peut être inspecté.
+
+## `vegactl-introspect-show-tracebuffer`
+
+Contenu d'un tampon de trace nommé.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="Requiert un argument, et aucune sortie n'est capturée ici">
+Invoquée sans argument, elle signale `not sufficient args`. Le tampon qui mérite d'être lu dépend entièrement
+de ce que vous cherchez, donc il n'existe pas de capture représentative à publier — prenez un nom
+depuis `vegactl-introspect-list-tracebuffers` ci-dessus.
+</Aside>
+
+## `vegactl-introspect-get`
+
+Récupère un objet unique depuis le plan de contrôle par type et clé.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+Vide une table d'introspection entière.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="Les deux prennent des arguments spécifiques à ce que vous déboguez">
+Aucune des deux ne dispose de sortie capturée sur cette page. Toutes deux nécessitent un type d'objet ou un nom de table, provenant
+de `vegactl-configuration-list` ou `vegactl-introspect-list-tracebuffers`, et le vidage d'une
+table arbitraire produirait un fichier volumineux n'illustrant rien. Leur existence et
+la forme de leurs arguments sont vérifiées ; leur sortie n'est pas reproduite.
+</Aside>

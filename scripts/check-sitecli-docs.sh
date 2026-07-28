@@ -39,6 +39,7 @@ while [ $# -gt 0 ]; do
 done
 
 CATALOG="${ROOT}/sitecli/catalog.json"
+EXEC_CATALOG="${ROOT}/sitecli/exec-catalog.json"
 MANIFEST="${ROOT}/sitecli/capture-manifest.json"
 CAPTURE_DIR="${ROOT}/sitecli/captures"
 DOCS="${ROOT}/docs/en/customer-edge"
@@ -76,6 +77,15 @@ fi
 
 BUILD=$(jq -r '.build' "$CATALOG")
 ALL_CMDS=$(jq -r '.commands | keys[]' "$CATALOG")
+
+# The appliance's own Site CLI is a second, larger surface: 82 commands, 55 of
+# which the vpm/debug API never exposes. Captures for those are keyed by
+# exec-catalog.json. Optional, because a checkout may predate the SSH harvest.
+ON_BOX_CMDS=""
+if [ -f "$EXEC_CATALOG" ]; then
+  ON_BOX_CMDS=$(jq -r '((.top_level // {}) + (.execcli // {})) | keys[]' "$EXEC_CATALOG")
+fi
+KNOWN_CMDS=$(printf '%s\n%s\n' "$ALL_CMDS" "$ON_BOX_CMDS" | sed '/^$/d' | sort -u)
 # Exec tier is privileged: every member either mutates the node or reads a state
 # marker. It is never executed, so it has no manifest entry and no capture.
 EXEC_CMDS=$(jq -r '.commands | to_entries[] | select(.value.tier == "Exec") | .key' "$CATALOG")
@@ -112,8 +122,8 @@ if [ -d "$CAPTURE_DIR" ]; then
     cmd=${base#sitecli-}
     cmd=${cmd%.txt}
     cmd=${cmd%.json}
-    if ! is_in "$cmd" "$ALL_CMDS"; then
-      violation "capture '${base}' does not correspond to any command in the catalog"
+    if ! is_in "$cmd" "$KNOWN_CMDS"; then
+      violation "capture '${base}' does not correspond to any command in either catalog"
       continue
     fi
     if is_in "$cmd" "$EXEC_CMDS"; then
@@ -148,10 +158,14 @@ else
 $ALL_CMDS
 EOF
 
+  # Documented commands are checked against BOTH catalogs. The debug API surface
+  # must be documented (the loop above); the larger on-box surface may be, and
+  # 55 of its commands exist nowhere in catalog.json. A name in neither catalog
+  # is still a violation — that is the case this rule exists for.
   while IFS= read -r cmd; do
     [ -n "$cmd" ] || continue
-    is_in "$cmd" "$ALL_CMDS" ||
-      violation "a page documents '${cmd}', which is not a command in the catalog"
+    is_in "$cmd" "$KNOWN_CMDS" ||
+      violation "a page documents '${cmd}', which is not a command in either catalog"
   done <<EOF
 $DOCUMENTED
 EOF

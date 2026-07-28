@@ -1,18 +1,18 @@
 ---
 title: 路由與下一跳
-description: Argo 資料平面實際據以轉送的內容，而這未必等同於 Linux 所認定的內容。涵蓋 vRouter 路由表、下一跳表與虛擬介面。
+description: Argo 資料平面實際轉發的內容，不一定與 Linux 所認知的相同。涵蓋 vRouter 路由表、下一跳表及虛擬介面。
 sidebar:
   order: 50
   label: 路由與下一跳
 i18n:
-  sourceHash: 80785e30393a
+  sourceHash: 9e8dd5045310
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo 將轉送狀態與 Linux 核心分開保存。當
-[`ip`](../ip/) 與這些指令的結果不一致時，實際搬動流量的是這些指令。
+Argo 將轉發狀態與 Linux 核心分開維護。當
+[`ip`](../ip/) 與這些命令顯示的結果不一致時，以這些命令的結果為準進行流量轉發。
 
 ## `rt`
 
@@ -25,21 +25,19 @@ vRouter 路由表，依 VRF 區分。
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="這裡的 VRF id 不是 BGP 回報的那個">
-`show-ip-bgp-summary` 會印出 `vrf-id 3`。那是 FRR 的編號方式，與 vRouter 表的 id 屬於
-不同的命名空間。在此處傳入該值會失敗，而失敗的樣子看起來像節點壞掉：
+<Aside type="danger" title="VRF id 並非 BGP 所回報的那個">
+`show-ip-bgp-summary` 顯示的是 `vrf-id 3`。那是 FRR 的編號，與 vRouter 的表格 id 屬於不同的命名空間。將其傳入此處會以一種讀起來像節點損壞的方式失敗：
 
 ```
 vRouter(Response):  [No such file or directory (2)]
 ```
 
-`--dump 0` 也會得到相同的回覆。在此拓樸中，**VRF 2** 才是有資料的 inet4 表，而 VRF 1 中
-有兩條路由。如果你不知道 id，請從 1 開始往上探測，而不要信任 BGP 的輸出。
+傳入 `--dump 0` 也會得到相同的回應。在此拓撲中，**VRF 2** 是已填入資料的 inet4 表，VRF 1 則持有兩條路由。若您不確定 id，請從 1 開始向上探測，而非信任 BGP 的輸出。
 </Aside>
 
 ## `nh`
 
-下一跳表。每條路由都指向一個下一跳 id，而此指令可解析這些 id。
+下一跳表。每條路由都指向一個下一跳 id，此表負責解析它們。
 
 ```bash
 {"command":["nh","--list"]}
@@ -48,25 +46,22 @@ vRouter(Response):  [No such file or directory (2)]
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-每一筆項目都帶有一個 `Type` 以及其所屬的 VRF。這些節點上會出現八種類型，比例如下
-——經統計後，三個 CE 上完全相同：
+每個條目包含一個 `Type` 及其所屬的 VRF。這些節點上共出現八種類型，
+計數後在所有三個 CE 上的比例完全相同：
 
 ```text
 Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
 ```
 
-若某條路由解析到 `Drop` 下一跳，即為黑洞；每當某個前綴存在於 `rt` 中但流量仍然消失時，
-這個組合就值得檢查。
+解析至 `Drop` 下一跳的路由為黑洞路由，當某個前綴出現在 `rt` 中但流量仍然消失時，這種組合值得重點檢查。
 
-<Aside type="caution" title="上方的擷取內容已經裁剪過，因此並未包含所有類型">
-那是 3,849 行中的前 60 行。`Tunnel` 是數量遠遠領先的最常見類型，卻完全沒有出現在那 60 行中
-——因此請勿將該擷取內容視為完整的類型清單，也不要因為某個類型未出現在裁剪過的擷取內容中，
-就斷定該節點上不存在此類型。上方的計數來自未裁剪的完整回覆。
+<Aside type="caution" title="上方的擷取內容已被截斷，因此並未包含所有類型">
+這只是 3,849 行中的前 60 行。`Tunnel` 是目前為止最常見的類型，在這 60 行中完全未出現——因此請勿將此擷取內容視為完整的類型清單，也請勿因某類型未出現在截斷的擷取內容中，就斷定該節點上不存在該類型。以上計數來自未截斷的完整回應。
 </Aside>
 
 ## `vif`
 
-虛擬介面表：資料平面所綁定的對象，以及各介面的計數器。
+虛擬介面表：資料平面所綁定的介面，以及各介面的計數器。
 
 ```bash
 {"command":["vif","--list"]}
@@ -75,6 +70,16 @@ Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Re
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-頂端的旗標圖例值得看過一次 —— `Vp` 標示 vhost 實體介面，`Dpdk` 則表示由 DPDK 管理的
-介面。可利用此表確認資料平面確實接管了你所預期的介面，並查看 Linux 不會顯示的 RX 與 TX
-計數器，因為那些流量從未進入核心。
+頂部的旗標說明值得閱讀一次——`Vp` 標記 vhost 實體介面，`Dpdk` 標記由 DPDK 管理的介面。使用此表可確認資料平面已接管您預期的介面，並查看 Linux 不會顯示的 RX 與 TX 計數器（因為流量從未到達核心）。
+
+## `mpls`
+
+```bash
+execcli mpls --help
+```
+
+Argo MPLS 表。**僅可從機器本端存取**——`mpls` 不在除錯 API 上，因此與上述 `rt`、`nh` 及 `vif` 不同，需要透過 [SSH](../../../access/ssh/) 或
+[序列主控台](../../../access/serial-console/)，並使用
+[`execcli`](../../on-box/) 執行。
+
+此處未提供擷取輸出。在此部署中，CE 使用 BGP 與 ECMP 轉發 IPv4，不使用 MPLS 標籤，因此擷取結果只會顯示空表，無法提供任何參考價值。其存在性及 `--help` 參數形式已從設備自身的補全選單中驗證；其填入後的輸出內容在此不予重現。

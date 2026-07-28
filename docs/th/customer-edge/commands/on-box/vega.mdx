@@ -1,0 +1,104 @@
+---
+title: Vega control plane
+description: >-
+  คำสั่ง vegactl หกคำสั่งที่ตรวจสอบ Customer Edge control plane —
+  ออบเจ็กต์การกำหนดค่า ตาราง introspection บัฟเฟอร์ trace
+  และโหนดที่ดำรงบทบาทหลัก เข้าถึงได้จากเครื่องเท่านั้น ไม่ผ่าน debug API
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega คือ Customer Edge control plane และ `vegactl` เป็น client ของ F5 สำหรับระบบนี้ คำสั่งทั้งหกนี้ไม่อยู่ใน
+[debug API](../../../access/debug-api/) — มีอยู่บนเครื่องเท่านั้น เข้าถึงผ่าน [`execcli`](../)
+
+อ่านหน้านี้เมื่อ data plane ดูผิดปกติแต่ interfaces และ routes ดูถูกต้อง
+Argo ส่งต่อสิ่งที่ Vega ได้โปรแกรมไว้ หากทั้งสองไม่ตรงกัน คำตอบอยู่ที่นี่
+
+## `vegactl-introspect-show-election`
+
+โหนดใดที่ดำรงบทบาทหลักใน CE cluster อยู่ในขณะนี้ เป็นคำสั่งที่มีประโยชน์มากที่สุดในหน้านี้ และใช้ทรัพยากรน้อยที่สุด
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**สิ่งที่ต้องดู** โหนดเดียวใน CE สามโหนดจะรายงาน `role: Master` โหนดอื่นๆ
+จะรายงานบทบาท follower หากมีสอง master หรือไม่มีเลย แสดงว่า cluster ยังไม่ converge
+และข้อมูลอื่นๆ ที่อ่านได้จาก control plane ไม่สามารถเชื่อถือได้จนกว่าจะ converge แล้ว
+
+**สิ่งที่คำสั่งนี้ไม่บอก** ไม่มีข้อมูลว่า primary ที่ได้รับเลือกนั้น *มีสุขภาพดี* หรือไม่ — บอกเพียงว่าการเลือกตั้งเสร็จสิ้นแล้ว
+
+## `vegactl-configuration-list`
+
+แสดงรายการออบเจ็กต์การกำหนดค่าที่ control plane เก็บไว้ เมื่อเรียกใช้โดยไม่มีอาร์กิวเมนต์จะพิมพ์วิธีใช้ของตัวเอง
+ซึ่งเป็นวิธีที่ใช้งานได้จริงในการค้นพบประเภทออบเจ็กต์ที่ build นี้รองรับ
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**สิ่งที่ต้องดู** บล็อก `Usage` และ `Examples` ระบุชื่อออบเจ็กต์ที่มีรูปแบบเต็ม
+— `ves.io.<service>.<object>.Object` ชื่อเหล่านั้นคืออาร์กิวเมนต์ที่คำสั่ง introspection อื่นๆ
+คาดหวัง ดังนั้นผลลัพธ์นี้คือที่ที่ประเภทออบเจ็กต์ที่ไม่คุ้นเคยจะได้รับการระบุก่อนที่จะ query
+
+## `vegactl-introspect-list-tracebuffers`
+
+trace buffer ทุกตัวที่ control plane ดูแลอยู่ พร้อมขนาดและการใช้งานปัจจุบัน
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**สิ่งที่ต้องดู** ชื่อ buffer คืออาร์กิวเมนต์สำหรับ
+`vegactl-introspect-show-tracebuffer` นี่คือ directory ไม่ใช่การวินิจฉัย — คุณค่าของมันอยู่ที่
+การบอกว่าสามารถตรวจสอบอะไรได้บ้าง
+
+## `vegactl-introspect-show-tracebuffer`
+
+เนื้อหาของ trace buffer ที่ระบุชื่อหนึ่งตัว
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="ต้องการอาร์กิวเมนต์ และไม่มีการบันทึกผลลัพธ์ที่นี่">
+เมื่อเรียกใช้โดยไม่มีอาร์กิวเมนต์จะรายงาน `not sufficient args` buffer ใดที่คุ้มค่าจะอ่านขึ้นอยู่กับ
+สิ่งที่คุณกำลังตามหา ดังนั้นจึงไม่มีผลลัพธ์ตัวอย่างให้เผยแพร่ — นำชื่อมาจาก `vegactl-introspect-list-tracebuffers` ข้างต้น
+</Aside>
+
+## `vegactl-introspect-get`
+
+ดึงออบเจ็กต์เดียวจาก control plane ตามประเภทและ key
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+Dump ตาราง introspection ทั้งหมด
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="ทั้งสองคำสั่งต้องการอาร์กิวเมนต์ที่เฉพาะเจาะจงกับสิ่งที่คุณกำลัง debug">
+ไม่มีผลลัพธ์ที่บันทึกไว้ในหน้านี้สำหรับทั้งสองคำสั่ง ทั้งสองต้องการประเภทออบเจ็กต์หรือชื่อตาราง ซึ่งนำมาจาก
+`vegactl-configuration-list` หรือ `vegactl-introspect-list-tracebuffers` และการ dump ของ
+ตารางใดๆ ก็ตามจะเป็นไฟล์ขนาดใหญ่ที่ไม่ได้อธิบายอะไร การมีอยู่ของคำสั่งเหล่านี้และรูปแบบอาร์กิวเมนต์ได้รับการยืนยันแล้ว แต่ผลลัพธ์ไม่ได้ถูกนำมาแสดงซ้ำ
+</Aside>

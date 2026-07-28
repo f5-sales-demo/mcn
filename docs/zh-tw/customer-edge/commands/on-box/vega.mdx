@@ -1,0 +1,91 @@
+---
+title: Vega 控制平面
+description: >-
+  六個用於檢視 Customer Edge 控制平面的 vegactl
+  指令——設定物件、自省表、追蹤緩衝區，以及哪個節點持有主要角色。只能從裝置本機存取，無法透過 debug API 使用。
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega 是 Customer Edge 控制平面。`vegactl` 是 F5 的客戶端工具，以下六個指令均不在 [debug API](../../../access/debug-api/) 上——它們僅存在於裝置本機，透過 [`execcli`](../) 存取。
+
+當資料平面看起來有異常，但介面和路由看起來正常時，請參閱本頁。Argo 轉發的是 Vega 已程式化的內容；若兩者不一致，答案就在這裡。
+
+## `vegactl-introspect-show-election`
+
+顯示 CE 叢集中哪個節點目前持有主要角色。這是本頁最實用且開銷最小的指令。
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**觀察重點。** 在三節點 CE 中，恰好有一個節點回報 `role: Master`；其他節點回報跟隨者角色。出現兩個主節點或沒有主節點，代表叢集尚未收斂，在收斂之前，從控制平面讀取的任何其他資訊均不可信。
+
+**未涵蓋的資訊。** 此指令不告訴你已選出的主節點是否*健康*——僅確認選舉已完成。
+
+## `vegactl-configuration-list`
+
+列出控制平面持有的設定物件。不帶參數執行時會印出其自身的使用說明，這是探索此版本所知物件類型的實用方式。
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**觀察重點。** `Usage` 和 `Examples` 區塊列出完整限定的物件類型名稱——`ves.io.<service>.<object>.Object`。這些名稱是其他自省指令所需的參數，因此當遇到不熟悉的物件類型時，可先從此輸出查找，再進行查詢。
+
+## `vegactl-introspect-list-tracebuffers`
+
+列出控制平面維護的所有追蹤緩衝區，包含其大小與目前佔用量。
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**觀察重點。** 緩衝區名稱是 `vegactl-introspect-show-tracebuffer` 的參數。此指令是一個目錄，而非診斷工具——其價值在於告訴你可以檢視哪些內容。
+
+## `vegactl-introspect-show-tracebuffer`
+
+顯示一個具名追蹤緩衝區的內容。
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="需要參數，且此處未擷取輸出">
+不帶參數執行時會回報 `not sufficient args`。哪個緩衝區值得查看，完全取決於你正在追查的問題，因此沒有具代表性的擷取內容可供發布——請從上方的 `vegactl-introspect-list-tracebuffers` 取得緩衝區名稱。
+</Aside>
+
+## `vegactl-introspect-get`
+
+依類型與鍵值從控制平面擷取單一物件。
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+傾印整個自省表。
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="兩者均需依除錯情境提供特定參數">
+本頁均未擷取這兩個指令的輸出。兩者均需要物件類型或表名稱，可從 `vegactl-configuration-list` 或 `vegactl-introspect-list-tracebuffers` 取得；而傾印任意表格將產生一個龐大的檔案，且無法說明任何問題。這兩個指令的存在性及其參數格式已經過驗證，但輸出結果不在此處重現。
+</Aside>

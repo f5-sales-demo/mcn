@@ -1,0 +1,111 @@
+---
+title: Piano di controllo Vega
+description: >-
+  I sei comandi vegactl che analizzano il piano di controllo del Customer Edge —
+  oggetti di configurazione, tabelle di introspezione, buffer di traccia e quale
+  nodo detiene il ruolo primario. Accessibili solo dal dispositivo, mai tramite
+  l'API di debug.
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega è il piano di controllo del Customer Edge. `vegactl` è il client F5 per esso, e nessuno di questi
+sei comandi è disponibile nell'[API di debug](../../../access/debug-api/) — esistono solo sul
+dispositivo, raggiungibili tramite [`execcli`](../).
+
+Consultare questa pagina quando il piano dati sembra errato ma le interfacce e le route sembrano corrette.
+Argo inoltra ciò che Vega ha programmato; se i due non concordano, la risposta si trova qui.
+
+## `vegactl-introspect-show-election`
+
+Indica quale nodo detiene attualmente il ruolo primario nel cluster CE. Il comando più utile
+di questa pagina, e il meno oneroso.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**Cosa cercare.** Esattamente un nodo in un CE a tre nodi riporta `role: Master`; gli altri
+riportano un ruolo di follower. Due master, o nessuno, significa che il cluster non ha raggiunto la convergenza, e
+nient'altro di ciò che si legge dal piano di controllo può essere ritenuto attendibile finché non lo fa.
+
+**Cosa non indica.** Nulla riguardo al fatto che il primario eletto sia *integro* — solo
+che l'elezione si è risolta.
+
+## `vegactl-configuration-list`
+
+Elenca gli oggetti di configurazione che il piano di controllo contiene. Invocato senza argomenti stampa il proprio utilizzo,
+che è il modo pratico per scoprire i tipi di oggetto che questa build conosce.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**Cosa cercare.** I blocchi `Usage` ed `Examples` nominano i tipi di oggetto
+completamente qualificati — `ves.io.<service>.<object>.Object`. Tali nomi sono gli argomenti che gli altri
+comandi di introspezione si aspettano, quindi questo output è il punto in cui un tipo di oggetto sconosciuto viene
+risolto prima di eseguire una query.
+
+## `vegactl-introspect-list-tracebuffers`
+
+Ogni buffer di traccia mantenuto dal piano di controllo, con le relative dimensioni e occupazione corrente.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**Cosa cercare.** I nomi dei buffer costituiscono l'argomento per
+`vegactl-introspect-show-tracebuffer`. Si tratta di un indice, non di una diagnosi — il suo valore sta
+nell'indicare cosa può essere ispezionato.
+
+## `vegactl-introspect-show-tracebuffer`
+
+Contenuto di un buffer di traccia identificato per nome.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="Richiede un argomento e nessun output è acquisito qui">
+Eseguito senza argomenti riporta `not sufficient args`. Quale buffer valga la pena leggere dipende interamente
+da ciò che si sta analizzando, quindi non vi è alcuna acquisizione rappresentativa da pubblicare — prendere un nome
+da `vegactl-introspect-list-tracebuffers` sopra.
+</Aside>
+
+## `vegactl-introspect-get`
+
+Recupera un singolo oggetto dal piano di controllo per tipo e chiave.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+Scarica un'intera tabella di introspezione.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="Entrambi richiedono argomenti specifici per ciò che si sta analizzando">
+Nessuno dei due dispone di output acquisito in questa pagina. Entrambi necessitano di un tipo di oggetto o nome di tabella, ricavati
+da `vegactl-configuration-list` o `vegactl-introspect-list-tracebuffers`, e lo scarico di
+una tabella arbitraria produrrebbe un file di grandi dimensioni che non illustrerebbe nulla. La loro esistenza e
+la forma dei loro argomenti sono verificate; il loro output non viene riprodotto.
+</Aside>

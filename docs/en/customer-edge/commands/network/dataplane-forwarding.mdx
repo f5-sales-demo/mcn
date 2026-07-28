@@ -80,3 +80,19 @@ The flags legend at the top is worth reading once — `Vp` marks the vhost physi
 interface, `Dpdk` a DPDK-managed one. Use this to confirm the data plane has claimed
 the interface you expect, and to see RX and TX counters that Linux does not show
 because the traffic never reaches the kernel.
+
+## `mpls`
+
+```bash
+execcli mpls --help
+```
+
+The Argo MPLS table. Reachable **only from the box** — `mpls` is not on the debug API, so
+unlike `rt`, `nh` and `vif` above it needs [SSH](../../../access/ssh/) or the
+[serial console](../../../access/serial-console/), through
+[`execcli`](../../on-box/).
+
+No captured output here. On this deployment the CE forwards IPv4 with BGP and ECMP and does
+not use MPLS labels, so a capture would show an empty table and teach nothing. Its existence
+and its `--help` argument form are verified from the appliance's own completion menu; its
+populated output is not reproduced.

@@ -1,18 +1,18 @@
 ---
 title: docker
-description: Docker 執行環境，用於執行 CE 平台服務。共五個指令，也是尋找 vpm 本身的所在位置。
+description: Docker 執行環境，用於執行 CE 平台服務。包含五個指令，以及查詢 vpm 本身的位置。
 sidebar:
   order: 40
   label: docker
 i18n:
-  sourceHash: 9db8ec324ab5
+  sourceHash: 50b5c267df2a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Docker 負責執行平台服務。Kubernetes 工作負載則由
-[CRI-O](../crictl/) 管理。
+Docker 負責執行平台服務。Kubernetes 工作負載則在
+[CRI-O](../crictl/) 下運行。
 
 ## `docker-ps`
 
@@ -24,7 +24,7 @@ Docker 負責執行平台服務。Kubernetes 工作負載則由
 ```
 
 <Aside type="tip" title="三個容器是完整清單，而非節點異常">
-`vpm`、`argo_watch` 與 `site-console`。由於節點大部分服務執行於 CRI-O 之下，若您預期在此看到 Kubernetes 工作負載，簡短的 `docker-ps` 輸出看起來可能像是故障。實際上並非如此——這是健康 CE 上 Docker 容器的完整集合，`vpm` 存在且狀態為 `Up` 是此頁面最重要的一行資訊。
+`vpm`、`argo_watch` 和 `site-console`。由於節點大部分的服務在 CRI-O 下運行，若您預期此處會有 Kubernetes 工作負載，簡短的 `docker-ps` 輸出看起來可能像是故障。但實際並非如此——這是健康 CE 上 Docker 容器的完整清單，`vpm` 存在且狀態為 `Up` 是此頁面最重要的一行資訊。
 </Aside>
 
 ## `docker-ps-a`
@@ -36,7 +36,7 @@ Docker 負責執行平台服務。Kubernetes 工作負載則由
 ```text file=../../../../_data/sitecli-docker-ps-a.txt
 ```
 
-包含已退出的容器，因此若 `vpm` 持續崩潰，此處將留有記錄。
+包含已退出的容器，因此若 `vpm` 持續崩潰，可在此處留下紀錄。
 
 ## `docker-images`
 
@@ -47,7 +47,7 @@ Docker 負責執行平台服務。Kubernetes 工作負載則由
 ```text file=../../../../_data/sitecli-docker-images.txt
 ```
 
-映像標籤可識別節點實際執行的平台版本，建議與 [`health`](../health/) 所回報的軟體建置版本相互比對。
+映像標籤標示了節點實際運行的平台版本，建議與 [`health`](../health/) 所回報的軟體建置版本進行比對。
 
 ## `docker-inspect`
 
@@ -58,7 +58,7 @@ Docker 負責執行平台服務。Kubernetes 工作負載則由
 ```text file=../../../../_data/sitecli-docker-inspect.txt
 ```
 
-可接受名稱或 ID，因此 `docker-inspect vpm` 可正常運作，且在重啟後仍保持穩定。完整 JSON 內容包含：掛載點、環境變數、重啟策略及退出狀態。
+接受名稱或 ID 作為參數，因此 `docker-inspect vpm` 可正常運作，且在重新啟動後仍保持穩定。完整 JSON 內容涵蓋：掛載點、環境變數、重啟策略及退出狀態。
 
 ## `docker-logs`
 
@@ -69,4 +69,20 @@ Docker 負責執行平台服務。Kubernetes 工作負載則由
 ```text file=../../../../_data/sitecli-docker-logs.txt
 ```
 
-`docker-logs vpm` 是查看註冊錯誤最快速的途徑。若需取得包含時間戳記且跨重啟的相同資訊，請改用 [`journalctl`](../journalctl/)。
+`docker-logs vpm` 是查詢註冊錯誤最快速的方式。若需要包含時間戳記且跨重啟的相同資訊，請改用 [`journalctl`](../journalctl/)。
+
+## `docker-prune`
+
+```bash
+execcli docker-prune
+```
+
+移除所有未使用的 Docker 物件——包括已停止的容器、未使用的網路、懸空映像及建置快取。
+
+**僅限從設備本機執行。** `docker-prune` 不在除錯 API 中；需透過 [`execcli`](../../on-box/) 執行。
+
+<Aside type="danger" title="具破壞性，且不在本頁記錄範圍內">
+此指令會刪除狀態資料。它列於收集框架的拒絕清單中，從未被執行，因此本頁依據設備自身的目錄元資料進行說明，而非顯示實際輸出。
+
+CE 特定注意事項：此節點運行**兩個**容器執行環境。`docker-prune` 僅影響 Docker 側——即 `vpm`、`argo_watch` 和 `site-console`——無法觸及 [CRI-O](../crictl/) 下的 Kubernetes 工作負載。若要回收 CRI-O 側的空間，需使用不同的指令 `systemctl-start-crio-prune`，但該指令在此版本中並不存在。
+</Aside>

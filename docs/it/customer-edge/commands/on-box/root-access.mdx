@@ -1,0 +1,68 @@
+---
+title: Accesso root ausiliario
+description: >-
+  I due comandi che creano e rimuovono l'account root xuser su un Customer Edge.
+  Eseguiti su indicazione del supporto, lasciano il nodo modificato, e il
+  comando di creazione è l'unico modo documentato per accedere ai file che
+  l'account admin non può leggere.
+sidebar:
+  order: 70
+  label: Accesso root
+i18n:
+  sourceHash: c2417b409442
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Due comandi creano e rimuovono un account root denominato `xuser`. Sono di proprietà di F5, assenti dall'
+[API di debug](../../../access/debug-api/), e rappresentano la via di fuga per le operazioni che l'account `admin`
+non può eseguire.
+
+<Aside type="danger" title="Questi comandi modificano lo stato degli account del nodo e non vengono eseguiti qui">
+`get-auxilary-root-access-to-node` crea un **utente root**. Si tratta di una modifica al nodo
+che sopravvive alla sessione, e non è qualcosa da fare in modo esplorativo. Entrambi i comandi sono
+documentati nel menu di completamento dell'appliance; nessuno dei due è stato eseguito e il sistema
+di raccolta dati li rifiuta entrambi.
+
+L'errore ortografico di "auxiliary" è dell'appliance, non un refuso in questa pagina. Digitarlo
+esattamente come mostrato, altrimenti il comando non verrà trovato.
+</Aside>
+
+## `get-auxilary-root-access-to-node`
+
+Crea l'account root `xuser`.
+
+```bash
+execcli get-auxilary-root-access-to-node
+```
+
+**Quando questa è genuinamente la soluzione.** Alcune diagnostiche sono semplicemente inaccessibili come `admin`.
+L'esempio verificato più chiaro su questa build è [`kubelet-get-params`](../kubelet/), che
+fallisce con `open /etc/vpm/kubelet-custom-params.txt: permission denied` — il file esiste e
+l'account `admin` non può leggerlo. L'accesso root è la via documentata per questo tipo di
+problema.
+
+**Prima di ricorrervi**, valutare se l'[API di debug](../../../access/debug-api/)
+risponde già alla domanda. Il suo livello `exec` esegue comandi privilegiati senza creare un
+account persistente, il che rappresenta una modifica minore al nodo.
+
+## `remove-auxilary-root-access-to-node`
+
+Elimina l'account `xuser`.
+
+```bash
+execcli remove-auxilary-root-access-to-node
+```
+
+**Eseguire questo comando al termine.** Un account root creato per una sessione diagnostica e lasciato
+attivo rappresenta una credenziale permanente sull'appliance di cui nulla ricorderà la presenza. Trattare
+creazione e rimozione come una coppia, nella stessa sessione, così come
+[`vifdump`](../packet-capture/) e `vifdump-file-rm` sono una coppia.
+
+<Aside type="note" title="Ciò che non è stato stabilito">
+L'output di nessuno dei due comandi è registrato, pertanto questa pagina non può indicare come
+appare un'esecuzione riuscita, con quale password o chiave viene creato `xuser`, né se la
+rimozione viene rifiutata mentre una sessione è aperta. Per saperlo è necessario un nodo che si
+è disposti a modificare.
+</Aside>

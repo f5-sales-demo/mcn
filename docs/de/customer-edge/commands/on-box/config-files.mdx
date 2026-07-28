@@ -1,0 +1,86 @@
+---
+title: Konfigurationsdateien
+description: >-
+  Die vier edit-*-Befehle, die F5-eigene Dateien auf einem Customer Edge öffnen
+  – App-Umgebung, zertifizierte Hardware, Azure-Client-Anmeldeinformationen und
+  NIC-Benennungsregeln. Alle auf Support-Anweisung, alle dokumentiert ohne
+  ausgeführt zu werden.
+sidebar:
+  order: 60
+  label: Konfigurationsdateien
+i18n:
+  sourceHash: d018a3245c8c
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vier Befehle öffnen einen Editor für eine F5-eigene Datei. Sie befinden sich nicht in der
+[Debug-API](../../../access/debug-api/), und zwei davon weisen in ihrer eigenen Beschreibung
+darauf hin: *„Bitte verwenden Sie dies nicht, sofern nicht vom F5 XC Support angefordert"*.
+
+<Aside type="danger" title="Keine erfasste Ausgabe auf dieser Seite – absichtlich">
+Jeder dieser Befehle öffnet einen interaktiven Editor für eine aktive Konfigurationsdatei. Es gibt keine
+schreibgeschützte Form, daher gibt es keine Ausgabe, die erfasst werden kann, ohne gleichzeitig eine Schreibmöglichkeit darzustellen, und
+das Erfassungs-Framework lehnt alle vier ab. Was verifiziert wird, ist ihre Existenz und welche Datei
+jeder Befehl öffnet – beides aus dem Vervollständigungsmenü des Geräts.
+</Aside>
+
+## `edit-app-env-file`
+
+Öffnet `/etc/vpm/app_env.yaml`, die lokale Anwendungsumgebung des Knotens.
+
+```bash
+execcli edit-app-env-file
+```
+
+Die Beschreibung des Geräts endet mit *„Bitte verwenden Sie dies nicht, sofern nicht vom F5 XC Support angefordert"*.
+Nehmen Sie das wörtlich: Diese Datei wird beim Start von `vpm` gelesen, und ein fehlerhafter Wert wirkt sich auf
+jeden Plattform-Container auf dem Knoten aus.
+
+## `edit-certified-hardware`
+
+Öffnet die Konfiguration für zertifizierte Hardware.
+
+```bash
+execcli edit-certified-hardware
+```
+
+Ebenfalls vom Gerät als Support-only gekennzeichnet. Dies ist die Konfiguration, die festlegt, ob
+`vpm` davon ausgeht, auf von F5 zertifizierter Hardware zu laufen – und eine falsche Konfiguration hat
+reale Auswirkungen. Ohne einen gültigen `CertifiedHardwareEndpoint` beendet sich `vpmd` mit *„fail to match
+certified hardware"* und der Knoten registriert sich nie. Deshalb setzt das cloud-init dieses Repositorys
+den Endpunkt explizit, anstatt sich auf einen Standardwert zu verlassen; siehe
+`terraform/cloud-init/ce-node.yaml`.
+
+## `edit-azure-client-id-secret`
+
+Aktualisiert die Azure-Client-ID und das Geheimnis, das dieser CE verwendet, wenn die Anmeldeinformation abgelaufen ist.
+
+```bash
+execcli edit-azure-client-id-secret
+```
+
+**Wann dies die Lösung ist.** Ein CE, der funktioniert hat und begonnen hat, bei Azure-Operationen fehlzuschlagen,
+ohne dass eine Konfigurationsänderung dies erklären würde, ist der Fall, für den dies existiert – die Anmeldeinformation
+ist abgelaufen und nicht etwas anderes ist defekt.
+
+## `edit-udev-10-nic-name`
+
+Öffnet `/etc/udev/rules.d/10-nic-names.rules`, das die Benennung von NICs festlegt.
+
+```bash
+execcli edit-udev-10-nic-name
+```
+
+**Lesen Sie die Interface-Seiten, bevor Sie dies ändern.** Die NIC-Benennung auf einem CE ist bereits überraschend:
+`eth0` wird in `a-i-eth0` umbenannt und trägt keine Host-Adresse, die SLO-Adresse befindet sich auf `vhost0`,
+und welche von `eth1`/`eth2` die interne Adresse hält, ist nicht konsistent über die drei
+Knoten in dieser Bereitstellung. Siehe [`ip`](../../network/ip/). Eine udev-Regel, die eine übersichtlichere
+Anordnung voraussetzt, wird die Situation verschlechtern.
+
+<Aside type="note" title="Zwei weitere edit-*-Befehle sind Passthrough, nicht diese">
+`edit-etc-hosts` und `edit-sysctl-conf` öffnen gewöhnliche Linux-Dateien und sind als
+Passthrough im [On-Box-Index](../) aufgeführt – die eigene Dokumentation des Betriebssystems deckt
+sie ab, und es gibt nichts CE-spezifisches hinzuzufügen.
+</Aside>
