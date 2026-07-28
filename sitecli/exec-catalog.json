@@ -1,9 +1,9 @@
 {
   "_provenance": {
     "node": "10.0.3.7",
-    "site": "ar-bgp-eastus01",
+    "site": "mcn-ce-ha-eastus01",
     "build": "crt-20250613-3382",
-    "site_state": "PROVISIONED",
+    "site_state": "ONLINE",
     "source": "Site CLI completion menu over SSH"
   },
   "top_level": {

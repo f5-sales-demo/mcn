@@ -1,0 +1,95 @@
+---
+title: Versioni software e ricostruzioni
+description: >-
+  Cosa fanno e non fanno ce_sw_version e ce_os_version su un Customer Edge —
+  perché il nodo si aggiorna da solo indipendentemente da come vengono
+  impostati, perché lasciarli vuoti non porta alla versione più recente, e
+  perché la modifica di uno dei due comporta una ricostruzione dell'intera
+  flotta da pianificare, non una semplice modifica applicabile con Terraform.
+sidebar:
+  order: 50
+  label: Versioni e ricostruzioni
+i18n:
+  sourceHash: 6c0be3179303
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Due variabili Terraform definiscono il software di un Customer Edge: `ce_os_version` per il sistema
+operativo e `ce_sw_version` per la build di F5 Distributed Cloud. Entrambe si comportano in modi
+opposti a quanto ci si aspetterebbe da una lettura immediata, e il costo di un errore è la ricostruzione dell'intera flotta.
+
+## Cosa fanno i campi versione, in due fasi
+
+Separare le fasi è l'aspetto fondamentale. Considerandole insieme, il comportamento appare
+contraddittorio.
+
+**Al primo avvio, un nodo esegue sempre un aggiornamento.** `terraform/modules/ce-node` distribuisce l'immagine
+del marketplace con `version = "latest"`, ma tale immagine include una build **precedente** rispetto a quella
+utilizzata dal tenant. Quindi l'aggiornamento avviene indipendentemente dall'impostazione del campo. `ce_sw_version` sceglie soltanto la
+**destinazione** dell'aggiornamento — lasciarlo vuoto significa che sarà il server a scegliere, non che non accada nulla. Lo
+stesso vale per `ce_os_version`.
+
+**Dopo di ciò, nulla si aggiorna automaticamente.** F5 Distributed Cloud segnala la disponibilità di una build più recente e
+rimane in attesa. Un campo vuoto non equivale quindi a "segui la versione più recente": il nodo rimane alla versione su cui è atterrato al primo avvio.
+
+Entrambe le fasi sono visibili sull'oggetto del sito. `Osservato il 28-07-2026`, questa flotta:
+
+```text
+volterra_software_status.available_version   crt-20260201-0179
+operating_system_status.available_version    9.2026.14
+```
+
+mentre i nodi eseguono `crt-20250613-3382` e OS `9.2024.6`. Una build più recente è disponibile ma
+non è stata installata — si tratta dello stato stabile, non di un aggiornamento bloccato.
+
+## Modificare una versione richiede una ricostruzione, e Terraform non la esegue automaticamente
+
+`ce_os_version` e `ce_sw_version` sono entrambi **impostabili solo in fase di creazione**, e la modalità di errore è
+peggiore di un apply rifiutato. In sequenza:
+
+1. Si modifica il valore e si esegue l'apply. Terraform propone un aggiornamento in-place.
+2. L'API **lo rifiuta** — `[BAD_REQUEST] Invalid request parameters`.
+3. La richiesta rifiutata cancella comunque il campo sul server, e la lettura del provider
+   non lo segnala. Lo stato di Terraform diverge ora dall'oggetto reale.
+4. Ogni piano successivo propone **la stessa modifica che fallisce**, indefinitamente.
+
+Terraform quindi non torna indietro sostituendo il sito. Rimane bloccato, e continua a essere bloccato
+finché non si sostituisce deliberatamente il sito e la relativa macchina virtuale CE. Spostare una flotta a una
+versione diversa è una **ricostruzione che si pianifica**, non una modifica che si applica.
+
+<Aside type="danger" title="Si applicano tutte le conseguenze della sostituzione di un CE">
+Nuove chiavi host SSH, indirizzi interni riassegnati, una nuova registrazione e la perdita di
+tutto ciò che esisteva solo sul nodo. Cloud-init viene eseguito nuovamente sulla nuova VM, quindi l'accesso SSH
+configurato in questo modo sopravvive — ma viene eseguito *solo* al primo avvio, quindi tutto ciò che era stato aggiunto manualmente al vecchio
+nodo andrà perso.
+
+Prima di pianificare questa operazione, consultare [SSH](./access/ssh/) per le conseguenze sulle chiavi host e sugli indirizzi.
+</Aside>
+
+<Aside type="note" title="Segnalato, non riprodotto qui">
+Il rifiuto e la divergenza dello stato sono registrati nei commenti del repository
+`terraform/modules/xc-site` — verificati in entrambe le direzioni, con e senza pin,
+su tutti e tre i siti — e rispetto alla issue del provider `xcsh#1387`. Questa pagina non ha
+ripetuto il test, perché il test lascia il deployment a proporre una modifica che fallisce a ogni
+piano.
+</Aside>
+
+## Quale build descrive la documentazione
+
+La documentazione di riferimento dei comandi su questo sito descrive **`crt-20250613-3382`**, la build su cui gira questa flotta.
+I comandi osservati solo su build più recenti sono registrati per nome in
+`sitecli/command-classification.json` sotto `not_on_this_build`, e non sono documentati come
+eseguibili. Vedere [comandi on-box](./commands/on-box/).
+
+<Aside type="caution" title="Non pianificare una ricostruzione al solo scopo di accedere a comandi più recenti">
+Una build più recente è disponibile, e se si installi correttamente su questa topologia è una questione aperta —
+vi è una segnalazione di un errore su siti Azure Secure Mesh v2 a nodo singolo, e un'osservazione
+contraria di un Customer Edge che la esegue. Nessuna delle due può essere confermata da quanto rimane
+nel tenant.
+
+Poiché una modifica di versione equivale a una ricostruzione dell'intera flotta, questa incertezza è il fatto determinante:
+l'accesso a quei comandi è da considerarsi non verificato, non come un aggiornamento pianificato. Le prove e l'esperimento
+che potrebbero chiarire la situazione sono registrati in `sitecli/README.md`.
+</Aside>

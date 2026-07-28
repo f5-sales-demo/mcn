@@ -1,29 +1,29 @@
                total        used        free      shared  buff/cache   available
-Mem:            31Gi       7.7Gi       6.8Gi        38Mi        17Gi        23Gi
+Mem:            31Gi       7.6Gi       7.0Gi        38Mi        17Gi        23Gi
 Swap:             0B          0B          0B
-     32854452 K total memory
-      8077004 K used memory
-      1663356 K active memory
-     21805348 K inactive memory
-      7121312 K free memory
+     32854456 K total memory
+      8002152 K used memory
+      1488824 K active memory
+     21735004 K inactive memory
+      7379368 K free memory
          2668 K buffer memory
-     18166500 K swap cache
+     17983304 K swap cache
             0 K total swap
             0 K used swap
             0 K free swap
-      5367517 non-nice user cpu ticks
+      2334822 non-nice user cpu ticks
             1 nice user cpu ticks
-       902944 system cpu ticks
-     12957377 idle cpu ticks
-        82308 IO-wait cpu ticks
-       205637 IRQ cpu ticks
-        86142 softirq cpu ticks
+       410184 system cpu ticks
+      5007065 idle cpu ticks
+        60421 IO-wait cpu ticks
+        88700 IRQ cpu ticks
+        36238 softirq cpu ticks
             0 stolen cpu ticks
-       603985 pages paged in
-     29552914 pages paged out
+       601333 pages paged in
+     28685608 pages paged out
             0 pages swapped in
             0 pages swapped out
-    235427203 interrupts
-   1102877193 CPU context switches
-   1785216417 boot time
-      2221313 forks
+    107098598 interrupts
+    485076899 CPU context switches
+   1785261413 boot time
+       934582 forks

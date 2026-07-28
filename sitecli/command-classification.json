@@ -91,7 +91,7 @@
     },
     "passthrough": {
       "_treatment": "Listed as available with a pointer upstream. Not documented.",
-      "networking": ["dig", "ip", "ip-link-set", "ip-link-show", "lsof", "netstat", "nmcli", "ping", "tracepath"],
+      "networking": ["ip", "ip-link-set", "ip-link-show", "lsof", "netstat", "nmcli", "ping", "tracepath"],
       "system": [
         "top",
         "check-mem",
@@ -149,8 +149,11 @@
     },
     "debug_api_only": {
       "_note": [
-        "In the vpm/debug catalog but absent from the on-box completion menu, so it",
-        "is reachable over the API and not from the Site CLI."
+        "In the vpm/debug catalog but absent from BOTH the on-box completion menu and the",
+        "top-level menu, so it is reachable over the API and not from the Site CLI at all.",
+        "Deliberately NOT also listed under tiers/passthrough: it was, and that made the",
+        "same command both on-box and not-on-box. The reconciliation check now rejects a",
+        "command that appears in tiers and in not_on_this_build."
       ],
       "commands": ["dig"]
     }
