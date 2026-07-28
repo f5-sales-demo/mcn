@@ -1,13 +1,13 @@
 ---
 title: curl
 description: >-
-  Testes de alcançabilidade a partir de dois contextos de rede diferentes no nó.
-  Qual você usa determina o que uma falha realmente prova.
+  Testes de alcançabilidade a partir de dois contextos de rede distintos no nó.
+  Qual deles você usa determina o que uma falha realmente comprova.
 sidebar:
   order: 80
   label: curl
 i18n:
-  sourceHash: 6ab13d8c3593
+  sourceHash: 6525a6aa3a90
   translator: machine
 ---
 
@@ -17,8 +17,8 @@ Dois comandos, e a distinção entre eles é todo o valor.
 
 ## `curl-host`
 
-Executa no namespace de rede do host — a própria conectividade do nó, antes de o
-plano de dados estar envolvido.
+Executa no namespace de rede do host — a conectividade do próprio nó, antes de o plano de
+dados estar envolvido.
 
 ```bash
 {"command":["curl-host","-v","cloud.f5.com"]}
@@ -29,8 +29,11 @@ plano de dados estar envolvido.
 
 ## `curl-vega`
 
-Executa dentro do contexto do cluster Kubernetes, portanto atravessa o DNS e o
-caminho de rede do cluster.
+Executa no contexto do Vega (plano de controle) em vez do contexto do host. A diferença
+observável, e a única estabelecida aqui, é o ambiente que ele herda: `curl-vega` reporta uma
+lista `NO_PROXY` cobrindo os intervalos privados, `int.ves.io`, `int.volterra.us` e o próprio
+domínio `.tenant.local` do site, e `curl-host` não reporta nenhuma. O que isso implica sobre o
+caminho de DNS não é medido.
 
 ```bash
 {"command":["curl-vega","-v","cloud.f5.com"]}
@@ -39,12 +42,17 @@ caminho de rede do cluster.
 ```text file=../../../../_data/sitecli-curl-vega.txt
 ```
 
-<Aside type="tip" title="O par é uma bissecção">
-Execute ambos. Se `curl-host` for bem-sucedido e `curl-vega` falhar, o nó tem conectividade
-e a rede do cluster ou seu DNS está com problema. Se ambos falharem, o problema está à montante
-do nó — roteamento, um firewall ou o caminho de saída. Se apenas `curl-host` falhar, você
-encontrou algo incomum e deve verificar primeiro a tabela de roteamento do host.
+<Aside type="tip" title="O par é uma bisseção">
+Execute ambos. Se `curl-host` tiver êxito e `curl-vega` falhar, o nó tem conectividade e algo
+no contexto do plano de controle não tem — suas configurações de proxy ou seu resolvedor. Se
+ambos falharem, o problema está a montante do nó: roteamento, um firewall ou o caminho de
+saída. Se apenas `curl-host` falhar, você encontrou algo incomum e deve verificar primeiro a
+tabela de roteamento do host.
+
+Em um nó saudável ambos têm êxito e alcançam o mesmo endereço, portanto um par limpo não prova
+nada sobre qual contexto está em uso — é a *divergência* que carrega a informação.
 </Aside>
 
-Ambos aceitam argumentos normais do `curl` como elementos de array separados. `-v` vale a pena manter
-porque as linhas de conexão e de handshake TLS são geralmente onde a falha aparece.
+Ambos aceitam argumentos normais do `curl` como elementos separados do array. Vale a pena
+manter o `-v`, porque as linhas de conexão e do handshake TLS são geralmente onde a falha
+aparece.

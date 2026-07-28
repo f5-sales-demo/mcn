@@ -1,27 +1,27 @@
 ---
 title: API de débogage
 description: >-
-  Comment exécuter une commande Site CLI sur un nœud ONLINE via HTTP, notamment
+  Comment exécuter une commande Site CLI sur un nœud ONLINE via HTTP, y compris
   la règle tier-vers-endpoint qui détermine lequel des trois transports une
-  commande requiert et l'appel de découverte qui les liste.
+  commande nécessite et l'appel de découverte qui les répertorie.
 sidebar:
   order: 20
   label: API de débogage
 i18n:
-  sourceHash: 36ee4d6fe690
+  sourceHash: ee7f5b2d1442
   translator: machine
 ---
 
 import { Aside, Steps, Badge } from "@astrojs/starlight/components";
 
 L'API `vpm/debug` exécute des commandes Site CLI sur un nœud enregistré et retourne
-leur sortie. Tout ce qui suit a été établi à partir d'un nœud actif ; rien de cela
+leur sortie. Tout ce qui suit a été établi sur un nœud actif ; rien de tout cela
 n'est publié en amont.
 
-## Le catalogue de commandes se décrit lui-même
+## Le catalogue de commandes est auto-descriptif
 
-Interrogez le nœud sur ce qu'il prend en charge en effectuant un POST vers `exec-user` avec la clé `command`
-**omise** :
+Demandez au nœud ce qu'il prend en charge en effectuant un POST vers `exec-user` avec la clé
+`command` **omise** :
 
 ```bash
 curl -sS -X POST \
@@ -32,7 +32,7 @@ curl -sS -X POST \
   | jq -r .output | jq .
 ```
 
-La réponse est un objet JSON dont les clés correspondent aux noms de commandes :
+La réponse est un objet JSON indexé par nom de commande :
 
 ```json
 {
@@ -46,29 +46,29 @@ Chaque entrée est `[category, tier, exampleArgument?, scope?]`, et ces champs n
 pas de la documentation — ils déterminent comment la commande doit être appelée.
 
 <Aside type="caution" title="Omettez la clé ; n'envoyez pas une valeur incorrecte">
-La découverte fonctionne en laissant `command` de côté. L'envoi d'une valeur inconnue à la place retourne
+La découverte fonctionne en laissant `command` de côté. Envoyer une valeur inconnue à la place retourne
 une erreur, et non le catalogue :
 
 ```json
 {"code":3,"details":[],"message":"exec command failed: command not supported"}
 ```
 
-Ce message est également ce que vous obtenez pour une *vraie* commande envoyée au mauvais endpoint,
-il est donc facile de l'interpréter à tort comme « cette commande n'existe pas ».
+Ce message est aussi celui que vous obtenez pour une *vraie* commande envoyée au mauvais endpoint,
+il est donc facile de le lire à tort comme « cette commande n'existe pas ».
 </Aside>
 
-## Trois transports, déterminés par l'entrée du catalogue
+## Trois transports, choisis par l'entrée du catalogue
 
 | Condition | Méthode et chemin | Corps | Retourne |
 | --- | --- | --- | --- |
-| `scope` est `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | aucun | JSON |
-| `tier` est `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | tableau `command` | texte |
-| `tier` est `Exec` | `POST .../vpm/debug/<node>/exec` | tableau `command` | texte |
+| `scope` vaut `GLOBAL` | `GET .../vpm/debug/global/<cmd>` | aucun | JSON |
+| `tier` vaut `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | tableau `command` | texte |
+| `tier` vaut `Exec` | `POST .../vpm/debug/<node>/exec` | tableau `command` | texte |
 
-### `ExecUser` — le tier en lecture seule <Badge text="31 commands" variant="note" />
+### `ExecUser` — le niveau en lecture seule <Badge text="31 commandes" variant="note" />
 
-Le cas courant. Passez la commande et ses arguments sous forme de tableau, avec le
-nom de la commande en premier :
+Le cas courant. Passez la commande et ses arguments sous forme de tableau, le nom de la commande
+en premier :
 
 ```bash
 curl -sS -X POST \
@@ -82,16 +82,16 @@ curl -sS -X POST \
 { "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
 ```
 
-Les arguments sont des éléments de tableau séparés, et non une chaîne unique :
+Les arguments sont des éléments distincts du tableau, et non une chaîne unique :
 
 ```json
 { "command": ["journalctl", "-u", "vpm", "-n", "200"] }
 ```
 
-### `GLOBAL` — à l'échelle du site, et un transport entièrement différent <Badge text="2 commands" variant="tip" />
+### `GLOBAL` — à l'échelle du site, et un transport entièrement différent <Badge text="2 commandes" variant="tip" />
 
 `health` et `diagnosis` sont les deux seules. Ce sont des requêtes `GET` vers un chemin
-`global`, ne prennent aucun argument et retournent du JSON structuré plutôt que du texte terminal.
+`global`, elles ne prennent aucun argument et retournent du JSON structuré plutôt que du texte de terminal.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -99,42 +99,42 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```
 
 <Aside type="danger" title="Une commande GLOBAL n'est pas accessible via exec-user">
-C'est le piège qui fait perdre le plus de temps. Envoyer `health` ou `diagnosis` à
-`exec-user` retourne `command not supported`, ce qui donne l'impression que la commande
-n'existe pas sur le nœud — alors qu'en réalité elle existe et que vous avez utilisé le mauvais transport.
+C'est le piège qui coûte le plus de temps. Envoyer `health` ou `diagnosis` vers
+`exec-user` retourne `command not supported`, ce qui se lit comme si la commande
+n'existait pas sur le nœud — alors qu'en réalité elle existe et que vous avez utilisé le mauvais transport.
 
 ```bash
-# Incorrect. Retourne : exec command failed: command not supported
+# Wrong. Returns: exec command failed: command not supported
 -d '{"namespace":"system","site":"…","node":"…","command":["health"]}'   # POST exec-user
 
-# Correct.
+# Right.
 GET .../vpm/debug/global/health
 ```
 
 </Aside>
 
-### `Exec` — le tier privilégié <Badge text="1 command on this build" variant="danger" />
+### `Exec` — le niveau privilégié <Badge text="1 commande sur cette build" variant="danger" />
 
-Un endpoint distinct, et le tier est appliqué de manière contraignante plutôt qu'indicative : `exec` rejette
+Un endpoint distinct, et le niveau est appliqué plutôt qu'indicatif : `exec` rejette
 une commande `ExecUser` avec le même message `command not supported`. Chaque membre
-modifie le nœud ou lit un marqueur d'état.
+soit modifie le nœud, soit lit un marqueur d'état.
 
-Sur le build sur lequel ce tenant s'exécute, le tier ne contient que `ip-link-set`. Les builds plus récents
+Sur la build que ce locataire exécute, le niveau ne contient que `ip-link-set`. Les builds plus récentes
 ajoutent `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
 `systemctl-restart-kubelet`, `systemctl-start-crio-prune` et trois
 commandes `marker-exists-*`.
 
-<Aside type="danger" title="Aucune commande Exec n'est exécutée ici">
-Le système de capture refuse ce tier, et lit le tier depuis le catalogue actif
-plutôt qu'une liste codée en dur — ainsi, un build futur qui promeut une commande vers `Exec`
-est pris en compte sans que quiconque modifie le code. N'exécutez une telle commande que délibérément,
-sur un nœud que vous êtes prêt à perturber.
+<Aside type="danger" title="Rien ici n'exécute une commande Exec">
+Le harnais de capture refuse ce niveau, et lit le niveau depuis le catalogue actif
+plutôt que depuis une liste codée en dur — ainsi une future build qui promeut une commande vers `Exec`
+est respectée sans que quiconque modifie le code. N'en exécutez une que délibérément, sur un nœud que
+vous êtes prêt à perturber.
 </Aside>
 
-## Trouver les noms du site et du nœud
+## Trouver les noms de site et de nœud
 
 Le nom du nœud est le nom de la VM Azure, et `list-service` est un moyen économique de le confirmer
-aux côtés des services qui s'y exécutent :
+en même temps que les services qui s'y exécutent :
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -142,15 +142,24 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '[.service[].node] | unique'
 ```
 
+```json
+["", "f5-xc-ce-vm-01"]
+```
+
+Certains services signalent un nom de nœud vide, donc une chaîne vide dans cette liste est un artefact de
+la réponse plutôt qu'un second nœud. `list-service` ne figure pas non plus dans le catalogue de 34 commandes :
+c'est un endpoint `global` que le catalogue n'annonce pas, ce qui explique pourquoi il est documenté ici
+et non dans la [référence des commandes](../../commands/).
+
 ## Reproduire les captures de ce dépôt
 
-Chaque page de commande intègre la sortie capturée par `scripts/capture-sitecli.sh`, qui
-implémente les trois règles ci-dessus.
+Chaque page de commande intègre une sortie capturée par `scripts/capture-sitecli.sh`, qui
+met en œuvre les trois règles ci-dessus.
 
 <Steps>
 
-1. Pointez-le vers un tenant. Il lit `XCSH_API_URL` et `XCSH_API_TOKEN`, ou se
-   replie sur le contexte `xcsh` actif.
+1. Pointez-le vers un locataire. Il lit `XCSH_API_URL` et `XCSH_API_TOKEN`, ou revient
+   au contexte `xcsh` actif.
 
 2. Actualisez le catalogue et confirmez que le nœud n'a pas changé sous la
    documentation :
@@ -159,10 +168,10 @@ implémente les trois règles ci-dessus.
    bash scripts/capture-sitecli.sh --check
    ```
 
-   Cela compare uniquement le catalogue validé et le build logiciel. Il signale un
+   Cela compare uniquement le catalogue validé et la build logicielle. Il signale un
    changement de build séparément des commandes ajoutées ou supprimées.
 
-3. Recapturez lorsque vous souhaitez des données fraîches :
+3. Effectuez une nouvelle capture lorsque vous souhaitez des preuves fraîches :
 
    ```bash
    bash scripts/capture-sitecli.sh
@@ -171,28 +180,29 @@ implémente les trois règles ci-dessus.
 </Steps>
 
 <Aside type="note" title="Les captures sont des preuves, pas des artefacts reproductibles">
-Les compteurs, les durées de fonctionnement et les âges des conteneurs évoluent entre les exécutions, donc
-recapturer produit toujours un diff. Le catalogue est le contrat stable et est identique octet par octet entre
-les exécutions lorsque le nœud n'a pas changé ; c'est ce que `--check` compare. Les sorties longues sont
-tronquées et se terminent par un marqueur explicite, de sorte qu'un tableau tronqué n'est jamais présenté
-comme s'il était complet.
+Les compteurs, durées de fonctionnement et âges des conteneurs évoluent d'une exécution à l'autre, donc une nouvelle capture produit toujours
+un diff. Le catalogue est le contrat stable et est identique octet pour octet d'une exécution à l'autre
+lorsque le nœud n'a pas changé ; c'est ce que `--check` compare. Les sorties longues sont
+tronquées et se terminent par un marqueur explicite, de sorte qu'un tableau tronqué n'est jamais présenté comme
+s'il était complet.
 </Aside>
 
-<Aside type="danger" title="Capture depuis un nœud client : vérifiez le profil de rédaction">
-La sortie des commandes contient des informations d'identité d'infrastructure — adressage interne, adresses MAC,
-numéros AS, noms d'hôtes — et pour un client, il s'agit d'informations d'identification sur l'organisation.
+<Aside type="danger" title="Capture depuis un nœud client : vérifiez le profil de censure">
+La sortie des commandes véhicule l'identité de l'infrastructure — adressage interne, adresses MAC,
+numéros AS, noms d'hôtes — et pour un client, il s'agit d'informations identifiant
+l'organisation.
 
 Le filtre de nettoyage utilise donc par défaut un profil **strict** qui supprime tout cela.
 Ce dépôt déclare `lab` dans `sitecli/capture-manifest.json`, ce qui conserve ces
-détails, et cela n'est correct ici que parce que ces captures proviennent d'une infrastructure de démonstration
-appartenant à F5.
+détails, et cela n'est correct ici que parce que ces captures proviennent d'une infrastructure
+de démonstration détenue par F5.
 
-**Ne transférez pas ce paramètre vers une capture client.** Les tokens, les clés privées, l'identifiant
-du tenant, les UUID d'objets, les adresses e-mail et les chemins de répertoires personnels sont supprimés dans
+**Ne transposez pas ce réglage à une capture client.** Les jetons, clés privées, l'identifiant
+du locataire, les UUID d'objets, les adresses e-mail et les chemins de répertoires personnels sont supprimés sous
 les deux profils.
 
 Une limitation mérite d'être connue : une table de voisins BGP affiche l'AS sous forme de colonne brute
-sans libellé pour ancrer un motif, donc les ASN sont mis en correspondance par valeur avec les
-plages privées. Un ASN **public** qui s'y trouve survit au profil strict, et nécessite une révision manuelle
-de la sortie `show-ip-bgp*` avant publication.
+sans étiquette permettant d'ancrer un motif, donc les ASN sont mis en correspondance par valeur avec les
+plages privées. Un ASN **public** y survit au profil strict, et nécessite une revue manuelle de
+la sortie `show-ip-bgp*` avant publication.
 </Aside>

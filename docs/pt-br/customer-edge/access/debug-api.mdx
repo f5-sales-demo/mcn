@@ -1,27 +1,27 @@
 ---
 title: API de Debug
 description: >-
-  Como executar um comando Site CLI em um nó ONLINE via HTTP, incluindo a regra
-  de nível para endpoint que determina qual dos três transportes um comando
-  necessita e a chamada de descoberta que os lista.
+  Como executar um comando do Site CLI em um nó ONLINE via HTTP, incluindo a
+  regra tier-para-endpoint que determina qual dos três transportes um comando
+  exige e a chamada de descoberta que os lista.
 sidebar:
   order: 20
   label: API de Debug
 i18n:
-  sourceHash: 36ee4d6fe690
+  sourceHash: ee7f5b2d1442
   translator: machine
 ---
 
 import { Aside, Steps, Badge } from "@astrojs/starlight/components";
 
-A API `vpm/debug` executa comandos Site CLI em um nó registrado e retorna sua
-saída. Tudo abaixo foi estabelecido em um nó ativo; nada disso é publicado
-upstream.
+A API `vpm/debug` executa comandos do Site CLI em um nó registrado e retorna sua
+saída. Todo o conteúdo abaixo foi estabelecido a partir de um nó ativo; nada disso é
+publicado oficialmente.
 
 ## O catálogo de comandos é autodescritivo
 
-Consulte o nó sobre o que ele suporta enviando um POST para `exec-user` com a chave
-`command` **omitida**:
+Pergunte ao nó o que ele suporta enviando um POST para `exec-user` com a chave `command`
+**omitida**:
 
 ```bash
 curl -sS -X POST \
@@ -32,7 +32,7 @@ curl -sS -X POST \
   | jq -r .output | jq .
 ```
 
-A resposta é um objeto JSON com chaves pelo nome do comando:
+A resposta é um objeto JSON indexado pelo nome do comando:
 
 ```json
 {
@@ -42,19 +42,19 @@ A resposta é um objeto JSON com chaves pelo nome do comando:
 }
 ```
 
-Cada entrada é `[categoria, nível, exemploDeArgumento?, escopo?]`, e esses campos não
-são documentação — eles determinam como o comando deve ser chamado.
+Cada entrada é `[categoria, tier, argumentoDeExemplo?, escopo?]`, e esses campos não são
+documentação — eles determinam como o comando deve ser chamado.
 
-<Aside type="caution" title="Omita a chave; não envie um valor incorreto">
-A descoberta funciona deixando `command` de fora. Enviar um valor desconhecido retorna
-um erro, não o catálogo:
+<Aside type="caution" title="Omita a chave; não envie um valor errado">
+A descoberta funciona deixando `command` de fora. Enviar um valor desconhecido em vez disso retorna
+um erro, e não o catálogo:
 
 ```json
 {"code":3,"details":[],"message":"exec command failed: command not supported"}
 ```
 
-Essa mensagem é também o que você obtém para um comando *real* enviado ao endpoint
-errado, portanto é fácil interpretá-la erroneamente como "este comando não existe".
+Essa mensagem também é o que você recebe para um comando *real* enviado ao endpoint errado,
+por isso é fácil interpretá-la equivocadamente como "este comando não existe".
 </Aside>
 
 ## Três transportes, escolhidos pela entrada do catálogo
@@ -65,10 +65,10 @@ errado, portanto é fácil interpretá-la erroneamente como "este comando não e
 | `tier` é `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | array `command` | texto |
 | `tier` é `Exec` | `POST .../vpm/debug/<node>/exec` | array `command` | texto |
 
-### `ExecUser` — o nível somente leitura <Badge text="31 comandos" variant="note" />
+### `ExecUser` — o tier somente leitura <Badge text="31 comandos" variant="note" />
 
-O caso mais comum. Passe o comando e seus argumentos como um array, com o nome do
-comando primeiro:
+O caso comum. Passe o comando e seus argumentos como um array, com o nome do comando
+primeiro:
 
 ```bash
 curl -sS -X POST \
@@ -82,27 +82,26 @@ curl -sS -X POST \
 { "return_code": 0, "output": "CONTAINER    IMAGE    CREATED    STATE ..." }
 ```
 
-Os argumentos são elementos separados do array, não uma única string:
+Argumentos são elementos separados do array, não uma única string:
 
 ```json
 { "command": ["journalctl", "-u", "vpm", "-n", "200"] }
 ```
 
-### `GLOBAL` — abrangente ao site, e um transporte completamente diferente <Badge text="2 comandos" variant="tip" />
+### `GLOBAL` — abrangência de site e um transporte totalmente diferente <Badge text="2 comandos" variant="tip" />
 
-`health` e `diagnosis` são os únicos dois. São requisições `GET` para um caminho
-`global`, não recebem argumentos e retornam JSON estruturado em vez de texto de
-terminal.
+`health` e `diagnosis` são os dois únicos. São requisições `GET` para um caminho
+`global`, não recebem argumentos e retornam JSON estruturado em vez de texto de terminal.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   "$XCSH_API_URL/api/operate/namespaces/system/sites/<site>/vpm/debug/global/health" | jq .
 ```
 
-<Aside type="danger" title="Um comando GLOBAL não é acessível via exec-user">
-Esta é a armadilha que mais consome tempo. Enviar `health` ou `diagnosis` para
-`exec-user` retorna `command not supported`, o que parece indicar que o comando
-não existe no nó — quando na verdade ele existe e você usou o transporte errado.
+<Aside type="danger" title="Um comando GLOBAL não é acessível através de exec-user">
+Esta é a armadilha que custa mais tempo. Enviar `health` ou `diagnosis` para
+`exec-user` retorna `command not supported`, o que dá a impressão de que o comando não
+existe no nó — quando de fato ele existe e você usou o transporte errado.
 
 ```bash
 # Errado. Retorna: exec command failed: command not supported
@@ -114,28 +113,28 @@ GET .../vpm/debug/global/health
 
 </Aside>
 
-### `Exec` — o nível privilegiado <Badge text="1 comando nesta build" variant="danger" />
+### `Exec` — o tier privilegiado <Badge text="1 comando neste build" variant="danger" />
 
-Um endpoint separado, e o nível é imposto em vez de ser indicativo: `exec` rejeita
-um comando `ExecUser` com a mesma mensagem `command not supported`. Cada membro
-ou modifica o nó ou lê um marcador de estado.
+Um endpoint separado, e o tier é imposto em vez de apenas indicativo: `exec` rejeita
+um comando `ExecUser` com a mesma mensagem `command not supported`. Todo membro
+altera o nó ou lê um marcador de estado.
 
-Na build em que este tenant opera, o nível contém apenas `ip-link-set`. Builds mais
-recentes adicionam `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
-`systemctl-restart-kubelet`, `systemctl-start-crio-prune` e três comandos
-`marker-exists-*`.
+No build que este tenant executa, o tier contém apenas `ip-link-set`. Builds mais recentes
+adicionam `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
+`systemctl-restart-kubelet`, `systemctl-start-crio-prune` e três
+comandos `marker-exists-*`.
 
 <Aside type="danger" title="Nada aqui executa um comando Exec">
-O harness de captura recusa este nível e lê o nível a partir do catálogo ativo
-em vez de uma lista codificada — portanto, uma build futura que promova um comando
-para `Exec` é respeitada sem que ninguém precise editar código. Execute um apenas
-deliberadamente, em um nó que você esteja disposto a interromper.
+O harness de captura recusa este tier e lê o tier do catálogo ativo em vez de
+uma lista fixa no código — de modo que um build futuro que promova um comando para `Exec`
+é respeitado sem que ninguém precise editar código. Execute um apenas deliberadamente, em um nó
+que você esteja disposto a interromper.
 </Aside>
 
-## Encontrando os nomes do site e do nó
+## Encontrando os nomes de site e nó
 
-O nome do nó é o nome da VM no Azure, e `list-service` é uma forma econômica de
-confirmá-lo junto com os serviços em execução:
+O nome do nó é o nome da VM do Azure, e `list-service` é uma forma econômica de confirmá-lo
+juntamente com os serviços em execução nele:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -143,23 +142,33 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '[.service[].node] | unique'
 ```
 
+```json
+["", "f5-xc-ce-vm-01"]
+```
+
+Alguns serviços reportam um nome de nó vazio, portanto uma string vazia nessa lista é um artefato da
+resposta e não um segundo nó. `list-service` também não está no catálogo de 34 comandos:
+é um endpoint `global` que o catálogo não divulga, razão pela qual está documentado aqui
+e não na [referência de comandos](../../commands/).
+
 ## Reproduzindo as capturas deste repositório
 
-Cada página de comando incorpora a saída capturada por `scripts/capture-sitecli.sh`,
-que implementa todas as três regras acima.
+Cada página de comando incorpora a saída capturada por `scripts/capture-sitecli.sh`, que
+implementa todas as três regras acima.
 
 <Steps>
 
-1. Aponte para um tenant. Ele lê `XCSH_API_URL` e `XCSH_API_TOKEN`, ou usa como
-   alternativa o contexto `xcsh` ativo.
+1. Aponte-o para um tenant. Ele lê `XCSH_API_URL` e `XCSH_API_TOKEN`, ou recorre
+   ao contexto `xcsh` ativo.
 
-2. Atualize o catálogo e confirme que o nó não mudou em relação à documentação:
+2. Atualize o catálogo e confirme que o nó não mudou por baixo da
+   documentação:
 
    ```bash
    bash scripts/capture-sitecli.sh --check
    ```
 
-   Isso compara apenas o catálogo registrado e a build do software. Ele relata uma
+   Isso compara apenas o catálogo versionado e o build de software. Ele reporta uma
    mudança de build separadamente de comandos adicionados ou removidos.
 
 3. Recapture quando quiser evidências atualizadas:
@@ -170,30 +179,30 @@ que implementa todas as três regras acima.
 
 </Steps>
 
-<Aside type="note" title="Capturas são evidências, não artefatos reproduzíveis">
-Contadores, tempos de atividade e idades de contêineres variam entre execuções,
-portanto recapturar sempre produz um diff. O catálogo é o contrato estável e é
-idêntico byte a byte entre execuções quando o nó não mudou; é isso que `--check`
-compara. Saídas longas são truncadas e terminam com um marcador explícito, de modo
-que uma tabela truncada nunca é exibida como se estivesse completa.
+<Aside type="note" title="Capturas são evidências, não artefatos reprodutíveis">
+Contadores, tempos de atividade e idades de containers mudam entre execuções, então recapturar sempre
+produz um diff. O catálogo é o contrato estável e é idêntico byte a byte entre
+execuções quando o nó não mudou; é isso que `--check` compara. Saídas longas são
+truncadas e terminam com um marcador explícito, de modo que uma tabela truncada nunca é exibida como se
+estivesse completa.
 </Aside>
 
 <Aside type="danger" title="Capturando de um nó de cliente: verifique o perfil de redação">
-A saída dos comandos carrega identidade de infraestrutura — endereçamento interno,
-endereços MAC, números de AS, hostnames — e para um cliente isso é informação
-identificadora da organização.
+A saída dos comandos carrega a identidade da infraestrutura — endereçamento interno, endereços MAC,
+números de AS, hostnames — e, para um cliente, isso é informação que identifica a
+organização.
 
-O filtro de limpeza, portanto, usa como padrão um perfil **estrito** que remove
-tudo isso. Este repositório declara `lab` em `sitecli/capture-manifest.json`, o
-que mantém esses detalhes, e isso só é correto aqui porque essas capturas provêm
-de infraestrutura de demonstração de propriedade da F5.
+Por isso, o filtro de limpeza usa por padrão um perfil **strict** que remove tudo isso.
+Este repositório declara `lab` em `sitecli/capture-manifest.json`, o que preserva esses
+detalhes, e isso só é correto aqui porque estas capturas vêm de infraestrutura de demonstração
+de propriedade da F5.
 
-**Não utilize essa configuração em uma captura de cliente.** Tokens, chaves privadas,
-o identificador do tenant, UUIDs de objetos, endereços de e-mail e caminhos de
-diretório home são removidos em ambos os perfis.
+**Não leve essa configuração para uma captura de cliente.** Tokens, chaves privadas, o identificador
+do tenant, UUIDs de objetos, endereços de e-mail e caminhos de diretório home são removidos em
+ambos os perfis.
 
-Uma limitação vale ser conhecida: uma tabela de vizinhos BGP imprime o AS como uma
-coluna simples sem rótulo para ancorar um padrão, portanto os ASNs são comparados
-por valor em relação às faixas privadas. Um ASN **público** ali sobrevive ao perfil
-estrito e requer uma revisão manual da saída de `show-ip-bgp*` antes de publicá-la.
+Vale conhecer uma limitação: uma tabela de vizinhos BGP imprime o AS como uma coluna simples
+sem rótulo que sirva de âncora para um padrão, então ASNs são comparados por valor contra os
+intervalos privados. Um ASN **público** ali sobrevive ao perfil strict e exige uma revisão manual da
+saída de `show-ip-bgp*` antes de publicá-la.
 </Aside>

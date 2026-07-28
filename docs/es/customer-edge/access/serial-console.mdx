@@ -1,44 +1,50 @@
 ---
-title: Consola serial
+title: Consola serie
 description: >-
-  La ruta de acceso de emergencia a un Customer Edge que nunca se registró,
-  donde la API de depuración no puede llegar. Cubre el prerequisito de
-  diagnósticos de arranque, cómo verificar la disponibilidad desde un script, y
-  dos fallos que parecen interrupciones pero no lo son.
+  La vía de emergencia hacia un Customer Edge que nunca se registró, donde la
+  API de depuración no puede llegar. Cubre el requisito previo de diagnóstico de
+  arranque, cómo comprobar la disponibilidad desde un script y dos fallos que
+  parecen caídas pero no lo son.
 sidebar:
   order: 30
-  label: Consola serial
+  label: Consola serie
 i18n:
-  sourceHash: 4f5e363510f8
+  sourceHash: 1a18cc5ac679
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-La consola serial de Azure se conecta al puerto serial emulado del nodo a través de la
+Azure Serial Console se conecta al puerto serie emulado del nodo a través de la
 plataforma de Azure. No atraviesa el plano de control de F5 Distributed Cloud, el plano
-de datos del nodo, ni ninguna ruta de red que el nodo controle — que es exactamente por
-qué funciona cuando nada más lo hace.
+de datos del nodo ni ninguna ruta de red que el nodo controle — que es exactamente el
+motivo por el que funciona cuando nada más lo hace.
 
-Recurra a ella cuando un CE **nunca se levantó**: el registro falló, el sitio está
-ausente del tenant, o el nodo está activo pero no tiene ruta de salida. En todos esos
-casos, la [API de depuración](../debug-api/) no tiene ningún túnel por el que retransmitir.
-[SSH](../ssh/) sobrevive a un registro fallido, pero solo si su clave ya fue escrita en
+Recurra a ella cuando un CE **nunca llegó a arrancar**: el registro falló, el sitio no
+aparece en el tenant, o el nodo está activo pero no tiene ruta de salida. En todos esos
+casos, la [API de depuración](../debug-api/) no tiene túnel por el que retransmitir.
+[SSH](../ssh/) sobrevive a un registro fallido, pero solo si su clave ya se escribió en
 el primer arranque y puede alcanzar la dirección interna del nodo desde dentro de la
-VNet — ninguna de las cuales es verdad para un nodo que está conociendo por primera vez.
+VNet — y ninguna de esas dos cosas se cumple en un nodo con el que se encuentra por
+primera vez.
 
-## Prerequisito: diagnósticos de arranque
+Pruebe la [Consola del sitio](../site-console/) antes que esta si el nodo tiene *alguna*
+ruta de red funcional: también sobrevive a un registro fallido, no necesita clave y no
+expulsa a quien ya esté examinando el nodo. La consola serie es lo que queda cuando la
+ruta de red es precisamente lo que está roto.
 
-Azure requiere diagnósticos de arranque en la VM antes de poder conectar una consola
-serial. Esto se habilita mediante `terraform/modules/ce-node`:
+## Requisito previo: diagnóstico de arranque
+
+Azure exige el diagnóstico de arranque en la VM antes de permitir la conexión de una
+consola serie. Esto lo habilita `terraform/modules/ce-node`:
 
 ```hcl
 boot_diagnostics {}
 ```
 
-Un bloque vacío selecciona el almacenamiento gestionado por Azure, por lo que no hay
-cuenta de almacenamiento de diagnósticos, política de ciclo de vida ni clave de acceso
-que administrar. Confírmelo en un nodo:
+Un bloque vacío selecciona almacenamiento gestionado por Azure, de modo que no hay
+cuenta de almacenamiento de diagnóstico, política de ciclo de vida ni clave de acceso
+que gestionar. Confírmelo en un nodo:
 
 ```bash
 az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
@@ -49,26 +55,26 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 ```
 
 <Aside type="caution" title="Habilitarlo no es retroactivo">
-Los diagnósticos de arranque capturan el registro serial **en el arranque**. Activarlos
-para una VM que ya está en ejecución no produce un registro para el arranque que ya
-ocurrió, por lo que `az vm boot-diagnostics get-boot-log` responde:
+El diagnóstico de arranque captura el registro serie **en el arranque**. Activarlo en una
+VM que ya está en ejecución no genera un registro del arranque que ya ocurrió, por lo que
+`az vm boot-diagnostics get-boot-log` responde:
 
 ```
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
-Eso es lo esperado, no una falla. Un registro de arranque existe después de que el nodo
-se reinicie. Sin embargo, la conexión de consola en vivo funciona inmediatamente — no
-depende del registro.
+Eso es lo esperado, no un fallo. El registro de arranque existirá después del siguiente
+reinicio del nodo. La conexión en vivo a la consola, en cambio, funciona de inmediato —
+no depende del registro.
 </Aside>
 
-## Verificar la disponibilidad sin una terminal
+## Comprobar la disponibilidad sin un terminal
 
-La conexión requiere una sesión interactiva, pero si *podría* conectarse son dos
-llamadas a la API. Ambas son útiles en una verificación de estado.
+Conectarse requiere una sesión interactiva, pero saber si *se podría* conectar son dos
+llamadas a la API. Ambas son útiles en una comprobación de estado.
 
 El servicio debe estar habilitado para la suscripción — un administrador puede
-desactivarlo a nivel de todo el tenant:
+deshabilitarlo para todo el tenant:
 
 ```bash
 az rest --method get --url \
@@ -79,7 +85,7 @@ az rest --method get --url \
 { "properties": { "disabled": false } }
 ```
 
-Luego solicite una conexión al puerto serial de un nodo específico:
+Después, solicite una conexión al puerto serie de un nodo concreto:
 
 ```bash
 az rest --method post \
@@ -87,22 +93,22 @@ az rest --method post \
   "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
 ```
 
-Un `connectionString` que comienza con `wss://` — en este despliegue
-`eastus.gateway.serialconsole.azure.com` — significa que la consola es conectable en
-este momento. Antes de que se habilitaran los diagnósticos de arranque, esta llamada no
-tenía nada a lo que conectarse.
+Un `connectionString` que empieza por `wss://` — en este despliegue,
+`eastus.gateway.serialconsole.azure.com` — significa que la consola es conectable ahora
+mismo. Antes de habilitar el diagnóstico de arranque, esta llamada no tenía nada a lo que
+conectarse.
 
 <Aside type="danger" title="Esa cadena de conexión es una credencial">
-Es un token de portador de corta duración incrustado en una URL. No lo registre, no lo
-pegue en un ticket ni lo confirme en un repositorio. Imprima solo el host cuando esté
-demostrando que la llamada funcionó.
+Es un token bearer de vida corta incrustado en una URL. No lo registre, no lo pegue en un
+ticket ni lo suba a un repositorio. Muestre únicamente el host cuando esté demostrando que
+la llamada funcionó.
 </Aside>
 
 ## Conexión
 
 <Steps>
 
-1. Instale la extensión una vez:
+1. Instale la extensión una sola vez:
 
    ```bash
    az extension add --name serial-console
@@ -114,38 +120,44 @@ demostrando que la llamada funcionó.
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-3. Llegará al prompt de inicio de sesión propio del nodo, no a un shell. Esta es la
-   CLI del sitio y necesita credenciales configuradas en el nodo — la contraseña de
-   administrador del aprovisionamiento, o una establecida a través del endpoint de
-   cambio de contraseña. La consola serial demuestra que el *canal* funciona; no
-   omite la autenticación.
+3. Aterriza en el propio indicador de inicio de sesión del nodo, no en un shell, detrás
+   del banner de auditoría del dispositivo. La consola serie demuestra que el *canal*
+   funciona; no elude la autenticación.
+
+   <Aside type="caution" title="No se ha verificado qué credencial acepta el inicio de sesión serie">
+   Nadie ha completado un inicio de sesión por consola serie en este despliegue, así que
+   esta página no indica qué escribir. `admin` es la cuenta del dispositivo cuyo shell es
+   la CLI del sitio, y esa misma cuenta se autentica mediante
+   [Consola del sitio](../site-console/) con una contraseña — pero no se ha demostrado que
+   una contraseña funcione en el inicio de sesión de la consola serie, y `sshd` solo acepta
+   claves para `admin`, por lo que ambas rutas de credencial son demostrablemente distintas.
+   </Aside>
 
 </Steps>
 
-Capturado de `f5-xc-ce-vm-01`, omitido en el medio donde la salida de la unidad systemd
-no aporta nada:
+Capturado de `f5-xc-ce-vm-01`, con elisiones en el medio donde la salida de las unidades
+de systemd no aporta nada:
 
 ```text file=../../../_data/serial-console-boot.txt
 ```
 
-Cuatro cosas en esa transcripción merecen atención, porque responden preguntas que la
-API de depuración no puede:
+Hay cuatro cosas en esa transcripción que merece la pena observar, porque responden a
+preguntas que la API de depuración no puede responder:
 
-- **cloud-init completó** — `Datasource DataSourceAzure`, finalizado a los 22,37
-  segundos. Un nodo que nunca se registra generalmente falló aquí, y aquí es donde se
-  puede ver.
+- **cloud-init completado** — `Datasource DataSourceAzure`, finalizado a los 22,37
+  segundos. Un nodo que nunca se registra suele haber fallado aquí, y aquí es donde se ve.
 - **Ambos runtimes de contenedores arrancaron.** `Container Runtime Interface for OCI (CRI-O)`
-  y `Docker Application Container Engine` están cada uno en `[ OK ]`, lo que es la
-  prueba en el arranque del comportamiento de doble runtime que sorprende a las personas
-  en [crictl](../../commands/system/crictl/) y [docker](../../commands/system/docker/).
+  y `Docker Application Container Engine` están cada uno en `[ OK ]`, lo cual es la prueba
+  en tiempo de arranque del comportamiento de doble runtime que sorprende a la gente en
+  [crictl](../../commands/system/crictl/) y [docker](../../commands/system/docker/).
 - **`VP Manager image load` y `Argo Watch service`** — `vpm` y Argo arrancando.
-- **El prompt es el propio del nodo**, detrás de su banner de auditoría. La consola
-  serial le da un prompt de inicio de sesión, no una sesión.
+- **El indicador es el propio del nodo**, detrás de su banner de auditoría. La consola
+  serie le da un indicador de inicio de sesión, no una sesión.
 
-<Aside type="caution" title="La conexión interactiva necesita una terminal real — pero puede ser automatizada">
-`az serial-console connect` pone la terminal en modo raw, por lo que no puede ejecutarse
-desde un pipeline ni en ningún contexto sin TTY. Falla en el lado del cliente, antes de
-contactar con Azure:
+<Aside type="caution" title="La conexión interactiva necesita un terminal real — pero se puede automatizar">
+`az serial-console connect` pone el terminal en modo raw, por lo que no puede ejecutarse
+desde una pipeline ni desde ningún contexto sin TTY. Falla en el lado del cliente, antes
+de contactar con Azure:
 
 ```
 ERROR: (19, 'Operation not supported by device')
@@ -153,71 +165,71 @@ ERROR: (19, 'Operation not supported by device')
     GV.serial_console_instance.launch_console()
 ```
 
-Ese traceback es manejo de la terminal, no una interrupción de la consola serial.
+Ese traceback es manejo del terminal, no una caída de la consola serie.
 
-Sin embargo, la conexión en sí **sí** es automatizable — maneje el websocket
-directamente en lugar de la CLI. La transcripción anterior fue capturada de esa forma,
-sin TTY. Consulte `scripts/serial_console_capture.py`, que es la manera de recopilar
-evidencia de arranque de un nodo que no se registró sin que haya una persona sentada
-frente a una terminal.
+La conexión en sí, en cambio, **sí** es automatizable — controle el websocket
+directamente en lugar de usar la CLI. La transcripción anterior se capturó así, sin TTY.
+Consulte `scripts/serial_console_capture.py`, que es la forma en que recopilaría evidencia
+de arranque de un nodo que no consiguió registrarse sin que una persona esté sentada ante
+un terminal.
 </Aside>
 
-<Aside type="caution" title="Espere reintentos: la pasarela rechaza aproximadamente uno de cada dos intentos">
-El primer frame de la pasarela es un desafío, no una salida, y el cliente lo responde
-con un token de portador. Incluso cuando esto se hace correctamente, el socket se cierra
-frecuentemente de inmediato:
+<Aside type="caution" title="Prepárese para reintentar: el gateway rechaza aproximadamente uno de cada dos intentos">
+El primer frame del gateway es un desafío, no salida, y el cliente lo responde con un
+token bearer. Incluso cuando eso se hace correctamente, el socket a menudo se cierra de
+inmediato:
 
 ```
 [close] code=1011 reason=Connection not trusted
 ```
 
-Comportamiento observado: tiene éxito de forma intermitente, y bajo uso sostenido todos
-los nodos del grupo de recursos rechazan la conexión — incluidos los nodos que
-funcionaron minutos antes. `scripts/serial_console_capture.py` reintenta por defecto
-porque reintentar suele funcionar.
+Comportamiento observado: funciona de forma intermitente y, con un uso sostenido, todos
+los nodos del grupo de recursos rechazan la conexión — incluidos nodos que funcionaban
+minutos antes. `scripts/serial_console_capture.py` reintenta por defecto porque reintentar
+suele funcionar.
 
-**La causa no está establecida.** Lo que se ha descartado, porque cada uno es una
+**La causa no está establecida.** Lo que se ha descartado, porque cada una es una
 suposición plausible que hace perder tiempo:
 
 | No es esto | Cómo confirmarlo |
 | --- | --- |
-| Limitación de ARM/compute | Eso devuelve HTTP `429` en las llamadas ARM. Esto es un cierre de websocket en un canal de datos separado. |
-| Interceptación TLS por un proxy | `openssl s_client -connect <region>.gateway.serialconsole.azure.com:443 \| openssl x509 -noout -issuer`. Un emisor genuino `O=Microsoft Corporation` lo descarta; un proveedor de proxy como emisor lo confirma, y la solución es incluir en la lista de permitidos `*.serialconsole.azure.com`. |
-| Diagnósticos de arranque deshabilitados | `az vm show -g <rg> -n <vm> --query diagnosticsProfile` informando `enabled: true`. |
-| Incompatibilidad de token entre la concesión y el desafío | Usar un mismo token para ambos es la práctica correcta, pero no evita el cierre. |
+| Throttling de ARM/compute | Eso devuelve HTTP `429` en las llamadas a ARM. Esto es un cierre de websocket en un canal de datos separado. |
+| Interceptación TLS por un proxy | `openssl s_client -connect <region>.gateway.serialconsole.azure.com:443 \| openssl x509 -noout -issuer`. Un emisor genuino `O=Microsoft Corporation` lo descarta; un proveedor de proxy como emisor lo confirma, y la solución es permitir `*.serialconsole.azure.com` en la lista blanca. |
+| Diagnóstico de arranque deshabilitado | `az vm show -g <rg> -n <vm> --query diagnosticsProfile` informando `enabled: true`. |
+| Desajuste de token entre la concesión y el desafío | Usar un mismo token para ambos es la práctica correcta, pero no evita el cierre. |
 
-Lo que *sí* es comportamiento documentado de Azure: **una sesión de consola serial por
-VM, y una segunda solicitud exitosa desaloja a la primera.** El usuario desalojado es
-desconectado pero no cerrado su sesión, por lo que la sesión del shell sobrevive. Dos
-personas depurando un nodo se desplazarán mutuamente de forma repetida.
+Lo que *sí* es comportamiento documentado de Azure: **una sesión de consola serie por VM,
+y una segunda solicitud satisfactoria expulsa a la primera.** El usuario expulsado se
+desconecta pero no cierra sesión, por lo que la sesión del shell sobrevive. Dos personas
+depurando un mismo nodo se desplazarán mutuamente de forma repetida.
 
-Para trabajo masivo, prefiera la [API de depuración](../debug-api/) o [SSH](../ssh/),
-ninguna de las cuales tiene estas limitaciones. SSH en particular no tiene límite de
-pegado ni restricción de sesión única, por lo que es la mejor opción siempre que el
-nodo sea accesible desde dentro de la VNet.
+Para trabajo masivo prefiera la [API de depuración](../debug-api/) o [SSH](../ssh/),
+ninguno de los cuales tiene estos límites. SSH en particular no tiene límite de pegado ni
+restricción de sesión única, por lo que es la mejor opción siempre que el nodo sea
+alcanzable desde dentro de la VNet.
 </Aside>
 
 <Aside type="caution" title="El pegado está limitado a 2.048 caracteres">
-Azure limita la longitud del pegado en la consola serial a 2.048 caracteres, para evitar
-sobrecargar el puerto serial. Enviar un comando largo — o un lote de comandos en una
-sola escritura — falla de una manera que parece un bloqueo o una limitación en lugar de
-un límite de longitud.
+Azure limita la longitud del pegado en la consola serie a 2.048 caracteres, para evitar
+sobrecargar el puerto serie. Enviar un comando largo — o un lote de comandos en una sola
+escritura — falla de una forma que se interpreta como un bloqueo o un throttling en lugar
+de como un límite de longitud.
 
-Envíe los comandos individualmente. Esta es una limitación real en cualquier recopilación
-masiva a través de la consola serial, y otra razón para preferir la
+Envíe los comandos de uno en uno. Es una restricción real para cualquier recopilación
+masiva por consola serie, y otra razón para preferir la
 [API de depuración](../debug-api/) para ese trabajo.
 </Aside>
 
-## Lo que puede ver aquí que la API no puede mostrarle
+## Qué puede ver aquí que la API no le puede mostrar
 
-- **cloud-init** ejecutándose, fallando o nunca iniciando — la causa habitual de un
+- **cloud-init** ejecutándose, fallando o sin arrancar nunca — la causa habitual de un
   nodo que nunca se registra.
 - **Intentos de registro** contra `register.ves.volterra.io`, incluido un error de
-  configuración o un token que el tenant rechazó.
-- **Mensajes del kernel y del arranque** de antes de que cualquier agente estuviera
-  en ejecución.
-- El nodo cuando **no tiene ninguna ruta de red funcional**, lo que anula todas las
-  demás rutas.
+  configuración o un token rechazado por el tenant.
+- **Mensajes del kernel y del arranque** de antes de que ningún agente estuviera en
+  ejecución.
+- El nodo cuando **no tiene ninguna ruta de red funcional**, lo cual inutiliza cualquier
+  otra vía.
 
-Para un nodo que *está* `ONLINE`, prefiera la API de depuración: es automatizable,
-produce evidencia que puede volver a ejecutar, y no ocupa el único puerto serial.
+Para un nodo que *sí* está `ONLINE`, prefiera la API de depuración: es automatizable,
+produce evidencia que puede volver a generar y no ocupa el único puerto serie.

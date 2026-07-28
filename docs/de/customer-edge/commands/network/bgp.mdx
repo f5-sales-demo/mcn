@@ -1,26 +1,26 @@
 ---
 title: BGP
 description: >-
-  Ob der Standort peert, was er ankündigt und was er lernt. Vier Befehle decken
-  die Zusammenfassung, die vollständige Tabelle, Nachbardetails und angekündigte
-  Routen ab.
+  Ob die Site Peering betreibt, was sie ankündigt und was sie lernt. Vier
+  Befehle für die Zusammenfassung, die vollständige Tabelle, Nachbardetails und
+  angekündigte Routen.
 sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 4b36c57cee22
+  sourceHash: 8a6e8bdbb3fa
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Der CE führt FRR für BGP aus. In dieser Topologie peert er mit den beiden Azure Route Server-
-Instanzen, kündigt die VIP an und lernt das VNet-Präfix.
+Die CE führt FRR für BGP aus. In dieser Topologie betreibt sie Peering mit den beiden
+Azure-Route-Server-Instanzen, kündigt die VIP an und lernt das VNet-Präfix.
 
 ## `show-ip-bgp-summary`
 
-Beginnen Sie hier. Eine Bildschirmausgabe zeigt, ob das Peering aktiv ist und wie lange es
-stabil war.
+Beginnen Sie hier. Ein Bildschirm zeigt Ihnen, ob das Peering aktiv ist und wie lange es
+bereits stabil läuft.
 
 ```bash
 {"command":["show-ip-bgp-summary"]}
@@ -29,16 +29,17 @@ stabil war.
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-Lesen Sie zuerst `State/PfxRcd`. Eine Zahl ist die Anzahl der empfangenen Präfixe und bedeutet, dass die
-Sitzung aufgebaut ist; alles andere — `Active`, `Connect`, `Idle` — ist eine Sitzung,
-die nicht aktiv ist. `Up/Down` zeigt, wie lange der aktuelle Zustand angedauert hat; eine Sitzung,
-die sich ständig zurücksetzt, zeigt daher einen auffällig kleinen Wert.
+Lesen Sie zuerst `State/PfxRcd`. Eine Zahl ist die Anzahl der empfangenen Präfixe und
+bedeutet, dass die Sitzung aufgebaut ist; alles andere — `Active`, `Connect`, `Idle` — ist
+eine Sitzung, die nicht aktiv ist. `Up/Down` zeigt, wie lange der aktuelle Zustand
+angedauert hat, sodass eine Sitzung, die sich ständig zurücksetzt, einen verdächtig kleinen
+Wert anzeigt.
 
-<Aside type="caution" title="Die vrf-ID hier ist nicht die, die rt erwartet">
-Diese Ausgabe meldet `vrf-id 3`. Das ist FRRs Nummerierung. Die Argo-Datenebene verwendet eine
-separate Tabellen-ID, und wenn FRRs Nummer an
-[`rt --dump`](../dataplane-forwarding/) übergeben wird, wird `No such file or directory` zurückgegeben, was
-wie ein defekter Knoten aussieht und nicht wie ein falsches Argument.
+<Aside type="caution" title="Die hier angezeigte vrf id ist nicht die, die rt erwartet">
+Diese Ausgabe meldet `vrf-id 3`. Das ist die Nummerierung von FRR. Die Argo-Datenebene
+verwendet eine separate Table-ID, und die Übergabe der FRR-Nummer an
+[`rt --dump`](../dataplane-forwarding/) liefert `No such file or directory` zurück, was
+nach einem defekten Knoten aussieht statt nach dem falschen Argument.
 </Aside>
 
 ## `show-ip-bgp`
@@ -52,34 +53,47 @@ Die vollständige Tabelle mit sichtbarer Best-Path-Auswahl.
 ```text file=../../../../_data/sitecli-show-ip-bgp.txt
 ```
 
-`*` ist eine gültige Route, `>` der ausgewählte beste Pfad, `=` ein Multipath-Mitglied. Zwei
-Einträge für ein Präfix, beide mit `*=` markiert, bedeuten, dass ECMP aktiv ist, was der
-beabsichtigte Zustand in dieser Topologie ist.
+`*` ist eine gültige Route, `>` der ausgewählte beste Pfad, `=` ein Multipath-Mitglied. In
+der obigen Aufzeichnung hat das gelernte VNet-Präfix `10.0.0.0/16` zwei Pfade — je einen über
+jede Route-Server-Instanz — markiert mit `*=` und `*>`: ein bester Pfad plus ein
+Multipath-Mitglied, sodass der Knoten seinen Rückverkehr über beide Instanzen verteilt. Die
+VIP `10.250.0.10/32` hat einen einzelnen `*>`-Pfad, weil dieser Knoten sie ursprünglich
+ankündigt.
+
+<Aside type="caution" title="Das dreifache ECMP der Demo ist in dieser Ausgabe nicht sichtbar">
+`show-ip-bgp` zeigt die Tabelle eines einzelnen Knotens. Das ECMP, das diese Bereitstellung
+demonstriert, besteht aus drei *verschiedenen* CEs, die dasselbe `/32` ankündigen, und es wird
+auf der Azure-Seite programmiert — daher kann die BGP-Tabelle keiner einzelnen CE es anzeigen,
+und das Fehlen einer Multipath-Markierung bei der VIP hier ist kein Fehler. Weisen Sie dies
+stattdessen über die Route-Server-Peerings oder die effektive Routentabelle des Clients nach;
+beides finden Sie auf der [As-Built-Seite](../../../../as-built/).
+</Aside>
 
 ## `show-ip-bgp-neighbors`
 
-Details pro Nachbar: ausgehandelte Fähigkeiten, Timer, Nachrichtenzähler und der
-Grund für den letzten Reset.
+Details pro Nachbar: ausgehandelte Fähigkeiten, Timer, Nachrichtenzähler und der Grund für
+den letzten Reset.
 
 ```bash
 {"command":["show-ip-bgp-neighbors"]}
 ```
 
-Verwenden Sie diesen Befehl, wenn die Zusammenfassung eine flappende Sitzung zeigt und Sie wissen möchten, warum.
-`Last reset` und sein Grund sind die relevanten Zeilen.
+Greifen Sie darauf zurück, wenn die Zusammenfassung eine flappende Sitzung zeigt und Sie den
+Grund dafür wissen müssen. `Last reset` und der zugehörige Grund sind die nützlichen Zeilen.
 
-<Aside type="note" title="Noch keine erfasste Ausgabe auf dieser Seite">
-Diese Erfassung kann erst übertragen werden, wenn `f5-sales-demo/docs-control#795` eingebunden ist. FRR
-schreibt ein Wort in seiner Graceful-Restart-Zeile falsch, und `codespell` lehnt die Datei ab.
+<Aside type="note" title="Auf dieser Seite noch keine aufgezeichnete Ausgabe">
+Diese Aufzeichnung kann nicht eingecheckt werden, bevor `f5-sales-demo/docs-control#795`
+übernommen wurde. FRR schreibt in seiner Graceful-Restart-Zeile ein Wort falsch, und
+`codespell` weist die Datei zurück.
 
-Die erfasste Ausgabe zu korrigieren würde bedeuten, dass diese Dokumentation eine Ausgabe beschreibt, die nie
-aufgetreten ist. Daher wird das Problem stattdessen im Upstream behoben. Führen Sie den Befehl in der Zwischenzeit
-gegen Ihren eigenen Knoten aus.
+Das Korrigieren aufgezeichneter Ausgaben würde dazu führen, dass diese Dokumentation eine
+Ausgabe beschreibt, die es nie gegeben hat, daher wird es stattdessen stromaufwärts behoben.
+Führen Sie den Befehl in der Zwischenzeit gegen Ihren eigenen Knoten aus.
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
 
-Was dieser Knoten seinen Peers mitteilt, im Gegensatz zu dem, was er kennt.
+Was dieser Knoten seinen Peers mitteilt — im Gegensatz zu dem, was er weiß.
 
 ```bash
 {"command":["show-ip-bgp-neighbors-advertised-route"]}
@@ -88,5 +102,11 @@ Was dieser Knoten seinen Peers mitteilt, im Gegensatz zu dem, was er kennt.
 ```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 ```
 
-Dies ist der Befehl für den Fall, dass „die VIP vom VNet aus nicht erreichbar ist". Wenn die VIP
-hier fehlt, liegt das Problem auf diesem Knoten, und kein Blick auf den Peer wird helfen.
+Dies ist der Befehl für „Die VIP ist aus dem VNet nicht erreichbar“. Fehlt die VIP hier,
+liegt das Problem bei diesem Knoten, und ein Blick auf den Peer hilft nicht weiter.
+
+Die Ausgabe wiederholt einen `bgp neighbor:`-Block **pro Peer**, sodass Sie in dieser
+Topologie dieselben zwei Präfixe zweimal erhalten — einmal für jede Route-Server-Instanz. Das
+ist keine doppelte Darstellung: Es bestätigt, dass der Knoten an beide ankündigt. Interessant
+wird es, wenn ein Block für einen Peer vorhanden, für den anderen jedoch fehlend oder
+verkürzt ist.

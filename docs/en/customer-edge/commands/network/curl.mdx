@@ -24,8 +24,11 @@ plane is involved.
 
 ## `curl-vega`
 
-Runs inside the Kubernetes cluster context, so it traverses the cluster's DNS and
-network path.
+Runs in the Vega (control plane) context rather than the host's. The observable difference,
+and the only one established here, is the environment it inherits: `curl-vega` reports a
+`NO_PROXY` list covering the private ranges, `int.ves.io`, `int.volterra.us` and the site's
+own `.tenant.local` domain, and `curl-host` reports none. What that implies about the DNS
+path is not measured.
 
 ```bash
 {"command":["curl-vega","-v","cloud.f5.com"]}
@@ -35,10 +38,14 @@ network path.
 ```
 
 <Aside type="tip" title="The pair is a bisection">
-Run both. If `curl-host` succeeds and `curl-vega` fails, the node has connectivity
-and the cluster network or its DNS is broken. If both fail, the problem is upstream
-of the node — routing, a firewall, or the egress path. If only `curl-host` fails, you
-have found something unusual and should check the host routing table first.
+Run both. If `curl-host` succeeds and `curl-vega` fails, the node has connectivity and
+something in the control-plane context does not — its proxy settings or its resolver. If both
+fail, the problem is upstream of the node: routing, a firewall, or the egress path. If only
+`curl-host` fails, you have found something unusual and should check the host routing table
+first.
+
+On a healthy node both succeed and reach the same address, so a clean pair proves nothing
+about which context is in use — it is the *divergence* that carries the information.
 </Aside>
 
 Both accept normal `curl` arguments as separate array elements. `-v` is worth keeping

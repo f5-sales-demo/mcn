@@ -1,6 +1,6 @@
 ---
 title: As-built demo guide
-description: What this repository deploys — three single-node Customer Edges originating one VIP over eBGP into an Azure Route Server for three-way ECMP — how to prove it is healthy before you present it, and the two normal-looking results that read as an outage and are not.
+description: What this repository deploys — three single-node Customer Edges originating one VIP over eBGP into an Azure Route Server for three-way ECMP — which tenant it lives in and how that is pinned, how to prove it is healthy before you present it, and the normal-looking results that read as an outage and are not.
 sidebar:
   order: 5
   label: As-built demo
@@ -16,8 +16,9 @@ the VNet. The routing fabric, rather than a load balancer, is therefore where tr
 distribution and failed-node removal are meant to happen.
 
 Everything shown below was run against the live deployment, and the output is the output it
-produced. Two things that sentence does *not* cover — failover and traffic distribution —
-are called out at the end rather than left to be assumed.
+produced. What that sentence does *not* cover — failover, how traffic divides across the
+three next hops, and why the VIP is briefly lossy on a fresh build — is called out
+explicitly rather than left to be assumed.
 
 ## What is deployed
 
@@ -39,6 +40,8 @@ are called out at the end rather than left to be assumed.
 
 | Piece | As built |
 | --- | --- |
+| F5 Distributed Cloud tenant | `f5-sales-demo` — `https://f5-sales-demo.console.ves.volterra.io` |
+| Namespaces | sites in `system`; the origin pool and load balancer in `multi-cloud-networking` |
 | Customer Edges | 3 single-node Secure Mesh v2 sites — `ar-bgp-eastus01`, `ar-bgp-eastus02`, `ar-bgp-eastus03` |
 | CE software | pinned `9.2024.6`, build `crt-20250613-3382` |
 | Azure VMs | `f5-xc-ce-vm-01/02/03`, three NICs each (management/SLO, external, internal/SLI) |
@@ -56,6 +59,41 @@ VNet CIDR loses to the VNet's own system route despite the BGP route being more 
 
 Treat the guard as the contract: if you re-point this demo at different addressing, the
 VIP has to move out of the VNet ranges with it.
+</Aside>
+
+## The tenant is configuration, not whatever your shell is exporting
+
+`var.expected_xc_tenant` names the tenant, defaults to `f5-sales-demo`, and is the only
+place it is named. `providers.tf` derives the `xcsh` provider's `api_url` from it, which
+deliberately overrides any `XCSH_API_URL` in the environment, and a `postcondition` in
+`terraform/main.tf` fails the **plan** when the environment names a different tenant.
+
+Read either half without running anything that changes state:
+
+```bash
+cd terraform
+terraform output -raw xc_tenant       # what the deployment targets
+terraform output -raw xc_env_tenant   # what your shell claims — diagnostic only
+```
+
+```text
+f5-sales-demo
+f5-sales-demo
+```
+
+<Aside type="danger" title="This guardrail exists because the demo silently re-homed itself into the wrong tenant">
+The MCN demo was built in `f5-sales-demo`. A credential file later began exporting an
+`f5-amer-ent` `XCSH_API_URL`; subsequent applies minted a token for that tenant, the CE VMs
+re-registered there, and their `f5-sales-demo` registrations were abandoned. Every plan in
+between was clean, because nothing in the configuration had an opinion about the tenant
+([issue 696](https://github.com/f5-sales-demo/mcn/issues/696), fixed in
+[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). Recovering it meant destroying the
+stack in the wrong tenant and rebuilding it in the right one.
+
+The symptom to recognise, because it is not self-describing: a token minted for another
+tenant fails the pinned endpoint with a bare `401`, which reads exactly like an expired
+credential. If a credential you believe is good returns `401`, compare the two outputs
+above before you mint another token.
 </Aside>
 
 ## Prove it is healthy before you present
@@ -136,23 +174,30 @@ you something rather than only that something is wrong.
    ]
    ```
 
-   `state: Active` with three entries in `nextHopIpAddress` is the check. One next hop
-   where you expect three means a CE has stopped advertising, and step 2 identifies which.
+   `state: Active` with three entries in `nextHopIpAddress` is the check. **The order of
+   those three is not significant and is not stable** — Azure returns them in a different
+   order between calls, so count them rather than comparing the list to a previous run. One
+   next hop where you expect three means a CE has stopped advertising, and step 2 identifies
+   which.
 
 4. **The VIP serves traffic.** From the client VM, and **with the `Host` header** — see
-   the second trap below.
+   the second trap below. Sample enough requests to see a problem: a few dozen read as
+   100 % even during the convergence window described further down.
 
    ```bash
    az vm run-command invoke -g rg-mcn-ce-ha-rmordasiewicz -n ar-ecmp-client \
      --command-id RunShellScript --query "value[0].message" -o tsv \
-     --scripts 'for i in $(seq 1 10); do
-                  curl -s -o /dev/null -w "%{http_code} " \
-                    -H "Host: ar-bgp-ecmp.bankexample.com" http://10.250.0.10/
-                done'
+     --scripts 'ok=0; fail=0
+                for i in $(seq 1 60); do
+                  c=$(curl -s -o /dev/null -m 5 -w "%{http_code}" \
+                        -H "Host: ar-bgp-ecmp.bankexample.com" http://10.250.0.10/)
+                  [ "$c" = 200 ] && ok=$((ok+1)) || fail=$((fail+1))
+                done
+                echo "OK=$ok FAIL=$fail"'
    ```
 
    ```text
-   200 200 200 200 200 200 200 200 200 200
+   OK=60 FAIL=0
    ```
 
 </Steps>
@@ -188,6 +233,45 @@ looking at BGP, where you will find nothing wrong.
 
 The same applies during a demo: if you type the address into a browser rather than
 resolving the domain to it, you get the 404.
+
+## The VIP drops requests for the first three quarters of an hour, then stops
+
+On a freshly built stack the VIP loses a small fraction of requests for roughly the first
+45 minutes after the CEs reach `ONLINE`, and then serves cleanly. Measured over 1,470
+requests from `ar-ecmp-client`, all with the `Host` header:
+
+| Window | Requests | Failures | Rate |
+| --- | --- | --- | --- |
+| First ~45 minutes after ECMP came up | 570 | 12 | **2.11 %** |
+| The following 23 minutes | 900 | **0** | **0.00 %** |
+
+Every failure was `curl: (28)` — a timeout with zero bytes received — not an HTTP error
+status. The last one landed about 43 minutes after ECMP came up. Of the 900 clean requests,
+400 ran with a 30-second timeout and every one of them finished in under 2 seconds, so
+nothing was being hidden by a short timeout.
+
+**The origin was not the cause.** A control batch straight to the origin
+(`http://20.98.232.135/`, bypassing the VIP) ran 120 of 120 clean *concurrently with*
+failing VIP batches. The fault is somewhere in the VIP, ECMP or CE path.
+
+Two things this is deliberately not called:
+
+- **It is not a steady-state defect.** It clears completely and stays clear. A demo that has
+  been up for an hour does not have this problem — 60 of 60 on the check above, and it
+  reproduced clean again on the rebuilt stack.
+- **It is not attributable to a particular CE.** Nothing in this topology gives a per-node
+  HTTP listener, so there is no way to bind a dropped request to the node that dropped it.
+  The CE outside interfaces (`10.0.2.x`) have no HTTP listener at all — only the VIP `/32`
+  answers.
+
+It reproduced on a clean rebuild in a different tenant, so it follows the topology rather
+than the environment.
+
+<Aside type="caution" title="Do not sample 40 requests and conclude it is fine">
+Batches of 40 to 50 read as 100 % most of the time even inside the failing window. That is
+how this was first mischaracterised as an ongoing low-rate fault and then as no fault at
+all. Sample 100 or more, in batches separated in time.
+</Aside>
 
 ## Registration approval is automated, and the apply is still two-phase
 
@@ -233,27 +317,64 @@ catalog matches the live CE (build crt-20250613-3382, 34 commands)
 For the commands that API does not relay, this deployment also has **operator SSH to the
 appliance `admin` account**, whose login shell is the Site CLI. It is verified on all
 three CEs. Connect to the internal (SLI) address from a host inside the VNet, with a
-terminal allocated:
+terminal allocated.
+
+<Aside type="danger" title="Never hardcode a CE internal address — they are reassigned on every rebuild">
+Azure does not preserve which CE gets which address in the internal subnet. After the most
+recent rebuild `f5-xc-ce-vm-01`, `-02` and `-03` hold `10.0.3.7`, `10.0.3.5` and `10.0.3.4`
+respectively: not in node order, not contiguous, and different from what they held before.
+The test client's own NIC sits in the same subnet and has held an address that a CE held
+previously.
+
+Read them instead of remembering them:
 
 ```bash
-ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<vm-in-vnet> admin@10.0.3.5
+cd terraform
+terraform output -json ce_sli_private_ips
+```
+
+```json
+{"eastus01":"10.0.3.7","eastus02":"10.0.3.5","eastus03":"10.0.3.4"}
+```
+
+Without Terraform state to hand, ask Azure for the one you want by NIC name, which *is*
+stable:
+
+```bash
+az network nic show -g rg-mcn-ce-ha-rmordasiewicz \
+  -n f5-xc-ce-vm-01-internal-nic \
+  --query ipConfigurations[0].privateIPAddress -o tsv
+```
+
+</Aside>
+
+```bash
+SLI=$(terraform output -json ce_sli_private_ips | jq -r '.eastus01')
+ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<vm-in-vnet> "admin@$SLI"
 ```
 
 ```text
-WELCOME IN SITE CLI
 Registration Status: PROVISIONED
+SLO IP: 10.0.1.4/26
+WELCOME IN SITE CLI
 ```
 
 <Aside type="caution" title="That access exists because these CEs were built with it — it cannot be added later">
 The operator key is written by cloud-init `write_files`, which runs once on first boot.
-`custom_data` is replace-only, so adopting this on CEs that are already running replaces
-every CE VM — and replacing one currently wedges registration while `terraform plan`
-reports "No changes" ([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)).
-Recovery took two full rebuilds.
+`custom_data` is replace-only, so adopting this on CEs that are already running **replaces
+every CE VM**. That is a fleet rebuild, not a configuration change.
 
-For this deployment the change is already applied and the fleet is healthy. Anyone
-adopting it elsewhere should read the
-[SSH page](../customer-edge/access/ssh/) first.
+It used to be worse than that: a replaced CE could never re-register, because the destroyed
+node's registration still held the control plane's unique
+`(tenant, cluster_name, hostname)` index — and `terraform plan` reported "No changes" for
+the whole time the fleet was down. Recovery took two full rebuilds. That is fixed
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674), closed by
+[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)): the site object's lifecycle is now
+coupled to the CE VM instance, so replacing the VM replaces the site, and deleting the site
+takes its registrations with it before the replacement node boots.
+
+For this deployment the change is already applied and the fleet is healthy. Anyone adopting
+it elsewhere should read the [SSH page](../customer-edge/access/ssh/) first.
 </Aside>
 
 <CardGrid>
@@ -279,21 +400,26 @@ obvious.
   actually closed. Ports 80 and 443 read as open on the CE public addresses from a
   workstation and are closed when probed from inside the VNet. Use `ar-ecmp-client`.
 - **Port 22 on a CE answers on the internal (SLI) address only.** Probed from
-  `ar-ecmp-client` against the three CEs, `10.0.3.5`, `10.0.3.6` and `10.0.3.7` all return
-  `SSH-2.0-OpenSSH_8.7`, while the management and external addresses time out — as does an
-  unused address used as a control. eth0 is renamed `a-i-eth0` and carries no host IP,
-  because the datapath owns it. So probing the address you know the node by tells you
-  nothing about the node's SSH state, and the SLI address is the one to connect to.
+  `ar-ecmp-client`, each CE's internal address returns `SSH-2.0-OpenSSH_8.7`, while its
+  management and external addresses time out — as does an unused address used as a control.
+  eth0 is renamed `a-i-eth0` and carries no host IP, because the datapath owns it. So
+  probing the address you know the node by tells you nothing about the node's SSH state, and
+  the SLI address is the one to connect to. Take that address from
+  `terraform output -json ce_sli_private_ips`; do not assume the internal subnet is
+  CEs-only, because the test client's NIC is in it too.
 
 <Aside type="note" title="What this page does not claim">
-Two things a reader could reasonably expect here are deliberately absent, because they were
-not exercised against the deployment:
+Three things a reader could reasonably expect here are absent, because they were not
+exercised against the deployment:
 
 - **Failover was not tested.** The three equal-cost next hops are verified installed; what
   happens to the route table when a CE is stopped is not shown, so do not rehearse a
   failover demo from this page without trying it first.
-- **Traffic distribution was not measured.** Ten of ten requests to the VIP returned `200`,
-  which proves the path works. It does not show how those ten were spread across the three
-  next hops.
+- **Traffic distribution across the three next hops was not measured.** 1,470 requests to
+  the VIP are accounted for above, which establishes that the path works and how it behaves
+  over time. None of that shows how those requests were spread across the three next hops,
+  and this topology gives no per-node HTTP listener to attribute them with.
+- **The cause of the convergence transient is not established.** It is characterised — when
+  it happens, for how long, that the origin is clean throughout — and not explained.
 
 </Aside>

@@ -1,23 +1,32 @@
 ---
 title: Tabla de flujos
 description: >-
-  Estado por conexión en el plano de datos de Argo. Use el formulario de
+  Estado por conexión en el plano de datos de Argo. Utilice el formato de
   coincidencia para encontrar una conexión; el volcado completo es enorme.
 sidebar:
   order: 40
   label: Tabla de flujos
 i18n:
-  sourceHash: c654c4d3ca8c
+  sourceHash: 8619021a68e3
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo realiza un seguimiento de cada conexión. La tabla en este nodo tiene 629.760 entradas, por lo que la forma en que se consulta importa más que su contenido.
+Argo rastrea cada conexión. La forma en que consulta la tabla importa más que su contenido,
+porque el volcado completo es ilimitado en principio e incómodo en la práctica.
+
+<Aside type="caution" title="629,760 es la capacidad de la tabla, no el número de flujos">
+La línea de encabezado `Flow table(size 161218560, entries 629760)` indica cuántas ranuras asignó el plano
+de datos, y es la misma en todos los nodos aquí, independientemente de la carga. El recuento de flujos
+activos no está en esa línea. `Entries: Created … Added … Deleted …` unas líneas más abajo son
+contadores acumulados de por vida, y los flujos realmente poblados son los registros impresos después de la leyenda:
+73 de ellos en una ejecución realizada mientras se escribía esto, en una respuesta de 542 líneas.
+</Aside>
 
 ## `flow-l-match`
 
-Casi siempre es la opción que necesita. Acepta una dirección, o una dirección y puerto.
+Casi siempre el que desea. Acepta una dirección, o una dirección y un puerto.
 
 ```bash
 {"command":["flow-l-match","100.127.192.10:53"]}
@@ -26,7 +35,9 @@ Casi siempre es la opción que necesita. Acepta una dirección, o una dirección
 ```text file=../../../../_data/sitecli-flow-l-match.txt
 ```
 
-La acción en cada flujo es lo relevante: `F` reenviar, `D` descartar, `N` NAT. Un flujo presente con acción `D` significa que el plano de datos tomó una decisión deliberada, lo que redirige la atención hacia la política en lugar de hacia la conectividad.
+La acción en cada flujo es lo importante: `F` reenviar, `D` descartar, `N` NAT. Un flujo presente
+con la acción `D` significa que el plano de datos tomó una decisión deliberada, lo que le redirige
+a la política en lugar de a la conectividad.
 
 ## `flow-l`
 
@@ -39,6 +50,9 @@ El volcado completo.
 ```text file=../../../../_data/sitecli-flow-l.txt
 ```
 
-<Aside type="caution" title="Recortado y enorme">
-La captura anterior está recortada a las primeras 60 líneas de 1057, y 1057 era en sí misma el límite de la API y no la tabla completa. Use `flow-l-match` a menos que realmente necesite examinar la tabla completa, y tenga en cuenta que los conteos del encabezado —tamaño de la tabla y recuento de entradas— serán las únicas partes que valdrá la pena leer cuando lo haga.
+<Aside type="caution" title="Recortado, y el tamaño varía">
+La captura anterior está recortada a sus primeras 60 líneas de una respuesta de 1.186 líneas. Una ejecución realizada
+mientras se escribía esto devolvió 542 líneas: la longitud de la respuesta refleja cuántos flujos están activos, por lo que
+ninguno de los dos números es una propiedad del comando. Utilice `flow-l-match` a menos que realmente necesite
+examinar toda la tabla.
 </Aside>

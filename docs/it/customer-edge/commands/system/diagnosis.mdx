@@ -1,13 +1,14 @@
 ---
 title: diagnosis
 description: >-
-  Sonde di connettività e DNS che il nodo esegue su se stesso, restituite in
-  formato JSON. Indica ciò che il nodo ritiene della propria raggiungibilità.
+  Sonde di connettività e DNS che il nodo esegue verso se stesso, restituite in
+  formato JSON. Indicano ciò che il nodo ritiene riguardo alla propria
+  raggiungibilità.
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: 2c9fe6fab17a
+  sourceHash: fe68c321f801
   translator: machine
 ---
 
@@ -15,8 +16,8 @@ import { Aside } from "@astrojs/starlight/components";
 
 ## `diagnosis`
 
-<Aside type="caution" title="Ambito GLOBAL — un trasporto diverso">
-Come `health`, una richiesta `GET` al percorso `global` non è raggiungibile tramite `exec-user`.
+<Aside type="caution" title="Ambito GLOBAL — un trasporto differente">
+Come `health`, si tratta di una `GET` al percorso `global` e non è raggiungibile tramite `exec-user`.
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -28,17 +29,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-Il nodo verifica il proprio gateway e riporta il risultato per nodo, quindi su un sito
-multi-nodo si ottiene un blocco per ciascuno. `gateway_connectivity` contiene un riepilogo
-del ping — `sent`, `received`, `lost` e i tempi di andata e ritorno.
+I risultati sono riportati per nodo, quindi su un sito multi-nodo si ottiene un blocco per ciascuno.
+`gateway_connectivity` e `dns_connectivity` includono ciascuno un riepilogo del ping — `dest_ip`, `sent`,
+`received`, `lost` e i tempi di andata e ritorno.
 
-<Aside type="note" title="Una perdita del 100% verso il gateway non è necessariamente un guasto">
-In questa topologia il gateway non risponde all'ICMP, quindi `lost: 100` è la condizione
-stabile mentre il sito è `ONLINE` e sta effettuando l'inoltro. Considerare questo campo
-come un segnale solo quando si dispone già di altre evidenze di un problema, oppure quando
-cambia.
+<Aside type="danger" title="Entrambe le sonde ping riportano il 100% di perdita su un nodo perfettamente sano">
+Su questa topologia **entrambe** le sonde `gateway_connectivity` (verso `10.0.1.1`) e `dns_connectivity` (verso
+`168.63.129.16`) riportano `sent: 5, received: 0, lost: 100` mentre il sito è `ONLINE`,
+inoltra traffico e presenta `registration_status: OK` — verificato di nuovo durante la stesura di questo testo. Due
+blocchi `lost: 100` in una singola risposta sono la cosa dall'aspetto più allarmante di questa pagina e
+rappresentano lo stato normale.
+
+`dns_connectivity` è il più fuorviante dei due, perché il DNS funziona in modo dimostrabile: nella
+stessa risposta, `dns_query_result` contiene dieci risoluzioni riuscite, `NOERROR`, verso quel
+preciso resolver. La sonda misura la raggiungibilità ICMP, alla quale gli indirizzi della piattaforma Azure
+non rispondono; non misura il DNS.
+
+Considerate entrambi i campi come un segnale solo quando disponete già di altre prove di un problema, oppure
+quando il valore cambia.
 </Aside>
 
-`resolv_conf` è il campo più costantemente utile: mostra il resolver che il nodo
-utilizzerà effettivamente, ed è opportuno confrontarlo con quanto atteso prima di
-dedicare tempo a [`dig`](../../network/dig/).
+I campi da leggere per primi si trovano altrove nella risposta: `registration_status`,
+`curl_response` (una voce per ciascun endpoint F5 di cui il nodo ha bisogno, ognuna `OK` o meno),
+`dns_query_result` e `ntp_sync_status`.
+
+`resolv_conf` mostra il resolver che il nodo utilizzerà effettivamente, valore che conviene confrontare con
+quello che vi aspettate prima di dedicare tempo a [`dig`](../../network/dig/).

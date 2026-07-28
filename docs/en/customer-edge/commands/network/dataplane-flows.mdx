@@ -8,8 +8,16 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo tracks every connection. The table on this node has 629,760 entries, so how you
-query it matters more than what it contains.
+Argo tracks every connection. How you query the table matters more than what it contains,
+because the full dump is unbounded in principle and awkward in practice.
+
+<Aside type="caution" title="629,760 is the table's capacity, not the number of flows">
+The header line `Flow table(size 161218560, entries 629760)` reports how many slots the data
+plane allocated, and it is the same on every node here regardless of load. The live flow
+count is not in that line. `Entries: Created … Added … Deleted …` a few lines below are
+lifetime counters, and the actual populated flows are the records printed after the legend —
+73 of them in a run taken while writing this, in a 542-line response.
+</Aside>
 
 ## `flow-l-match`
 
@@ -37,9 +45,9 @@ The full dump.
 ```text file=../../../../_data/sitecli-flow-l.txt
 ```
 
-<Aside type="caution" title="Trimmed, and enormous">
-The capture above is trimmed to the first 60 lines of 1057, and 1057 was itself the
-API's own limit rather than the whole table. Use `flow-l-match` unless you genuinely
-need to survey the whole table, and expect the header counts — table size and entry
-count — to be the only parts worth reading when you do.
+<Aside type="caution" title="Trimmed, and the size moves">
+The capture above is trimmed to its first 60 lines from a 1,186-line response. A run while
+writing this returned 542 lines — the response length tracks how many flows are live, so
+neither number is a property of the command. Use `flow-l-match` unless you genuinely need to
+survey the whole table.
 </Aside>

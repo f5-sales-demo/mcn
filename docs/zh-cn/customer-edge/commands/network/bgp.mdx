@@ -1,21 +1,21 @@
 ---
 title: BGP
-description: 站点是否在对等互联、其通告内容以及所学习的路由。涵盖摘要、完整表项、邻居详情和已通告路由的四条命令。
+description: 站点是否已建立对等、通告了什么、学习到了什么。四条命令分别涵盖摘要、完整路由表、邻居详情和已通告的路由。
 sidebar:
   order: 10
   label: BGP
 i18n:
-  sourceHash: 4b36c57cee22
+  sourceHash: 8a6e8bdbb3fa
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure 路由服务器实例进行对等互联，通告 VIP，并学习 VNet 前缀。
+CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure Route Server 实例建立对等，通告 VIP，并学习 VNet 前缀。
 
 ## `show-ip-bgp-summary`
 
-从这里开始。一屏输出即可告知对等互联是否正常运行以及其稳定持续的时间。
+从这里开始。一屏即可告知对等是否已建立，以及它保持稳定了多久。
 
 ```bash
 {"command":["show-ip-bgp-summary"]}
@@ -24,16 +24,16 @@ CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure 路由服务器�
 ```text file=../../../../_data/sitecli-show-ip-bgp-summary.txt
 ```
 
-首先查看 `State/PfxRcd`。数字表示已接收的前缀数量，意味着会话已建立；其他任何值——`Active`、`Connect`、`Idle`——均表示会话未就绪。`Up/Down` 显示当前状态已持续的时长，因此不断重置的会话会显示出可疑的较小值。
+首先查看 `State/PfxRcd`。数字表示收到的前缀数量，意味着会话已建立；其他任何内容——`Active`、`Connect`、`Idle`——都表示会话未建立。`Up/Down` 显示当前状态已持续多久，因此不断重置的会话会显示一个可疑的小数值。
 
-<Aside type="caution" title="此处的 vrf id 并非 rt 所需的那个">
-此输出报告 `vrf-id 3`，这是 FRR 的编号。Argo 数据平面使用单独的表 id，将 FRR 的编号传递给
-[`rt --dump`](../dataplane-forwarding/) 会返回 `No such file or directory`，看起来像是节点故障，而非参数错误。
+<Aside type="caution" title="这里的 vrf id 不是 rt 需要的那个">
+此输出报告 `vrf-id 3`。那是 FRR 的编号。Argo 数据平面使用另一套表 id，将 FRR 的编号传给
+[`rt --dump`](../dataplane-forwarding/) 会返回 `No such file or directory`，看起来像是节点故障，而实际上只是参数用错了。
 </Aside>
 
 ## `show-ip-bgp`
 
-完整表项，并显示最优路径选择结果。
+完整的路由表，可以看到最佳路径选择。
 
 ```bash
 {"command":["show-ip-bgp"]}
@@ -42,27 +42,34 @@ CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure 路由服务器�
 ```text file=../../../../_data/sitecli-show-ip-bgp.txt
 ```
 
-`*` 表示有效路由，`>` 表示已选定的最优路径，`=` 表示多路径成员。同一前缀的两个条目均标记为 `*=` 意味着 ECMP 生效，这是此拓扑的预期状态。
+`*` 表示有效路由，`>` 表示选中的最佳路径，`=` 表示多路径成员。在上面的抓取中，学习到的 VNet 前缀 `10.0.0.0/16` 有两条路径——分别经由每个 Route Server 实例——标记为 `*=` 和 `*>`：一条最佳路径加一个多路径成员，因此该节点会在两个实例之间对其回程流量进行负载分担。VIP `10.250.0.10/32` 只有一条 `*>` 路径，因为它是由该节点发起通告的。
+
+<Aside type="caution" title="演示中的三路 ECMP 在此输出中不可见">
+`show-ip-bgp` 只是一个节点的路由表。本部署所演示的 ECMP 是三个*不同*的 CE 通告同一个 `/32`，且它是在 Azure 侧编程的——因此任何单个 CE 的 BGP 表都无法显示它，而此处 VIP 上没有多路径标记也并非故障。
+应改为从 Route Server 对等或客户端的有效路由表来验证；
+两者都在[竣工文档页面](../../../../as-built/)上。
+</Aside>
 
 ## `show-ip-bgp-neighbors`
 
-每个邻居的详细信息：已协商的能力、定时器、消息计数器以及上次重置的原因。
+逐邻居的详细信息：协商的能力、定时器、消息计数器以及上次重置的原因。
 
 ```bash
 {"command":["show-ip-bgp-neighbors"]}
 ```
 
-当摘要显示会话抖动且需要排查原因时，请使用此命令。`Last reset` 及其原因是最有用的输出行。
+当摘要显示某个会话在抖动、而你需要知道原因时，就用它。`Last reset` 及其原因是有用的几行。
 
-<Aside type="note" title="本页面暂无捕获的输出">
-在 `f5-sales-demo/docs-control#795` 合并之前，此捕获内容无法提交。FRR 在其 Graceful Restart 行中存在拼写错误，导致 `codespell` 拒绝该文件。
+<Aside type="note" title="此页面尚无抓取的输出">
+在 `f5-sales-demo/docs-control#795` 合并之前无法提交此抓取内容。FRR
+在其 Graceful Restart 行中拼错了一个单词，而 `codespell` 会拒绝该文件。
 
-修正捕获的文本会导致本文档描述从未实际发生过的输出，因此正在上游进行修复。在此期间，请对您自己的节点运行该命令。
+修改抓取到的文本会让本文档描述从未真实出现过的输出，因此改为在上游修复。在此期间，请在你自己的节点上运行该命令。
 </Aside>
 
 ## `show-ip-bgp-neighbors-advertised-route`
 
-此节点向其对等方通告的内容，而非其所了解的内容。
+该节点正在告知其对等体的内容，与它所知道的内容相对。
 
 ```bash
 {"command":["show-ip-bgp-neighbors-advertised-route"]}
@@ -71,4 +78,6 @@ CE 使用 FRR 运行 BGP。在此拓扑中，它与两个 Azure 路由服务器�
 ```text file=../../../../_data/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 ```
 
-此命令适用于排查"VIP 无法从 VNet 访问"的问题。如果 VIP 在此处缺失，则问题出在本节点，无论如何查看对等方都无济于事。
+这是用于排查“VIP 无法从 VNet 访问”的命令。如果这里没有 VIP，问题就出在该节点上，再怎么查看对等体也无济于事。
+
+该输出会**为每个对等体**重复一个 `bgp neighbor:` 块，因此在此拓扑中你会看到相同的两个前缀出现两次——每个 Route Server 实例各一次。这不是重复渲染：正是它确认了该节点在向两者通告。真正值得关注的情况是：某个对等体有该块，而另一个缺失或内容偏少。

@@ -1,25 +1,25 @@
 ---
 title: Route e next hop
 description: >-
-  Cosa il piano dati Argo effettivamente inoltra, che non è necessariamente ciò
-  che Linux ritiene. Tratta la tabella delle route del vRouter, la tabella dei
-  next hop e le interfacce virtuali.
+  Ciò su cui il data plane di Argo inoltra effettivamente il traffico, che non
+  corrisponde necessariamente a quanto ritiene Linux. Copre la tabella di
+  routing del vRouter, la tabella dei next hop e le interfacce virtuali.
 sidebar:
   order: 50
   label: Route e next hop
 i18n:
-  sourceHash: 79de27e2024e
+  sourceHash: 80785e30393a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 Argo mantiene lo stato di inoltro separato dal kernel Linux. Quando
-[`ip`](../ip/) e questi comandi non concordano, sono questi comandi a spostare il traffico.
+[`ip`](../ip/) e questi comandi non concordano, sono questi comandi a determinare il movimento del traffico.
 
 ## `rt`
 
-La tabella delle route del vRouter, per VRF.
+La tabella di routing del vRouter, per VRF.
 
 ```bash
 {"command":["rt","--dump","2"]}
@@ -28,23 +28,23 @@ La tabella delle route del vRouter, per VRF.
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="L'ID VRF non è quello riportato da BGP">
-`show-ip-bgp-summary` mostra `vrf-id 3`. Questa è la numerazione di FRR e appartiene
-a uno spazio dei nomi diverso dall'ID della tabella del vRouter. Passarlo qui fallisce in un modo che
-appare come un nodo non funzionante:
+<Aside type="danger" title="L'id VRF non è quello riportato da BGP">
+`show-ip-bgp-summary` stampa `vrf-id 3`. Quella è la numerazione di FRR ed è uno
+spazio dei nomi diverso da quello dell'id della tabella del vRouter. Passarlo qui produce un errore che
+si legge come un nodo guasto:
 
 ```
 vRouter(Response):  [No such file or directory (2)]
 ```
 
-La stessa risposta viene restituita per `--dump 0`. In questa topologia **VRF 2** è la
-tabella inet4 popolata, con VRF 1 che contiene due route. Se non si conosce l'ID,
-effettuare la ricerca a partire da 1 verso l'alto anziché affidarsi all'output BGP.
+La stessa risposta si ottiene per `--dump 0`. In questa topologia **VRF 2** è la
+tabella inet4 popolata, mentre VRF 1 contiene due route. Se non si conosce l'id,
+procedere per tentativi a partire da 1 anziché fidarsi dell'output di BGP.
 </Aside>
 
 ## `nh`
 
-La tabella dei next hop. Ogni route punta a un ID next hop, e questo li risolve.
+La tabella dei next hop. Ogni route punta a un id di next hop, e questo comando li risolve.
 
 ```bash
 {"command":["nh","--list"]}
@@ -53,15 +53,27 @@ La tabella dei next hop. Ogni route punta a un ID next hop, e questo li risolve.
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-Ogni voce contiene un `Type` — `Drop`, `Encap`, `Tunnel`, `Composite` — e il VRF a cui
-appartiene. Una route che risolve a un next hop `Drop` è un blackhole, e tale
-combinazione vale la pena verificare ogni volta che un prefisso è presente in `rt` ma il traffico continua
-a scomparire.
+Ogni voce riporta un `Type` e la VRF a cui appartiene. Su questi nodi si presentano otto tipi, nelle
+seguenti proporzioni — identiche su tutti e tre i CE quando conteggiate:
+
+```text
+Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
+```
+
+Una route che si risolve in un next hop di tipo `Drop` è un blackhole, e vale la pena verificare questa combinazione
+ogni volta che un prefisso è presente in `rt` ma il traffico continua a scomparire.
+
+<Aside type="caution" title="La cattura sopra è ridotta, quindi non contiene tutti i tipi">
+Si tratta delle prime 60 righe su 3.849. `Tunnel`, il tipo di gran lunga più comune, non
+appare affatto in quelle 60 righe — quindi non si deve interpretare la cattura come l'inventario completo dei tipi, né
+concludere che un tipo sia assente da un nodo solo perché è assente da una cattura ridotta. I conteggi
+riportati sopra provengono dalla risposta non ridotta.
+</Aside>
 
 ## `vif`
 
-La tabella delle interfacce virtuali: a cosa si collega il piano dati e i contatori
-per interfaccia.
+La tabella delle interfacce virtuali: ciò a cui il data plane si associa e i
+contatori per interfaccia.
 
 ```bash
 {"command":["vif","--list"]}
@@ -70,7 +82,7 @@ per interfaccia.
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-La legenda dei flag in cima vale la pena essere letta almeno una volta — `Vp` contrassegna l'interfaccia
-fisica vhost, `Dpdk` una gestita da DPDK. Utilizzare questo comando per confermare che il piano dati abbia
-acquisito l'interfaccia attesa e per visualizzare i contatori RX e TX che Linux non mostra
+Vale la pena leggere una volta la legenda dei flag in cima — `Vp` indica l'interfaccia
+fisica vhost, `Dpdk` una gestita da DPDK. Utilizzare questo comando per confermare che il data plane abbia preso in gestione
+l'interfaccia prevista e per visualizzare i contatori RX e TX che Linux non mostra
 perché il traffico non raggiunge mai il kernel.

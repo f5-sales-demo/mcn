@@ -1,14 +1,14 @@
 ---
 title: chronyc-sources
 description: >-
-  NTP-Synchronisierungsstatus. Taktverschiebung bricht die
-  Zertifikatsvalidierung und Token-Authentifizierung, bevor offensichtlichere
-  Probleme auftreten.
+  NTP-Synchronisierungsstatus. Zeitabweichungen brechen die
+  Zertifikatsvalidierung und die Token-Authentifizierung, bevor etwas
+  Offensichtliches kaputtgeht.
 sidebar:
   order: 100
   label: chronyc-sources
 i18n:
-  sourceHash: 37ac33fac843
+  sourceHash: 4f5c6f58c5b6
   translator: machine
 ---
 
@@ -21,8 +21,22 @@ i18n:
 ```text file=../../../../_data/sitecli-chronyc-sources.txt
 ```
 
-Das führende Zeichen in jeder Zeile gibt den Zustand an: `*` ist die aktuell ausgewählte Quelle, `+` eine akzeptable Alternative, `-` eine durch den Auswahlalgorithmus ausgeschlossene Quelle und `?` eine nicht erreichbare Quelle. Genau ein `*` entspricht dem Normalzustand.
+Die Spalte `MS` besteht aus **zwei** Zeichen, nicht aus einem. Das erste ist der Modus — `^` für einen Server —
+und das **zweite** ist der Zustand: `*` ist die derzeit ausgewählte Quelle, `+` eine akzeptable
+Alternative, `-` eine durch den Auswahlalgorithmus ausgeschlossene und `?` eine nicht erreichbare.
+`^*` ist also der ausgewählte Server und `^?` ein nicht erreichbarer; wenn Sie nur das erste
+Zeichen lesen, erfahren Sie nichts, denn es ist hier in jeder Zeile `^`.
 
-`Reach` ist ein Oktalregister der letzten acht Abfragen, daher bedeutet `377`, dass alle acht erfolgreich waren. Ein Wert, der nicht `377` entspricht, bedeutet, dass Abfragen verloren gehen. `LastRx` zeigt an, wie lange die Quelle zuletzt geantwortet hat.
+Genau ein `*` ist der gesunde Fall, und das gilt auch dann, wenn andere Quellen `?` anzeigen.
 
-Es empfiehlt sich, frühzeitig zu prüfen, wenn Authentifizierung oder TLS ohne erkennbaren Grund fehlschlägt: Ein Knoten, dessen Uhr weit genug abgewichen ist, weist gültige Zertifikate zurück und seine Token werden abgelehnt – die resultierenden Fehler erwähnen selten die Zeit.
+`Reach` ist ein oktales Register der letzten acht Abfragen, `377` bedeutet also, dass alle acht erfolgreich waren.
+Jeder niedrigere Wert bedeutet, dass mindestens eine der letzten acht nicht erfolgreich war — dazu gehört aber auch eine Quelle, die
+erst kürzlich begonnen hat zu antworten und deren Register sich noch füllt. Ein Durchlauf während des
+Schreibens dieses Textes zeigte `3` und `37` neben einem `377` auf einem Knoten, der eine Quelle ausgewählt hatte
+(`^*`) und dessen Anmeldebanner `NTP: Synced` meldete. Lesen Sie `Reach` gemeinsam mit `LastRx`,
+das anzeigt, wie lange es her ist, dass die Quelle zuletzt geantwortet hat, anstatt jeden Wert unter `377`
+als Fehler zu betrachten.
+
+Lohnt sich früh zu prüfen, wenn die Authentifizierung oder TLS ohne ersichtlichen Grund fehlschlägt: Ein
+Knoten, dessen Uhr weit genug abgedriftet ist, weist gültige Zertifikate ab und lässt seine
+Token abweisen, und die daraus entstehenden Fehlermeldungen erwähnen die Zeit nur selten.

@@ -1,93 +1,76 @@
 ---
-title: Zugang zu einem Customer Edge
+title: Zugriff auf eine Customer Edge
 description: >-
-  Lesen Sie diesen Abschnitt, bevor Sie einen Befehl ausführen. Er behandelt die
-  vier Zugangswege zu einem Customer Edge — die Debug-API, die
-  Websitekonsolenoberfläche über einen Azure Bastion-Tunnel, SSH zur
-  On-Box-Site-CLI und die serielle Konsole — mit Authentifizierung für jeden,
-  die Tier-zu-Endpunkt-Regel, die entscheidet, wohin ein Debug-API-Befehl
-  gesendet wird, sowie den Break-Glass-Pfad für einen nicht registrierten
-  Knoten. Beginnen Sie hier, um einen Zugangweg zu wählen, da sich die Wege
-  darin unterscheiden, was sie erreichen können und was sie von Ihnen erfordern.
+  Lesen Sie diese Ebene, bevor Sie einen Befehl ausführen. Sie behandelt die
+  vier Wege zu einer Customer Edge — die Debug-API, die
+  Site-Console-Weboberfläche über einen Azure-Bastion-Tunnel, SSH zur lokalen
+  Site CLI und die serielle Konsole — mit der jeweiligen Authentifizierung, der
+  Ebene-zu-Endpunkt-Regel, die bestimmt, wohin ein Debug-API-Befehl gesendet
+  wird, sowie den Notfallzugang für einen nicht registrierten Knoten. Beginnen
+  Sie hier bei der Wahl eines Weges, denn die Wege unterscheiden sich darin, was
+  sie erreichen können und was sie von Ihnen verlangen.
 sidebar:
   order: 10
-  label: Zugang
+  label: Zugriff
 i18n:
-  sourceHash: ed9594b94d76
+  sourceHash: fb2a9f0fbb33
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Es gibt vier Zugangswege, und welcher anwendbar ist, wird durch den Zustand des Knotens,
-den Verbindungsursprung und das Ziel bestimmt — nicht durch eine Präferenz.
+Vier Wege funktionieren, und welcher davon zutrifft, entscheidet sich durch den Zustand des Knotens, durch den Ort, von dem aus Sie sich verbinden, und dadurch, was Sie erreichen müssen — nicht durch Vorlieben.
 
-| Weg | Knoten `ONLINE` erforderlich | Netzwerkerreichbarkeit erforderlich | Einschränkungen | Abdeckung |
+| Weg | Erfordert Knoten `ONLINE` | Erfordert Netzwerkerreichbarkeit | Einschränkungen | Umfang |
 | --- | --- | --- | --- | --- |
-| [Debug-API](./debug-api/) | **ja** | ja | ca. 25–30 Minuten Anlaufzeit bei einer neuen Site | 34 Befehle |
-| [Websitekonsole](./site-console/) | nein | über Azure Bastion, kein Jump-Host erforderlich | Bastion muss Standard-SKU mit Tunneling sein | F5's Knoten-Fehlerbehebungs-UI |
-| [SSH](./ssh/) | nein | von innerhalb des VNet, nur zur internen Adresse | Schlüssel muss ab dem ersten Start vorhanden sein | Die vollständige On-Box-Site-CLI |
-| [Serielle Konsole](./serial-console/) | nein | nein | eine Sitzung pro VM; 2.048-Zeichen-Einfügegrenze | Die vollständige On-Box-Site-CLI |
+| [Debug-API](./debug-api/) | **ja** | ja | etwa 25–30 Minuten Aufwärmzeit bei einer neuen Site | 34 Befehle |
+| [Site Console](./site-console/) | nein | über Azure Bastion, kein Jump-Host erforderlich | Bastion muss Standard-SKU mit Tunneling sein und wird standardmäßig nicht bereitgestellt | F5s Oberfläche zur Knoten-Fehlersuche |
+| [SSH](./ssh/) | nein | aus dem VNet heraus, nur zur internen Adresse | Schlüssel muss ab dem ersten Bootvorgang vorhanden sein | Die vollständige lokale Site CLI |
+| [Serielle Konsole](./serial-console/) | nein | nein | eine Sitzung pro VM; Einfügelimit von 2.048 Zeichen | Die vollständige lokale Site CLI |
 
-Die serielle Konsole ist das letzte Mittel und der einzige Weg, der einen Knoten ohne
-funktionierenden Netzwerkpfad übersteht.
+Die serielle Konsole ist die letzte Möglichkeit und der einzige Weg, der bei einem Knoten ohne funktionierenden Netzwerkpfad weiterhin verfügbar bleibt.
 
-Die [Websitekonsole](./site-console/) ist in der Regel der erste Anlaufpunkt. Sie stellt
-die geringsten Anforderungen — kein zu verteilender SSH-Schlüssel, kein Jump-Host, keine
-öffentliche IP am Knoten und kein VM-Austausch — da der Zugang zu einer Azure RBAC-
-Entscheidung wird statt zu einem Problem der Anmeldeinformationsverteilung. Sie bietet
-F5's eigene Fehlerbehebungs-UI statt einer Befehlsoberfläche; greifen Sie daher darüber
-hinaus, wenn Sie bestimmte Befehle ausführen oder Skripte erstellen möchten.
+Die [Site Console](./site-console/) ist üblicherweise der erste Versuch. Sie verlangt am wenigsten von Ihnen — kein zu verteilender SSH-Schlüssel, kein Jump-Host, keine öffentliche IP auf dem Knoten und kein VM-Austausch —, weil der Zugriff zu einer Azure-RBAC-Entscheidung wird statt zu einem Problem der Anmeldedatenverteilung. Sie erhalten F5s eigene Oberfläche zur Fehlersuche statt der Befehlsoberfläche; greifen Sie also darüber hinaus, wenn Sie bestimmte Befehle ausführen oder etwas skripten müssen. Ihre einzige Voraussetzung ist Azure Bastion, das diese Bereitstellung optional macht (`enable_bastion`, Standard `false`), weil ein Host mit Standard-SKU Kosten verursacht, unabhängig davon, ob jemand einen Tunnel öffnet.
 
-SSH ist die Wahl, wenn die Debug-API nicht ausreicht, da das Gerät wesentlich mehr Befehle
-bietet als die 34, die diese API bereitstellt. Es hat zwei Kosten. Der Schlüssel wird von
-cloud-init geschrieben und muss daher beim **ersten Start** vorhanden sein, was bedeutet,
-dass seine Aktivierung auf laufenden Knoten diese ersetzt — was derzeit die Registrierung
-blockiert ([Issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). Und `sshd`
-antwortet nur auf der internen Adresse des Knotens, sodass ein Host innerhalb des VNet
-benötigt wird; das Prüfen der bekannten Knotenadresse meldet stets geschlossen.
+SSH ist der Weg der Wahl, wenn die Debug-API nicht ausreicht, denn die Appliance bietet wesentlich mehr Befehle als die 34, die diese API bereitstellt. Das hat zwei Kosten. Der Schlüssel wird von cloud-init geschrieben und muss daher beim **ersten Bootvorgang** vorhanden sein, was bedeutet, dass die Aktivierung auf laufenden Knoten jede CE-VM ersetzt — ein Neuaufbau der Flotte statt einer Konfigurationsänderung. Und `sshd` antwortet ausschließlich auf der internen Adresse des Knotens, benötigt also einen Host innerhalb des VNet; ein Test der Adresse, unter der Sie den Knoten kennen, meldet immer „geschlossen".
 
-## Warum die Aufteilung keine Präferenz ist
+## Warum die Aufteilung keine Vorliebe ist
 
-Die Debug-API wird von der F5 Distributed Cloud-Steuerungsebene bereitgestellt, die über
-den Tunnel weiterleitet, den `vpm` während der Registrierung aufbaut. Keine Registrierung
-bedeutet kein Tunnel, was bedeutet, dass die API nichts weiterleiten kann.
+Die Debug-API wird von der Steuerungsebene der F5 Distributed Cloud bereitgestellt, die die Anfragen über den Tunnel weiterleitet, den `vpm` während der Registrierung aufbaut. Keine Registrierung bedeutet kein Tunnel, was bedeutet, dass die API nichts hat, wohin sie weiterleiten könnte.
 
-Der Fehler tritt auf eine wenig hilfreiche statt auf eine offensichtliche Weise auf,
-sodass ein Knoten, der nie gestartet ist, wie ein API-Problem aussieht.
+Sie schlägt auf wenig hilfreiche statt auf offensichtliche Weise fehl, sodass ein Knoten, der nie hochgekommen ist, wie ein API-Problem aussieht.
 
-Die serielle Konsole geht den umgekehrten Weg — über die Azure-Plattform zum emulierten
-seriellen Port des Knotens. Es spielt keine Rolle, ob der Knoten registriert ist,
-Netzwerkerreichbarkeit hat oder eine funktionierende Datenebene besitzt. Diese
-Unabhängigkeit ist der eigentliche Zweck, und deshalb muss die Boot-Diagnose auf den
-CE-VMs aktiviert bleiben.
+Die serielle Konsole geht einen völlig anderen Weg — über die Azure-Plattform zum emulierten seriellen Anschluss des Knotens. Es spielt dabei keine Rolle, ob der Knoten registriert ist, Netzwerkerreichbarkeit hat oder über eine funktionierende Datenebene verfügt. Genau diese Unabhängigkeit ist der Sinn der Sache, und deshalb muss die Boot-Diagnose auf den CE-VMs aktiviert bleiben.
 
-<Aside type="note" title="Wann welcher Weg">
-Wenn Sie eine Automatisierung schreiben oder Nachweise sammeln, die Sie später erneut
-ausführen möchten, verwenden Sie die Debug-API. Wenn die Registrierung das Problem ist,
-ist die serielle Konsole kein Fallback — sie ist die einzige Option.
+<Aside type="note" title="Wonach Sie greifen sollten">
+Wenn Sie Automatisierung schreiben oder Nachweise sammeln, die Sie später erneut ausführen möchten, verwenden Sie die Debug-API. Wenn die Registrierung selbst das Problem ist, ist die serielle Konsole keine Ausweichlösung — sie ist die einzige Option.
 </Aside>
 
-## Anmeldeinformationen
+## Anmeldedaten
 
-Jeder Weg verwendet unterschiedliche Anmeldeinformationen, und keine davon gehört in eine
-Befehlszeile.
+Jeder Weg verwendet andere Anmeldedaten, und keine davon gehört auf eine Befehlszeile.
 
-- **Debug-API** — ein F5 Distributed Cloud-API-Token als `XCSH_API_TOKEN`, mit der
+- **Debug-API** — ein API-Token der F5 Distributed Cloud, als `XCSH_API_TOKEN`, mit der
   Mandanten-URL als `XCSH_API_URL`. Die `xcsh`-Kontextdatei unter
-  `~/.config/xcsh/contexts/<tenant>.json` enthält beides, was
-  `scripts/capture-sitecli.sh` liest, wenn die Umgebung sie nicht bereitstellt.
-- **SSH** — die private Hälfte des Schlüsselpaars, dessen öffentliche Hälfte das
-  Deployment beim ersten Start in `/var/home/admin/.ssh/authorized_keys` geschrieben hat,
-  plus ein Host innerhalb des VNet, um die interne Adresse zu erreichen. Verbinden als
-  `admin`, nicht als `azureuser`.
-- **Serielle Konsole** — Ihre interaktive Azure-Anmeldung. Es gibt keinen
-  Dienstprinzipal dafür: Der F5-Corporate-Entra-Mandant erlaubt keine Bereitstellung
-  eines solchen, weshalb kein Teil davon in CI ausgeführt wird.
+  `~/.config/xcsh/contexts/<tenant>.json` enthält beides, und genau diese liest
+  `scripts/capture-sitecli.sh`, wenn die Umgebung sie nicht bereitstellt.
+  Der Mandant dieser Bereitstellung ist **`f5-sales-demo`**; ein für einen anderen Mandanten
+  ausgestelltes Token liefert einen nackten `401` zurück, der wie ein abgelaufenes Anmeldedatum aussieht.
+- **Site Console** — zwei Anmeldedaten auf unterschiedlichen Ebenen. Ihre interaktive Azure-Anmeldung
+  öffnet den Bastion-Tunnel, und das `admin`-Konto der Appliance meldet sich dahinter über
+  HTTP Basic an der Konsole an. Microsoft gibt für die Azure-Seite **Reader** auf der
+  VM, ihrer NIC und dem Bastion-Host als Anforderung an; diese Anforderung wurde hier **nicht überprüft**, weil alle
+  Tests als Abonnementeigentümer ausgeführt wurden.
+- **SSH** — die private Hälfte des Schlüsselpaars, dessen öffentliche Hälfte die Bereitstellung beim ersten Bootvorgang in
+  `/var/home/admin/.ssh/authorized_keys` geschrieben hat, sowie ein Host innerhalb des VNet, über den
+  die interne Adresse erreichbar ist. Verbinden Sie sich als `admin`, nicht als `azureuser`.
+- **Serielle Konsole** — Ihre interaktive Azure-Anmeldung. Es gibt hierfür keinen Dienstprinzipal:
+  Der Entra-Mandant von F5 erlaubt keine Bereitstellung eines solchen, weshalb auch
+  kein Teil davon in CI läuft.
 
 <Aside type="danger" title="Übergeben Sie ein Token niemals als Argument">
-Ein Token in einer Befehlszeile landet im Shell-Verlauf und in der Prozessliste, wo
-jeder andere Benutzer auf dem Rechner es lesen kann. `capture-sitecli.sh` lehnt
-`--token` aus diesem Grund grundsätzlich ab und übergibt den Header stattdessen über
-stdin an `curl`.
+Ein Token auf einer Befehlszeile landet in der Shell-Historie und in der Prozessliste, wo
+jeder andere Benutzer der Maschine es lesen kann. `capture-sitecli.sh` verweigert
+`--token` aus genau diesem Grund vollständig und übergibt den Header stattdessen über stdin
+an `curl`.
 </Aside>

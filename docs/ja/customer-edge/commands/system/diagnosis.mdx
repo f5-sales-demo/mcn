@@ -1,11 +1,11 @@
 ---
 title: diagnosis
-description: ノードが自身に対して実行する接続性および DNS プローブを JSON 形式で返します。ノードが自身の到達可能性についてどのように認識しているかを示します。
+description: ノードが自身に対して実行する接続性および DNS のプローブを JSON で返します。ノードが自身の到達性についてどう認識しているかがわかります。
 sidebar:
   order: 20
   label: diagnosis
 i18n:
-  sourceHash: 2c9fe6fab17a
+  sourceHash: fe68c321f801
   translator: machine
 ---
 
@@ -14,7 +14,7 @@ import { Aside } from "@astrojs/starlight/components";
 ## `diagnosis`
 
 <Aside type="caution" title="GLOBAL スコープ — 異なるトランスポート">
-`health` と同様に、`global` パスへの `GET` リクエストであり、`exec-user` 経由では到達できません。
+`health` と同様に、`global` パスへの `GET` であり、`exec-user` 経由では到達できません。
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -26,10 +26,28 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-ノードは自身のゲートウェイをプローブし、ノードごとに結果を報告します。そのため、マルチノードのサイトでは各ノードに対して 1 つずつブロックが返されます。`gateway_connectivity` にはピングのサマリーが含まれており、`sent`、`received`、`lost` およびラウンドトリップ時間が記録されています。
+結果はノードごとに報告されるため、マルチノードサイトではノード単位でブロックが 1 つずつ返されます。
+`gateway_connectivity` と `dns_connectivity` はそれぞれ ping のサマリー（`dest_ip`、`sent`、
+`received`、`lost`、ラウンドトリップ時間）を保持しています。
 
-<Aside type="note" title="ゲートウェイへの 100% ロスは必ずしも障害を意味しない">
-このトポロジーでは、ゲートウェイは ICMP に応答しません。そのため、サイトが `ONLINE` 状態でフォワーディングを行っている間、`lost: 100` は定常状態となります。このフィールドは、他に問題の証拠がある場合、またはその値が変化した場合にのみシグナルとして扱ってください。
+<Aside type="danger" title="完全に正常なノードでも両方の ping プローブが 100% ロスを報告する">
+このトポロジーでは、サイトが `ONLINE` でトラフィックを転送しており、`registration_status: OK` であるにもかかわらず、
+**両方**の `gateway_connectivity`（宛先 `10.0.1.1`）と `dns_connectivity`（宛先
+`168.63.129.16`）が `sent: 5, received: 0, lost: 100` を報告します。これは本稿執筆時にも改めて確認済みです。1 つのレスポンスに
+`lost: 100` のブロックが 2 つ並ぶのは、このページで最も不安を煽る見た目ですが、
+これが正常な状態です。
+
+2 つのうち `dns_connectivity` のほうが誤解を招きます。というのも DNS は明らかに機能しているからです。
+同じレスポンスの `dns_query_result` には、まさにその同じリゾルバーに対する 10 件の成功したルックアップ（`NOERROR`）が
+含まれています。このプローブが計測しているのは ICMP の到達性であり、Azure のプラットフォームアドレスはそれに応答しません。
+DNS を計測しているわけではありません。
+
+これらのフィールドは、すでに他に問題の証跡がある場合、または値が変化した場合にのみシグナルとして扱ってください。
 </Aside>
 
-`resolv_conf` はより一貫して有用なフィールドです。ノードが実際に使用するリゾルバーを表示するため、[`dig`](../../network/dig/) で時間を費やす前に、期待している設定と比較する価値があります。
+まず読むべきフィールドはレスポンスの他の箇所にあります。`registration_status`、
+`curl_response`（ノードが必要とする F5 エンドポイントごとに 1 エントリで、それぞれ `OK` かどうか）、
+`dns_query_result`、そして `ntp_sync_status` です。
+
+`resolv_conf` はノードが実際に使用するリゾルバーを示します。[`dig`](../../network/dig/) に時間を費やす前に、
+想定と一致しているか比較しておく価値があります。

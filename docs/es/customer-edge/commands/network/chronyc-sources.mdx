@@ -1,14 +1,14 @@
 ---
 title: chronyc-sources
 description: >-
-  Estado de sincronización NTP. El desfase de reloj interrumpe la validación de
-  certificados y la autenticación de tokens antes de que cualquier otra cosa
-  falle de forma evidente.
+  Estado de sincronización NTP. La desviación del reloj rompe la validación de
+  certificados y la autenticación por tokens antes de romper cualquier cosa
+  evidente.
 sidebar:
   order: 100
   label: chronyc-sources
 i18n:
-  sourceHash: 37ac33fac843
+  sourceHash: 4f5c6f58c5b6
   translator: machine
 ---
 
@@ -21,16 +21,22 @@ i18n:
 ```text file=../../../../_data/sitecli-chronyc-sources.txt
 ```
 
-El carácter inicial en cada línea indica el estado: `*` es la fuente seleccionada
-actualmente, `+` una alternativa aceptable, `-` una excluida por el algoritmo de
-selección, y `?` una que no es alcanzable. Exactamente un `*` es el caso saludable.
+La columna `MS` tiene **dos** caracteres, no uno. El primero es el modo — `^` para un servidor —
+y el **segundo** es el estado: `*` es la fuente seleccionada actualmente, `+` una alternativa
+aceptable, `-` una excluida por el algoritmo de selección y `?` una que es inalcanzable.
+Así que `^*` es el servidor seleccionado y `^?` es uno inalcanzable; leer solo el primer
+carácter no dice nada, porque aquí es `^` en todas las líneas.
 
-`Reach` es un registro octal de los últimos ocho sondeos, por lo que `377` significa
-que los ocho tuvieron éxito. Un valor distinto de `377` indica que se están perdiendo
-sondeos. `LastRx` muestra cuánto tiempo ha transcurrido desde que la fuente respondió
-por última vez.
+Exactamente un `*` es el caso saludable, y eso se mantiene incluso cuando otras fuentes muestran `?`.
 
-Vale la pena verificar esto en primer lugar cuando la autenticación o TLS falla sin
-una razón aparente: un nodo cuyo reloj se haya desviado lo suficiente rechazará
-certificados válidos y sus tokens serán rechazados, y los errores resultantes rara vez
-mencionan el tiempo.
+`Reach` es un registro octal de los últimos ocho sondeos, por lo que `377` significa que los ocho tuvieron éxito.
+Cualquier valor inferior significa que al menos uno de los últimos ocho no lo tuvo — pero eso incluye una fuente que
+solo ha comenzado a responder recientemente, cuyo registro aún se está llenando. Una ejecución realizada mientras
+se escribía esto mostró `3` y `37` junto a un `377` en un nodo que tenía una fuente seleccionada
+(`^*`) y cuyo banner de inicio de sesión informaba `NTP: Synced`. Lea `Reach` junto con `LastRx`,
+que muestra hace cuánto tiempo respondió la fuente por última vez, en lugar de tratar cualquier valor inferior a `377`
+como un fallo.
+
+Vale la pena comprobarlo pronto cuando la autenticación o TLS fallan sin razón visible: un
+nodo cuyo reloj se haya desviado lo suficiente rechazará certificados válidos y verá sus
+tokens rechazados, y los errores resultantes rara vez mencionan el tiempo.

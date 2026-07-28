@@ -1,23 +1,33 @@
 ---
 title: Tabella dei flussi
 description: >-
-  Stato per connessione nel piano dati Argo. Utilizzare il modulo di
-  corrispondenza per trovare una connessione; il dump completo è enorme.
+  Stato per connessione nel data plane di Argo. Utilizzare il modulo di
+  corrispondenza per individuare una singola connessione; il dump completo è
+  enorme.
 sidebar:
   order: 40
   label: Tabella dei flussi
 i18n:
-  sourceHash: c654c4d3ca8c
+  sourceHash: 8619021a68e3
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo tiene traccia di ogni connessione. La tabella su questo nodo contiene 629.760 voci, pertanto il modo in cui si esegue la query è più importante del contenuto stesso.
+Argo tiene traccia di ogni connessione. Il modo in cui si interroga la tabella conta più del suo contenuto,
+perché il dump completo è in principio illimitato e in pratica scomodo.
+
+<Aside type="caution" title="629.760 è la capacità della tabella, non il numero di flussi">
+La riga di intestazione `Flow table(size 161218560, entries 629760)` indica quanti slot il data
+plane ha allocato, ed è identica su ogni nodo qui, indipendentemente dal carico. Il conteggio dei flussi
+attivi non è in quella riga. `Entries: Created … Added … Deleted …` alcune righe più sotto sono
+contatori cumulativi, e i flussi effettivamente popolati sono i record stampati dopo la legenda —
+73 in un'esecuzione effettuata durante la stesura di questo testo, in una risposta di 542 righe.
+</Aside>
 
 ## `flow-l-match`
 
-Nella quasi totalità dei casi è quella di cui si ha bisogno. Accetta un indirizzo, oppure un indirizzo e una porta.
+Quasi sempre quello che serve. Accetta un indirizzo, oppure un indirizzo e una porta.
 
 ```bash
 {"command":["flow-l-match","100.127.192.10:53"]}
@@ -26,7 +36,9 @@ Nella quasi totalità dei casi è quella di cui si ha bisogno. Accetta un indiri
 ```text file=../../../../_data/sitecli-flow-l-match.txt
 ```
 
-L'azione su ciascun flusso è il punto centrale: `F` inoltro, `D` scarto, `N` NAT. La presenza di un flusso con azione `D` indica che il piano dati ha preso una decisione deliberata, il che reindirizza l'analisi verso le policy anziché verso la connettività.
+L'azione su ciascun flusso è il punto centrale: `F` forward, `D` drop, `N` NAT. Un flusso presente
+con azione `D` significa che il data plane ha preso una decisione deliberata, il che indirizza l'analisi
+verso i criteri anziché verso la connettività.
 
 ## `flow-l`
 
@@ -39,6 +51,9 @@ Il dump completo.
 ```text file=../../../../_data/sitecli-flow-l.txt
 ```
 
-<Aside type="caution" title="Ridotto ed enorme">
-La cattura precedente è ridotta alle prime 60 righe su 1057, e 1057 era essa stessa il limite imposto dall'API, non l'intera tabella. Utilizzare `flow-l-match` a meno che non sia effettivamente necessario esaminare l'intera tabella, e aspettarsi che i conteggi nell'intestazione — dimensione della tabella e numero di voci — siano le uniche parti degne di nota quando lo si fa.
+<Aside type="caution" title="Troncato, e la dimensione varia">
+La cattura sopra è troncata alle sue prime 60 righe di una risposta di 1.186 righe. Un'esecuzione durante
+la stesura di questo testo ha restituito 542 righe — la lunghezza della risposta segue il numero di flussi attivi, quindi
+nessuno dei due valori è una proprietà del comando. Utilizzare `flow-l-match` a meno che non sia realmente necessario
+esaminare l'intera tabella.
 </Aside>

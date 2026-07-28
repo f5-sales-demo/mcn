@@ -20,6 +20,11 @@ failed registration, but only if its key was already written at first boot and y
 reach the node's internal address from inside the VNet — neither of which is true of a
 node you are meeting for the first time.
 
+Try [Site Console](../site-console/) before this one if the node has *any* working network
+path: it also survives a failed registration, needs no key, and does not evict the person
+already looking at the node. Serial console is what is left when the network path is the
+thing that is broken.
+
 ## Prerequisite: boot diagnostics
 
 Azure requires boot diagnostics on the VM before it will attach a serial console.
@@ -104,10 +109,17 @@ worked.
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-3. You land at the node's own login prompt, not a shell. This is the Site CLI, and
-   it needs credentials set on the node — the admin password from provisioning, or
-   one set through the change-password endpoint. Serial console proves the *channel*
-   works; it does not bypass authentication.
+3. You land at the node's own login prompt, not a shell, behind the appliance's audit
+   banner. Serial console proves the *channel* works; it does not bypass authentication.
+
+   <Aside type="caution" title="Which credential the serial login accepts is not verified">
+   Nobody has completed a login over serial console on this deployment, so this page does
+   not say what to type. `admin` is the appliance account whose shell is the Site CLI, and
+   the same account authenticates over
+   [Site Console](../site-console/) with a password — but that a password works over the
+   serial console login has not been shown, and `sshd` is key-only for `admin`, so the two
+   are demonstrably not the same credential path.
+   </Aside>
 
 </Steps>
 

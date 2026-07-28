@@ -2,91 +2,101 @@
 title: Acceso a un Customer Edge
 description: >-
   Lea este nivel antes de ejecutar cualquier comando. Cubre las cuatro rutas
-  hacia un Customer Edge — la API de depuración, la interfaz web de la Site
-  Console mediante un túnel de Azure Bastion, SSH hacia la Site CLI del
-  dispositivo, y la consola serie — con la autenticación para cada una, la regla
-  nivel-a-endpoint que determina hacia dónde se envía un comando de la API de
-  depuración, y el camino de acceso de emergencia para un nodo no registrado.
-  Comience aquí para elegir una ruta, ya que las rutas difieren en lo que pueden
-  alcanzar y en lo que requieren de usted.
+  hacia un Customer Edge — la API de depuración, la interfaz web de Site Console
+  a través de un túnel de Azure Bastion, SSH hacia la Site CLI local y la
+  consola serie — con la autenticación de cada una, la regla nivel-a-endpoint
+  que decide dónde se envía un comando de la API de depuración, y la vía de
+  emergencia para un nodo no registrado. Comience aquí para elegir una ruta,
+  porque las rutas difieren en lo que pueden alcanzar y en lo que le exigen a
+  usted.
 sidebar:
   order: 10
   label: Acceso
 i18n:
-  sourceHash: ed9594b94d76
+  sourceHash: fb2a9f0fbb33
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Existen cuatro rutas disponibles, y cuál aplica lo decide el estado del nodo, desde dónde se
-conecta y qué necesita alcanzar — no la preferencia personal.
+Cuatro rutas funcionan, y cuál se aplica lo decide el estado del nodo, el lugar desde el que
+se conecta y lo que necesita alcanzar — más que su preferencia.
 
-| Ruta | Requiere nodo `ONLINE` | Requiere accesibilidad de red | Limitaciones | Cubre |
+| Ruta | Requiere nodo `ONLINE` | Requiere alcanzabilidad de red | Límites | Cubre |
 | --- | --- | --- | --- | --- |
-| [API de depuración](./debug-api/) | **sí** | sí | aproximadamente 25–30 minutos de calentamiento en un sitio nuevo | 34 comandos |
-| [Site Console](./site-console/) | no | mediante Azure Bastion, sin host intermediario | Bastion debe ser SKU Estándar con tunelización | Interfaz de resolución de problemas del nodo de F5 |
-| [SSH](./ssh/) | no | desde dentro de la VNet, solo hacia la dirección interna | la clave debe estar presente desde el primer arranque | La Site CLI completa del dispositivo |
-| [Consola serie](./serial-console/) | no | no | una sesión por VM; límite de pegado de 2 048 caracteres | La Site CLI completa del dispositivo |
+| [Debug API](./debug-api/) | **sí** | sí | unos 25–30 minutos de calentamiento en un sitio nuevo | 34 comandos |
+| [Site Console](./site-console/) | no | mediante Azure Bastion, sin necesidad de host de salto | Bastion debe ser de SKU Standard con tunelización, y no se despliega por defecto | La interfaz de solución de problemas de nodos de F5 |
+| [SSH](./ssh/) | no | desde dentro de la VNet, solo a la dirección interna | la clave debe estar presente desde el primer arranque | La Site CLI local completa |
+| [Serial console](./serial-console/) | no | no | una sesión por VM; límite de pegado de 2.048 caracteres | La Site CLI local completa |
 
-La consola serie es el último recurso, y la única ruta que sobrevive a un nodo sin una
-ruta de red funcional.
+La consola serie es el último recurso, y la única ruta que sobrevive a un nodo sin ninguna
+ruta de red operativa.
 
-La [Site Console](./site-console/) suele ser la primera opción a probar. Exige menos —
-sin clave SSH que distribuir, sin host intermediario, sin IP pública en el nodo ni reemplazo
-de la VM — porque el acceso se convierte en una decisión de RBAC de Azure en lugar de un
-problema de distribución de credenciales. Le proporciona la propia interfaz de resolución
-de problemas de F5 en lugar de la superficie de comandos, por lo que acuda a otras rutas
-cuando necesite ejecutar comandos específicos o automatizar algo.
+La [Site Console](./site-console/) suele ser la primera que conviene probar. Es la que menos
+le exige — ninguna clave SSH que distribuir, ningún host de salto, ninguna IP pública en el
+nodo y ninguna sustitución de VM — porque el acceso se convierte en una decisión de RBAC de
+Azure en lugar de un problema de distribución de credenciales.
+Le ofrece la propia interfaz de solución de problemas de F5 en lugar de la superficie de
+comandos, así que vaya más allá de ella cuando necesite ejecutar comandos específicos o
+programar algo. Su único requisito previo es Azure Bastion, que este despliegue deja como
+opcional (`enable_bastion`, por defecto `false`) porque un host de SKU Standard factura
+tanto si alguien abre un túnel como si no.
 
-SSH es la opción a elegir cuando la API de depuración no es suficiente, porque el
-dispositivo ofrece sustancialmente más comandos que los 34 que expone esa API. Tiene dos
-costos. La clave es escrita por cloud-init y, por tanto, debe estar presente en el
-**primer arranque**, lo que significa que habilitarla en nodos en ejecución los reemplaza
-— y eso actualmente bloquea el registro
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). Además, `sshd` responde
-únicamente en la dirección interna del nodo, por lo que se necesita un host dentro de la
-VNet; intentar la dirección por la que conoce al nodo siempre reportará cerrada.
+SSH es la opción a la que recurrir cuando la API de depuración no basta, porque el appliance
+ofrece sustancialmente más comandos que los 34 que esa API expone. Tiene dos costes. La clave
+la escribe cloud-init y por tanto debe estar presente en el **primer arranque**, lo que
+significa que habilitarla en nodos en ejecución sustituye todas las VM de CE — una
+reconstrucción de la flota en lugar de un cambio de configuración. Y `sshd` responde
+únicamente en la dirección interna del nodo, así que necesita un host dentro de la VNet;
+sondear la dirección por la que conoce el nodo siempre informará de puerto cerrado.
 
 ## Por qué la división no es una preferencia
 
-La API de depuración es servida por el plano de control de F5 Distributed Cloud, que
-reenvía al nodo a través del túnel que `vpm` establece durante el registro. Sin registro
-no hay túnel, lo que significa que la API no tiene nada hacia donde reenviar.
+La API de depuración la sirve el plano de control de F5 Distributed Cloud, que la retransmite
+al nodo por el túnel que `vpm` establece durante el registro. Sin registro no hay túnel, lo
+que significa que la API no tiene nada a lo que retransmitir.
 
-Falla de manera poco informativa en lugar de obvia, por lo que un nodo que nunca se
-levantó parece un problema de la API.
+Falla de forma poco útil en lugar de evidente, así que un nodo que nunca arrancó parece un
+problema de la API.
 
-La consola serie funciona de manera completamente distinta — a través de la plataforma
-de Azure hacia el puerto serie emulado del nodo. No importa si el nodo se ha registrado,
-si tiene accesibilidad de red o si tiene un plano de datos funcional. Esa independencia
-es precisamente su propósito, y es por ello que los diagnósticos de arranque deben
-permanecer habilitados en las VM de CE.
+La consola serie va por el camino totalmente opuesto — a través de la plataforma Azure hasta
+el puerto serie emulado del nodo. No le importa si el nodo se ha registrado, si tiene
+alcanzabilidad de red o si tiene un plano de datos operativo. Esa independencia es todo el
+sentido, y es la razón por la que el diagnóstico de arranque debe permanecer habilitado en
+las VM de CE.
 
 <Aside type="note" title="A qué recurrir">
-Si está escribiendo Automatización, o recopilando evidencia que desea volver a ejecutar
-más tarde, use la API de depuración. Si el registro es lo que está roto, la consola
-serie no es una alternativa — es la única opción.
+Si está escribiendo automatización, o recopilando evidencias que quiera volver a ejecutar más
+adelante, use la API de depuración. Si el registro es lo que está roto, la consola serie no es
+una alternativa — es la única opción.
 </Aside>
 
 ## Credenciales
 
-Cada ruta utiliza credenciales diferentes, y ninguna de ellas pertenece a una línea de comandos.
+Cada ruta usa credenciales distintas, y ninguna de ellas debe estar en una línea de comandos.
 
-- **API de depuración** — un token de API de F5 Distributed Cloud, como `XCSH_API_TOKEN`,
-  con la URL del tenant como `XCSH_API_URL`. El archivo de contexto de `xcsh` en
+- **Debug API** — un token de API de F5 Distributed Cloud, como `XCSH_API_TOKEN`, con la
+  URL del tenant como `XCSH_API_URL`. El archivo de contexto de `xcsh` en
   `~/.config/xcsh/contexts/<tenant>.json` contiene ambos, que es lo que
   `scripts/capture-sitecli.sh` lee cuando el entorno no los proporciona.
+  El tenant de este despliegue es **`f5-sales-demo`**; un token emitido para otro tenant
+  devuelve un `401` a secas que se interpreta como una credencial caducada.
+- **Site Console** — dos credenciales, en capas diferentes. Su inicio de sesión interactivo
+  de Azure abre el túnel de Bastion, y la cuenta `admin` propia del appliance inicia sesión en
+  la consola que hay detrás mediante HTTP Basic. Microsoft indica que el lado de Azure necesita
+  **Reader** sobre la VM, su NIC y el host de Bastion; ese requisito **no se ha verificado
+  aquí**, porque todas las pruebas se ejecutaron como propietario de la suscripción.
 - **SSH** — la mitad privada del par de claves cuya mitad pública el despliegue escribió en
-  `/var/home/admin/.ssh/authorized_keys` en el primer arranque, más un host dentro de la
-  VNet para alcanzar la dirección interna. Conéctese como `admin`, no como `azureuser`.
-- **Consola serie** — su inicio de sesión interactivo de Azure. No existe un service
-  principal para esto: el tenant corporativo de F5 en Entra no permite aprovisionar uno,
-  lo cual es también la razón por la que ninguna parte de esto se ejecuta en CI.
+  `/var/home/admin/.ssh/authorized_keys` en el primer arranque, además de un host dentro de la
+  VNet a través del cual alcanzar la dirección interna. Conéctese como `admin`, no como
+  `azureuser`.
+- **Serial console** — su inicio de sesión interactivo de Azure. No hay ningún service
+  principal para esto: el tenant corporativo de Entra de F5 no permite aprovisionar uno, lo
+  cual es también la razón por la que ninguna parte de esto se ejecuta en CI.
 
 <Aside type="danger" title="Nunca pase un token como argumento">
-Un token en una línea de comandos queda en el historial del shell y en la lista de
-procesos, donde cualquier otro usuario de la máquina puede leerlo. `capture-sitecli.sh`
-rechaza `--token` de plano por esa razón y en su lugar proporciona la cabecera a
-`curl` mediante stdin.
+Un token en una línea de comandos acaba en el historial del shell y en la lista de procesos,
+donde cualquier otro usuario de la máquina puede leerlo. `capture-sitecli.sh` rechaza
+`--token` de plano por ese motivo y proporciona la cabecera a `curl` por stdin
+en su lugar.
 </Aside>
