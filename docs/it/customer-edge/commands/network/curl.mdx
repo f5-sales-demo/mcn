@@ -1,13 +1,13 @@
 ---
 title: curl
 description: >-
-  Test di raggiungibilità da due diversi contesti di rete sul nodo. Quale si
-  utilizza determina ciò che un errore effettivamente dimostra.
+  Test di raggiungibilità da due diversi contesti di rete sul nodo. Quello che
+  si utilizza determina che cosa un errore dimostra effettivamente.
 sidebar:
   order: 80
   label: curl
 i18n:
-  sourceHash: 6ab13d8c3593
+  sourceHash: 6525a6aa3a90
   translator: machine
 ---
 
@@ -17,8 +17,8 @@ Due comandi, e la distinzione tra loro rappresenta l'intero valore.
 
 ## `curl-host`
 
-Viene eseguito nel namespace di rete dell'host — la connettività propria del nodo, prima
-che il piano dati sia coinvolto.
+Viene eseguito nel namespace di rete dell'host — la connettività propria del nodo, prima che il
+data plane sia coinvolto.
 
 ```bash
 {"command":["curl-host","-v","cloud.f5.com"]}
@@ -29,8 +29,11 @@ che il piano dati sia coinvolto.
 
 ## `curl-vega`
 
-Viene eseguito all'interno del contesto del cluster Kubernetes, quindi attraversa il DNS
-e il percorso di rete del cluster.
+Viene eseguito nel contesto Vega (control plane) anziché in quello dell'host. La differenza osservabile,
+e la sola stabilita qui, è l'ambiente che eredita: `curl-vega` riporta un
+elenco `NO_PROXY` che copre gli intervalli privati, `int.ves.io`, `int.volterra.us` e il dominio
+`.tenant.local` proprio del sito, mentre `curl-host` non ne riporta alcuno. Ciò che questo implica riguardo al percorso
+DNS non viene misurato.
 
 ```bash
 {"command":["curl-vega","-v","cloud.f5.com"]}
@@ -40,11 +43,14 @@ e il percorso di rete del cluster.
 ```
 
 <Aside type="tip" title="La coppia è una bisezione">
-Eseguirli entrambi. Se `curl-host` ha successo e `curl-vega` fallisce, il nodo ha connettività
-e la rete del cluster o il suo DNS è danneggiato. Se entrambi falliscono, il problema è a monte
-del nodo — routing, un firewall, o il percorso di uscita. Se solo `curl-host` fallisce, si è
-trovato qualcosa di insolito e si dovrebbe controllare prima la tabella di routing dell'host.
+Eseguite entrambi. Se `curl-host` riesce e `curl-vega` fallisce, il nodo ha connettività e
+qualcosa nel contesto del control plane non l'ha — le sue impostazioni proxy o il suo resolver. Se entrambi
+falliscono, il problema è a monte del nodo: routing, un firewall o il percorso di egress. Se fallisce solo
+`curl-host`, avete trovato qualcosa di insolito e dovreste controllare prima la tabella di routing dell'host.
+
+Su un nodo sano entrambi riescono e raggiungono lo stesso indirizzo, quindi una coppia pulita non dimostra nulla
+su quale contesto sia in uso — è la *divergenza* che porta l'informazione.
 </Aside>
 
-Entrambi accettano normali argomenti `curl` come elementi separati dell'array. Vale la pena mantenere
-`-v` perché le righe di connessione e handshake TLS sono solitamente dove l'errore si manifesta.
+Entrambi accettano i normali argomenti di `curl` come elementi separati dell'array. Vale la pena mantenere `-v`
+perché le righe relative alla connessione e all'handshake TLS sono di solito il punto in cui l'errore si manifesta.

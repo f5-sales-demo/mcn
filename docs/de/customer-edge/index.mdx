@@ -1,14 +1,14 @@
 ---
-title: Customer Edge Diagnose
+title: Customer-Edge-Diagnose
 description: >-
   Lesen Sie diese Ebene zuerst, wenn sich ein Customer Edge fehlerhaft verhält.
-  Sie legt fest, welcher der beiden Zugriffswege gilt, denn der falsche liefert
-  stillschweigend nichts zurück.
+  Sie legt fest, welcher der vier Zugriffswege zutrifft, denn der falsche
+  liefert stillschweigend nichts zurück.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: f6d78e1c7066
+  sourceHash: e7a23e4a0f12
   translator: machine
 ---
 
@@ -19,51 +19,70 @@ Ein Customer Edge (CE) ist der F5 Distributed Cloud Knoten, den dieses Repositor
 Azure bereitstellt — `terraform/modules/ce-node`, erstellt aus dem
 Marktplatz-Image `volterraedgeservices/volterra-node`.
 
-Er betreibt die Datenebene (Argo), die Steuerebene (Vega), einen Envoy-Proxy, einen
+Er betreibt die Datenebene (Argo), die Steuerungsebene (Vega), einen Envoy-Proxy, einen
 Kubernetes-Stack sowie `vpm`, den Agenten, der den Knoten registriert und alles Weitere
 darauf verwaltet.
 
 Wenn sich ein CE fehlerhaft verhält, ist die Site CLI das Instrument. Die erste
-Entscheidung ist, welcher Zugriffsweg gilt, und eine falsche Wahl kostet Zeit auf eine
-Weise, die wie ein defekter Knoten aussieht.
+Entscheidung betrifft den zutreffenden Zugriffsweg, und eine falsche Wahl kostet Zeit
+auf eine Weise, die wie ein defekter Knoten aussieht.
 
-## Zwei Zugriffswege, und sie sind nicht austauschbar
+## Vier Zugriffswege, und sie sind nicht austauschbar
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="Für einen Knoten, der <code>ONLINE</code> ist. Skriptfähig, schreibgeschützt und deckt 34 Befehle ab."
+    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
     href="./access/debug-api/"
   />
   <LinkCard
-    title="Serielle Konsole"
-    description="Für einen Knoten, der sich nie registriert hat. Der einzige Weg, wenn die API nicht antworten kann."
+    title="Site Console"
+    description="F5's own per-node troubleshooting UI, over an Azure Bastion tunnel. No SSH key, no jump host."
+    href="./access/site-console/"
+  />
+  <LinkCard
+    title="SSH"
+    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
+    href="./access/ssh/"
+  />
+  <LinkCard
+    title="Serial console"
+    description="For a node that never registered. The only route when the node has no network path."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-Die Debug-API erreicht den Knoten **über die F5 Distributed Cloud Steuerebene**.
-Genau darum ist diese Unterscheidung wichtig: Die API kann erst antworten, sobald sich
-der Knoten registriert hat und `ONLINE` meldet.
+Die Debug API erreicht den Knoten **über die Steuerungsebene von F5 Distributed Cloud**.
+Genau deshalb ist die Unterscheidung wichtig: Die API kann erst antworten, sobald sich der
+Knoten registriert hat und `ONLINE` meldet.
 
 Ein Knoten, dessen Registrierung fehlgeschlagen ist — fehlerhaftes cloud-init, ein
-abgelaufenes Token, keine Route zu `register.ves.volterra.io` — ist genau der Fall, in
-dem Sie Diagnose benötigen, und genau der Fall, den die API nicht bedienen kann.
+abgelaufenes Token, keine Route zu `register.ves.volterra.io` — ist genau der Fall, in dem
+Sie Diagnose benötigen, und genau der Fall, den die API nicht bedienen kann.
 
-[SSH](./access/ssh/) ist die dritte Option und die einzige, die die vollständige
-Befehlsoberfläche der Appliance erreicht — die Debug-API stellt 34 Befehle bereit, der
-Knoten selbst bietet weit mehr. Zwei Dinge schränken sie ein. `sshd` antwortet
-ausschließlich auf der internen (SLI) Adresse des Knotens, benötigt also einen Host
-innerhalb des VNet; und der Schlüssel wird beim ersten Start von cloud-init geschrieben,
-denn das Feld `ssh_key` am Site-Objekt ist wirkungslos — `vpm` überspringt den Benutzer
-`admin` und wendet es nie an. Die Aktivierung auf laufenden Knoten ersetzt diese daher.
+[Site Console](./access/site-console/) sollten Sie zuerst versuchen, wenn Sie F5s eigene
+Fehlerbehebungsoberfläche statt bestimmter Befehle wünschen. Sie verlangt am wenigsten von
+Ihnen — kein Schlüssel, kein Jump-Host, keine öffentliche IP auf dem Knoten — weil die Frage,
+wer sich verbinden darf, zu einer Azure-RBAC-Entscheidung wird, und sie antwortet unabhängig
+davon, ob sich die Site registriert hat. Sie benötigt Azure Bastion, das diese Bereitstellung
+hinter `enable_bastion` absichert und das standardmäßig nicht bereitgestellt wird.
 
-Also: Wenn die Site `ONLINE` ist und 34 Befehle genügen, verwenden Sie die Debug-API.
-Wenn Sie den Rest der Oberfläche benötigen und das VNet erreichen können, verwenden Sie
-SSH. Wenn die Registrierung das Problem ist, ist die serielle Konsole der einzige Zugang.
+[SSH](./access/ssh/) ist der einzige Weg, der die vollständige Befehlsoberfläche der Appliance
+erreicht — die Debug API stellt 34 Befehle bereit, der Knoten selbst bietet weit mehr. Zwei
+Dinge schränken ihn ein. `sshd` antwortet ausschließlich auf der internen (SLI-)Adresse des
+Knotens, daher wird ein Host innerhalb des VNet benötigt; und der Schlüssel wird von cloud-init
+beim ersten Start geschrieben, weil das Feld `ssh_key` am Site-Objekt wirkungslos ist — `vpm`
+überspringt den Benutzer `admin` und wendet es nie an. Eine Aktivierung auf laufenden Knoten
+ersetzt diese daher.
 
-<Aside type="caution" title="Prüfen Sie zuerst den Site-Status">
-Eine einzige Anfrage sagt Ihnen, auf welchem Weg Sie sind:
+Also: Wenn die Site `ONLINE` ist und 34 Befehle genügen, verwenden Sie die Debug API. Für eine
+Oberfläche oder für einen Knoten, der sich nie registriert hat, aber noch einen Netzwerkpfad
+besitzt, verwenden Sie Site Console. Wenn Sie den Rest der Befehlsoberfläche benötigen und das
+VNet erreichen können, verwenden Sie SSH. Wenn der Knoten überhaupt keinen funktionierenden
+Netzwerkpfad hat, ist die serielle Konsole der einzige Weg hinein.
+
+<Aside type="caution" title="Prüfen Sie zuerst den Site-Status — und prüfen Sie, ob Sie den richtigen Mandanten abfragen">
+Eine einzige Anfrage sagt Ihnen, auf welchem Weg Sie sich befinden:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -71,48 +90,53 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` bedeutet, dass die Debug-API funktioniert. Alles andere — oder eine Site, die
-nicht existiert — bedeutet serielle Konsole.
+`ONLINE` bedeutet, dass die Debug API funktioniert. Alles andere bedeutet Site Console oder serielle Konsole.
+
+Für eine Site, die **nicht existiert**, gibt es eine zweite Erklärung noch vor „sie hat sich nie
+registriert“: Sie sind auf den falschen Mandanten ausgerichtet. Diese Bereitstellung liegt in
+`f5-sales-demo` (`https://f5-sales-demo.console.ves.volterra.io`), festgelegt durch
+`var.expected_xc_tenant` — `cd terraform && terraform output -raw xc_tenant` sagt es Ihnen,
+ohne etwas anzufassen. Eine für einen anderen Mandanten ausgestellte Anmeldeinformation gibt ein
+nacktes `401` zurück, was wie ein abgelaufenes Token aussieht.
 </Aside>
 
 ## Sicherheitsregeln
 
-Diese gelten für jeden Befehl auf jeder nachfolgenden Seite.
+Diese gelten für jeden Befehl auf jeder der nachfolgenden Seiten.
 
-- **Schreibgeschützt, sofern Sie nicht sicher sind.** Die Befehlsoberfläche ist in zwei
-  Berechtigungsstufen unterteilt, und die Stufe `Exec` verändert entweder den Knoten oder
-  liest einen Statusmarker. Nichts auf diesen Seiten führt einen `Exec`-Befehl aus, und
+- **Nur lesend, sofern Sie nicht absolut sicher sind.** Die Befehlsoberfläche ist in zwei
+  Berechtigungsstufen unterteilt, und die `Exec`-Stufe verändert entweder den Knoten oder
+  liest einen Zustandsmarker. Nichts auf diesen Seiten führt einen `Exec`-Befehl aus, und
   das Capture-Harness ebenso wenig.
-- **Gehen Sie nie davon aus, dass ein Befehl aufgrund seines Namens sicher ist.**
+- **Gehen Sie nie davon aus, dass ein Befehl aufgrund seines Namens ungefährlich ist.**
   `ip-link-set` liest sich wie eine Abfrage und legt eine Schnittstelle still.
   `systemctl-restart-crio` startet die Container-Laufzeitumgebung unter einer aktiven
   Datenebene neu.
 - **Bevorzugen Sie den engsten Befehl, der die Frage beantwortet.** `health` und
-  `diagnosis` fassen den Knoten kostengünstig zusammen; `flow-l` gibt eine Flow-Tabelle
-  mit 629.760 Einträgen aus.
-- **Ein CE bedient produktiven Datenverkehr.** Dies sind gemeinsam genutzte
-  Demo-Umgebungen. Gehen Sie davon aus, dass jemand von der Site präsentiert, die Sie
-  gerade debuggen.
+  `diagnosis` fassen den Knoten kostengünstig zusammen; `flow-l` gibt jeden aktiven Flow
+  aus, und `flow-l-match` beantwortet dieselbe Frage für eine einzelne Verbindung.
+- **Ein CE bedient Live-Datenverkehr.** Dies sind gemeinsam genutzte Demo-Umgebungen. Gehen
+  Sie davon aus, dass jemand von der Site präsentiert, die Sie gerade debuggen.
 
 ## Was hier dokumentiert ist
 
-Jeder über die Debug-API erreichbare Befehl des Software-Builds, den dieser Tenant
-betreibt, jeweils mit Ausgaben, die von einem Live-Knoten erfasst und nicht von
-anderswo übernommen wurden.
+Jeder Befehl, der über die Debug API auf dem von diesem Mandanten betriebenen Software-Build
+erreichbar ist, jeweils mit Ausgaben, die von einem Live-Knoten erfasst und nicht von anderswo
+übernommen wurden.
 
 Die [Befehlsreferenz](./commands/) listet sie alle mit Kategorie, Berechtigungsstufe und
 Transport auf; die [Workflows](./workflows/) verketten sie zu den Abläufen, die Sie
 tatsächlich verwenden, wenn etwas nicht stimmt.
 
-Die nur auf dem Gerät verfügbaren Teile der Site CLI — `configure`, `configure-network`,
-`factory-reset`, `upgrade` und rund sechzig weitere `ExecCLI`-Befehle — werden nicht
-behandelt, weil ihre Ausgabe nicht so von einem Live-Knoten erfasst wurde wie bei jeder
-nachfolgenden Seite.
+Die ausschließlich auf dem Gerät verfügbaren Teile der Site CLI — `configure`,
+`configure-network`, `factory-reset`, `upgrade` und rund sechzig weitere `ExecCLI`-Befehle —
+werden nicht behandelt, weil ihre Ausgaben nicht so von einem Live-Knoten erfasst wurden wie
+bei jeder nachfolgenden Seite.
 
 Sie sind jedoch nicht länger unerreichbar. `scripts/sitecli_ssh_harvest.py` steuert das
-Vervollständigungsmenü der Appliance über [SSH](./access/ssh/) und zeichnet die
-Beschreibung auf, die die Appliance für jeden Befehl liefert, sodass die Oberfläche
-gemessen statt erraten werden kann. Die Ausführung ist standardmäßig verweigert — das
-Skript zählt alles auf und führt nur eine Allow-List aus —, denn ungeprüfte Befehlssyntax
-und ungeprüfte Befehls*wirkungen* sind genau der Fehler, dessen Wiederholung diese
-Dokumentation vermeiden soll.
+eigene Vervollständigungsmenü der Appliance über [SSH](./access/ssh/) und zeichnet die
+Beschreibung auf, die die Appliance für jeden Befehl liefert, sodass die Oberfläche gemessen
+statt geschätzt werden kann. Ihre Ausführung ist standardmäßig verweigert — sie zählt alles
+auf und führt nur eine Positivliste aus — weil ungeprüfte Befehlssyntax und ungeprüfte
+Befehls*wirkungen* genau der Mangel sind, dessen Wiederholung diese Dokumentation vermeiden
+soll.

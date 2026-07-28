@@ -7,18 +7,18 @@ sidebar:
   order: 80
   label: curl
 i18n:
-  sourceHash: 6ab13d8c3593
+  sourceHash: 6525a6aa3a90
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Deux commandes, et la distinction entre elles constitue l'intégralité de la valeur.
+Deux commandes, et la distinction entre elles constitue tout l'intérêt.
 
 ## `curl-host`
 
 S'exécute dans l'espace de noms réseau de l'hôte — la connectivité propre du nœud, avant
-que le plan de données ne soit impliqué.
+toute intervention du plan de données.
 
 ```bash
 {"command":["curl-host","-v","cloud.f5.com"]}
@@ -29,8 +29,11 @@ que le plan de données ne soit impliqué.
 
 ## `curl-vega`
 
-S'exécute dans le contexte du cluster Kubernetes, il traverse donc le DNS du cluster et
-le chemin réseau.
+S'exécute dans le contexte Vega (plan de contrôle) plutôt que dans celui de l'hôte. La différence
+observable, et la seule établie ici, est l'environnement dont elle hérite : `curl-vega` signale une
+liste `NO_PROXY` couvrant les plages privées, `int.ves.io`, `int.volterra.us` et le domaine
+`.tenant.local` propre au site, tandis que `curl-host` n'en signale aucune. Ce que cela implique
+quant au chemin DNS n'est pas mesuré.
 
 ```bash
 {"command":["curl-vega","-v","cloud.f5.com"]}
@@ -39,12 +42,17 @@ le chemin réseau.
 ```text file=../../../../_data/sitecli-curl-vega.txt
 ```
 
-<Aside type="tip" title="La paire constitue une bisection">
-Exécutez les deux. Si `curl-host` réussit et que `curl-vega` échoue, le nœud dispose d'une connectivité
-et le réseau du cluster ou son DNS est défaillant. Si les deux échouent, le problème se situe en amont
-du nœud — routage, pare-feu ou chemin de sortie. Si seul `curl-host` échoue, vous
-avez trouvé quelque chose d'inhabituel et devriez vérifier la table de routage de l'hôte en premier.
+<Aside type="tip" title="La paire constitue une bissection">
+Exécutez les deux. Si `curl-host` réussit et que `curl-vega` échoue, le nœud dispose de la connectivité
+et quelque chose dans le contexte du plan de contrôle ne fonctionne pas — ses paramètres de proxy ou son
+résolveur. Si les deux échouent, le problème se situe en amont du nœud : routage, pare-feu ou chemin de
+sortie. Si seul `curl-host` échoue, vous avez trouvé quelque chose d'inhabituel et devriez d'abord
+vérifier la table de routage de l'hôte.
+
+Sur un nœud sain, les deux réussissent et atteignent la même adresse ; une paire correcte ne prouve donc
+rien quant au contexte utilisé — c'est la *divergence* qui porte l'information.
 </Aside>
 
-Les deux acceptent les arguments `curl` standard sous forme d'éléments de tableau séparés. `-v` vaut la peine d'être conservé
-car les lignes de connexion et de négociation TLS sont généralement là où l'échec se manifeste.
+Les deux acceptent les arguments `curl` habituels sous forme d'éléments de tableau distincts. Il vaut la
+peine de conserver `-v`, car les lignes relatives à la connexion et à la négociation TLS sont
+généralement là où l'échec se manifeste.

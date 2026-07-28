@@ -1,14 +1,14 @@
 ---
 title: Interfaces
 description: >-
-  Visão do kernel sobre o estado das interfaces e links no nó, além do único
-  comando privilegiado que o altera. O que o Linux acredita, que o plano de
-  dados pode contradizer.
+  Estado de interfaces e de links do lado Linux no nó, além do único comando
+  privilegiado que o altera. O que o Linux acredita, e que o plano de dados pode
+  contradizer.
 sidebar:
   order: 60
   label: Interfaces
 i18n:
-  sourceHash: 7ad734b3a357
+  sourceHash: 3d2e9fd4cf74
   translator: machine
 ---
 
@@ -19,7 +19,7 @@ Estes reportam a visão do kernel. O plano de dados Argo mantém a sua própria,
 
 ## `ip`
 
-Aceita um subcomando `ip`. `addr` é o mais comum; `route`, `link` e `neigh` também
+Recebe um subcomando `ip`. `addr` é o mais comum; `route`, `link` e `neigh` também
 funcionam.
 
 ```bash
@@ -29,14 +29,33 @@ funcionam.
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-O CE possui três NICs por design, e a ordem importa: `eth0` é a interface de gerenciamento e
-SLO que carrega o endereço BGP local do site, com as interfaces externa e interna
-a seguir. Observe `a-i-eth0` na saída — o plano de dados assumiu o controle da interface
-física e apresenta a sua própria.
+O CE possui três NICs do Azure por design — gerenciamento/SLO, externa, interna/SLI — mas o
+guest não as apresenta da forma que essa ordenação sugere, e é aqui que ler a
+saída de forma errada custa tempo.
+
+| No guest | Transporta |
+| --- | --- |
+| `a-i-eth0` | **nenhum endereço** — esta é a eth0 física renomeada, e o plano de dados Argo é o proprietário dela |
+| `vhost0` | o endereço de gerenciamento/SLO, aquele a partir do qual o BGP faz peering e o que o objeto de site reporta |
+| `eth1` e `eth2` | os endereços externo e interno/SLI — mas **não em uma ordem fixa** |
+
+<Aside type="danger" title="Qual entre eth1 e eth2 é a interface interna difere entre nós">
+Lido ao vivo dos três CEs desta mesma implantação: em `f5-xc-ce-vm-01` e
+`f5-xc-ce-vm-03` o endereço interno/SLI está em `eth2`, e em `f5-xc-ce-vm-02` está em
+`eth1`. Nada na configuração define isso.
+
+Portanto, nunca inferir uma sub-rede a partir de um nome de interface, e nunca transportar um mapeamento de um nó para
+outro. Em vez disso, faça a correspondência pelo endereço — a sub-rede à qual um endereço de CE pertence é estável, mesmo
+que a interface que o contém não seja.
+</Aside>
+
+O fato de `a-i-eth0` não transportar nenhum endereço é também toda a razão pela qual o `sshd` não pode ser alcançado no
+endereço de gerenciamento: não há nenhum listener ali, não é uma porta bloqueada. Consulte
+[SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 
-Apenas camada de enlace: estado, MTU, disciplina de enfileiramento, MAC.
+Somente camada de enlace: estado, MTU, disciplina de enfileiramento, MAC.
 
 ```bash
 {"command":["ip-link-show"]}
@@ -45,10 +64,10 @@ Apenas camada de enlace: estado, MTU, disciplina de enfileiramento, MAC.
 ```text file=../../../../_data/sitecli-ip-link-show.txt
 ```
 
-Mais rápido que `ip addr` quando a pergunta é "o link está ativo e qual é o seu MTU".
-Incompatibilidades de MTU são uma causa recorrente de túneis que se estabelecem, mas não passam tráfego.
+Mais rápido que `ip addr` quando a pergunta é "o link está ativo e qual é seu MTU".
+Incompatibilidades de MTU são uma causa recorrente de túneis que se estabelecem mas não passam tráfego.
 
-## `ip-link-set` <Badge text="Nível Exec — mutante" variant="danger" />
+## `ip-link-set` <Badge text="Camada Exec — mutante" variant="danger" />
 
 Coloca uma interface ou grupo em estado ativo ou inativo.
 
@@ -56,12 +75,12 @@ Coloca uma interface ou grupo em estado ativo ou inativo.
 ip-link-set (<device>||<group>) (up||down)
 ```
 
-<Aside type="danger" title="Não executado aqui e não acessível da forma habitual">
-Este é o único comando do nível `Exec` nesta build. Ele vai para o endpoint `exec`
-em vez de `exec-user`, e altera o nó: derrubar o `eth0` em um CE remoto
-remove o caminho pelo qual você o está gerenciando, incluindo a própria API de debug.
+<Aside type="danger" title="Não executado aqui, e não alcançável da forma usual">
+Este é o único comando da camada `Exec` nesta build. Ele vai para o endpoint `exec`
+em vez de `exec-user`, e ele altera o nó: derrubar `eth0` em um CE remoto
+remove o caminho pelo qual você o está gerenciando, incluindo a própria API de depuração.
 
-Deliberadamente não há saída capturada nesta página. O arnês de captura recusa
-todo o nível `Exec`, e lê o nível do catálogo ativo em vez de uma lista
-codificada, portanto isso permanece verdadeiro se uma build futura promover outros comandos para ele.
+Deliberadamente não há saída capturada nesta página. O harness de captura recusa
+toda a camada `Exec`, e lê a camada do catálogo ao vivo em vez de uma
+lista fixa no código, de modo que isso permanece verdadeiro se uma build futura promover outros comandos para ela.
 </Aside>

@@ -1,27 +1,26 @@
 ---
 title: Schnittstellen
 description: >-
-  Linux-seitige Schnittstellen und Verbindungsstatus am Knoten sowie der einzige
-  privilegierte Befehl, der diese ändert. Was Linux erkennt, kann von der
-  Datenebene widersprochen werden.
+  Linux-seitiger Schnittstellen- und Link-Status auf dem Knoten sowie der eine
+  privilegierte Befehl, der ihn ändert. Was Linux glaubt — dem die Datenebene
+  widersprechen kann.
 sidebar:
   order: 60
   label: Schnittstellen
 i18n:
-  sourceHash: 7ad734b3a357
+  sourceHash: 3d2e9fd4cf74
   translator: machine
 ---
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-Diese Befehle geben die Sicht des Kernels wieder. Die Argo-Datenebene verwaltet eine
-eigene Sicht, die über [`vif`](../dataplane-forwarding/) einsehbar ist – beide können
-voneinander abweichen.
+Diese geben die Sicht des Kernels wieder. Die Argo-Datenebene führt ihre eigene, sichtbar über
+[`vif`](../dataplane-forwarding/), und beide können voneinander abweichen.
 
 ## `ip`
 
-Erwartet einen `ip`-Unterbefehl. `addr` ist der gebräuchlichste; `route`, `link` und
-`neigh` funktionieren ebenfalls.
+Erwartet einen `ip`-Unterbefehl. `addr` ist der gebräuchliche; `route`, `link` und `neigh` funktionieren
+ebenfalls.
 
 ```bash
 {"command":["ip","addr"]}
@@ -30,15 +29,33 @@ Erwartet einen `ip`-Unterbefehl. `addr` ist der gebräuchlichste; `route`, `link
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-Der CE verfügt konstruktionsbedingt über drei NICs, und die Reihenfolge ist
-bedeutsam: `eth0` ist die Management- und SLO-Schnittstelle, die die lokale BGP-
-Adresse des Standorts trägt, gefolgt von externer und interner Schnittstelle. Zu
-beachten ist `a-i-eth0` in der Ausgabe – die Datenebene hat die physische Schnittstelle
-übernommen und präsentiert eine eigene.
+Die CE besitzt konstruktionsbedingt drei Azure-NICs — Management/SLO, extern, intern/SLI —, aber das
+Gastsystem stellt sie nicht in der Weise dar, die diese Reihenfolge nahelegt, und genau hier kostet
+ein falsches Lesen der Ausgabe Zeit.
+
+| Im Gastsystem | Trägt |
+| --- | --- |
+| `a-i-eth0` | **überhaupt keine Adresse** — dies ist die umbenannte physische eth0, und die Argo-Datenebene besitzt sie |
+| `vhost0` | die Management-/SLO-Adresse, jene, von der BGP peert und die das Site-Objekt meldet |
+| `eth1` und `eth2` | die externen und internen/SLI-Adressen — aber **nicht in fester Reihenfolge** |
+
+<Aside type="danger" title="Welche von eth1 und eth2 die interne Schnittstelle ist, unterscheidet sich zwischen den Knoten">
+Live von den drei CEs dieser einen Bereitstellung ausgelesen: auf `f5-xc-ce-vm-01` und
+`f5-xc-ce-vm-03` liegt die interne/SLI-Adresse auf `eth2`, auf `f5-xc-ce-vm-02` auf
+`eth1`. Nichts in der Konfiguration bestimmt dies.
+
+Leiten Sie daher niemals ein Subnetz aus einem Schnittstellennamen ab und übertragen Sie niemals eine Zuordnung von einem Knoten
+auf einen anderen. Gleichen Sie stattdessen über die Adresse ab — das Subnetz, zu dem eine CE-Adresse gehört, ist stabil, auch
+wenn die Schnittstelle, die sie trägt, es nicht ist.
+</Aside>
+
+Dass `a-i-eth0` keine Adresse trägt, ist auch der gesamte Grund dafür, dass `sshd` unter der
+Management-Adresse nicht erreichbar ist: Dort gibt es keinen Listener, keinen blockierten Port. Siehe
+[SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 
-Ausschließlich Verbindungsschicht: Zustand, MTU, Warteschlangendisziplin, MAC.
+Nur Sicherungsschicht: Status, MTU, Queueing-Discipline, MAC.
 
 ```bash
 {"command":["ip-link-show"]}
@@ -47,26 +64,23 @@ Ausschließlich Verbindungsschicht: Zustand, MTU, Warteschlangendisziplin, MAC.
 ```text file=../../../../_data/sitecli-ip-link-show.txt
 ```
 
-Schneller als `ip addr`, wenn die Frage lautet: „Ist die Verbindung aktiv und wie
-groß ist deren MTU?" MTU-Abweichungen sind eine wiederkehrende Ursache für Tunnel,
-die zwar aufgebaut werden, aber keinen Datenverkehr weiterleiten.
+Schneller als `ip addr`, wenn die Frage lautet „Ist der Link aktiv und wie groß ist seine MTU“.
+MTU-Abweichungen sind eine wiederkehrende Ursache für Tunnel, die zwar aufgebaut werden, aber keinen Datenverkehr durchlassen.
 
-## `ip-link-set` <Badge text="Exec-Ebene – verändernd" variant="danger" />
+## `ip-link-set` <Badge text="Exec-Stufe — verändernd" variant="danger" />
 
-Setzt eine Schnittstelle oder Gruppe auf aktiv oder inaktiv.
+Setzt eine Schnittstelle oder Gruppe auf up oder down.
 
 ```
 ip-link-set (<device>||<group>) (up||down)
 ```
 
-<Aside type="danger" title="Wird hier nicht ausgeführt und ist auf dem üblichen Weg nicht erreichbar">
-Dies ist der einzige Befehl der `Exec`-Ebene in diesem Build. Er wird an den
-`exec`-Endpunkt anstelle von `exec-user` gesendet und verändert den Knoten: Das
-Deaktivieren von `eth0` an einem entfernten CE entfernt den Pfad, über den er
-verwaltet wird – einschließlich der Debug-API selbst.
+<Aside type="danger" title="Hier nicht ausgeführt und nicht auf dem üblichen Weg erreichbar">
+Dies ist der einzige Befehl der `Exec`-Stufe in diesem Build. Er geht an den `exec`-Endpunkt
+statt an `exec-user`, und er verändert den Knoten: `eth0` auf einer entfernten CE herunterzufahren
+entfernt den Pfad, über den Sie sie verwalten, einschließlich der Debug-API selbst.
 
-Auf dieser Seite wird absichtlich keine aufgezeichnete Ausgabe bereitgestellt. Der
-Aufzeichnungsrahmen verweigert die gesamte `Exec`-Ebene und liest die Ebene aus dem
-Live-Katalog anstatt aus einer fest codierten Liste, sodass dies auch dann zutrifft,
-wenn ein zukünftiger Build weitere Befehle in diese Ebene aufnimmt.
+Auf dieser Seite gibt es bewusst keine aufgezeichnete Ausgabe. Das Aufzeichnungsgerüst verweigert
+die gesamte `Exec`-Stufe und liest die Stufe aus dem Live-Katalog statt aus einer
+fest kodierten Liste, sodass dies auch dann gilt, wenn ein künftiger Build weitere Befehle dorthin hochstuft.
 </Aside>

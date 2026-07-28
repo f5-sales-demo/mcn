@@ -14,8 +14,9 @@ deployment it is usually the route to try first.
 
 It asks least of you: no SSH key to distribute, no jump host to maintain, no public IP on
 the node, and no VM replacement to enable it. Who may connect becomes an **Azure RBAC
-decision**. And it does not need the site to be registered — the transcript below was
-captured while all three sites were reporting `site_state: FAILED`.
+decision**. And it does not need the site to be registered: this page was first captured
+while all three sites were reporting `site_state: FAILED`, and re-verified unchanged against
+the same nodes once they were `ONLINE`.
 
 The catch is that the Site Console answers only on the node's internal (SLI) address,
 reachable only from inside the VNet. Azure Bastion closes that gap without putting
@@ -25,8 +26,24 @@ anything else on the network.
 Every command and every output on this page was run against `f5-xc-ce-vm-01` in this
 deployment and is reproduced verbatim, including the failures.
 
-The one thing not exercised is **signing in**. The steps stop at the credential prompt,
-so nothing below describes what the console looks like once you are inside.
+**Authentication is verified**: the appliance's `admin` credential returns `200` through the
+tunnel. What is *not* exercised is the console itself — nothing below describes what you can
+see or do once you are inside.
+
+**Azure RBAC is not verified.** Every run was as the subscription owner, so the Reader
+requirement in step 2 is Microsoft's documented requirement rather than something measured
+here.
+</Aside>
+
+<Aside type="caution" title="Bastion is opt-in, and is not deployed by default">
+`enable_bastion` defaults to `false`, so on a default `terraform apply` there is no Bastion
+host and `terraform output -raw bastion_name` is `null`. Set `enable_bastion = true` in
+`terraform/terraform.tfvars` — it is `true` on this deployment.
+
+The reason it is opt-in is cost, not risk: a Standard-SKU host bills an hourly standing
+charge from the moment it is provisioned, whether or not anyone opens a tunnel — USD
+0.29/hour in `eastus` for the two included scale units (retail, 2026-07), roughly USD 212 a
+month. Turn it off again when the demo does not need console access.
 </Aside>
 
 ## Before you start
@@ -42,6 +59,9 @@ so nothing below describes what the console looks like once you are inside.
    ```
 
 2. Hold **Reader** on the CE virtual machine, its network interface, and the Bastion host.
+   This is Microsoft's documented requirement and is **unverified here** — every run in this
+   deployment was as the subscription owner, so no lesser role has been shown to be
+   sufficient or insufficient.
 
 3. Confirm Bastion is deployed and capable. Basic SKU supports neither tunneling nor
    IP-based connection, so `Standard` and `True` here are both load-bearing.
@@ -66,7 +86,7 @@ something to assemble by hand.
 
 <Steps>
 
-1. Read the Bastion host name, the resource group, and the target CE's VM resource id.
+1. Read the name of the Bastion host, the resource group, and the target CE's VM resource id.
 
    ```bash
    cd terraform
@@ -93,6 +113,7 @@ something to assemble by hand.
    ```text
    eastus01, eastus02, eastus03
    ```
+
    </Aside>
 
 2. Start the tunnel. It holds the port open until stopped, so background it or use a
@@ -152,11 +173,25 @@ curl -skI https://localhost:65500/
 ```text
 HTTP/1.1 401 Unauthorized
 WWW-Authenticate: Basic realm="Volterra Site Console"
+Content-Type: text/html; charset=utf-8
 Content-Length: 0
 ```
 
 A `401` with that realm is the console working correctly. It is what an unauthenticated
-request is supposed to get.
+request is supposed to get — and supplying the `admin` credential to the same URL answers
+`200`, which is how you confirm the credential before opening a browser:
+
+```bash
+curl -sk -u admin -o /dev/null -w '%{http_code}\n' https://localhost:65500/
+```
+
+```text
+Enter host password for user 'admin':
+200
+```
+
+`-u admin` with no colon makes `curl` prompt for the password rather than take it from the
+command line, where it would land in shell history and in the process list.
 
 **A certificate warning, for three reasons at once.** Checking the certificate directly:
 
@@ -185,9 +220,18 @@ listening on local port 65500.
 
 Sign in as `admin`. **This documentation does not publish the password, and should not.**
 
-A factory-fresh Customer Edge ships with F5's published default, and F5 requires that it
-be changed. Treat changing it as part of deploying a node rather than as later hardening.
-Two reasons that matters more here than it might look:
+<Aside type="danger" title="On this deployment that password is still F5's factory default">
+This is a measured fact, not a suspicion: the factory-default credential authenticates and
+returns `200` on all three CEs today. F5 publishes that default and requires that it be
+changed, and it has not been.
+
+The practical consequence is that on this deployment "holds Reader on the Bastion" is
+equivalent to full appliance console access, for anyone who knows a value that is in F5's
+public documentation. Change it, and treat changing it as part of deploying a node rather
+than as later hardening.
+</Aside>
+
+Two reasons not publishing it matters more here than it might look:
 
 - This documentation is public. Printing the fleet's current console password would turn
   "holds Reader on the Bastion" into full appliance access for anyone who reads the page.
@@ -195,8 +239,7 @@ Two reasons that matters more here than it might look:
   wrong in the most misleading way — the reader concludes their access is broken rather
   than that the page is stale.
 
-Get the password from wherever your team keeps operational secrets. If the answer is
-"it is still the factory default", change it before doing anything else.
+Once it has been rotated, get it from wherever your team keeps operational secrets.
 
 <Aside type="caution" title="Setting the password from Terraform is not verified">
 `admin_user_credentials.admin_password` on the site object looks like the declarative way
@@ -210,11 +253,12 @@ skips for the `admin` user entirely. That says nothing about the console.
 
 ## Why the tunnel must target the resource id
 
-`--target-resource-id` is required. Targeting the node's address instead is refused:
+`--target-resource-id` is required. Targeting the node's address instead is refused —
+whatever address you use, so there is deliberately no real one printed here:
 
 ```bash
 az network bastion tunnel --name "$BASTION" -g "$RG" \
-  --target-ip-address 10.0.3.5 --resource-port 65500 --port 65501
+  --target-ip-address <any-sli-address> --resource-port 65500 --port 65501
 ```
 
 ```text
@@ -234,6 +278,7 @@ id.
 | --- | --- | --- |
 | `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | Used `--target-ip-address` | Use `--target-resource-id` |
 | `ERROR: Defined port is currently unavailable` | Another tunnel already holds that local port | Stop the other tunnel, or pass a different `--port`; `--resource-port` stays 65500 |
+| `terraform output -raw bastion_name` is `null` or empty | Bastion is not deployed | Set `enable_bastion = true` and apply |
 | Tunnel starts but the resource id is empty | `jq` filter used the VM name instead of the site key | Key on `eastus01`/`02`/`03` |
 | `401 Unauthorized`, realm `Volterra Site Console` | Not a fault — unauthenticated request | Supply the `admin` credential |
 | Browser refuses the certificate | Self-signed, name mismatch, and expired since Oct 2025 | Expected; confirm the subject is `CN=site-local.volterra.io` and proceed |

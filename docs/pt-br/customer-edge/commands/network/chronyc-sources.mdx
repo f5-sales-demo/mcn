@@ -1,14 +1,13 @@
 ---
 title: chronyc-sources
 description: >-
-  Estado de sincronização NTP. O desvio de relógio quebra a validação de
-  certificados e a autenticação de tokens antes de causar qualquer problema
-  evidente.
+  Estado de sincronização NTP. O desvio do relógio quebra a validação de
+  certificados e a autenticação por token antes de quebrar qualquer coisa óbvia.
 sidebar:
   order: 100
   label: chronyc-sources
 i18n:
-  sourceHash: 37ac33fac843
+  sourceHash: 4f5c6f58c5b6
   translator: machine
 ---
 
@@ -21,15 +20,22 @@ i18n:
 ```text file=../../../../_data/sitecli-chronyc-sources.txt
 ```
 
-O caractere inicial em cada linha indica o estado: `*` é a fonte atualmente
-selecionada, `+` uma alternativa aceitável, `-` uma excluída pelo algoritmo de
-seleção, e `?` uma que está inacessível. Exatamente um `*` representa o caso
-saudável.
+A coluna `MS` tem **dois** caracteres, não um. O primeiro é o modo — `^` para um servidor —
+e o **segundo** é o estado: `*` é a fonte atualmente selecionada, `+` uma alternativa
+aceitável, `-` uma excluída pelo algoritmo de seleção e `?` uma que está inalcançável.
+Portanto, `^*` é o servidor selecionado e `^?` é um inalcançável; ler apenas o primeiro
+caractere não diz nada, porque ele é `^` em todas as linhas aqui.
 
-`Reach` é um registrador octal das últimas oito consultas, portanto `377` significa que todas as oito
-foram bem-sucedidas. Um valor diferente de `377` indica que consultas estão sendo perdidas. `LastRx` mostra há
-quanto tempo a fonte respondeu pela última vez.
+Exatamente um `*` é o caso saudável, e isso vale mesmo quando outras fontes exibem `?`.
 
-Vale verificar logo de início quando a autenticação ou o TLS estiver falhando sem motivo aparente: um
+`Reach` é um registrador octal das últimas oito consultas, portanto `377` significa que todas as oito tiveram êxito.
+Qualquer valor menor significa que pelo menos uma das últimas oito falhou — mas isso inclui uma fonte que
+só começou a responder recentemente, cujo registrador ainda está sendo preenchido. Uma execução feita durante
+a redação deste texto mostrou `3` e `37` ao lado de um `377` em um nó que tinha uma fonte selecionada
+(`^*`) e cujo banner de login informava `NTP: Synced`. Leia `Reach` junto com `LastRx`,
+que mostra há quanto tempo a fonte respondeu pela última vez, em vez de tratar qualquer valor abaixo de `377`
+como uma falha.
+
+Vale verificar logo no início quando a autenticação ou o TLS está falhando sem motivo visível: um
 nó cujo relógio tenha desviado o suficiente rejeitará certificados válidos e terá seus
-tokens rejeitados, e os erros resultantes raramente mencionam o horário.
+tokens rejeitados, e os erros resultantes raramente mencionam o tempo.

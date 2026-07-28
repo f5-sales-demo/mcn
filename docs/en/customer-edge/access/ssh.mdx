@@ -15,11 +15,32 @@ SSH reaches the appliance `admin` account, whose login shell is the Site CLI
 that are not on that API at all.
 
 ```bash
-ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> admin@10.0.3.5
+cd terraform
+SLI=$(terraform output -json ce_sli_private_ips | jq -r '.eastus01')
+ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> "admin@$SLI"
 ```
 
 Every part of that command line is load-bearing, and the next three sections explain
 which failure each one prevents.
+
+<Aside type="danger" title="Look the internal address up — never carry one over from a previous session">
+Azure reassigns the internal subnet on every rebuild, and not in node order. After the most
+recent one `f5-xc-ce-vm-01`, `-02` and `-03` hold `10.0.3.7`, `10.0.3.5` and `10.0.3.4`; a
+previous build had them in a different order entirely, and the test client's NIC is in the
+same subnet and has held an address a CE held before. Connecting to a remembered address
+therefore lands on the wrong node, on a VM that is not a CE, or nowhere — and the last of
+those looks identical to "SSH is not enabled".
+
+`terraform output -json ce_sli_private_ips` is the mapping. Without state to hand, the NIC
+name is stable even though the address is not:
+
+```bash
+az network nic show -g rg-mcn-ce-ha-rmordasiewicz \
+  -n f5-xc-ce-vm-01-internal-nic \
+  --query ipConfigurations[0].privateIPAddress -o tsv
+```
+
+</Aside>
 
 <Aside type="caution" title="Bootstrap-only — an existing CE cannot gain SSH without being recreated">
 cloud-init `write_files` runs **once, on first boot**. Afterwards a
@@ -29,28 +50,41 @@ again.
 So there is no in-place path onto a running CE. `custom_data` is replace-only in Azure,
 which means adopting this on an existing deployment **replaces every CE VM**. Granting
 operator SSH to nodes that are already up is a rebuild, not a configuration change — and
-the next warning is what that rebuild currently costs.
+the next warning is what that rebuild used to cost, and why it no longer does.
 </Aside>
 
-<Aside type="danger" title="Replacing a CE VM wedges registration, and terraform plan reports 'No changes' while the fleet is down">
-This is the heaviest thing on the page. Read
-[issue 674](https://github.com/f5-sales-demo/mcn/issues/674) before you plan the change,
-not after.
+<Aside type="caution" title="Replacing a CE VM used to wedge registration permanently — that is fixed, and it is why the site object is coupled to the VM">
+Worth knowing before you plan a rebuild, because the shape of the failure explains the
+coupling you will see in the plan.
 
-The stale registration holds the unique `(tenant, cluster_name, hostname)` index, so the
-replacement node's registration is refused with `UniqueSecondaryIndexViolationError` and it
-retries forever. Deleting the registration is not sufficient on its own: a leftover
-`StatusObject` then returns `500` for the workload request, and by that point each node has
-persisted a `registration-obj.yml` pinning it to the registration you deleted, so it loops
-on `404` with no self-recovery.
+It used to be that the destroyed node's registration kept the control plane's unique
+`(tenant, cluster_name, hostname)` index, so the replacement node's registration was refused
+with `UniqueSecondaryIndexViolationError` and retried forever. Deleting the registration was
+not sufficient on its own: a leftover `StatusObject` then returned `500` for the workload
+request, and by that point each node had persisted a `registration-obj.yml` pinning it to
+the registration you deleted, so it looped on `404` with no self-recovery. Recovery took
+two full rebuilds. Throughout all of it `terraform plan` reported **"No changes"**, because
+from Terraform's point of view the desired state had been reached.
 
-Recovery required deleting the registrations, recreating the site objects, **replacing the
-VMs a second time**, and then applying the approvals — two full rebuilds to absorb one
-`custom_data` change.
+[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) is closed, by
+[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). `modules/xc-site` now names the CE
+VM instance in `replace_triggered_by`, so replacing the VM replaces the site object, and
+deleting a site takes its registrations with it — the index key is free before the
+replacement node boots. The fleet has since been rebuilt from scratch and all three sites
+came up `ONLINE` without intervention.
 
-Throughout all of it `terraform plan` reported **"No changes"**, because from Terraform's
-point of view the desired state had been reached. The fleet was down and the plan was
-clean. Do not treat absorbing this change as a routine apply.
+The coupling is observable rather than assumed. Each site is bound to a VM *instance* id,
+and the matching registration reports the same value as `infra.instance_id`:
+
+```bash
+cd terraform && terraform output -json ce_bound_instance_ids
+```
+
+Disagreement between the two means a site is still bound to a node that no longer exists,
+which is the state a rebuilt CE can never register out of. Reading the registration's half
+still needs a direct API call — provider issue
+[1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376) is what would
+put it on the data source.
 </Aside>
 
 ## Why cloud-init writes the key, and not the API
@@ -97,25 +131,54 @@ convenient moment.
 ## Why it answers on one address only
 
 `sshd` binds `0.0.0.0:22`, but only the **internal (SLI)** address is on the host network
-stack. eth0 is renamed `a-i-eth0` and carries no host IP — the Argo data plane owns that
-interface — while eth1 and eth2 stay on the host stack, where `sshd` is listening.
+stack in a way `sshd` will answer on. eth0 is renamed `a-i-eth0` and carries no host IP at
+all — the Argo data plane owns that interface, and the management/SLO address it would have
+carried appears on `vhost0` instead. The other two NICs stay on the host stack under their
+own names.
 
-Probed from a VM inside the VNet:
+Probed from a VM inside the VNet, against one CE:
 
 ```text
-10.0.1.4     timed out             CE mgmt/SLO  (eth0)
-10.0.2.4     timed out             CE external  (eth1)
-10.0.3.5     OPEN                  CE internal/SLI
-10.0.3.6     OPEN
-10.0.3.7     OPEN
+management/SLO address    timed out
+external address          timed out
+internal/SLI address      OPEN     SSH-2.0-OpenSSH_8.7
+an unused address         timed out    (control)
 ```
 
 A probe against the address you know the node by therefore returns exactly what a closed
 security group returns. Nothing is blocking it; there is no listener on that address.
 
+<Aside type="caution" title="Do not read the guest interface name to work out which subnet you are on">
+Which of `eth1` and `eth2` carries the internal address **differs between nodes in this same
+deployment**. Read live from all three CEs:
+
+```text
+f5-xc-ce-vm-01    eth1 -> external      eth2 -> internal/SLI
+f5-xc-ce-vm-02    eth2 -> external      eth1 -> internal/SLI
+f5-xc-ce-vm-03    eth1 -> external      eth2 -> internal/SLI
+```
+
+Only two things hold on every node: `a-i-eth0` has no address, and `vhost0` carries the
+management/SLO address. For anything else, match on the address in
+[`ip addr`](../../commands/network/ip/) output rather than on the interface name.
+</Aside>
+
 The CE public addresses have no listener on 22 either, which is why the command above
 goes through `-J`: an operator VM inside the VNet, in the same subnet as the SLI
-addresses.
+addresses. On this deployment `ar-ecmp-client` is that VM.
+
+<Aside type="caution" title="-J does not pass your options to the jump leg">
+Options given on the command line apply to the final hop. `-o UserKnownHostsFile=/dev/null`
+alongside `-J` therefore still consults and writes your real `known_hosts` for the *jump*
+host, which is the surprise if you are trying to keep a rebuilt fleet out of it. Spell the
+first hop out when that matters:
+
+```bash
+ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@<operator-vm>" \
+    -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_ed25519 "admin@$SLI"
+```
+
+</Aside>
 
 <Aside type="caution" title="Two measurement mistakes that produce confident wrong answers">
 Probing eth0, the external interface, or the public address for port 22 reports closed
@@ -158,13 +221,35 @@ for that address and reconnect. Since granting SSH replaces the VMs at all, expe
 the very first connection after adopting it.
 </Aside>
 
-The login banner reports the node's registration state, which is the quickest way to tell
-a node that is still coming up from one that is broken:
+## The banner is a free health check
+
+Before you type anything, the login banner has already answered several of the questions you
+would otherwise spend commands on. From `f5-xc-ce-vm-01`, ASCII art and the public IP elided:
 
 ```text
-Registration Status: PROVISIONING
+UNAUTHORIZED ACCESS TO THIS DEVICE IS PROHIBITED
+All actions performed on this device are audited
+
+Using https://register.ves.volterra.io
+OS: rhel-9.2024.6
+Memory: 32768MiB
+Storage: sda: 31GiB
+CPU: Model: Intel(R) Xeon(R) Platinum 8272CL CPU @ 2.60GHz | CPUs: 8
+Software: crt-20250613-3382
+DNS: 168.63.129.16: OK
+NTP: Synced
+Uptime: 0 days, 5 hours, 20 minutes
+Registration Status: PROVISIONED
 SLO IP: 10.0.1.4/26
+WELCOME IN SITE CLI
 ```
+
+`Registration Status` distinguishes a node still coming up (`PROVISIONING`) from one that is
+done (`PROVISIONED`). `Software` is the build string that decides which commands exist.
+`DNS` and `NTP` cover the two dependencies that break registration first, so a node that
+never came online has usually already told you why here — before
+[`chronyc-sources`](../../commands/network/chronyc-sources/) or
+[`dig`](../../commands/network/dig/) are needed at all.
 
 ## Supplying the keypair
 
@@ -213,9 +298,10 @@ Each is plausible enough to cost a day.
 | A missing `admin_password` | Setting `admin_password` alongside `ssh_key` on a from-scratch CE changed nothing. |
 
 <Aside type="caution" title="Two API fields that look like discriminators and are not">
-`gc_spec.admin_ssh_key` is empty on **all 88 sites in the tenant**, including the 20 that
-set `admin_password`. Comparing it between a working and a non-working site tells you
-nothing, because it is empty everywhere.
+`gc_spec.admin_ssh_key` is empty or absent on **all 58 sites in `f5-sales-demo`** — including
+the two that do set `admin_user_credentials.ssh_key`. Comparing it between a working and a
+non-working site tells you nothing, because it reads empty even for the sites where the
+credential *is* configured.
 
 `registrations_by_site` omits the field entirely and returns `None` for it, which reads
 as "not configured" rather than "not reported".
@@ -228,6 +314,11 @@ as "not configured" rather than "not reported".
     title="Debug API"
     description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Covers 34 commands and needs the site <code>ONLINE</code>."
     href="../debug-api/"
+  />
+  <LinkCard
+    title="Site Console"
+    description="F5's node troubleshooting UI over an Azure Bastion tunnel. No key, no jump host, and it answers before the site registers."
+    href="../site-console/"
   />
   <LinkCard
     title="Serial console"

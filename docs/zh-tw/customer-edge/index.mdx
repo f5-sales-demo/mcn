@@ -1,28 +1,28 @@
 ---
 title: Customer Edge 診斷
-description: 當 Customer Edge 運作異常時，請先閱讀此層級的內容。它會確立兩條存取路徑中適用的是哪一條，因為選錯的那一條會靜默地回傳空值。
+description: 當 Customer Edge 出現異常時，請先閱讀本層級。先確立四種存取路徑中適用的是哪一種，因為選錯路徑會靜默地回傳空結果。
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: f6d78e1c7066
+  sourceHash: e7a23e4a0f12
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Customer Edge (CE) 是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節點 —
-`terraform/modules/ce-node`，以
-`volterraedgeservices/volterra-node` marketplace 映像檔建置而成。
+Customer Edge（CE）是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節點 —
+`terraform/modules/ce-node`，以 `volterraedgeservices/volterra-node`
+Marketplace 映像檔建置。
 
-它執行資料平面 (Argo)、控制平面 (Vega)、一個 Envoy Proxy、一套 Kubernetes
-堆疊，以及 `vpm` — 負責註冊節點並管理節點上其餘一切的代理程式。
+它執行資料平面（Argo）、控制平面（Vega）、一個 Envoy Proxy、一套 Kubernetes
+堆疊，以及 `vpm` —— 負責註冊節點並管理節點上其他所有項目的代理程式。
 
-當 CE 運作異常時，Site CLI 就是診斷工具。第一個決定是判斷適用哪一條存取路徑，
-選錯會浪費時間，而且看起來就像節點壞掉了一樣。
+當 CE 出現異常時，Site CLI 就是診斷工具。第一個決定是判斷適用哪一種存取路徑，
+選錯會浪費時間，而且症狀看起來就像節點壞掉一樣。
 
-## 兩條存取路徑，兩者不可互換
+## 四種存取路徑，彼此並不可互換
 
 <CardGrid>
   <LinkCard
@@ -31,31 +31,46 @@ Customer Edge (CE) 是本儲存庫佈建至 Azure 的 F5 Distributed Cloud 節�
     href="./access/debug-api/"
   />
   <LinkCard
+    title="Site Console"
+    description="F5's own per-node troubleshooting UI, over an Azure Bastion tunnel. No SSH key, no jump host."
+    href="./access/site-console/"
+  />
+  <LinkCard
+    title="SSH"
+    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
+    href="./access/ssh/"
+  />
+  <LinkCard
     title="Serial console"
-    description="For a node that never registered. The only route when the API cannot answer."
+    description="For a node that never registered. The only route when the node has no network path."
     href="./access/serial-console/"
   />
 </CardGrid>
 
 Debug API **透過 F5 Distributed Cloud 控制平面**連上節點。
-這正是這項區分之所以重要的原因：只有在節點已完成註冊且回報 `ONLINE` 之後，
-API 才能回應。
+這正是這項區分之所以重要的原因：只有在節點已註冊並回報 `ONLINE` 之後，API 才能回應。
 
-註冊失敗的節點 — cloud-init 有誤、權杖過期、無法路由至
-`register.ves.volterra.io` — 正是你最需要診斷的情況，
-也正是 API 無法服務的情況。
+註冊失敗的節點 —— cloud-init 有誤、權杖過期、無法路由至
+`register.ves.volterra.io` —— 正是你最需要診斷的情況，
+也正是 API 無法提供服務的情況。
 
-[SSH](./access/ssh/) 是第三個選項，也是唯一能觸及設備完整命令介面的方式 —
-debug API 只公開 34 個命令，而節點本身提供的遠不止於此。有兩件事限制了它。
-`sshd` 只在節點的內部 (SLI) 位址上回應，因此需要一台位於 VNet 內的主機；
-而金鑰是由 cloud-init 在首次開機時寫入的，因為 site 物件上的 `ssh_key` 欄位無作用 —
-`vpm` 會跳過 `admin` 使用者且從不套用它。因此，要在執行中的節點上啟用它就等於替換節點。
+當你想使用 F5 自家的疑難排解 UI，而非執行特定指令時，[Site Console](./access/site-console/)
+是首選。它對你的要求最少 —— 不需要金鑰、不需要跳板主機、節點也不需要公用 IP ——
+因為誰可以連線變成一項 Azure RBAC 決策，而且無論站台是否已註冊它都能回應。它需要 Azure Bastion，
+本部署以 `enable_bastion` 控管，且預設不會佈建。
 
-所以：如果站台為 `ONLINE` 且 34 個命令已足夠，請使用 debug API。如果你需要其餘的
-命令介面且能連上 VNet，請使用 SSH。如果壞掉的是註冊本身，序列主控台是唯一的入口。
+[SSH](./access/ssh/) 是唯一能觸及設備完整指令介面的途徑 ——
+Debug API 只公開 34 個指令，而節點本身提供的遠不止於此。有兩項限制。
+`sshd` 僅在節點的內部（SLI）位址上回應，因此需要一台位於 VNet 內的主機；
+此外金鑰是由 cloud-init 在首次開機時寫入的，因為站台物件上的 `ssh_key` 欄位是無效的 ——
+`vpm` 會略過 `admin` 使用者，永遠不會套用它。因此若要在執行中的節點上啟用，就必須將其汰換重建。
 
-<Aside type="caution" title="先檢查站台狀態">
-一個請求就能告訴你該走哪條路徑：
+所以：如果站台為 `ONLINE` 且 34 個指令已足夠，請使用 Debug API。若需要 UI，或節點從未註冊
+但仍有網路路徑，請使用 Site Console。如果你需要其餘的指令介面且能連到 VNet，請使用 SSH。
+如果節點完全沒有可用的網路路徑，序列主控台是唯一的進入途徑。
+
+<Aside type="caution" title="先檢查站台狀態 —— 並確認你查詢的是正確的租戶">
+一個請求就能告訴你目前處於哪一條路徑：
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -63,39 +78,43 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` 表示 debug API 可以運作。其他任何狀態 — 或站台根本不存在 —
-都表示要用序列主控台。
+`ONLINE` 表示 Debug API 可以使用。其他任何狀態都代表要改用 Site Console 或序列主控台。
+
+當站台**不存在**時，在「它從未註冊」之前還有另一種解釋：你指向了錯誤的租戶。
+本部署位於 `f5-sales-demo`
+（`https://f5-sales-demo.console.ves.volterra.io`），由 `var.expected_xc_tenant` 鎖定 ——
+執行 `cd terraform && terraform output -raw xc_tenant` 即可確認，且不會變更任何內容。
+為其他租戶簽發的憑證會回傳單純的 `401`，看起來就像權杖過期一樣。
 </Aside>
 
 ## 安全規則
 
-以下規則適用於下列各頁的每一個命令。
+以下規則適用於下列各頁的每一個指令。
 
-- **除非你有十足把握，否則只做唯讀操作。** 命令介面分為兩個權限層級，
-  而 `Exec` 層級不是會變更節點狀態，就是會讀取某個狀態標記。這些頁面上沒有任何
-  內容會執行 `Exec` 命令，擷取工具 (capture harness) 也不會。
-- **絕不要從命令名稱推斷它是安全的。** `ip-link-set` 讀起來像查詢，
-  實際上會讓介面斷線。`systemctl-restart-crio` 會在資料平面運作中重新啟動
-  容器執行環境。
-- **優先使用能回答問題的最小範圍命令。** `health` 與 `diagnosis`
-  能以低成本摘要節點狀態；`flow-l` 則會傾印一份 629,760 筆的流量表。
-- **CE 承載即時流量。** 這些是共用的展示環境。請假設有人正在用你要除錯的
-  站台進行簡報。
+- **除非你有十足把握，否則只做唯讀操作。** 指令介面分為兩個權限層級，而
+  `Exec` 層級要麼會變更節點狀態，要麼會讀取狀態標記。這些頁面上沒有任何內容會執行
+  `Exec` 指令，擷取工具也不會。
+- **切勿從指令名稱推斷它是安全的。** `ip-link-set` 讀起來像查詢，實際上會關閉介面。
+  `systemctl-restart-crio` 會在資料平面運作中重啟容器執行環境。
+- **優先選擇能回答問題的最小範圍指令。** `health` 與 `diagnosis`
+  能以低成本摘要節點狀態；`flow-l` 會傾印每一條即時流量，而 `flow-l-match`
+  則針對單一連線回答同樣的問題。
+- **CE 承載實際流量。** 這些是共用的展示環境。請假設有人正在使用你正在除錯的站台進行簡報。
 
-## 這裡記錄了哪些內容
+## 本文件涵蓋的內容
 
-本租戶所執行的軟體版本上，透過 debug API 可觸及的每一個命令，
-每一個都附有從實際運作節點擷取的輸出，而非從別處轉錄而來。
+本租戶所執行的軟體版本上，所有可透過 Debug API 存取的指令，每一個都附有從實際節點擷取的輸出，
+而非從別處轉錄而來。
 
-[命令參考](./commands/) 列出所有命令及其類別、權限層級與傳輸方式；
-[工作流程](./workflows/) 則將它們串連成出問題時實際會使用的操作順序。
+[指令參考](./commands/)列出全部指令及其類別、權限層級與傳輸方式；
+[工作流程](./workflows/)則將它們串接成你在出問題時實際會使用的操作序列。
 
-Site CLI 中僅限於機上執行的部分 — `configure`、`configure-network`、
-`factory-reset`、`upgrade` 以及大約六十個其他 `ExecCLI` 命令 — 不在涵蓋範圍內，
-因為它們的輸出並未像下列每一頁那樣，從實際運作的節點擷取而來。
+Site CLI 中僅限於節點本機的部分 —— `configure`、`configure-network`、
+`factory-reset`、`upgrade` 以及約六十個其他 `ExecCLI` 指令 —— 並未涵蓋在內，
+因為它們的輸出並未像下列各頁那樣從實際節點擷取。
 
-不過，它們已不再遙不可及。`scripts/sitecli_ssh_harvest.py` 會透過
-[SSH](./access/ssh/) 驅動設備本身的補全選單，並記錄設備對每個命令所給出的描述，
-如此一來這片命令介面就能被量測，而非僅憑猜測。
-它的執行採預設拒絕 — 它會列舉一切，但只執行允許清單中的項目 —
-因為未經驗證的命令語法，以及未經驗證的命令*效果*，正是這份文件存在要避免重蹈覆轍的缺陷。
+不過，它們已不再遙不可及。`scripts/sitecli_ssh_harvest.py` 會透過 [SSH](./access/ssh/)
+驅動設備自身的自動完成選單，並記錄設備對每個指令所給出的說明，
+如此一來這個指令介面就能被實際量測，而非靠猜測。它的執行採預設拒絕 ——
+它會列舉所有項目，但只執行允許清單中的指令 ——
+因為未經驗證的指令語法，以及未經驗證的指令*作用*，正是本文件存在所要避免重蹈覆轍的缺陷。

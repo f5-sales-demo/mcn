@@ -23,16 +23,29 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```json file=../../../../_data/sitecli-diagnosis.txt
 ```
 
-The node probes its own gateway and reports the result per node, so on a multi-node
-site you get one block each. `gateway_connectivity` carries a ping summary — `sent`,
+The results are reported per node, so on a multi-node site you get one block each.
+`gateway_connectivity` and `dns_connectivity` each carry a ping summary — `dest_ip`, `sent`,
 `received`, `lost` and round-trip times.
 
-<Aside type="note" title="100% loss to the gateway is not necessarily a fault">
-On this topology the gateway does not answer ICMP, so `lost: 100` is the steady
-state while the site is `ONLINE` and forwarding. Treat this field as a signal only
-when you already have other evidence of a problem, or when it changes.
+<Aside type="danger" title="Both ping probes report 100% loss on a perfectly healthy node">
+On this topology **both** `gateway_connectivity` (to `10.0.1.1`) and `dns_connectivity` (to
+`168.63.129.16`) report `sent: 5, received: 0, lost: 100` while the site is `ONLINE`,
+forwarding traffic, and `registration_status: OK` — verified again while writing this. Two
+`lost: 100` blocks in one response is the single most alarming-looking thing on this page and
+it is the normal state.
+
+`dns_connectivity` is the more misleading of the two, because DNS demonstrably works: the
+same response's `dns_query_result` holds ten successful lookups, `NOERROR`, against that
+exact resolver. The probe measures ICMP reachability, which the Azure platform addresses do
+not answer; it does not measure DNS.
+
+Treat either field as a signal only when you already have other evidence of a problem, or
+when it changes.
 </Aside>
 
-`resolv_conf` is the more consistently useful field: it shows the resolver the node
-will actually use, which is worth comparing against what you expect before spending
-time in [`dig`](../../network/dig/).
+The fields worth reading first are elsewhere in the response: `registration_status`,
+`curl_response` (one entry per F5 endpoint the node needs, each `OK` or not),
+`dns_query_result`, and `ntp_sync_status`.
+
+`resolv_conf` shows the resolver the node will actually use, which is worth comparing against
+what you expect before spending time in [`dig`](../../network/dig/).

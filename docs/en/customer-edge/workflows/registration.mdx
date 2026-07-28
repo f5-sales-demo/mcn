@@ -12,12 +12,32 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 The debug API reaches the node through the F5 Distributed Cloud control plane, over
 the tunnel that registration establishes. If registration failed there is no tunnel,
 so every command on this site is unavailable for this exact failure. Work from
-[serial console](../../access/serial-console/).
+[Site Console](../../access/site-console/) if the node still has a network path, and from
+[serial console](../../access/serial-console/) if it does not.
 </Aside>
 
 <Steps>
 
-1. **Confirm what the tenant thinks.** Absent from the site list is a different
+1. **Confirm you are asking the right tenant.** This costs one command and it is first
+   because getting it wrong makes every later step lie to you: a healthy fleet in the tenant
+   you are not looking at is indistinguishable from a fleet that never registered.
+
+   ```bash
+   cd terraform
+   terraform output -raw xc_tenant       # the tenant this deployment belongs to
+   terraform output -raw xc_env_tenant   # the tenant your shell is exporting
+   ```
+
+   ```text
+   f5-sales-demo
+   f5-sales-demo
+   ```
+
+   Mismatched, or a credential you believe is good returning a bare `401`? That is the
+   symptom of a token minted for another tenant, and it has already cost this deployment one
+   full rebuild ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
+
+2. **Confirm what the tenant thinks.** Absent from the site list is a different
    problem from present but not `ONLINE`.
 
    ```bash
@@ -28,21 +48,53 @@ so every command on this site is unavailable for this exact failure. Work from
    If the site exists and reports `ONLINE`, registration succeeded and you are in the
    wrong workflow.
 
-2. **Check for a pending registration.** A node can register and then wait for
+3. **Find the site's registration and its state.** A node can register and then wait for
    approval, which looks identical to a failure from the outside.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
-     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate"
+     "$XCSH_API_URL/api/register/namespaces/system/registrations_by_site/<site>" \
+     | jq -r '.items[] | "\(.name)  \(.object.status.current_state)  \(.object.spec.gc_spec.infra.hostname)"'
    ```
 
-3. **Confirm the VM is actually running**, before assuming a software fault.
+   ```text
+   r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
+   ```
+
+   No items at all means the node has not registered yet — go to the serial console. An item
+   in a state other than `ONLINE` means it registered and something after that failed, which
+   is a different investigation.
+
+   To sweep the whole namespace for anything waiting on approval, `listregistrationsbystate`
+   takes the state as a **`POST` body**:
+
+   ```bash
+   curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"namespace":"system","state":"PENDING"}' \
+     "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
+   ```
+
+   On a healthy fleet that returns nothing, because approval is automated.
+
+4. **Confirm the VM is actually running**, before assuming a software fault.
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
    ```
 
-4. **Attach the serial console.** This needs a terminal — it cannot be scripted.
+   ```text
+   Name            Power
+   --------------  ----------
+   ar-ecmp-client  VM running
+   f5-xc-ce-vm-01  VM running
+   f5-xc-ce-vm-02  VM running
+   f5-xc-ce-vm-03  VM running
+   ```
+
+5. **Attach the serial console.** Interactively this needs a real terminal; the attach
+   itself can be scripted over the websocket instead — see
+   [serial console](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
@@ -52,21 +104,34 @@ so every command on this site is unavailable for this exact failure. Work from
    node is unreachable; that prerequisite and its failure modes are covered on the
    [serial console](../../access/serial-console/) page.
 
-5. **Read what the console shows, in this order.** cloud-init first — a node whose
+6. **Read what the console shows, in this order.** cloud-init first — a node whose
    cloud-init never completed has no configuration to register with. Then the
    registration attempts themselves, then DNS: if the node cannot resolve
    `register.ves.volterra.io`, nothing downstream can work.
 
-6. **Once the node is `ONLINE`**, verify with [`health`](../../commands/system/health/)
+7. **Once the node is `ONLINE`**, verify with [`health`](../../commands/system/health/)
    and expect `state: PROVISIONED`.
 
 </Steps>
 
+<Aside type="caution" title="A registration is named for a UUID, never after its site">
+Registrations are named `r-<uuid>`, and there is no endpoint that takes a site name where a
+registration name is expected.
+`GET .../registrations/<site>` returns `404`, which reads as "this site has no
+registration" and is really "that is not a registration name". The site-to-registration
+mapping only comes from `registrations_by_site/<site>`, as in step 3, or by listing
+`registrations` and matching on `gc_spec.passport.cluster_name`.
+
+The same trap made it look as though a healthy fleet had zero registrations.
+</Aside>
+
 ## The usual causes
 
+- **You are pointed at the wrong tenant**, so a fleet that is fine looks absent. Step 1.
 - cloud-init did not complete, so `/etc/vpm/config.yaml` is absent or wrong.
 - The registration token is expired, already consumed, or from another tenant.
 - No egress route to `register.ves.volterra.io`.
 - Clock skew large enough to invalidate certificates — quick to rule out later with
   [`chronyc-sources`](../../commands/network/chronyc-sources/), but not reachable
-  until the node is online.
+  until the node is online. The [SSH](../../access/ssh/) login banner reports `NTP: Synced`
+  and the resolver's status before you run anything, when SSH is available.
