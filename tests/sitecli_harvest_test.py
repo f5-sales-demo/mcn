@@ -22,6 +22,7 @@ be wrong.
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -314,19 +315,30 @@ def test_trim_of_empty_or_prompt_only_output_is_empty():
     assert h.trim_command_output(">>> execcli x\n>>> \n") == ""
 
 
-def run_one(fn):
-    """Run one test and return its failure message, or None if it passed.
+#: Failures a test here can plausibly raise other than AssertionError. Enumerated
+#: rather than catching Exception: a test written before the function it exercises
+#: raises AttributeError, and that must be reported as one failing test rather
+#: than aborting the remaining tests. Anything outside this set is unexpected and
+#: is deliberately left to propagate — the run then ends with a traceback and a
+#: non-zero exit, which is loud, rather than being folded into a tidy report.
+EXPECTED_TEST_FAILURES = (
+    AttributeError,
+    IndexError,
+    KeyError,
+    OSError,
+    TypeError,
+    ValueError,
+    subprocess.SubprocessError,
+)
 
-    Catches every exception, not just AssertionError. A test that raises
-    AttributeError — because the function it exercises does not exist yet — must
-    be reported as one failure, not allowed to abort the run and take the summary
-    line and the exit code with it.
-    """
+
+def run_one(fn):
+    """Run one test and return its failure message, or None if it passed."""
     try:
         fn()
     except AssertionError as exc:
         return str(exc) or "assertion failed"
-    except Exception as exc:  # noqa: BLE001 - a test runner must survive any failure
+    except EXPECTED_TEST_FAILURES as exc:
         return f"{type(exc).__name__}: {exc}"
     return None
 
