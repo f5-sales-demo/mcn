@@ -1,27 +1,28 @@
 ---
 title: 竣工演示指南
 description: >-
-  本仓库部署了什么 —— 三个单节点 Customer Edge 通过 eBGP 向 Azure Route Server 发起同一个 VIP 以实现三路
-  ECMP —— 如何在演示前证明其运行正常，以及两种看似正常却会被误读为故障的结果。
+  本仓库部署的内容 —— 三个单节点 Customer Edge 通过 eBGP 向 Azure Route Server 发起同一个 VIP 以实现三路
+  ECMP —— 如何在演示前验证其健康状态，以及两个看似正常却会被误读为故障的结果。
 sidebar:
   order: 5
   label: 竣工演示
 i18n:
-  sourceHash: 8e45b930d69d
+  sourceHash: 0d2a4becd81a
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-本部署演示了 **Azure 中的 active/active Customer Edge 高可用性**，且 CE 前面没有任何 Azure
-负载均衡器。三个 CE 各自通过 eBGP 发起同一条主机路由，Azure Route Server 将这三者全部安装为
-VNet 中的等价下一跳。因此，流量分发和故障节点摘除是由路由网络（而非负载均衡器）来完成的。
+本部署演示的是 **Azure 中的 active/active Customer Edge 高可用性**，
+且 CE 前端没有任何 Azure 负载均衡器。三个 CE 各自通过 eBGP 发起相同的主机
+路由，Azure Route Server 将这三者全部安装为 VNet 中的等价下一跳。因此，流量
+分发与故障节点剔除是由路由结构（而非负载均衡器）来完成的。
 
-下文所展示的一切都是针对实际运行的部署执行的，输出即为其真实产生的输出。这句话*未*覆盖的两件事
-—— 故障切换与流量分发 —— 在文末明确指出，而不是留给读者去假设。
+以下展示的所有内容都是针对实际部署运行的，输出即为其实际产生的输出。这句话
+**未**涵盖的两件事 —— 故障切换与流量分发 —— 会在末尾明确说明，而不是留给读者去假设。
 
-## 部署内容
+## 部署了什么
 
 ```text
                   Azure Route Server  ce-ha-lab-rrs  ASN 65515
@@ -39,34 +40,34 @@ VNet 中的等价下一跳。因此，流量分发和故障节点摘除是由路
                           three-way ECMP into the VNet
 ```
 
-| 组成部分 | 实际构建 |
+| 组成部分 | 竣工状态 |
 | --- | --- |
 | Customer Edge | 3 个单节点 Secure Mesh v2 站点 —— `ar-bgp-eastus01`、`ar-bgp-eastus02`、`ar-bgp-eastus03` |
 | CE 软件 | 固定为 `9.2024.6`，构建版本 `crt-20250613-3382` |
-| Azure 虚拟机 | `f5-xc-ce-vm-01/02/03`，每台三个 NIC（管理/SLO、外部、内部/SLI） |
+| Azure 虚拟机 | `f5-xc-ce-vm-01/02/03`，每台三块网卡（管理/SLO、外部、内部/SLI） |
 | 路由交换 | Azure Route Server `ce-ha-lab-rrs`，ASN `65515`，实例 `10.0.4.4` 和 `10.0.4.5` |
-| 对等连接 | 每个 CE 一个 —— `eastus01-bgp`、`eastus02-bgp`、`eastus03-bgp` —— CE ASN `64512` |
+| 对等体 | 每个 CE 一个 —— `eastus01-bgp`、`eastus02-bgp`、`eastus03-bgp` —— CE ASN `64512` |
 | 通告的 VIP | `10.250.0.10/32`，由三个 CE 以完全相同的方式发起 |
-| 负载均衡器 | `ar-bgp-ecmp-lb`，服务域名 `ar-bgp-ecmp.bankexample.com` |
+| 负载均衡器 | `ar-bgp-ecmp-lb`，服务于域名 `ar-bgp-ecmp.bankexample.com` |
 | 测试客户端 | `ar-ecmp-client`，位于同一 VNet 内的一台虚拟机 |
 | 资源组 | `rg-mcn-ce-ha-rmordasiewicz` |
 
 <Aside type="caution" title="VIP 必须位于所有 VNet CIDR 之外">
-`terraform/main.tf` 中包含一个 `check` 块，用于断言 VIP 位于中心（hub）和分支（spoke）两个
-CIDR 之外，否则拒绝该计划。其给出的理由是：即使 BGP 路由更具体，位于 VNet CIDR 内的 VIP 仍会
-输给 VNet 自身的系统路由。
+`terraform/main.tf` 中包含一个 `check` 块，用于断言 VIP 位于中心（hub）和分支（spoke）
+CIDR 之外，否则拒绝该计划。其给出的理由是：位于 VNet CIDR 内的 VIP 即便 BGP 路由更精确，
+仍会输给 VNet 自身的系统路由。
 
-请将该保护措施视为约定：如果你把此演示改指向不同的地址规划，VIP 也必须随之移出 VNet 地址范围。
+请将这个防护视为契约：如果你将本演示重新指向不同的编址方案，VIP 也必须随之移出 VNet 范围。
 </Aside>
 
-## 在演示前证明其运行正常
+## 演示前先验证健康状态
 
-四项检查，按此顺序进行。每一项都会缩小故障可能存在的范围，因此某项失败能告诉你具体信息，而不
-只是"出了问题"。
+按此顺序执行四项检查。每一项都会缩小故障可能存在的范围，因此某项失败能告诉你具体信息，
+而不仅仅是"哪里出问题了"。
 
 <Steps>
 
-1. **三个站点全部为 `ONLINE`。** 若非如此，下游的任何结论都不可能成立。
+1. **三个站点均为 `ONLINE`。** 如果这一条不成立，后续任何内容都无从谈起。
 
    ```bash
    for s in ar-bgp-eastus01 ar-bgp-eastus02 ar-bgp-eastus03; do
@@ -82,8 +83,8 @@ CIDR 之外，否则拒绝该计划。其给出的理由是：即使 BGP 路由�
    ar-bgp-eastus03 -> ONLINE
    ```
 
-2. **每个对等连接都学习到了该 CE 的 VIP 通告。** 需分别查询每个对等连接 —— 请参阅下方的陷阱说明，
-   因为这里最常让演示看起来像是坏了，实际上并没有。
+2. **每个对等体都学到了该 CE 的 VIP 通告。** 分别查询每个对等体 ——
+   请参阅下面的陷阱说明，因为这里最常出现演示"看起来坏了"实际却没坏的情况。
 
    ```bash
    for p in eastus01-bgp eastus02-bgp eastus03-bgp; do
@@ -112,10 +113,10 @@ CIDR 之外，否则拒绝该计划。其给出的理由是：即使 BGP 路由�
    10.250.0.10/32  10.0.1.6   64512     EBgp
    ```
 
-   三个对等连接、三个不同的下一跳、一条前缀。这就证明了 ECMP 的通告侧。
+   三个对等体、三个不同的下一跳、一个前缀。这就证明了 ECMP 的通告侧。
 
-3. **客户端的有效路由包含全部三个下一跳。** 这就是 ECMP 本身，是 VNet 实际编程的结果 —— 不是
-   CE 声称的内容，而是 Azure 对它的处理结果。
+3. **客户端的有效路由包含全部三个下一跳。** 这才是 ECMP 本身 ——
+   即 VNet 实际编程的结果，不是 CE 声称的内容，而是 Azure 对它做了什么。
 
    ```bash
    az network nic show-effective-route-table \
@@ -135,10 +136,11 @@ CIDR 之外，否则拒绝该计划。其给出的理由是：即使 BGP 路由�
    ]
    ```
 
-   `state: Active` 且 `nextHopIpAddress` 中有三个条目，就是本项检查的要点。若期望三个而只看到
-   一个下一跳，说明某个 CE 已停止通告，第 2 步可以指出是哪一个。
+   检查点是 `state: Active` 且 `nextHopIpAddress` 中有三个条目。本应有三个下一跳
+   却只有一个，说明某个 CE 停止了通告，而第 2 步能指出是哪一个。
 
-4. **VIP 能够提供流量服务。** 从客户端虚拟机发起，并且**带上 `Host` 头** —— 参阅下方第二个陷阱。
+4. **VIP 能正常提供流量服务。** 从客户端虚拟机发起，并**带上 `Host` 头** ——
+   请参阅下面的第二个陷阱。
 
    ```bash
    az vm run-command invoke -g rg-mcn-ce-ha-rmordasiewicz -n ar-ecmp-client \
@@ -155,21 +157,21 @@ CIDR 之外，否则拒绝该计划。其给出的理由是：即使 BGP 路由�
 
 </Steps>
 
-## 陷阱：某个对等连接只显示一条路由，而这是正确的
+## 陷阱：某个对等体只显示一条路由，而这是正确的
 
-`list-learned-routes` 的作用范围仅限于你所指定的那个对等连接。它报告的是**该**对等体所通告的内容，
-而不是 Route Server 的整张表。
+`list-learned-routes` 的作用域限定为你所指定的那个对等体。它报告的是**该**对等体
+所通告的内容，而不是 Route Server 的整张表。
 
-因此单独查询 `eastus01-bgp` 只会返回一条经由 `10.0.1.4` 的 `10.250.0.10/32`，很容易将其误读为
-"只有一个 CE 在通告 —— 另外两个宕了"。其实并没有宕机。另外两条通告在它们各自的对等连接上可见，
-这正是上面第 2 步所遍历的内容。
+因此单独查询 `eastus01-bgp` 只会返回一条经由 `10.0.1.4` 的 `10.250.0.10/32`，很容易
+被误读为"只有一个 CE 在通告 —— 另外两个宕了"。其实什么都没宕。另外两条通告在它们
+各自的对等体上可见，这正是上面第 2 步循环遍历的内容。
 
-无法通过单个对等连接查询来确认 ECMP。要么遍历全部三个对等连接，要么读取客户端的有效路由表 ——
-后者通过一次调用即可显示合并后的结果。
+无法通过单次对等体查询来确认 ECMP。要么循环查询全部三个对等体，要么读取客户端的
+有效路由表 —— 后者一次调用即可显示合并后的结果。
 
-## 陷阱：裸 IP 请求返回 404
+## 陷阱：使用裸 IP 请求会返回 404
 
-负载均衡器基于 `Host` 进行匹配。VIP 并不是一个会向任何连接到该地址的人提供内容的虚拟服务器。
+负载均衡器基于 `Host` 进行匹配。VIP 并不是一个会对任何连接到该地址的请求都提供服务的虚拟服务器。
 
 ```text
 curl -H 'Host: ar-bgp-ecmp.bankexample.com' http://10.250.0.10/   ->  200   (10 of 10)
@@ -177,36 +179,38 @@ curl                                        http://10.250.0.10/   ->  404
 ```
 
 以上两者都是在同一次针对健康部署的运行中产生的。**裸 IP 返回 404 恰恰证明路径是通的** ——
-请求到达了 CE，CE 的代理进行了应答，并因为没有匹配到已配置的域名而拒绝。把它读作故障会让你去
-排查 BGP，而那里根本没有问题。
+请求到达了 CE，CE 的代理做出了应答，只是因为没有匹配的已配置域名而拒绝了它。把它读成
+故障会让你去排查 BGP，而那里根本没有问题。
 
-演示过程中同理：如果你在浏览器中直接输入地址，而不是把域名解析到该地址，你就会得到 404。
+演示过程中同理：如果你在浏览器中直接输入地址，而不是将域名解析到该地址，你就会得到 404。
 
 ## 注册审批已自动化，但 apply 仍是两阶段的
 
-注册审批不再需要人工进入控制台操作。在 provider **v3.81.1** 上，`xcsh_registration_approval`
-资源负责执行审批，站点模块负责解析应审批哪个注册。
+注册审批不再需要人工进入控制台操作。在 provider **v3.81.1** 上，
+`xcsh_registration_approval` 资源会执行该操作，站点模块会解析出应批准哪一个注册。
 
-但这仍然不意味着部署是一次性、无需干预的 `apply`，在你观察首次运行并断定它失败之前，值得理解其
-原因：
+但这仍然不能使部署变成一次性无人值守的 `apply`，理解其原因很有价值 ——
+以免你看到首次运行后就断定它失败了：
 
-- CE 的注册对象名为 **`r-<uuid>`**。它绝不会以站点命名，因此在 plan 阶段无法预测该名称。
-- 注册对象只有在虚拟机启动且 `vpm` 完成注册之后才存在。
-- 因此**第一次 apply 完全不会规划任何审批**。待 CE 注册完成、审批对象创建后再次 apply 即可。
+- CE 的注册对象命名为 **`r-<uuid>`**。它绝不会以站点名称命名，因此在 plan 阶段无法预测其名称。
+- 注册只有在虚拟机启动且 `vpm` 完成注册之后才存在。
+- 因此**首次 apply 根本不会规划任何审批**。待 CE 完成注册、审批对象创建后，再次执行 apply。
 
-`terraform/main.tf` 在文件顶部记录了这一顺序，那才是权威版本 —— 部署顺序与实现它的代码放在一起。
+`terraform/main.tf` 在文件顶部记录了这一顺序，那是权威版本 ——
+部署顺序与实现它的代码放在一起。
 
 <Aside type="caution" title="全新站点无法立即通过 operate API 访问">
-在新站点报告 `ONLINE` 之后的大约 25 到 30 分钟内，`vpm/debug` 端点会返回一个 BIG-IP `503` 页面，
-内容为 `The requested URL was rejected`。它看起来像是 Web 应用防火墙拦截或令牌被吊销，但两者都不是。
-等待一段时间后重试即可。
+在新站点报告 `ONLINE` 之后的大约 25 到 30 分钟内，`vpm/debug` 端点会返回一个 BIG-IP
+`503` 页面，内容为 `The requested URL was rejected`。它看起来像是 Web 应用防火墙拦截
+或令牌被吊销，但两者都不是。等待后重试即可。
 
-这只影响刚构建好的演示，不影响正在运行的演示。
+这只影响刚构建的演示环境，不影响已在运行的环境。
 </Aside>
 
 ## 访问 Site CLI
 
-在设备上的诊断通过 debug API 进行，此处已有脚本实现。确认命令接口仍与文档描述一致：
+常规的机上诊断通过 debug API 进行，此处已有脚本化实现。
+确认命令接口仍与文档描述一致：
 
 ```bash
 bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
@@ -216,38 +220,65 @@ bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-v
 catalog matches the live CE (build crt-20250613-3382, 34 commands)
 ```
 
-`--check` 不会写入任何内容，因此对正在运行的演示是安全的。
+`--check` 不会写入任何内容，因此对运行中的演示环境是安全的。
+
+对于该 API 不转发的命令，本部署还提供了**通过 SSH 访问设备 `admin` 账户**的方式，
+其登录 shell 即为 Site CLI。三个 CE 上均已验证。请从 VNet 内部的主机连接到内部（SLI）
+地址，并分配终端：
+
+```bash
+ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<vm-in-vnet> admin@10.0.3.5
+```
+
+```text
+WELCOME IN SITE CLI
+Registration Status: PROVISIONED
+```
+
+<Aside type="caution" title="这种访问方式之所以存在，是因为这些 CE 在构建时就带上了它 —— 事后无法添加">
+运维密钥由 cloud-init `write_files` 写入，该步骤仅在首次启动时运行一次。
+`custom_data` 只能通过替换来变更，因此在已经运行的 CE 上采用此方案会替换
+每一台 CE 虚拟机 —— 而替换其中一台目前会卡住注册流程，同时 `terraform plan`
+却报告 "No changes"（[issue 674](https://github.com/f5-sales-demo/mcn/issues/674)）。
+恢复过程耗费了两次完整重建。
+
+对于本部署，该变更已经应用且集群健康。在其他环境中采用此方案的人应先阅读
+[SSH 页面](../customer-edge/access/ssh/)。
+</Aside>
 
 <CardGrid>
   <LinkCard
     title="访问 Customer Edge"
-    description="适用哪种访问途径、各自需要的凭据，以及为何这一选择并非偏好问题。"
+    description="适用哪种访问路径、各自需要的凭据，以及为什么这个选择并非个人偏好。"
     href="../customer-edge/access/"
   />
   <LinkCard
     title="BGP 命令"
-    description="来自 FRR 的设备内视图 —— 对等状态、完整路由表，以及该节点所通告的内容。"
+    description="来自 FRR 的机上视图 —— 对等状态、完整路由表，以及本节点通告了什么。"
     href="../customer-edge/commands/network/bgp/"
   />
 </CardGrid>
 
 ## 另外两个测量陷阱
 
-这两者在本环境中都给出了看似确定却错误的答案，且都不显而易见。
+这两者都在本环境中给出过看似确凿的错误答案，而且都不明显。
 
-- **从 VNet 内部而非你的工作站进行探测。** Netskope 会在常见端口上自行完成 TCP 握手，因此工作站
-  上的探测会把实际关闭的端口报告为**开放**。从工作站探测 CE 公网地址时，80 和 443 端口显示为开放，
-  而从 VNet 内部探测时它们是关闭的。请使用 `ar-ecmp-client`。
-- **CE 上的 22 端口仅在内部（SLI）地址上应答。** 从 `ar-ecmp-client` 对三个 CE 进行探测时，
-  `10.0.3.5`、`10.0.3.6` 和 `10.0.3.7` 都返回 `SSH-2.0-OpenSSH_8.7`，而管理地址和外部地址均超时 ——
-  作为对照的一个未使用地址也是如此。因此，探测你所熟知的节点地址并不能告诉你该节点的 SSH 状态。
+- **请从 VNet 内部探测，而不是从你的工作站探测。** Netskope 会在常见端口上自行完成
+  TCP 握手，因此工作站的探测会将一个实际关闭的端口报告为**开放**。从工作站探测时，
+  CE 公网地址上的 80 和 443 端口显示为开放，而从 VNet 内部探测时它们是关闭的。
+  请使用 `ar-ecmp-client`。
+- **CE 上的 22 端口仅在内部（SLI）地址上应答。** 从 `ar-ecmp-client` 对三个 CE
+  进行探测，`10.0.3.5`、`10.0.3.6` 和 `10.0.3.7` 都返回 `SSH-2.0-OpenSSH_8.7`，
+  而管理地址和外部地址均超时 —— 作为对照的未使用地址同样超时。eth0 被重命名为
+  `a-i-eth0` 且不承载主机 IP，因为数据面拥有它。因此，探测你惯用来标识节点的那个
+  地址并不能告诉你节点的 SSH 状态，应当连接的是 SLI 地址。
 
-<Aside type="note" title="本页未做出的断言">
-读者可能合理期待的两件事在此有意缺失，因为它们并未针对该部署实际验证：
+<Aside type="note" title="本页面未作出的声明">
+读者可能合理期待的两件事在此被有意省略，因为它们并未针对本部署进行过实测：
 
-- **未测试故障切换。** 已验证三个等价下一跳被安装；但当某个 CE 被停止后路由表会发生什么并未展示，
-  因此不要仅凭本页就去演练故障切换演示，请先自行验证。
-- **未测量流量分发。** 向 VIP 发出的十个请求中十个返回 `200`，这证明路径是通的。但它并未显示这十个
-  请求是如何分散到三个下一跳上的。
+- **未测试故障切换。** 已验证三个等价下一跳被安装；但当某个 CE 被停止时路由表会发生
+  什么并未展示，因此在没有先行实测的情况下，不要照着本页面排练故障切换演示。
+- **未测量流量分发。** 对 VIP 发起的十次请求全部返回 `200`，这证明路径是通的，
+  但并不能说明这十次请求是如何分散到三个下一跳上的。
 
 </Aside>

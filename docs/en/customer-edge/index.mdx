@@ -96,8 +96,12 @@ actually use when something is wrong.
 
 The on-box-only parts of the Site CLI — `configure`, `configure-network`,
 `factory-reset`, `upgrade` and roughly sixty further `ExecCLI` commands — are not
-covered.
+covered, because their output has not been captured from a live node the way every
+page below has.
 
-They are reachable only from a serial console session, so nothing about them can be
-verified programmatically, and unverified command syntax is the defect this
+They are, however, no longer out of reach. `scripts/sitecli_ssh_harvest.py` drives the
+appliance's own completion menu over [SSH](./access/ssh/) and records the description the
+appliance gives for each command, so the surface can be measured rather than guessed at.
+Its execution is default-denied — it enumerates everything and runs only an allow-list —
+because unverified command syntax, and unverified command *effects*, are the defect this
 documentation exists to avoid repeating.

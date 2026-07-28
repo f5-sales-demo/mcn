@@ -1,57 +1,68 @@
 ---
 title: Diagnostics Customer Edge
 description: >-
-  Lisez ce niveau en premier lorsqu'un Customer Edge se comporte de manière
-  anormale. Détermine lequel des deux chemins d'accès s'applique, car le mauvais
-  ne retourne silencieusement rien.
+  Consultez ce niveau en premier lorsqu'un Customer Edge dysfonctionne. Il
+  permet de déterminer lequel des deux chemins d'accès s'applique, car le
+  mauvais choix ne renvoie silencieusement rien.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: b4cc7a6da640
+  sourceHash: f6d78e1c7066
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Un Customer Edge (CE) est le nœud F5 Distributed Cloud que ce référentiel provisionne dans
-Azure — `terraform/modules/ce-node`, construit à partir de l'image marketplace
+Un Customer Edge (CE) est le nœud F5 Distributed Cloud que ce dépôt provisionne dans
+Azure — `terraform/modules/ce-node`, construit à partir de l'image de la place de marché
 `volterraedgeservices/volterra-node`.
 
 Il exécute le plan de données (Argo), le plan de contrôle (Vega), un proxy Envoy, une pile
-Kubernetes, ainsi que `vpm`, l'agent qui enregistre le nœud et gère tout le reste.
+Kubernetes et `vpm`, l'agent qui enregistre le nœud et gère tout le reste sur
+celui-ci.
 
-Lorsqu'un CE se comporte de manière anormale, le Site CLI est l'instrument à utiliser. La première décision consiste à déterminer quel chemin d'accès s'applique ; se tromper fait perdre du temps d'une façon qui ressemble à un nœud défaillant.
+Lorsqu'un CE dysfonctionne, la CLI du site est l'instrument à utiliser. La première décision
+consiste à déterminer quel chemin d'accès s'applique, et se tromper fait perdre du temps d'une
+manière qui donne l'impression d'un nœud défaillant.
 
-## Deux chemins d'accès, qui ne sont pas interchangeables
+## Deux chemins d'accès, et ils ne sont pas interchangeables
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="Pour un nœud dont l'état est <code>ONLINE</code>. Scriptable, en lecture seule, et couvre 34 commandes."
+    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
     href="./access/debug-api/"
   />
   <LinkCard
     title="Serial console"
-    description="Pour un nœud qui ne s'est jamais enregistré. La seule voie lorsque l'API ne peut pas répondre."
+    description="For a node that never registered. The only route when the API cannot answer."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-L'API de débogage atteint le nœud **via le plan de contrôle F5 Distributed Cloud**.
-C'est précisément la raison pour laquelle cette distinction est importante : l'API ne peut répondre qu'une fois que le nœud s'est enregistré et signale l'état `ONLINE`.
+L'API de débogage atteint le nœud **par l'intermédiaire du plan de contrôle F5 Distributed Cloud**.
+C'est toute la raison pour laquelle cette distinction est importante : l'API ne peut répondre
+qu'une fois le nœud enregistré et signalé comme `ONLINE`.
 
-Un nœud qui a échoué à s'enregistrer — cloud-init défectueux, jeton expiré, aucune route vers
-`register.ves.volterra.io` — est exactement le cas où des diagnostics sont nécessaires, et
-exactement le cas que l'API ne peut pas traiter.
+Un nœud dont l'enregistrement a échoué — cloud-init incorrect, jeton expiré, absence de route vers
+`register.ves.volterra.io` — correspond précisément au cas où vous avez besoin de diagnostics, et
+précisément au cas que l'API ne peut pas traiter.
 
-[SSH](./access/ssh/) est la troisième option, et la seule qui atteint la surface de commandes complète de l'appliance — l'API de débogage expose 34 commandes alors que le nœud lui-même en offre bien davantage. Deux contraintes s'appliquent. `sshd` ne répond que sur l'adresse interne (SLI) du nœud, ce qui nécessite un hôte à l'intérieur du VNet ; et la clé est écrite par cloud-init au premier démarrage, car le champ `ssh_key` de l'objet site est inopérant — `vpm` ignore l'utilisateur `admin` et ne l'applique jamais. L'activer sur des nœuds en cours d'exécution les remplace donc.
+[SSH](./access/ssh/) est la troisième option, et la seule qui donne accès à l'ensemble de la
+surface de commandes de l'appliance — l'API de débogage expose 34 commandes tandis que le nœud lui-même
+en propose bien davantage. Deux éléments la limitent. `sshd` ne répond que sur l'adresse interne (SLI)
+du nœud, ce qui nécessite donc un hôte à l'intérieur du VNet ; et la clé est écrite par cloud-init au
+premier démarrage, car le champ `ssh_key` de l'objet site est inerte — `vpm` ignore l'utilisateur `admin` et
+ne l'applique jamais. L'activer sur des nœuds en cours d'exécution implique donc de les remplacer.
 
-En résumé : si le site est `ONLINE` et que 34 commandes suffisent, utilisez l'API de débogage. Si vous avez besoin du reste de la surface et pouvez atteindre le VNet, utilisez SSH. Si c'est l'enregistrement qui est défaillant, la console série est la seule voie d'accès.
+Ainsi : si le site est `ONLINE` et que 34 commandes suffisent, utilisez l'API de débogage. Si vous avez besoin du
+reste de la surface et que vous pouvez atteindre le VNet, utilisez SSH. Si c'est l'enregistrement qui est défaillant,
+la console série est la seule voie d'accès.
 
 <Aside type="caution" title="Vérifiez d'abord l'état du site">
-Une seule requête vous indique quel chemin vous suivez :
+Une seule requête vous indique quel chemin emprunter :
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -59,34 +70,44 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` signifie que l'API de débogage fonctionnera. Tout autre état — ou un site qui
-n'existe pas — signifie qu'il faut utiliser la console série.
+`ONLINE` signifie que l'API de débogage fonctionnera. Toute autre valeur — ou un site qui n'existe
+pas — signifie console série.
 </Aside>
 
 ## Règles de sécurité
 
-Ces règles s'appliquent à chaque commande sur chaque page ci-dessous.
+Elles s'appliquent à chaque commande de chacune des pages ci-dessous.
 
-- **En lecture seule, sauf si vous êtes certain.** La surface de commandes est divisée en deux
-  niveaux de privilèges, et le niveau `Exec` soit modifie l'état du nœud, soit lit un marqueur d'état.
-  Aucune commande `Exec` n'est exécutée sur ces pages, ni par le dispositif de capture.
-- **Ne supposez jamais qu'une commande est sûre d'après son nom.** `ip-link-set` ressemble à une
-  requête mais désactive une interface. `systemctl-restart-crio` redémarre le runtime de
-  conteneurs sous un plan de données actif.
-- **Préférez la commande la plus ciblée qui répond à la question.** `health` et
-  `diagnosis` résument l'état du nœud à faible coût ; `flow-l` vide une table de flux de 629 760 entrées.
-- **Un CE sert du trafic en production.** Ce sont des environnements de démonstration partagés. Supposez que quelqu'un présente depuis le site que vous déboguez.
+- **Lecture seule sauf certitude absolue.** La surface de commandes est répartie en deux
+  niveaux de privilèges, et le niveau `Exec` modifie le nœud ou lit un marqueur
+  d'état. Rien sur ces pages n'exécute une commande `Exec`, pas plus que le
+  harnais de capture.
+- **Ne présumez jamais qu'une commande est sûre d'après son nom.** `ip-link-set` ressemble à une
+  requête et désactive une interface. `systemctl-restart-crio` redémarre le
+  runtime de conteneurs sous un plan de données actif.
+- **Privilégiez la commande la plus restreinte qui répond à la question.** `health` et
+  `diagnosis` résument l'état du nœud à faible coût ; `flow-l` déverse une table de flux de
+  629 760 entrées.
+- **Un CE traite du trafic en production.** Ce sont des environnements de démonstration partagés. Partez du principe que quelqu'un
+  est en train de présenter depuis le site que vous déboguez.
 
 ## Ce qui est documenté ici
 
-Toutes les commandes accessibles via l'API de débogage sur la version logicielle que ce tenant exécute,
-chacune avec une sortie capturée depuis un nœud actif plutôt que retranscrite d'une autre source.
+Toutes les commandes accessibles via l'API de débogage sur la version logicielle exécutée par ce tenant,
+chacune avec une sortie capturée depuis un nœud réel plutôt que transcrite d'ailleurs.
 
-La [référence des commandes](./commands/) les liste toutes avec leur catégorie, leur niveau de privilège et leur transport ; les [workflows](./workflows/) les enchaînent dans les séquences que vous utilisez réellement lorsque quelque chose ne fonctionne pas.
+La [référence des commandes](./commands/) les répertorie toutes avec leur catégorie, leur niveau
+de privilège et leur transport ; les [workflows](./workflows/) les enchaînent dans les séquences que vous
+utilisez réellement lorsqu'un problème survient.
 
-Les éléments du Site CLI accessibles uniquement depuis le nœud — `configure`, `configure-network`,
-`factory-reset`, `upgrade` et environ soixante autres commandes `ExecCLI` — ne sont pas couverts.
+Les parties de la CLI du site accessibles uniquement sur la machine — `configure`, `configure-network`,
+`factory-reset`, `upgrade` et une soixantaine d'autres commandes `ExecCLI` — ne sont pas
+couvertes, car leur sortie n'a pas été capturée depuis un nœud réel comme l'a été celle de chaque
+page ci-dessous.
 
-Ils ne sont accessibles que depuis une session de console série ; rien à leur sujet ne peut donc être
-vérifié par programmation, et la syntaxe de commande non vérifiée est précisément le défaut que cette
-documentation existe pour éviter de répéter.
+Elles ne sont toutefois plus hors de portée. `scripts/sitecli_ssh_harvest.py` pilote le
+menu de complétion de l'appliance via [SSH](./access/ssh/) et enregistre la description que l'appliance
+fournit pour chaque commande, de sorte que la surface puisse être mesurée plutôt que devinée.
+Son exécution est refusée par défaut — il énumère tout et n'exécute qu'une liste d'autorisation —
+car une syntaxe de commande non vérifiée, et des *effets* de commande non vérifiés, constituent le défaut que cette
+documentation existe pour éviter de reproduire.

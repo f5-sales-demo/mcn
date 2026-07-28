@@ -1,81 +1,82 @@
 ---
-title: Accès à un Customer Edge
+title: Accéder à un Customer Edge
 description: >-
-  Lisez ce niveau avant d'exécuter toute commande. Couvre les trois routes vers
-  un Customer Edge — l'API de débogage, SSH vers le Site CLI embarqué, et la
-  console série — avec l'authentification pour chacune, la règle
-  niveau-vers-point-de-terminaison qui détermine où une commande API de débogage
-  est envoyée, et le chemin de secours pour un nœud non enregistré. Commencez
-  ici pour choisir une route, car seuls SSH et la console série accèdent à la
-  surface de commandes embarquée complète.
+  Lisez ce niveau avant d'exécuter la moindre commande. Il couvre les trois
+  voies d'accès à un Customer Edge — l'API de débogage, SSH vers la Site CLI
+  embarquée et la console série — avec l'authentification propre à chacune, la
+  règle niveau/point de terminaison qui détermine où une commande de l'API de
+  débogage est envoyée, et la procédure de secours pour un nœud non enregistré.
+  Commencez ici pour choisir une voie, car seules SSH et la console série
+  donnent accès à l'ensemble des commandes embarquées.
 sidebar:
   order: 10
   label: Accès
 i18n:
-  sourceHash: 4f47fbc1e917
+  sourceHash: 662d9cee32ed
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Trois routes fonctionnent, et celle qui s'applique est déterminée par l'état du nœud et
-l'endroit depuis lequel vous vous connectez, plutôt que par préférence.
+Trois voies fonctionnent, et celle qui s'applique dépend de l'état du nœud et de l'endroit
+d'où vous vous connectez, plutôt que d'une préférence.
 
-| Route | Nécessite le nœud `ONLINE` | Nécessite la joignabilité réseau | Limites | Couvre |
+| Voie | Nécessite un nœud `ONLINE` | Nécessite une accessibilité réseau | Limites | Couvre |
 | --- | --- | --- | --- | --- |
-| [API de débogage](./debug-api/) | **oui** | oui | environ 25 à 30 minutes de préchauffage sur un nouveau site | 34 commandes |
-| [SSH](./ssh/) | non | depuis l'intérieur du VNet, vers l'adresse interne uniquement | la clé doit être présente dès le premier démarrage | Le Site CLI embarqué complet |
-| [Console série](./serial-console/) | non | non | une session par VM ; limite de collage de 2 048 caractères | Le Site CLI embarqué complet |
+| [API de débogage](./debug-api/) | **oui** | oui | environ 25 à 30 minutes de montée en charge sur un nouveau site | 34 commandes |
+| [SSH](./ssh/) | non | depuis l'intérieur du VNet, vers l'adresse interne uniquement | la clé doit être présente dès le premier démarrage | L'intégralité de la Site CLI embarquée |
+| [Console série](./serial-console/) | non | non | une session par VM ; limite de collage de 2 048 caractères | L'intégralité de la Site CLI embarquée |
 
-La console série est le dernier recours, et la seule route qui survit à un nœud sans
-chemin réseau fonctionnel.
+La console série est le dernier recours, et la seule voie qui subsiste sur un nœud dépourvu
+de chemin réseau fonctionnel.
 
-SSH est le recours lorsque l'API de débogage n'est pas suffisante, car l'appliance offre
-considérablement plus de commandes que les 34 exposées par l'API. Elle a deux coûts. La clé
-est écrite par cloud-init et doit donc être présente dès le **premier démarrage**, ce qui
-signifie que l'activer sur des nœuds en cours d'exécution les remplace — ce qui bloque
-actuellement l'enregistrement
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). Et `sshd` répond uniquement
-sur l'adresse interne du nœud, il faut donc un hôte à l'intérieur du VNet ; sonder
-l'adresse par laquelle vous connaissez le nœud signalera toujours fermé.
+SSH est la voie à privilégier lorsque l'API de débogage ne suffit pas, car l'appliance offre
+nettement plus de commandes que les 34 exposées par cette API. Elle a deux coûts. La clé est
+écrite par cloud-init et doit donc être présente au **premier démarrage**, ce qui signifie que
+l'activer sur des nœuds en cours d'exécution les remplace — et cela bloque actuellement
+l'enregistrement
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). Par ailleurs, `sshd` ne répond que
+sur l'adresse interne du nœud, il faut donc un hôte à l'intérieur du VNet ; sonder l'adresse par
+laquelle vous connaissez le nœud renverra toujours un port fermé.
 
-## Pourquoi la séparation n'est pas une préférence
+## Pourquoi cette répartition n'est pas une question de préférence
 
 L'API de débogage est servie par le plan de contrôle F5 Distributed Cloud, qui relaie vers
-le nœud via le tunnel que `vpm` établit lors de l'enregistrement. Aucun enregistrement
-signifie aucun tunnel, ce qui signifie que l'API n'a rien vers quoi relayer.
+le nœud via le tunnel que `vpm` établit lors de l'enregistrement. Pas d'enregistrement signifie
+pas de tunnel, ce qui signifie que l'API n'a rien vers quoi relayer.
 
-Elle échoue de manière peu explicite plutôt qu'évidente, de sorte qu'un nœud qui n'a
-jamais démarré ressemble à un problème d'API.
+L'échec se manifeste d'une manière peu explicite plutôt qu'évidente, si bien qu'un nœud qui
+n'a jamais démarré ressemble à un problème d'API.
 
-La console série fonctionne à l'opposé — via la Plateforme Azure vers le
-port série émulé du nœud. Elle ne tient pas compte du fait que le nœud s'est enregistré,
-dispose d'une joignabilité réseau, ou d'un plan de données fonctionnel. Cette indépendance
-est tout l'intérêt, et c'est pourquoi les diagnostics de démarrage doivent rester activés
-sur les VM CE.
+La console série emprunte une tout autre voie — par la plateforme Azure jusqu'au port série
+émulé du nœud. Peu lui importe que le nœud soit enregistré, qu'il dispose d'une accessibilité
+réseau ou d'un plan de données fonctionnel. Cette indépendance est tout l'intérêt, et c'est
+pourquoi les diagnostics de démarrage doivent rester activés sur les VM CE.
 
-<Aside type="note" title="Quel recours choisir">
-Si vous écrivez de l'Automatisation, ou collectez des preuves que vous souhaitez
-réexécuter ultérieurement, utilisez l'API de débogage. Si l'enregistrement est ce qui
-est cassé, la console série n'est pas un repli — c'est la seule option.
+<Aside type="note" title="Quelle voie choisir">
+Si vous écrivez de l'automatisation, ou si vous collectez des éléments que vous voulez pouvoir
+rejouer plus tard, utilisez l'API de débogage. Si c'est l'enregistrement qui est en panne, la
+console série n'est pas une solution de repli — c'est la seule option.
 </Aside>
 
-## Informations d'identification
+## Identifiants
 
-Les deux routes utilisent des informations d'identification différentes, et aucune
-n'appartient à une ligne de commande.
+Chaque voie utilise des identifiants différents, et aucun d'eux n'a sa place sur une ligne de commande.
 
-- **API de débogage** — un jeton API F5 Distributed Cloud, sous la forme `XCSH_API_TOKEN`,
-  avec l'URL du tenant en tant que `XCSH_API_URL`. Le fichier de contexte `xcsh` situé à
-  `~/.config/xcsh/contexts/<tenant>.json` contient les deux, ce que
-  `scripts/capture-sitecli.sh` lit lorsque l'environnement ne les fournit pas.
-- **Console série** — votre connexion Azure interactive. Il n'existe pas de principal de
-  service pour cela : le tenant Entra de F5 Corporate ne permet pas d'en provisionner un,
-  ce qui explique également pourquoi aucune partie de ceci ne s'exécute en CI.
+- **API de débogage** — un jeton d'API F5 Distributed Cloud, dans `XCSH_API_TOKEN`, avec l'URL
+  du locataire dans `XCSH_API_URL`. Le fichier de contexte `xcsh` situé à
+  `~/.config/xcsh/contexts/<tenant>.json` contient les deux, et c'est ce que lit
+  `scripts/capture-sitecli.sh` lorsque l'environnement ne les fournit pas.
+- **SSH** — la moitié privée de la paire de clés dont la moitié publique a été écrite par le
+  déploiement dans `/var/home/admin/.ssh/authorized_keys` au premier démarrage, plus un hôte à
+  l'intérieur du VNet pour atteindre l'adresse interne. Connectez-vous en tant qu'`admin`, pas `azureuser`.
+- **Console série** — votre connexion Azure interactive. Il n'existe pas de principal de service
+  pour cela : le locataire Entra d'entreprise F5 n'autorise pas d'en provisionner un, ce qui
+  explique aussi pourquoi aucune partie de cette procédure ne s'exécute en CI.
 
-<Aside type="danger" title="Ne jamais passer un jeton comme argument">
-Un jeton sur une ligne de commande se retrouve dans l'historique du shell et dans la
-liste des processus, où chaque autre utilisateur de la machine peut le lire.
-`capture-sitecli.sh` refuse `--token` catégoriquement pour cette raison et fournit
-l'en-tête à `curl` sur stdin à la place.
+<Aside type="danger" title="Ne transmettez jamais un jeton en argument">
+Un jeton passé sur une ligne de commande se retrouve dans l'historique du shell et dans la liste
+des processus, où tous les autres utilisateurs de la machine peuvent le lire. `capture-sitecli.sh`
+refuse purement et simplement `--token` pour cette raison et fournit l'en-tête à `curl` via stdin
+à la place.
 </Aside>

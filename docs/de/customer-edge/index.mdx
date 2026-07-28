@@ -1,57 +1,69 @@
 ---
 title: Customer Edge Diagnose
 description: >-
-  Lesen Sie diesen Abschnitt zuerst, wenn ein Customer Edge Fehlfunktionen
-  aufweist. Er legt fest, welcher der beiden Zugriffspfade gilt, da der falsche
-  ohne jede Meldung nichts zurückgibt.
+  Lesen Sie diese Ebene zuerst, wenn sich ein Customer Edge fehlerhaft verhält.
+  Sie legt fest, welcher der beiden Zugriffswege gilt, denn der falsche liefert
+  stillschweigend nichts zurück.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: b4cc7a6da640
+  sourceHash: f6d78e1c7066
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Ein Customer Edge (CE) ist der F5 Distributed Cloud-Knoten, den dieses Repository in
-Azure bereitstellt – `terraform/modules/ce-node`, erstellt aus dem
-`volterraedgeservices/volterra-node` Marktplatz-Image.
+Ein Customer Edge (CE) ist der F5 Distributed Cloud Knoten, den dieses Repository in
+Azure bereitstellt — `terraform/modules/ce-node`, erstellt aus dem
+Marktplatz-Image `volterraedgeservices/volterra-node`.
 
-Er führt die Datenebene (Argo), die Steuerungsebene (Vega), einen Envoy-Proxy, einen Kubernetes-
-Stack sowie `vpm` aus – den Agenten, der den Knoten registriert und alles weitere darauf
-verwaltet.
+Er betreibt die Datenebene (Argo), die Steuerebene (Vega), einen Envoy-Proxy, einen
+Kubernetes-Stack sowie `vpm`, den Agenten, der den Knoten registriert und alles Weitere
+darauf verwaltet.
 
-Wenn ein CE Fehlfunktionen aufweist, ist die Site CLI das geeignete Werkzeug. Die erste Entscheidung besteht darin, welcher Zugriffspfad gilt – eine falsche Wahl kostet Zeit auf eine Weise, die wie ein defekter Knoten aussieht.
+Wenn sich ein CE fehlerhaft verhält, ist die Site CLI das Instrument. Die erste
+Entscheidung ist, welcher Zugriffsweg gilt, und eine falsche Wahl kostet Zeit auf eine
+Weise, die wie ein defekter Knoten aussieht.
 
-## Zwei Zugriffspfade, die nicht austauschbar sind
+## Zwei Zugriffswege, und sie sind nicht austauschbar
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="Für einen Knoten mit dem Status <code>ONLINE</code>. Skriptfähig, schreibgeschützt und umfasst 34 Befehle."
+    description="Für einen Knoten, der <code>ONLINE</code> ist. Skriptfähig, schreibgeschützt und deckt 34 Befehle ab."
     href="./access/debug-api/"
   />
   <LinkCard
     title="Serielle Konsole"
-    description="Für einen Knoten, der sich nie registriert hat. Der einzige Weg, wenn die API nicht antwortet."
+    description="Für einen Knoten, der sich nie registriert hat. Der einzige Weg, wenn die API nicht antworten kann."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-Die Debug-API erreicht den Knoten **über die F5 Distributed Cloud-Steuerungsebene**.
-Das ist der eigentliche Grund, warum die Unterscheidung wichtig ist: Die API kann erst antworten, wenn sich der Knoten registriert hat und `ONLINE` meldet.
+Die Debug-API erreicht den Knoten **über die F5 Distributed Cloud Steuerebene**.
+Genau darum ist diese Unterscheidung wichtig: Die API kann erst antworten, sobald sich
+der Knoten registriert hat und `ONLINE` meldet.
 
-Ein Knoten, der sich nicht registrieren konnte – fehlerhafte Cloud-Init-Konfiguration, ein abgelaufenes Token, keine Route zu
-`register.ves.volterra.io` – ist genau der Fall, in dem Sie Diagnosefunktionen benötigen, und gleichzeitig genau der Fall, dem die API nicht bedienen kann.
+Ein Knoten, dessen Registrierung fehlgeschlagen ist — fehlerhaftes cloud-init, ein
+abgelaufenes Token, keine Route zu `register.ves.volterra.io` — ist genau der Fall, in
+dem Sie Diagnose benötigen, und genau der Fall, den die API nicht bedienen kann.
 
-[SSH](./access/ssh/) ist die dritte Option und die einzige, die die vollständige Befehlsoberfläche des Geräts erreicht – die Debug-API stellt 34 Befehle bereit, während der Knoten selbst viele weitere anbietet. Zwei Einschränkungen bestehen: `sshd` antwortet nur auf der internen Adresse (SLI) des Knotens, sodass ein Host innerhalb des VNet erforderlich ist; und der Schlüssel wird von Cloud-Init beim ersten Start geschrieben, da das Feld `ssh_key` im Site-Objekt wirkungslos ist – `vpm` überspringt den `admin`-Benutzer und wendet ihn nie an. Die nachträgliche Aktivierung auf laufenden Knoten führt daher zu deren Ersatz.
+[SSH](./access/ssh/) ist die dritte Option und die einzige, die die vollständige
+Befehlsoberfläche der Appliance erreicht — die Debug-API stellt 34 Befehle bereit, der
+Knoten selbst bietet weit mehr. Zwei Dinge schränken sie ein. `sshd` antwortet
+ausschließlich auf der internen (SLI) Adresse des Knotens, benötigt also einen Host
+innerhalb des VNet; und der Schlüssel wird beim ersten Start von cloud-init geschrieben,
+denn das Feld `ssh_key` am Site-Objekt ist wirkungslos — `vpm` überspringt den Benutzer
+`admin` und wendet es nie an. Die Aktivierung auf laufenden Knoten ersetzt diese daher.
 
-Zusammenfassend gilt: Wenn die Site `ONLINE` ist und 34 Befehle ausreichen, verwenden Sie die Debug-API. Wenn Sie die restliche Oberfläche benötigen und das VNet erreichen können, verwenden Sie SSH. Wenn die Registrierung das Problem ist, ist die serielle Konsole der einzige Zugangsweg.
+Also: Wenn die Site `ONLINE` ist und 34 Befehle genügen, verwenden Sie die Debug-API.
+Wenn Sie den Rest der Oberfläche benötigen und das VNet erreichen können, verwenden Sie
+SSH. Wenn die Registrierung das Problem ist, ist die serielle Konsole der einzige Zugang.
 
-<Aside type="caution" title="Zuerst den Site-Status prüfen">
-Eine Anfrage zeigt Ihnen, auf welchem Pfad Sie sich befinden:
+<Aside type="caution" title="Prüfen Sie zuerst den Site-Status">
+Eine einzige Anfrage sagt Ihnen, auf welchem Weg Sie sind:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -59,29 +71,48 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` bedeutet, dass die Debug-API funktioniert. Jeder andere Status – oder eine Site, die nicht
-existiert – bedeutet, dass die serielle Konsole verwendet werden muss.
+`ONLINE` bedeutet, dass die Debug-API funktioniert. Alles andere — oder eine Site, die
+nicht existiert — bedeutet serielle Konsole.
 </Aside>
 
 ## Sicherheitsregeln
 
-Diese gelten für jeden Befehl auf jeder der folgenden Seiten.
+Diese gelten für jeden Befehl auf jeder nachfolgenden Seite.
 
 - **Schreibgeschützt, sofern Sie nicht sicher sind.** Die Befehlsoberfläche ist in zwei
-  Berechtigungsstufen unterteilt, und die Stufe `Exec` mutiert entweder den Knoten oder liest einen Zustandsmarker. Keine der Seiten hier führt einen `Exec`-Befehl aus, und das Erfassungs-Harness ebenfalls nicht.
-- **Niemals davon ausgehen, dass ein Befehl aufgrund seines Namens sicher ist.** `ip-link-set` klingt wie eine Abfrage und schaltet eine Schnittstelle ab. `systemctl-restart-crio` startet die Container-Runtime unter einer aktiven Datenebene neu.
-- **Den engsten Befehl bevorzugen, der die Frage beantwortet.** `health` und
-  `diagnosis` fassen den Knoten kostengünstig zusammen; `flow-l` gibt eine Flow-Tabelle mit 629.760 Einträgen aus.
-- **Ein CE bedient Live-Datenverkehr.** Dies sind gemeinsam genutzte Demo-Umgebungen. Gehen Sie davon aus, dass jemand von der Site aus präsentiert, die Sie debuggen.
+  Berechtigungsstufen unterteilt, und die Stufe `Exec` verändert entweder den Knoten oder
+  liest einen Statusmarker. Nichts auf diesen Seiten führt einen `Exec`-Befehl aus, und
+  das Capture-Harness ebenso wenig.
+- **Gehen Sie nie davon aus, dass ein Befehl aufgrund seines Namens sicher ist.**
+  `ip-link-set` liest sich wie eine Abfrage und legt eine Schnittstelle still.
+  `systemctl-restart-crio` startet die Container-Laufzeitumgebung unter einer aktiven
+  Datenebene neu.
+- **Bevorzugen Sie den engsten Befehl, der die Frage beantwortet.** `health` und
+  `diagnosis` fassen den Knoten kostengünstig zusammen; `flow-l` gibt eine Flow-Tabelle
+  mit 629.760 Einträgen aus.
+- **Ein CE bedient produktiven Datenverkehr.** Dies sind gemeinsam genutzte
+  Demo-Umgebungen. Gehen Sie davon aus, dass jemand von der Site präsentiert, die Sie
+  gerade debuggen.
 
 ## Was hier dokumentiert ist
 
-Jeder Befehl, der über die Debug-API in dem Software-Build erreichbar ist, auf dem dieser Tenant läuft, jeweils mit einer Ausgabe, die von einem Live-Knoten erfasst wurde und nicht anderswoher übertragen wurde.
+Jeder über die Debug-API erreichbare Befehl des Software-Builds, den dieser Tenant
+betreibt, jeweils mit Ausgaben, die von einem Live-Knoten erfasst und nicht von
+anderswo übernommen wurden.
 
-Die [Befehlsreferenz](./commands/) listet alle Befehle mit ihrer Kategorie, Berechtigungsstufe und Transportmethode auf; die [Workflows](./workflows/) verketten sie zu den Abläufen, die tatsächlich verwendet werden, wenn etwas nicht stimmt.
+Die [Befehlsreferenz](./commands/) listet sie alle mit Kategorie, Berechtigungsstufe und
+Transport auf; die [Workflows](./workflows/) verketten sie zu den Abläufen, die Sie
+tatsächlich verwenden, wenn etwas nicht stimmt.
 
-Die ausschließlich auf dem Gerät verfügbaren Teile der Site CLI – `configure`, `configure-network`,
-`factory-reset`, `upgrade` und rund sechzig weitere `ExecCLI`-Befehle – werden nicht
-behandelt.
+Die nur auf dem Gerät verfügbaren Teile der Site CLI — `configure`, `configure-network`,
+`factory-reset`, `upgrade` und rund sechzig weitere `ExecCLI`-Befehle — werden nicht
+behandelt, weil ihre Ausgabe nicht so von einem Live-Knoten erfasst wurde wie bei jeder
+nachfolgenden Seite.
 
-Sie sind nur über eine serielle Konsolensitzung erreichbar, sodass nichts daran programmatisch überprüft werden kann – und ungeprüfte Befehlssyntax ist genau der Fehler, den diese Dokumentation verhindern soll.
+Sie sind jedoch nicht länger unerreichbar. `scripts/sitecli_ssh_harvest.py` steuert das
+Vervollständigungsmenü der Appliance über [SSH](./access/ssh/) und zeichnet die
+Beschreibung auf, die die Appliance für jeden Befehl liefert, sodass die Oberfläche
+gemessen statt erraten werden kann. Die Ausführung ist standardmäßig verweigert — das
+Skript zählt alles auf und führt nur eine Allow-List aus —, denn ungeprüfte Befehlssyntax
+und ungeprüfte Befehls*wirkungen* sind genau der Fehler, dessen Wiederholung diese
+Dokumentation vermeiden soll.
