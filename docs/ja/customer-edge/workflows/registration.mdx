@@ -1,33 +1,33 @@
 ---
 title: 一度もオンラインにならなかったサイト
-description: 登録に失敗した CE のための順序付き手順。デバッグ API は失敗した登録に依存しているため役に立ちません。
+description: 登録に失敗した CE 向けの手順を順序立てて解説します。デバッグ API は失敗した登録に依存しているため、この状況では役に立ちません。
 sidebar:
   order: 10
   label: 登録
 i18n:
-  sourceHash: 0bec51f79119
+  sourceHash: c687d28cce5d
   translator: machine
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-このデプロイの 1 台の CE から 2026-07-28 に取得したものです。`sitecli/capture-manifest.json`
-にどのノードかが記録されており、`scripts/capture-sitecli.sh --check` によって稼働中の CE に対して
-コマンド面を再検証できます。
+2026-07-28 にこのデプロイメントの CE 1 台から取得しました。`sitecli/capture-manifest.json`
+にはどのノードから取得したかが記録されており、`scripts/capture-sitecli.sh --check` は稼働中の CE に対して
+コマンド群を再検証します。
 
-<Aside type="danger" title="API ではこれをデバッグできません">
-デバッグ API は、登録によって確立されるトンネル経由で、F5 Distributed Cloud のコントロールプレーンを
-通じてノードに到達します。登録が失敗している場合はトンネルが存在しないため、
-このまさに障害においては本サイトのすべてのコマンドが利用できません。ノードにネットワーク経路が
-まだ残っている場合は [Site Console](../../access/site-console/) から、残っていない場合は
+<Aside type="danger" title="API ではこの問題をデバッグできません">
+デバッグ API は F5 Distributed Cloud コントロールプレーンを経由し、登録によって確立された
+トンネルを通ってノードに到達します。登録が失敗した場合はトンネルが存在しないため、
+このサイトのすべてのコマンドはまさにこの障害に対して利用できません。ノードにまだネットワーク経路がある場合は
+[Site Console](../../access/site-console/) から、ない場合は
 [シリアルコンソール](../../access/serial-console/) から作業してください。
 </Aside>
 
 <Steps>
 
 1. **正しいテナントに問い合わせているか確認します。** これはコマンド 1 つで済み、最初に行うのは、
-   ここを間違えると以降のすべてのステップが誤った情報を返すからです。見ていないテナントにある
-   正常なフリートは、一度も登録されなかったフリートと見分けがつきません。
+   ここを間違えると以降のすべてのステップが誤った情報を返すからです。見ていないテナント内の
+   正常なフリートは、一度も登録されなかったフリートと区別できません。
 
    ```bash
    cd terraform
@@ -40,23 +40,23 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    f5-sales-demo
    ```
 
-   不一致だったり、正しいと思っていた資格情報が素の `401` を返す場合はどうでしょうか。それは
-   別テナント向けに発行されたトークンの症状であり、すでにこのデプロイで完全な再構築を 1 回
-   費やしています ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696))。
+   一致していない場合、あるいは正しいと思っている資格情報が素の `401` を返す場合はどうでしょうか。それは
+   別のテナント向けに発行されたトークンの症状であり、このデプロイメントではすでに 1 度の完全な再構築という
+   代償を払っています ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696))。
 
-2. **テナント側の認識を確認します。** サイト一覧に存在しないことと、存在するが `ONLINE` でない
-   ことは別の問題です。
+2. **テナント側の認識を確認します。** サイト一覧に存在しないことは、存在するが `ONLINE` ではないこととは
+   別の問題です。
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
      "$XCSH_API_URL/api/config/namespaces/system/sites" | jq -r '.items[].name'
    ```
 
-   サイトが存在して `ONLINE` と報告されている場合、登録は成功しており、あなたは誤った
-   ワークフローにいます。
+   サイトが存在し `ONLINE` を報告している場合、登録は成功しており、あなたは誤ったワークフローに
+   取り組んでいます。
 
-3. **サイトの登録とその状態を確認します。** ノードは登録後に承認待ちになることがあり、外から見ると
-   失敗と区別がつきません。
+3. **サイトの登録とその状態を確認します。** ノードは登録した後に承認を待つことがあり、これは外部から見ると
+   障害と見分けがつきません。
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -68,12 +68,11 @@ import { Aside, Steps } from "@astrojs/starlight/components";
    r-a97e20c8-b7e1-483d-bd76-34a64ff8bc78  ONLINE  f5-xc-ce-vm-01
    ```
 
-   項目がまったくない場合は、ノードがまだ登録されていないことを意味します。シリアルコンソールへ
-   進んでください。`ONLINE` 以外の状態の項目がある場合は、登録は完了しその後に何かが失敗している
-   ということであり、これは別の調査になります。
+   項目が 1 つもない場合、ノードはまだ登録されていません — シリアルコンソールに進んでください。`ONLINE`
+   以外の状態の項目がある場合は、登録は完了しその後に何かが失敗したということであり、これは別の調査になります。
 
-   承認待ちのものを名前空間全体で洗い出すには、`listregistrationsbystate` が状態を
-   **`POST` ボディ** として受け取ります。
+   ネームスペース全体を対象に承認待ちのものを一掃して探すには、`listregistrationsbystate` が
+   状態を **`POST` ボディ** として受け取ります。
 
    ```bash
    curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -82,62 +81,61 @@ import { Aside, Steps } from "@astrojs/starlight/components";
      "$XCSH_API_URL/api/register/namespaces/system/listregistrationsbystate" | jq -r '.items[].name'
    ```
 
-   承認は自動化されているため、正常なフリートでは何も返りません。
+   正常なフリートでは承認が自動化されているため、何も返りません。
 
-4. ソフトウェア障害だと決めつける前に、**VM が実際に稼働していることを確認します**。
+4. ソフトウェア障害だと決めつける前に、**VM が実際に稼働しているか確認します**。
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
    ```
 
    ```text
-   Name            Power
-   --------------  ----------
-   ar-ecmp-client  VM running
-   f5-xc-ce-vm-01  VM running
-   f5-xc-ce-vm-02  VM running
-   f5-xc-ce-vm-03  VM running
+   Name              Power
+   ----------------  ----------
+   f5-xc-ce-vm-01    VM running
+   f5-xc-ce-vm-02    VM running
+   f5-xc-ce-vm-03    VM running
+   mcn-ce-ha-client  VM running
    ```
 
-5. **シリアルコンソールに接続します。** 対話的に行うには実際の端末が必要ですが、接続自体は
-   websocket 経由でスクリプト化することもできます。
+5. **シリアルコンソールに接続します。** 対話的に行うには実際のターミナルが必要ですが、
+   接続自体は websocket 経由でスクリプト化できます —
    [シリアルコンソール](../../access/serial-console/) を参照してください。
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   拒否される場合は、ノードが到達不能と結論づける前に、VM でブート診断が有効になっているかを
-   確認してください。その前提条件と失敗モードについては
-   [シリアルコンソール](../../access/serial-console/) のページで扱っています。
+   拒否される場合は、ノードが到達不能だと結論づける前に、VM でブート診断が有効になっているか確認してください。
+   その前提条件と障害モードについては
+   [シリアルコンソール](../../access/serial-console/) のページで説明しています。
 
-6. **コンソールの表示をこの順序で読みます。** まず cloud-init です。cloud-init が完了しなかった
-   ノードには、登録に使う構成がありません。次に登録の試行そのもの、続いて DNS です。ノードが
-   `register.ves.volterra.io` を解決できない場合、その先のすべては機能しません。
+6. **コンソールに表示される内容を、この順序で読みます。** まず cloud-init です。cloud-init が完了しなかった
+   ノードには、登録に使う構成が存在しません。次に登録の試行そのもの、その次に DNS です。ノードが
+   `register.ves.volterra.io` を解決できなければ、その先の何も機能しません。
 
 7. **ノードが `ONLINE` になったら**、[`health`](../../commands/system/health/) で検証し、
-   `state: PROVISIONED` を期待します。
+   `state: PROVISIONED` を期待してください。
 
 </Steps>
 
-<Aside type="caution" title="登録は UUID で命名され、サイト名にはなりません">
-登録は `r-<uuid>` という名前になり、登録名が求められる箇所でサイト名を受け付けるエンドポイントは
-存在しません。
-`GET .../registrations/<site>` は `404` を返し、これは「このサイトには登録がない」と読めますが、
-実際には「それは登録名ではない」という意味です。サイトから登録へのマッピングは、ステップ 3 のように
+<Aside type="caution" title="登録は UUID で命名され、サイト名では命名されません">
+登録は `r-<uuid>` という名前になり、登録名が期待される箇所でサイト名を受け付けるエンドポイントは存在しません。
+`GET .../registrations/<site>` は `404` を返しますが、これは「このサイトには登録がない」と読めてしまうものの、
+実際は「それは登録名ではない」という意味です。サイトから登録へのマッピングは、ステップ 3 のように
 `registrations_by_site/<site>` から得るか、`registrations` を一覧して
-`gc_spec.passport.cluster_name` で照合することでしか得られません。
+`gc_spec.passport.cluster_name` で照合するしかありません。
 
-同じ罠によって、正常なフリートに登録が 1 件もないように見えたことがあります。
+同じ罠によって、正常なフリートに登録が 1 つも存在しないように見えたことがあります。
 </Aside>
 
 ## よくある原因
 
-- **誤ったテナントを指している** ため、問題のないフリートが存在しないように見える。ステップ 1。
-- cloud-init が完了せず、`/etc/vpm/config.yaml` が存在しない、または誤っている。
-- 登録トークンが期限切れ、すでに使用済み、または別テナントのもの。
-- `register.ves.volterra.io` への送信経路がない。
-- 証明書を無効にするほど大きなクロックスキュー。後から
-  [`chronyc-sources`](../../commands/network/chronyc-sources/) ですぐに切り分けられますが、
-  ノードがオンラインになるまでは到達できません。[SSH](../../access/ssh/) のログインバナーは、
-  SSH が利用可能な場合、何かを実行する前に `NTP: Synced` とリゾルバーのステータスを報告します。
+- **誤ったテナントを指している**ため、問題のないフリートが存在しないように見える。ステップ 1。
+- cloud-init が完了せず、`/etc/vpm/config.yaml` が存在しないか誤っている。
+- 登録トークンが期限切れ、すでに使用済み、または別テナントのものである。
+- `register.ves.volterra.io` への外向き経路がない。
+- 証明書を無効にするほど大きなクロックスキュー — 後で
+  [`chronyc-sources`](../../commands/network/chronyc-sources/) を使えばすぐに除外できますが、
+  ノードがオンラインになるまでは到達できません。[SSH](../../access/ssh/) のログインバナーは、SSH が利用できる場合、
+  何かを実行する前に `NTP: Synced` とリゾルバーのステータスを報告します。

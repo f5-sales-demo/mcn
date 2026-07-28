@@ -1,28 +1,28 @@
 ---
 title: Prouver son bon fonctionnement
 description: >-
-  Quatre vérifications dans l'ordre, chacune resserrant l'endroit où se
+  Quatre vérifications dans l'ordre, chacune réduisant le périmètre où se
   situerait une panne, et les quatre résultats d'apparence normale qui se lisent
   comme une panne sans en être une — une requête sur un seul peering, un 404 sur
   IP nue, un VIP avec pertes sur un déploiement récent, et une sonde de port
   depuis la mauvaise interface ou le mauvais réseau.
 sidebar:
   order: 30
-  label: Vérifier
+  label: Vérification
 i18n:
-  sourceHash: 4e5376ee9ecd
+  sourceHash: 200ef0fb5d0c
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Exécutez ces vérifications avant votre présentation. Chacune resserre l'endroit où se situerait
-une panne, de sorte qu'un échec vous apprend quelque chose au lieu de signaler seulement que
-quelque chose ne va pas.
+Exécutez-les avant votre présentation. Chaque vérification réduit le périmètre où se situerait
+une panne, de sorte qu'un échec vous apprend quelque chose plutôt que de signaler seulement
+qu'un problème existe.
 
-Chaque commande lit ce dont elle a besoin dans le déploiement. Définissez ces variables une
-fois et le reste suit :
+Chaque commande lit ce dont elle a besoin depuis le déploiement. Définissez ces variables une
+fois et le reste en découle :
 
 ```bash
 cd terraform
@@ -38,7 +38,7 @@ NIC=$(terraform output -raw client_nic_name)
 
 <Steps>
 
-1. **Chaque site est `ONLINE`.** Rien de ce qui suit ne peut être vrai si ce n'est pas le cas.
+1. **Chaque site est `ONLINE`.** Rien en aval ne peut être vrai si ce n'est pas le cas.
 
    ```bash
    for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
@@ -51,14 +51,14 @@ NIC=$(terraform output -raw client_nic_name)
    Observé le 2026-07-28, trois CE :
 
    ```text
-   ar-bgp-eastus01 -> ONLINE
-   ar-bgp-eastus02 -> ONLINE
-   ar-bgp-eastus03 -> ONLINE
+   mcn-ce-ha-eastus01 -> ONLINE
+   mcn-ce-ha-eastus02 -> ONLINE
+   mcn-ce-ha-eastus03 -> ONLINE
    ```
 
 2. **Chaque peering apprend l'annonce du VIP de ce CE.** Interrogez chaque peering
-   séparément — voyez le premier piège ci-dessous, car c'est là que la démonstration semble le
-   plus souvent cassée sans l'être.
+   séparément — voyez le premier piège ci-dessous, car c'est là que la démonstration semble
+   le plus souvent défaillante sans l'être.
 
    ```bash
    for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
@@ -88,7 +88,7 @@ NIC=$(terraform output -raw client_nic_name)
    ```
 
    Trois peerings, trois sauts suivants différents, un seul préfixe. C'est le côté annonce de
-   l'ECMP qui est prouvé.
+   l'ECMP démontré.
 
 3. **Les routes effectives du client portent chaque saut suivant.** C'est l'ECMP lui-même, tel
    que le VNet l'a programmé — non pas ce que les CE prétendent, mais ce qu'Azure en a fait.
@@ -112,11 +112,11 @@ NIC=$(terraform output -raw client_nic_name)
    ]
    ```
 
-   `state: Active` avec une entrée par CE dans `nh` : voilà la vérification. **L'ordre n'est pas
-   significatif et n'est pas stable** — Azure les renvoie différemment d'un appel à l'autre,
-   donc comptez-les plutôt que de les comparer à une exécution précédente. Un seul saut suivant
-   là où vous en attendez trois signifie qu'un CE a cessé d'annoncer, et l'étape 2 identifie
-   lequel.
+   `state: Active` avec une entrée par CE dans `nh` constitue la vérification. **L'ordre n'est
+   pas significatif et n'est pas stable** — Azure les renvoie différemment d'un appel à
+   l'autre, comptez-les donc plutôt que de les comparer à une exécution précédente. Un seul
+   saut suivant là où vous en attendez trois signifie qu'un CE a cessé d'annoncer, et l'étape
+   2 identifie lequel.
 
 4. **Le VIP sert le trafic.** Depuis la VM cliente, et **avec l'en-tête `Host`** — voyez le
    deuxième piège. Échantillonnez suffisamment de requêtes pour voir un problème : quelques
@@ -147,23 +147,23 @@ NIC=$(terraform output -raw client_nic_name)
 ## Piège : un peering n'affiche qu'une route, et c'est correct
 
 `list-learned-routes` est limité au peering que vous nommez. Il rapporte ce que **ce** pair a
-annoncé, pas la table complète du Route Server.
+annoncé, non pas la table complète du Route Server.
 
-Ainsi, interroger un seul peering renvoie un unique `/32` de VIP via un unique saut suivant, et
-il est tentant de lire cela comme « un seul CE annonce — les autres sont hors service ». Rien
-n'est hors service. Les autres annonces sont visibles sur leurs propres peerings, ce sur quoi
-l'étape 2 boucle.
+Interroger un seul peering renvoie donc un unique `/32` du VIP via un unique saut suivant, et
+il est tentant d'y lire « un seul CE annonce — les autres sont hors service ». Rien n'est hors
+service. Les autres annonces sont visibles sur leurs propres peerings, ce sur quoi l'étape 2
+boucle.
 
-Confirmer l'ECMP à partir de la requête d'un seul peering est impossible. Soit vous bouclez sur
-tous les peerings, soit vous lisez la table de routes effectives du client, qui montre le
-résultat fusionné en un seul appel.
+Confirmer l'ECMP depuis une requête sur un seul peering est impossible. Bouclez sur chaque
+peering, ou lisez la table des routes effectives du client, qui montre le résultat fusionné en
+un seul appel.
 
 ## Piège : une requête sur IP nue renvoie 404
 
 L'équilibreur de charge fait correspondre sur `Host`. Le VIP n'est pas un serveur virtuel qui
-sert quoi que ce soit à quiconque se connecte à l'adresse.
+sert quelque chose à quiconque se connecte à l'adresse.
 
-Ces deux résultats proviennent de la même exécution sur le déploiement sain :
+Ces deux résultats proviennent de la même exécution contre le déploiement sain :
 
 ```text
 curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
@@ -175,88 +175,119 @@ proxy du CE a répondu, et il a refusé parce qu'aucun domaine configuré ne cor
 lire comme une panne vous envoie examiner le BGP, où vous ne trouverez rien d'anormal.
 
 Il en va de même pendant une démonstration : si vous saisissez l'adresse dans un navigateur
-plutôt que de résoudre le domaine vers elle, vous obtenez le 404.
+plutôt que de résoudre le domaine vers celle-ci, vous obtenez le 404.
 
-## Le VIP perd des requêtes pendant les trois premiers quarts d'heure, puis s'arrête
+## Le VIP perd des requêtes pendant les trois premiers quarts d'heure, puis cesse
 
 Sur une pile fraîchement construite, le VIP perd une petite fraction des requêtes pendant
-environ les 45 premières minutes après que les CE atteignent l'état `ONLINE`, puis sert
-proprement. Mesuré sur 1 470 requêtes depuis la VM cliente, toutes avec l'en-tête `Host` :
+environ les 45 premières minutes après que les CE atteignent `ONLINE`, puis sert proprement.
+Mesuré sur 1 470 requêtes depuis la VM cliente, toutes avec l'en-tête `Host` :
 
 | Fenêtre | Requêtes | Échecs | Taux |
 | --- | --- | --- | --- |
-| ~45 premières minutes après l'établissement de l'ECMP | 570 | 12 | **2,11 %** |
+| Les ~45 premières minutes après l'établissement de l'ECMP | 570 | 12 | **2,11 %** |
 | Les 23 minutes suivantes | 900 | **0** | **0,00 %** |
 
-Chaque échec était un `curl: (28)` — un délai d'attente dépassé avec zéro octet reçu — et non un
-statut d'erreur HTTP. Le dernier est survenu environ 43 minutes après l'établissement de l'ECMP.
-Sur les 900 requêtes propres, 400 ont été exécutées avec un délai d'attente de 30 secondes et
-chacune s'est terminée en moins de 2 secondes, donc rien n'a été masqué par un délai trop court.
+Chaque échec était un `curl: (28)` — un délai d'attente dépassé avec zéro octet reçu — et non
+un statut d'erreur HTTP. Le dernier s'est produit environ 43 minutes après l'établissement de
+l'ECMP. Sur les 900 requêtes propres, 400 ont été exécutées avec un délai d'attente de
+30 secondes et chacune s'est terminée en moins de 2 secondes : rien n'a donc été masqué par un
+délai d'attente trop court.
+
+Le phénomène s'est reproduit lors d'une reconstruction ultérieure le même jour, et cette
+exécution offre l'image la plus claire car elle a été échantillonnée pendant l'écoulement de la
+fenêtre plutôt qu'après. 360 requêtes, toutes avec l'en-tête `Host`, chaque lot associé à un
+contrôle directement vers l'origine :
+
+| Temps après `ONLINE` | Requêtes | Échecs | Taux | Contrôle origine |
+| --- | --- | --- | --- | --- |
+| immédiatement | 60 | 8 | **13,3 %** | 30/30 propres |
+| ~25–40 min (3 lots) | 180 | 3 | **1,67 %** | 60/60 propres |
+| ~50 min | 120 | **0** | **0,00 %** | 40/40 propres |
+
+Décroissance monotone jusqu'à zéro, et l'origine était propre dans chaque lot — y compris celui
+où une requête VIP sur huit échouait.
 
 **L'origine n'était pas la cause.** Un lot de contrôle directement vers l'origine
-(`terraform output -raw origin_ip`, en contournant le VIP) a donné 120 sur 120 propres
-*simultanément* à des lots VIP en échec. La panne se situe quelque part dans le chemin VIP, ECMP
-ou CE.
+(`terraform output -raw origin_ip`, en contournant le VIP) a exécuté 120 requêtes sur 120
+proprement *simultanément* aux lots VIP en échec. La panne se situe quelque part dans le
+chemin VIP, ECMP ou CE.
 
-Deux choses que l'on se garde délibérément d'affirmer :
+Deux choses que ceci n'est délibérément pas appelé :
 
-- **Ce n'est pas un défaut en régime permanent.** Il disparaît complètement et reste absent.
-  Une démonstration en place depuis une heure n'a pas ce problème — 60 sur 60 à la vérification 4
-  ci-dessus, sur une pile en place depuis plusieurs heures.
-- **Ce n'est pas imputable à un CE particulier.** Rien dans cette topologie ne fournit un
-  écouteur HTTP par nœud, donc il n'y a aucun moyen de rattacher une requête perdue au nœud qui
-  l'a perdue. Les interfaces externes des CE n'ont aucun écouteur HTTP — seul le `/32` du VIP
-  répond.
+- **Ce n'est pas un défaut en régime permanent.** Il disparaît complètement et reste absent —
+  120 sur 120 au repère des 50 minutes, et 60 sur 60 sur une pile en service depuis
+  plusieurs heures.
+- **Ne concluez pas à son absence à partir d'un petit échantillon précoce.** Un lot de
+  60 requêtes pris immédiatement après une reconstruction a renvoyé 60 sur 60, ce qui se
+  lisait comme « pas de transitoire » ; le même déploiement a perdu 8 requêtes sur 60 une
+  heure plus tard, à la reconstruction suivante. Soixante requêtes ne suffisent pas pour voir
+  une perte par rafales. Échantillonnez 100 requêtes ou plus, en lots espacés dans le temps —
+  le tableau ci-dessus en a nécessité 360 pour révéler la forme du phénomène.
+- **Ce n'est pas imputable à un CE particulier.** Rien dans cette topologie ne fournit
+  d'écouteur HTTP par nœud, il n'y a donc aucun moyen de rattacher une requête perdue au nœud
+  qui l'a perdue. Les interfaces externes des CE n'ont aucun écouteur HTTP — seul le `/32` du
+  VIP répond.
 
-Le phénomène s'est reproduit lors d'une reconstruction propre dans un autre tenant, il suit donc
-la topologie plutôt que l'environnement.
+Le phénomène s'est reproduit lors d'une reconstruction propre dans un autre locataire : il suit
+donc la topologie plutôt que l'environnement.
 
 <Aside type="caution" title="N'échantillonnez pas 40 requêtes pour conclure que tout va bien">
-Des lots de 40 à 50 requêtes se lisent comme 100 % la plupart du temps, même à l'intérieur de la
-fenêtre d'échec. C'est ainsi que ce phénomène a d'abord été mal caractérisé comme un défaut
-persistant à faible taux, puis comme une absence totale de défaut. Échantillonnez 100 requêtes ou
-plus, en lots espacés dans le temps.
+Des lots de 40 à 50 requêtes se lisent comme 100 % la plupart du temps, même à l'intérieur de
+la fenêtre défaillante. C'est ainsi que ce phénomène a d'abord été qualifié à tort de défaut
+persistant à faible taux, puis d'absence totale de défaut. Échantillonnez 100 requêtes ou plus,
+en lots espacés dans le temps.
 </Aside>
 
 ## Deux autres pièges de mesure
 
-Tous deux ont produit des réponses erronées mais assurées dans cet environnement, et aucun n'est
+Tous deux ont produit des réponses fausses mais assurées dans cet environnement, et aucun n'est
 évident.
 
-- **Sondez depuis l'intérieur du VNet, pas depuis votre poste de travail.** Un proxy d'entreprise
-  peut compléter lui-même la poignée de main TCP sur les ports courants, de sorte qu'une sonde
-  depuis le poste de travail signale un port **ouvert** alors qu'il est en réalité fermé. Les
-  ports 80 et 443 apparaissent ouverts sur les adresses publiques des CE depuis un poste de
-  travail et sont fermés lorsqu'ils sont sondés depuis l'intérieur du VNet. Utilisez la VM
+- **Sondez depuis l'intérieur du VNet, non depuis votre poste de travail.** Un proxy
+  d'entreprise peut compléter lui-même la poignée de main TCP sur les ports courants, de sorte
+  qu'une sonde depuis le poste de travail signale un port **ouvert** qui est en réalité fermé.
+  Les ports 80 et 443 se lisent comme ouverts sur les adresses publiques des CE depuis un poste
+  de travail et sont fermés lorsqu'ils sont sondés depuis l'intérieur du VNet. Utilisez la VM
   cliente.
-- **Le port 22 d'un CE ne répond que sur l'adresse interne (SLI).** Sondée depuis la VM cliente,
-  l'adresse interne de chaque CE renvoie une bannière OpenSSH, tandis que ses adresses de gestion
-  et externe expirent — comme le fait une adresse inutilisée servant de témoin. eth0 est renommée
-  `a-i-eth0` et ne porte aucune IP hôte, car le plan de données la possède. Sonder l'adresse par
-  laquelle vous connaissez le nœud ne vous apprend donc rien sur l'état SSH de ce nœud.
+- **Le port 22 d'un CE ne répond que sur l'adresse interne (SLI).** Sondée depuis la VM
+  cliente, l'adresse interne de chaque CE renvoie une bannière OpenSSH, tandis que ses adresses
+  de gestion et externe expirent — comme le fait une adresse inutilisée servant de contrôle.
+  eth0 est renommée `a-i-eth0` et ne porte aucune IP hôte, car le plan de données la possède.
+  Sonder l'adresse par laquelle vous connaissez le nœud ne vous apprend donc rien sur l'état
+  SSH de ce nœud.
 
 <Aside type="danger" title="Ne codez jamais en dur une adresse interne de CE — elles sont réattribuées à chaque reconstruction">
-Azure ne préserve pas l'attribution des adresses du sous-réseau interne aux CE. Observé le
-2026-07-28, après une reconstruction, les trois CE détenaient `10.0.3.7`, `10.0.3.5` et
-`10.0.3.4` : pas dans l'ordre des nœuds, pas contiguës, et différentes de ce qu'elles étaient
-auparavant. La NIC du client de test se trouve dans le même sous-réseau et a détenu une adresse
-qu'un CE détenait précédemment.
+Azure ne conserve pas l'attribution des adresses du sous-réseau interne aux CE, et les adresses
+ne suivent pas l'ordre des nœuds. Observé le 2026-07-28, les trois CE détenaient `10.0.3.7`,
+`10.0.3.5` et `10.0.3.4` — non séquentielles, et différentes de celles qu'ils détenaient avant
+cette reconstruction.
 
-Lisez-les au lieu de les mémoriser :
+Ce qui détermine si elles changent, c'est la **NIC**, non la VM. Remplacer uniquement les VM des
+CE laisse les NIC en place et chaque adresse survit : vérifié le même jour, lorsque l'adoption
+des noms d'objets dérivés a remplacé les trois VM de CE et que les trois adresses internes sont
+revenues identiques. Une destruction qui supprime les NIC les réattribue depuis le pool libre du
+sous-réseau, dans l'ordre où Azure le remplit.
+
+La NIC du client de test se trouve dans ce même sous-réseau, de sorte qu'une adresse que vous
+gardez en mémoire comme celle d'un CE peut désormais être celle du client — sur ce déploiement,
+il détient `10.0.3.6`, qu'un CE détenait avant une reconstruction antérieure.
+
+Lisez-les plutôt que de les mémoriser :
 
 ```bash
 terraform output -json ce_sli_private_ips
 ```
 
-Sans état Terraform sous la main, interrogez Azure par nom de NIC, qui *est* stable :
+Sans état Terraform à disposition, interrogez Azure par nom de NIC, qui *est* stable :
 
 ```bash
 az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
-Se connecter à une adresse mémorisée vous fait atterrir sur le mauvais nœud, sur une VM qui n'est
-pas un CE, ou nulle part — et ce dernier cas est identique à « SSH n'est pas activé ».
+Se connecter à une adresse mémorisée vous fait aboutir sur le mauvais nœud, sur une VM qui n'est
+pas un CE, ou nulle part — et ce dernier cas est indiscernable de « SSH n'est pas activé ».
 </Aside>
 
 ## Confirmer que la surface de commandes embarquée correspond toujours à la documentation
@@ -267,17 +298,17 @@ bash scripts/capture-sitecli.sh --check \
   --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
 ```
 
-`--check` n'écrit rien, il est donc sans danger pour la démonstration en production.
+`--check` n'écrit rien, il est donc sans risque sur la démonstration en service.
 
 <CardGrid>
   <LinkCard
     title="Atteindre un Customer Edge"
-    description="Quelle voie d'accès s'applique, les identifiants requis par chacune, et pourquoi ce choix n'est pas une préférence."
+    description="Quelle voie d'accès s'applique, les identifiants nécessaires à chacune, et pourquoi ce choix n'est pas une préférence."
     href="../../customer-edge/access/"
   />
   <LinkCard
     title="Commandes BGP"
-    description="La vue embarquée depuis FRR — état du peering, table complète, et ce que ce nœud annonce."
+    description="La vue embarquée depuis FRR — état des peerings, table complète, et ce que ce nœud annonce."
     href="../../customer-edge/commands/network/bgp/"
   />
 </CardGrid>

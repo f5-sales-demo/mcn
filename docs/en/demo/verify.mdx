@@ -180,15 +180,32 @@ status. The last one landed about 43 minutes after ECMP came up. Of the 900 clea
 400 ran with a 30-second timeout and every one finished in under 2 seconds, so nothing was
 hidden by a short timeout.
 
+It reproduced again on a later rebuild the same day, and that run is the clearer picture
+because it was sampled as the window elapsed rather than after it. 360 requests, all with
+the `Host` header, each batch paired with a control straight to the origin:
+
+| Time after `ONLINE` | Requests | Failures | Rate | Origin control |
+| --- | --- | --- | --- | --- |
+| immediately | 60 | 8 | **13.3 %** | 30/30 clean |
+| ~25–40 min (3 batches) | 180 | 3 | **1.67 %** | 60/60 clean |
+| ~50 min | 120 | **0** | **0.00 %** | 40/40 clean |
+
+Monotonically decreasing to zero, and the origin was clean in every batch — including the
+one where one VIP request in eight failed.
+
 **The origin was not the cause.** A control batch straight to the origin
 (`terraform output -raw origin_ip`, bypassing the VIP) ran 120 of 120 clean *concurrently
 with* failing VIP batches. The fault is somewhere in the VIP, ECMP or CE path.
 
 Two things this is deliberately not called:
 
-- **It is not a steady-state defect.** It clears completely and stays clear. A demo that has
-  been up for an hour does not have this problem — 60 of 60 on check 4 above, on a stack
-  that had been up for hours.
+- **It is not a steady-state defect.** It clears completely and stays clear — 120 of 120 at
+  the 50-minute mark, and 60 of 60 on a stack that had been up for hours.
+- **Do not conclude it is absent from a small early sample.** A 60-request batch taken
+  immediately after one rebuild returned 60 of 60, which read as "no transient"; the same
+  deployment lost 8 of 60 an hour later on the next rebuild. Sixty requests is not enough
+  to see a bursty loss. Sample 100 or more, in batches separated in time — the table above
+  needed 360 to show the shape.
 - **It is not attributable to a particular CE.** Nothing in this topology gives a per-node
   HTTP listener, so there is no way to bind a dropped request to the node that dropped it.
   The CE outside interfaces have no HTTP listener at all — only the VIP `/32` answers.

@@ -1,75 +1,74 @@
 ---
-title: 站點主控台
+title: 站台主控台
 description: >-
-  F5 的每節點站點主控台，服務於 TCP 65500 並透過 Azure Bastion 通道存取。不需要 SSH 金鑰、不需要跳板主機、不需要公用 IP
-  — 存取權是一項 Azure RBAC 決策，即使站點註冊失敗時它仍會回應。內容涵蓋確切的指令與其實際輸出、您將會看到警告的憑證、為何通道必須指向 VM
-  資源 ID，以及應如何處理管理員憑證。
+  F5 的每節點站台主控台，透過 TCP 65500 提供服務並經由 Azure Bastion 通道連線。不需要 SSH 金鑰、不需要跳板主機、也不需要公用
+  IP — 存取權限成為 Azure RBAC 的決策，而且即使站台註冊失敗時仍可回應。內容涵蓋確切的指令與其實際輸出、您將會看到的憑證警告、為何通道必須以
+  VM 資源 id 為目標，以及應如何處理 admin 認證。
 sidebar:
   order: 22
-  label: 站點主控台
+  label: 站台主控台
 i18n:
-  sourceHash: d1a0b5ed6521
+  sourceHash: d33e2716256e
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-擷取自 2026-07-28，取自此部署的其中一個 CE。`sitecli/capture-manifest.json`
-記錄了是哪個節點，而 `scripts/capture-sitecli.sh --check` 會針對線上 CE
+擷取時間為 2026-07-28，來源為本部署中的其中一個 CE。`sitecli/capture-manifest.json`
+記錄了是哪一個節點，而 `scripts/capture-sitecli.sh --check` 會針對實際運作中的 CE
 重新驗證指令介面。
 
-每個 Customer Edge 都在 `https://<sli-ip>:65500` 上提供 F5 的站點主控台。在此
-部署上，這通常是應該優先嘗試的途徑。
+每個 Customer Edge 都會在 `https://<sli-ip>:65500` 上提供 F5 的站台主控台。在本
+部署中，這通常是應該優先嘗試的途徑。
 
 它對您的要求最少：不需要散發 SSH 金鑰、不需要維護跳板主機、節點上不需要公用 IP，
-也不需要更換 VM 才能啟用。誰可以連線變成一項 **Azure RBAC 決策**。而且它不需要站點
-已註冊：本頁面最初擷取時，三個站點全都回報 `site_state: FAILED`，而當它們變為
-`ONLINE` 後針對相同節點重新驗證，結果完全相同。
+也不需要替換 VM 才能啟用。誰可以連線變成一項 **Azure RBAC 決策**。而且它不需要站台
+已完成註冊：本頁最初擷取時，三個站台全都回報 `site_state: FAILED`，而在這些節點變成
+`ONLINE` 之後，對同樣的節點重新驗證的結果並無變化。
 
-問題在於站點主控台僅在節點的內部 (SLI) 位址上回應，而該位址只能從 VNet 內部存取。
-Azure Bastion 彌補了這個落差，且不會在網路上增加其他任何東西。
+其代價是站台主控台只會在節點的內部（SLI）位址上回應，而該位址只能從 VNet 內部觸及。
+Azure Bastion 弭平了這個落差，而不需要在網路上放置其他任何東西。
 
-<Aside type="note" title="這裡驗證了什麼，又沒有驗證什麼">
-本頁面上的每一個指令與每一項輸出都是針對此部署中的 `f5-xc-ce-vm-01` 執行的，
-並逐字重現，包括失敗的情況。
+<Aside type="note" title="這裡驗證了什麼，又有什麼未驗證">
+本頁上的每一條指令與每一段輸出，都是針對本部署中的 `f5-xc-ce-vm-01` 執行，並且逐字
+重現，包括失敗的情況。
 
-**驗證已通過驗證**：設備的 `admin` 憑證透過通道回傳 `200`。*未*進行實測的是主控台本身 —
-以下內容不會描述您進入之後可以看到或執行什麼。
+**驗證項目為驗證機制**：設備的 `admin` 認證透過通道回傳 `200`。而*未*實測的是主控台
+本身 — 以下內容都沒有描述您進入之後能看到或能做什麼。
 
-**Azure RBAC 未經驗證。**每次執行都是以訂用帳戶擁有者的身分進行，因此步驟 2 中的 Reader
-需求是 Microsoft 的文件化要求，而非此處實測所得。
+**Azure RBAC 未經驗證。** 每一次執行都是以訂用帳戶擁有者身分進行，因此步驟 2 中的
+Reader 需求是 Microsoft 文件所述的需求，而非在此實際量測所得。
 </Aside>
 
-<Aside type="caution" title="Bastion 是選擇性啟用，預設不會部署">
-`enable_bastion` 預設為 `false`，因此在預設的 `terraform apply` 下不會有 Bastion
-主機，且 `terraform output -raw bastion_name` 為 `null`。請在
-`terraform/terraform.tfvars` 中設定 `enable_bastion = true` — 在此部署上它是 `true`。
+<Aside type="caution" title="Bastion 為選用啟用，預設不會部署">
+`enable_bastion` 預設為 `false`，因此在預設的 `terraform apply` 之下不會有 Bastion
+主機，而 `terraform output -raw bastion_name` 會是 `null`。請在
+`terraform/terraform.tfvars` 中設定 `enable_bastion = true` — 本部署中此值為 `true`。
 
-它之所以是選擇性啟用是基於成本，而非風險：Standard SKU 主機從佈建那一刻起就會按小時
-計費，無論是否有人開啟通道 — 在 `eastus` 以隨附的兩個擴充單位計算為每小時 USD
-0.29（零售價，2026-07），約每月 USD 212。當示範不需要主控台存取時，請再將它關閉。
+之所以設為選用，原因是成本而非風險：Standard SKU 主機自佈建那一刻起便按小時計費，
+無論是否有人開啟通道 — 在 `eastus`，含兩個縮放單位的價格為每小時 0.29 美元（零售價，
+2026-07），約每月 212 美元。當示範不需要主控台存取時，請再將它關閉。
 </Aside>
 
 ## 開始之前
 
 <Steps>
 
-1. 登入 Azure 並新增 Bastion 擴充功能。通道功能是原生用戶端功能，
-   而該擴充功能預設不會安裝。
+1. 登入 Azure 並加入 Bastion 擴充功能。通道功能屬於原生用戶端功能，且該擴充功能
+   預設並未安裝。
 
    ```bash
    az login
    az extension add --name bastion
    ```
 
-2. 對 CE 虛擬機器、其網路介面與 Bastion 主機持有 **Reader** 權限。
-   這是 Microsoft 的文件化要求，且**在此處未經驗證** — 此部署中的每次執行
-   都是以訂用帳戶擁有者身分進行，因此沒有任何較低權限角色被證實為
-   足夠或不足夠。
+2. 對 CE 虛擬機器、其網路介面以及 Bastion 主機持有 **Reader** 權限。
+   這是 Microsoft 文件所述的需求，且**在此未經驗證** — 本部署中的每一次執行都是以
+   訂用帳戶擁有者身分進行，因此並未證實任何較低權限的角色是否足夠或不足。
 
-3. 確認 Bastion 已部署且具備所需能力。Basic SKU 既不支援通道也不支援
-   以 IP 為基礎的連線，因此這裡的 `Standard` 與 `True` 兩者都至關重要。
+3. 確認 Bastion 已部署且具備所需能力。Basic SKU 既不支援通道也不支援以 IP 連線，
+   因此此處的 `Standard` 與 `True` 兩者都至關重要。
 
    ```bash
    az network bastion list -g "$(terraform output -raw resource_group_name)" \
@@ -79,18 +78,18 @@ Azure Bastion 彌補了這個落差，且不會在網路上增加其他任何東
    ```text
    Name               Sku       Tunneling
    -----------------  --------  -----------
-   ce-ha-lab-bastion  Standard  True
+   mcn-ce-ha-bastion  Standard  True
    ```
 
 </Steps>
 
 ## 開啟通道
 
-請從 `terraform output` 取得數值，而不要手動輸入 — 資源 ID 不是應該手動組合的東西。
+請從 `terraform output` 取得數值，而不要手動輸入 — 資源 id 不是應該手工拼湊的東西。
 
 <Steps>
 
-1. 讀取 Bastion 主機名稱、資源群組，以及目標 CE 的 VM 資源 ID。
+1. 讀取 Bastion 主機名稱、資源群組，以及目標 CE 的 VM 資源 id。
 
    ```bash
    cd terraform
@@ -100,15 +99,15 @@ Azure Bastion 彌補了這個落差，且不會在網路上增加其他任何東
    ```
 
    ```text
-   ce-ha-lab-bastion
+   mcn-ce-ha-bastion
    rg-mcn-ce-ha-rmordasiewicz
    /subscriptions/…/providers/Microsoft.Compute/virtualMachines/f5-xc-ce-vm-01
    ```
 
-   <Aside type="caution" title="此對應表以站點為鍵，而非以 VM 名稱">
-   `ce_vm_ids` 的鍵是 `eastus01`、`eastus02`、`eastus03` — **不是** VM 名稱。像
-   `jq -r '."f5-xc-ce-vm-01"'` 這樣的篩選器會回傳 `null`，接著通道就會因為
-   資源 ID 為空而失敗。若不確定，請列出它們：
+   <Aside type="caution" title="此對應的索引鍵是站台，而不是 VM 名稱">
+   `ce_vm_ids` 的索引鍵是 `eastus01`、`eastus02`、`eastus03` — **而非** VM 名稱。像
+   `jq -r '."f5-xc-ce-vm-01"'` 這樣的篩選會回傳 `null`，接著通道就會因為資源 id
+   為空而失敗。若不確定，請列出它們：
 
    ```bash
    terraform output -json ce_vm_ids | jq -r 'keys | join(", ")'
@@ -120,8 +119,7 @@ Azure Bastion 彌補了這個落差，且不會在網路上增加其他任何東
 
    </Aside>
 
-2. 啟動通道。它會保持連接埠開啟直到停止，因此請將它放到背景執行或使用
-   第二個終端機。
+2. 啟動通道。它會持續開著連接埠直到停止，因此請將其放到背景執行或使用第二個終端機。
 
    ```bash
    az network bastion tunnel \
@@ -138,10 +136,10 @@ Azure Bastion 彌補了這個落差，且不會在網路上增加其他任何東
    WARNING: Ctrl + C to close
    ```
 
-   三行全都以 `WARNING:` 為前綴。那是 Azure CLI 將進度寫入
-   stderr，並非問題。請等待 `Tunnel is ready` 後再連線。
+   這三行都以 `WARNING:` 為前綴。那是 Azure CLI 將進度寫到 stderr，並不是問題。
+   請等到出現 `Tunnel is ready` 後再連線。
 
-3. 確認接聽程式在本機的 loopback 上：
+3. 確認接聽端是本機、位於 loopback 上：
 
    ```bash
    lsof -nP -iTCP:65500 -sTCP:LISTEN
@@ -152,23 +150,22 @@ Azure Bastion 彌補了這個落差，且不會在網路上增加其他任何東
    Python  41648  you   7u  IPv4  …            0t0   TCP  127.0.0.1:65500 (LISTEN)
    ```
 
-4. 開啟主控台。通道使它成為本機服務，因此位址是 `localhost` — 而不是
-   節點的位址。
+4. 開啟主控台。通道讓它成為本機服務，因此位址是 `localhost` — 而不是節點的位址。
 
    ```bash
    open https://localhost:65500/          # macOS
    xdg-open https://localhost:65500/      # Linux
    ```
 
-5. 完成後請停止通道 — 按 `Ctrl-C`，若您放到背景執行則使用 `kill %1`。
-   讓它保持開啟會佔用本機連接埠 65500 與 Bastion 工作階段。
+5. 完成後請停止通道 — 按 `Ctrl-C`，若放到背景執行則使用 `kill %1`。
+   讓它持續開啟會佔用本機連接埠 65500 以及該 Bastion 工作階段。
 
 </Steps>
 
 ## 您將會看到什麼
 
-**一個憑證對話框，而不是登入頁面。**主控台使用 HTTP 基本驗證，因此
-瀏覽器會跳出自己的使用者名稱與密碼提示。沒有表單可看：
+**一個認證對話框，而不是登入頁面。** 主控台使用 HTTP Basic 驗證，因此瀏覽器會自行
+彈出使用者名稱與密碼提示。沒有表單可看：
 
 ```bash
 curl -skI https://localhost:65500/
@@ -181,9 +178,8 @@ Content-Type: text/html; charset=utf-8
 Content-Length: 0
 ```
 
-帶有該 realm 的 `401` 表示主控台運作正常。這正是未經驗證的
-請求應該得到的結果 — 而對同一 URL 提供 `admin` 憑證會回應
-`200`，這就是您在開啟瀏覽器前確認憑證的方式：
+出現帶有該 realm 的 `401` 表示主控台運作正常。這正是未經驗證的請求應該得到的回應 —
+而對同一個 URL 提供 `admin` 認證會回傳 `200`，這也是您在開啟瀏覽器前確認認證的方式：
 
 ```bash
 curl -sk -u admin -o /dev/null -w '%{http_code}\n' https://localhost:65500/
@@ -194,10 +190,10 @@ Enter host password for user 'admin':
 200
 ```
 
-`-u admin` 不加冒號會讓 `curl` 提示輸入密碼，而不是從命令列取得，
-否則密碼會出現在 shell 歷史記錄與行程清單中。
+`-u admin` 後不加冒號會讓 `curl` 提示輸入密碼，而不是從命令列取得，否則密碼會留在
+shell 歷史紀錄與行程清單中。
 
-**憑證警告，同時有三個原因。**直接檢查憑證：
+**一則憑證警告，同時有三個原因。** 直接檢查憑證：
 
 ```bash
 openssl s_client -connect localhost:65500 -servername localhost </dev/null 2>/dev/null \
@@ -211,51 +207,48 @@ notBefore=Oct 25 04:51:31 2024 GMT
 notAfter=Oct 25 04:51:31 2025 GMT
 ```
 
-subject 與 issuer 相同，因此它是自我簽署的。名稱是 `site-local.volterra.io`，
-而您連線的是 `localhost`，所以不會相符。而且在此部署所執行的組建上，
-**該憑證已於 2025 年 10 月 25 日到期** — 設備隨附此憑證，而本存放庫中
-沒有任何機制會更新它。
+subject 與 issuer 相同，因此它是自簽憑證。名稱為 `site-local.volterra.io`，而您連線的
+是 `localhost`，因此不會相符。而且在本部署所執行的組建上，**該憑證已於 2025 年
+10 月 25 日到期** — 設備隨附此憑證，而本儲存庫中沒有任何機制會更新它。
 
-請預期會出現直白的瀏覽器警告，而且每次都會出現。上面的 subject 這一行才是
-有用的部分：那是您確認自己連到的是設備，而非其他在本機連接埠 65500 上
-接聽之物的方式。
+請預期看到一則直白的瀏覽器警告，而且每次都會出現。上面的 subject 那一行才是有用的
+部分：那是您確認自己連到的是設備，而不是其他在本機連接埠 65500 上接聽之服務的方式。
 
-## 管理員憑證
+## admin 認證
 
-以 `admin` 身分登入。**本文件不會公布密碼，也不應該公布。**
+以 `admin` 登入。**本文件不會公布密碼，也不應公布。**
 
-<Aside type="danger" title="在此部署上，該密碼仍是 F5 的原廠預設值">
-這是實測事實，不是猜測：原廠預設憑證今天在全部三個 CE 上都能通過驗證並
-回傳 `200`。F5 公開了該預設值並要求必須變更它，而它並未被變更。
+<Aside type="danger" title="在本部署中，該密碼仍是 F5 的原廠預設值">
+這是實測的事實，而非臆測：原廠預設認證今天在全部三個 CE 上都能通過驗證並回傳 `200`。
+F5 公布了該預設值並要求必須變更，而它並未被變更。
 
-實際後果是，在此部署上「對 Bastion 持有 Reader 權限」等同於完整的設備主控台
-存取權，只要對方知道一個記載於 F5 公開文件中的值。請變更它，並將變更它視為
-部署節點的一部分，而非事後的強化措施。
+實際後果是，在本部署中「持有 Bastion 的 Reader 權限」等同於完整的設備主控台存取權，
+對任何知道 F5 公開文件中該數值的人而言皆是如此。請變更它，並將變更視為部署節點的
+一部分，而不是日後的強化工作。
 </Aside>
 
-不公布它在這裡比看起來更重要，有兩個原因：
+不公布它之所以在此比看起來更重要，有兩個原因：
 
-- 本文件是公開的。印出整個機群目前的主控台密碼，會讓
-  「對 Bastion 持有 Reader 權限」對任何閱讀此頁的人變成完整的設備存取權。
-- 文件中公布的密碼在有人輪替它的那一刻就是錯的，而且錯得最具誤導性 —
-  讀者會下結論認為自己的存取權出了問題，而不是這個頁面過時了。
+- 本文件是公開的。印出整個機群目前的主控台密碼，會讓「持有 Bastion 的 Reader 權限」
+  對任何讀到本頁的人而言變成完整的設備存取權。
+- 在文件中公布的密碼，在有人輪替它的那一刻就是錯的，而且錯得最具誤導性 — 讀者會
+  以為自己的存取權壞了，而不是這一頁過時了。
 
-一旦密碼經過輪替，請從您團隊存放營運機密的地方取得它。
+一旦密碼經過輪替，請從您團隊存放營運機密的地方取得。
 
 <Aside type="caution" title="從 Terraform 設定密碼未經驗證">
-站點物件上的 `admin_user_credentials.admin_password` 看起來是設定此項目的宣告式
-方式。但**尚未**確認它在此組建上能夠影響站點主控台，因此請勿
-假設它可以。
+站台物件上的 `admin_user_credentials.admin_password` 看起來像是設定此項目的宣告式做法。
+但在本組建上，它**尚未**被確認能作用於站台主控台，因此請勿假設它有效。
 
-也不要把 [SSH 頁面](../ssh/)當作任一方向的證據。它關於
-`admin_password`「毫無變化」的發現是針對 SSH 驗證所測得，而 `vpm`
-對 `admin` 使用者完全略過 SSH 驗證。那對主控台沒有任何說明力。
+也請不要把 [SSH 頁面](../ssh/)當成任一方向的佐證。該頁「`admin_password` 毫無作用」
+的發現是針對 SSH 驗證量測的，而 `vpm` 對 `admin` 使用者完全跳過 SSH 驗證。那對主控台
+並未說明任何事。
 </Aside>
 
-## 為何通道必須指向資源 ID
+## 為何通道必須以資源 id 為目標
 
-`--target-resource-id` 是必要的。改為指向節點的位址會被拒絕 —
-無論您使用哪個位址，因此這裡刻意不列出任何真實位址：
+`--target-resource-id` 是必要的。改以節點的位址為目標會被拒絕 —
+無論您使用哪個位址皆然，因此此處刻意沒有印出任何真實位址：
 
 ```bash
 az network bastion tunnel --name "$BASTION" -g "$RG" \
@@ -266,29 +259,26 @@ az network bastion tunnel --name "$BASTION" -g "$RG" \
 ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.
 ```
 
-原因**不是**以 IP 為基礎的連線被停用 — 在此 Bastion 上
-`ip_connect_enabled` 是 `true`。無論該設定為何，Microsoft 都不支援在以 IP 為基礎的
-原生用戶端連線上使用自訂連接埠
-（[Azure 文件](https://learn.microsoft.com/azure/bastion/connect-ip-address)），而 65500 是
-自訂連接埠。在這裡檢查 Bastion 組態毫無幫助；請使用資源
-ID。
+原因**並非**以 IP 連線的功能被停用 — 在此 Bastion 上 `ip_connect_enabled` 為 `true`。
+無論該設定為何，Microsoft 都不支援在以 IP 為基礎的原生用戶端連線上使用自訂連接埠
+（[Azure 文件](https://learn.microsoft.com/azure/bastion/connect-ip-address)），而 65500
+是自訂連接埠。在此檢查 Bastion 組態並不會有結果；請使用資源 id。
 
 ## 當它無法運作時
 
-| 症狀 | 原因 | 修正方式 |
+| 徵狀 | 原因 | 解法 |
 | --- | --- | --- |
 | `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | 使用了 `--target-ip-address` | 改用 `--target-resource-id` |
 | `ERROR: Defined port is currently unavailable` | 另一條通道已佔用該本機連接埠 | 停止另一條通道，或傳入不同的 `--port`；`--resource-port` 維持 65500 |
 | `terraform output -raw bastion_name` 為 `null` 或空值 | Bastion 未部署 | 設定 `enable_bastion = true` 並套用 |
-| 通道啟動但資源 ID 為空 | `jq` 篩選器使用了 VM 名稱而非站點鍵 | 以 `eastus01`/`02`/`03` 為鍵 |
-| `401 Unauthorized`，realm 為 `Volterra Site Console` | 並非故障 — 未經驗證的請求 | 提供 `admin` 憑證 |
-| 瀏覽器拒絕該憑證 | 自我簽署、名稱不符，且自 2025 年 10 月起已到期 | 屬預期情況；確認 subject 為 `CN=site-local.volterra.io` 後繼續 |
+| 通道啟動但資源 id 為空 | `jq` 篩選使用了 VM 名稱而非站台索引鍵 | 以 `eastus01`/`02`/`03` 為索引鍵 |
+| `401 Unauthorized`，realm 為 `Volterra Site Console` | 並非故障 — 這是未經驗證的請求 | 提供 `admin` 認證 |
+| 瀏覽器拒絕該憑證 | 自簽、名稱不符，且自 2025 年 10 月起已到期 | 屬預期情形；確認 subject 為 `CN=site-local.volterra.io` 後繼續 |
 
-<Aside type="note" title="未重現授權失敗情況">
-RBAC 權限不足是另一個明顯的失敗方式，但要重現它就必須從
-共用部署中移除角色指派，因此此處不以逐字錯誤訊息記錄。
-若通道在啟動時因授權錯誤而失敗，請檢查 VM、其 NIC 與 Bastion 主機
-三者上的 Reader 權限。
+<Aside type="note" title="授權失敗未經重現">
+RBAC 權限不足是另一種明顯會導致失敗的情況，但要重現它就必須從共用部署中移除角色
+指派，因此此處未附上逐字錯誤訊息記錄。若通道在啟動時因授權錯誤而失敗，請檢查
+VM、其 NIC 與 Bastion 主機這三者上的 Reader 權限。
 </Aside>
 
 ## 其他途徑
@@ -296,17 +286,17 @@ RBAC 權限不足是另一個明顯的失敗方式，但要重現它就必須從
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="可編寫指令碼且可重複執行，不需要 VNet 存取權。共 34 個指令，且站點必須為 <code>ONLINE</code>。"
+    description="可指令碼化且可重複執行，不需要 VNet 存取權。共 34 條指令，且站台必須為 <code>ONLINE</code>。"
     href="../debug-api/"
   />
   <LinkCard
     title="SSH"
-    description="完整的機上 Site CLI。需要從首次開機起就存在的金鑰，以及一台位於 VNet 內的主機。"
+    description="完整的機上 Site CLI。需要自首次開機起即存在的金鑰，以及一台位於 VNet 內部的主機。"
     href="../ssh/"
   />
   <LinkCard
     title="序列主控台"
-    description="適用於完全沒有可用網路路徑的節點。每個 VM 一個工作階段，貼上上限為 2,048 個字元。"
+    description="適用於完全沒有可用網路路徑的節點。每台 VM 一個工作階段，貼上上限 2,048 個字元。"
     href="../serial-console/"
   />
 </CardGrid>

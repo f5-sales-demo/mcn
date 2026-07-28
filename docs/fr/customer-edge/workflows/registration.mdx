@@ -2,12 +2,12 @@
 title: Un site qui n'est jamais passé en ligne
 description: >-
   Séquence ordonnée pour un CE qui n'a pas réussi à s'enregistrer, où l'API de
-  débogage ne peut pas aider car elle dépend de l'enregistrement qui a échoué.
+  débogage est inutile car elle dépend de l'enregistrement qui a échoué.
 sidebar:
   order: 10
   label: Enregistrement
 i18n:
-  sourceHash: 0bec51f79119
+  sourceHash: c687d28cce5d
   translator: machine
 ---
 
@@ -15,20 +15,20 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
 Capturé le 2026-07-28 depuis un CE de ce déploiement. `sitecli/capture-manifest.json`
 indique quel nœud, et `scripts/capture-sitecli.sh --check` revérifie la surface de
-commandes face à un CE en fonctionnement.
+commandes contre un CE actif.
 
 <Aside type="danger" title="L'API ne peut pas déboguer ceci">
 L'API de débogage atteint le nœud via le plan de contrôle F5 Distributed Cloud, à travers
 le tunnel que l'enregistrement établit. Si l'enregistrement a échoué, il n'y a pas de tunnel,
-donc chaque commande de ce site est indisponible pour cette panne précise. Travaillez depuis
-la [Console du site](../../access/site-console/) si le nœud dispose encore d'un chemin réseau, et depuis la
-[console série](../../access/serial-console/) si ce n'est pas le cas.
+donc toutes les commandes de ce site sont indisponibles pour cette défaillance précise. Travaillez depuis
+la [Console du site](../../access/site-console/) si le nœud dispose encore d'un chemin réseau, et depuis
+la [console série](../../access/serial-console/) si ce n'est pas le cas.
 </Aside>
 
 <Steps>
 
-1. **Confirmez que vous interrogez le bon tenant.** Cela coûte une seule commande et vient
-   en premier parce qu'une erreur ici fait mentir toutes les étapes suivantes : une flotte saine dans le tenant
+1. **Vérifiez que vous interrogez le bon tenant.** Cela coûte une seule commande et vient
+   en premier parce qu'une erreur ici fausse toutes les étapes suivantes : une flotte saine dans le tenant
    que vous ne regardez pas est indiscernable d'une flotte qui ne s'est jamais enregistrée.
 
    ```bash
@@ -42,11 +42,11 @@ la [Console du site](../../access/site-console/) si le nœud dispose encore d'un
    f5-sales-demo
    ```
 
-   Valeurs différentes, ou un identifiant que vous croyez valide renvoyant un simple `401` ? C'est le
-   symptôme d'un jeton émis pour un autre tenant, et cela a déjà coûté à ce déploiement une
+   Discordance, ou un identifiant que vous croyez valide renvoyant un simple `401` ? C'est le
+   symptôme d'un jeton généré pour un autre tenant, et cela a déjà coûté à ce déploiement une
    reconstruction complète ([issue 696](https://github.com/f5-sales-demo/mcn/issues/696)).
 
-2. **Confirmez ce que pense le tenant.** Être absent de la liste des sites est un problème
+2. **Vérifiez ce que pense le tenant.** Être absent de la liste des sites est un problème
    différent d'être présent mais pas `ONLINE`.
 
    ```bash
@@ -58,7 +58,7 @@ la [Console du site](../../access/site-console/) si le nœud dispose encore d'un
    mauvais workflow.
 
 3. **Trouvez l'enregistrement du site et son état.** Un nœud peut s'enregistrer puis attendre
-   une approbation, ce qui, vu de l'extérieur, est identique à un échec.
+   une approbation, ce qui, vu de l'extérieur, ressemble exactement à un échec.
 
    ```bash
    curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -71,11 +71,11 @@ la [Console du site](../../access/site-console/) si le nœud dispose encore d'un
    ```
 
    Aucun élément du tout signifie que le nœud ne s'est pas encore enregistré — passez à la console série. Un élément
-   dans un état autre que `ONLINE` signifie qu'il s'est enregistré et que quelque chose a échoué après cela, ce qui
+   dans un état autre que `ONLINE` signifie qu'il s'est enregistré et que quelque chose ensuite a échoué, ce qui
    constitue une autre investigation.
 
-   Pour balayer tout l'espace de noms à la recherche de ce qui attend une approbation, `listregistrationsbystate`
-   prend l'état dans un **corps de requête `POST`** :
+   Pour balayer l'ensemble du namespace à la recherche de tout ce qui attend une approbation, `listregistrationsbystate`
+   prend l'état dans un **corps `POST`** :
 
    ```bash
    curl -sS -X POST -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -86,34 +86,34 @@ la [Console du site](../../access/site-console/) si le nœud dispose encore d'un
 
    Sur une flotte saine, cela ne renvoie rien, car l'approbation est automatisée.
 
-4. **Confirmez que la VM fonctionne réellement**, avant de supposer une panne logicielle.
+4. **Vérifiez que la VM est réellement en cours d'exécution**, avant de supposer une panne logicielle.
 
    ```bash
    az vm list -d -g <resource-group> --query "[].{name:name,power:powerState}" -o table
    ```
 
    ```text
-   Name            Power
-   --------------  ----------
-   ar-ecmp-client  VM running
-   f5-xc-ce-vm-01  VM running
-   f5-xc-ce-vm-02  VM running
-   f5-xc-ce-vm-03  VM running
+   Name              Power
+   ----------------  ----------
+   f5-xc-ce-vm-01    VM running
+   f5-xc-ce-vm-02    VM running
+   f5-xc-ce-vm-03    VM running
+   mcn-ce-ha-client  VM running
    ```
 
-5. **Attachez la console série.** En mode interactif, cela nécessite un véritable terminal ; l'attachement
-   lui-même peut à la place être scripté via le websocket — voir
+5. **Attachez la console série.** De manière interactive, cela nécessite un véritable terminal ; l'attachement
+   lui-même peut être scripté via le websocket — voir
    [console série](../../access/serial-console/).
 
    ```bash
    az serial-console connect -g <resource-group> -n <vm-name>
    ```
 
-   En cas de refus, vérifiez que les diagnostics de démarrage sont activés sur la VM avant de conclure que
-   le nœud est inatteignable ; ce prérequis et ses modes de défaillance sont traités sur la page
+   En cas de refus, vérifiez que les diagnostics de démarrage sont activés sur la VM avant de conclure que le
+   nœud est inaccessible ; ce prérequis et ses modes de défaillance sont traités sur la page
    [console série](../../access/serial-console/).
 
-6. **Lisez ce que montre la console, dans cet ordre.** cloud-init d'abord — un nœud dont
+6. **Lisez ce que la console affiche, dans cet ordre.** cloud-init d'abord — un nœud dont
    cloud-init ne s'est jamais terminé n'a aucune configuration avec laquelle s'enregistrer. Puis les
    tentatives d'enregistrement elles-mêmes, puis le DNS : si le nœud ne peut pas résoudre
    `register.ves.volterra.io`, rien en aval ne peut fonctionner.
@@ -127,16 +127,16 @@ la [Console du site](../../access/site-console/) si le nœud dispose encore d'un
 Les enregistrements sont nommés `r-<uuid>`, et il n'existe aucun point de terminaison acceptant un nom de site là où un
 nom d'enregistrement est attendu.
 `GET .../registrations/<site>` renvoie `404`, ce qui se lit comme « ce site n'a aucun
-enregistrement » alors que cela signifie en réalité « ce n'est pas un nom d'enregistrement ». La correspondance site-vers-enregistrement
-ne provient que de `registrations_by_site/<site>`, comme à l'étape 3, ou en listant
-`registrations` et en faisant la correspondance sur `gc_spec.passport.cluster_name`.
+enregistrement » alors que cela signifie en réalité « ce n'est pas un nom d'enregistrement ». La correspondance
+site-vers-enregistrement ne vient que de `registrations_by_site/<site>`, comme à l'étape 3, ou en listant
+`registrations` et en faisant correspondre `gc_spec.passport.cluster_name`.
 
-Ce même piège a fait croire qu'une flotte saine n'avait aucun enregistrement.
+Le même piège a donné l'impression qu'une flotte saine n'avait aucun enregistrement.
 </Aside>
 
 ## Les causes habituelles
 
-- **Vous êtes pointé vers le mauvais tenant**, si bien qu'une flotte en bon état paraît absente. Étape 1.
+- **Vous visez le mauvais tenant**, donc une flotte en bon état semble absente. Étape 1.
 - cloud-init ne s'est pas terminé, donc `/etc/vpm/config.yaml` est absent ou incorrect.
 - Le jeton d'enregistrement est expiré, déjà consommé, ou provient d'un autre tenant.
 - Aucune route de sortie vers `register.ves.volterra.io`.

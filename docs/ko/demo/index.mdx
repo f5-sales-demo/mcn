@@ -1,26 +1,30 @@
 ---
 title: 멀티클라우드 네트워킹 CE-HA 데모
 description: >-
-  이 리포지토리가 배포하는 것 — 앞단에 Azure 로드 밸런서 없이, eBGP를 통해 하나의 VIP를 Azure Route Server로
-  광고하여 동일 비용 다중 경로를 구성하는 N개의 단일 노드 Customer Edge — 이 데모가 증명하려는 것, 그리고 배포하고 정상
-  상태를 검증하고 시연하려면 어디로 가야 하는지.
+  이 리포지터리가 배포하는 것 — N개의 단일 노드 Customer Edge가 eBGP를 통해 하나의 VIP를 Azure Route
+  Server로 원발(originate)하여 등가 다중 경로(equal-cost multipath)를 구성하며, 그 앞에 Azure 로드
+  밸런서를 두지 않습니다 — 이 데모가 증명하려는 것, 그리고 배포하고 정상 상태를 확인하고 시연하기 위해 어디로 가야 하는지.
 sidebar:
   order: 5
   label: 데모
 i18n:
-  sourceHash: 924839aeeaf6
+  sourceHash: 4fbc25642229
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-이 배포는 CE 앞단에 Azure 로드 밸런서를 두지 않고 **Azure에서 액티브/액티브 Customer Edge 고가용성**을 구현하는 방법을 보여줍니다. 각 CE는 eBGP로 동일한 호스트 경로를 광고하며, Azure Route Server는 이들 전부를 VNet 내에서 동일 비용 넥스트 홉으로 설치합니다.
-따라서 트래픽 분산과 장애 노드 제거가 일어나야 하는 지점은 로드 밸런서가 아니라 라우팅 패브릭입니다.
+이 배포는 CE 앞에 Azure 로드 밸런서를 두지 않고 **Azure에서 액티브/액티브 Customer Edge 고가용성**을
+구현하는 방식을 보여줍니다. 각 CE는 동일한 호스트 경로를 eBGP로 원발하며, Azure Route Server는
+이들 모두를 VNet 내의 등가 넥스트홉으로 설치합니다. 따라서 트래픽 분산과 장애 노드 제거는
+로드 밸런서가 아니라 라우팅 패브릭에서 이루어지도록 되어 있습니다.
 
-이 페이지들의 모든 내용은 실제 배포 환경에서 실행된 것이며, 표시된 출력은 그 실행이 만들어낸 출력입니다. 그 문장이 *포함하지 않는* 것 — 페일오버, 그리고 트래픽이 넥스트 홉들 사이에서 어떻게 나뉘는지 — 는 추측에 맡기지 않고 명시적으로 언급합니다.
+이 페이지들의 모든 내용은 실제 운영 중인 배포를 대상으로 실행되었으며, 표시된 출력은 그 배포가
+생성한 실제 출력입니다. 그 문장이 *포함하지 않는* 것 — 페일오버, 그리고 트래픽이 넥스트홉 간에
+어떻게 나뉘는지 — 은 가정하도록 남겨두지 않고 명시적으로 밝혀 둡니다.
 
-## 배포되는 구성
+## 배포되는 구성 요소
 
 ```text
                      Azure Route Server            ASN 65515
@@ -42,15 +46,16 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 | F5 Distributed Cloud 테넌트 | `var.expected_xc_tenant` — 테넌트 이름이 지정되는 유일한 위치 |
 | 네임스페이스 | CE 사이트는 `system`에, 오리진 풀과 로드 밸런서는 `var.xc_app_namespace`에 |
 | Customer Edge | `var.ce_count`개의 단일 노드 Secure Mesh v2 사이트, 1~3개, 가용 영역당 하나 |
-| CE 소프트웨어 | `var.ce_sw_version` / `var.ce_os_version`으로 고정됨 |
+| CE 소프트웨어 | `var.ce_sw_version` / `var.ce_os_version`으로 고정 |
 | Azure VM | 각각 NIC 3개 — 관리/SLO, 외부, 내부/SLI |
 | 경로 교환 | Azure Route Server 1개, ASN `var.rs_asn`, 인스턴스 주소 2개 |
-| 피어링 | CE당 1개, `<key>-bgp`로 명명, CE ASN `var.ce_asn` |
-| 광고되는 VIP | `/32`로서의 `var.vip`, 모든 CE가 동일하게 광고 |
+| 피어링 | CE당 하나, 이름은 `<key>-bgp`, CE ASN은 `var.ce_asn` |
+| 광고되는 VIP | `var.vip`를 `/32`로, 모든 CE가 동일하게 원발 |
 | 로드 밸런서 | `var.lb_domain`을 서비스하며, `var.origin_ip`의 오리진 풀이 백엔드 |
-| 테스트 클라이언트 | 동일 VNet 내부의 VM으로, VIP를 향해 트래픽을 발생시키는 데 사용 |
+| 테스트 클라이언트 | 동일 VNet 내부의 VM으로, VIP를 향해 트래픽을 발생시키는 용도 |
 
-위의 어떤 것도 그대로 복사해야 하는 리터럴 값이 아닙니다. 모든 값은 배포에서 읽어올 수 있으며, 각 페이지는 값을 명시하는 대신 읽어옵니다:
+위의 어떤 것도 그대로 복사해야 할 리터럴이 아닙니다. 모든 값은 배포에서 읽어올 수 있으며,
+각 페이지는 값을 명시하는 대신 읽어옵니다:
 
 ```bash
 cd terraform
@@ -58,37 +63,44 @@ terraform output -raw resource_group_name
 terraform output -json xc_site_names
 ```
 
-<Aside type="caution" title="VIP는 모든 VNet CIDR 외부에 있어야 합니다">
-`terraform/main.tf`에는 VIP가 허브와 스포크 CIDR 양쪽 모두의 외부에 있음을 단정하는 `check` 블록이 있으며, 그렇지 않으면 플랜을 거부합니다. 그 이유는 VNet CIDR 내부의 VIP는 BGP 경로가 더 구체적이더라도 VNet 자체의 시스템 경로에 밀린다는 것입니다.
+<Aside type="caution" title="VIP는 모든 VNet CIDR 바깥에 있어야 합니다">
+`terraform/main.tf`에는 VIP가 허브 및 스포크 CIDR 양쪽 모두의 바깥에 있음을 단언하는 `check`
+블록이 있으며, 그렇지 않으면 플랜을 거부합니다. 그 이유는 VNet CIDR 내부의 VIP는 BGP 경로가
+더 구체적임에도 불구하고 VNet 자체의 시스템 경로에 밀리기 때문입니다.
 
-이 가드를 계약으로 취급하십시오: 이 데모를 다른 주소 체계로 다시 지정한다면, VIP도 함께 VNet 범위 밖으로 이동해야 합니다.
+이 가드를 계약으로 여기십시오. 이 데모를 다른 주소 체계로 재지정한다면 VIP도 함께 VNet 범위
+바깥으로 이동해야 합니다.
 </Aside>
 
-<Aside type="note" title="2026-07-28 관찰: 실제 객체들은 아직 임시 이름을 유지하고 있습니다">
-객체 이름은 `var.component`에서 파생되므로, 고정되지 않은 배포는
-`<component>-<region>01`, `<component>-f5se`, `<component>-pool`, `<component>-rs`,
-`<component>-bastion`을 생성합니다. 현재 실행 중인 데모는 그 변경 이전의 것으로 원래 이름을 유지하며, 환경이 사용 중인 동안 아무것도 교체되지 않도록 로컬 `terraform.tfvars`에 고정되어 있습니다.
+<Aside type="caution" title="이름 변경은 재빌드이지, 단순한 이름 바꾸기가 아닙니다">
+모든 이름이 `var.component`에서 파생되기 때문에 이를 변경하면 배포 전체의 이름이 바뀝니다 —
+그러나 `site_prefix`는 겉모습만 바뀌는 변경이 아닙니다. 이 값은 각 CE의 cloud-init에서
+`ClusterName`이 되고, `custom_data`는 교체 전용이며, cloud-init은 CE의 최초 부팅 시에만
+실행됩니다. 따라서 이를 변경하면 **모든 CE VM과 해당 XC 사이트가 교체되며**, ECMP가 재수렴하는
+동안 VIP는 잠시 손실이 발생합니다.
 
-그래서 이 페이지들의 실제 명령 출력에는 위 패턴과 일치하지 않는 이름이 나타납니다. 파생된 이름을 채택하면 모든 CE VM이 교체되는데, 사이트 이름이 cloud-init에 구워진 `ClusterName`이고 cloud-init은 첫 부팅에서만 실행되기 때문입니다 — 즉 이는 이름 변경이 아니라 의도적인 재구축이며,
-[issue 700](https://github.com/f5-sales-demo/mcn/issues/700)에서 추적됩니다.
+이는 이론상의 이야기가 아닙니다. 실행 중인 데모에 이러한 파생 이름을 적용한 결과 CE VM 3개,
+사이트 3개, BGP 객체 3개, 로드 밸런서, 오리진 풀, Azure Route Server, Bastion 및 테스트
+클라이언트가 교체되었습니다 — `23 to add, 3 to change, 26 to destroy`.
+기존 사이트를 그대로 유지해야 한다면 `site_prefix`를 현재 값으로 고정하십시오.
 </Aside>
 
-## 다음으로 볼 곳
+## 다음 단계
 
 <CardGrid>
   <LinkCard
     title="배포하기"
-    description="사전 요구 사항, 반드시 제공해야 하는 두 가지 값, 첫 apply가 2단계인 이유, 그리고 해체 방법."
+    description="전제 조건, 반드시 제공해야 하는 두 개의 값, 첫 apply가 2단계인 이유, 그리고 해체 방법."
     href="./deploy/"
   />
   <LinkCard
     title="Terraform 구성"
-    description="다시 타이핑한 것이 아니라 실제로 배포하는 파일에서 읽어온 구성 그 자체."
+    description="다시 타이핑한 것이 아니라, 실제로 배포하는 파일에서 읽어온 구성 자체."
     href="./terraform/"
   />
   <LinkCard
-    title="정상 상태 검증하기"
-    description="순서대로 진행하는 네 가지 점검, 그리고 장애처럼 보이지만 실제로는 아닌 정상적인 결과들."
+    title="정상 상태 확인하기"
+    description="순서대로 진행하는 네 가지 점검과, 장애처럼 보이지만 실제로는 정상인 결과들."
     href="./verify/"
   />
   <LinkCard

@@ -1,18 +1,18 @@
 ---
 title: Consola del sitio
 description: >-
-  La Consola del sitio de F5 por nodo, servida en el TCP 65500 y accesible
-  mediante un túnel de Azure Bastion. No necesita clave SSH, ni host de salto,
-  ni IP pública — el acceso es una decisión de Azure RBAC, y responde incluso
-  cuando el sitio no ha logrado registrarse. Cubre los comandos exactos y su
-  salida real, el certificado sobre el que se le advertirá, por qué el túnel
-  debe apuntar al id de recurso de la VM y cómo debe tratarse la credencial de
-  administrador.
+  La Consola del sitio de F5 por nodo, servida en TCP 65500 y accesible mediante
+  un túnel de Azure Bastion. No necesita clave SSH, ni host de salto, ni IP
+  pública — el acceso es una decisión de Azure RBAC, y responde incluso cuando
+  el sitio no ha logrado registrarse. Cubre los comandos exactos y su salida
+  real, el certificado sobre el que recibirá una advertencia, por qué el túnel
+  debe apuntar al id de recurso de la VM y cómo debe gestionarse la credencial
+  de admin.
 sidebar:
   order: 22
   label: Consola del sitio
 i18n:
-  sourceHash: d1a0b5ed6521
+  sourceHash: d33e2716256e
   translator: machine
 ---
 
@@ -28,36 +28,36 @@ implementación suele ser la ruta que conviene probar primero.
 
 Es la que menos le exige: ninguna clave SSH que distribuir, ningún host de salto que mantener,
 ninguna IP pública en el nodo y ningún reemplazo de VM para habilitarla. Quién puede conectarse
-se convierte en una **decisión de Azure RBAC**. Y no necesita que el sitio esté registrado: esta
+pasa a ser una **decisión de Azure RBAC**. Y no necesita que el sitio esté registrado: esta
 página se capturó por primera vez mientras los tres sitios informaban `site_state: FAILED`, y se
 volvió a verificar sin cambios contra los mismos nodos una vez que estaban `ONLINE`.
 
-La contrapartida es que la Consola del sitio responde únicamente en la dirección interna (SLI)
-del nodo, alcanzable solo desde dentro de la VNet. Azure Bastion cierra esa brecha sin colocar
+El inconveniente es que la Consola del sitio solo responde en la dirección interna (SLI) del
+nodo, accesible únicamente desde dentro de la VNet. Azure Bastion cierra esa brecha sin colocar
 nada más en la red.
 
 <Aside type="note" title="Qué se verifica aquí y qué no">
-Cada comando y cada salida de esta página se ejecutó contra `f5-xc-ce-vm-01` en esta
-implementación y se reproduce textualmente, incluidos los fallos.
+Cada comando y cada salida de esta página se ejecutaron contra `f5-xc-ce-vm-01` en esta
+implementación y se reproducen literalmente, incluidos los fallos.
 
-**La autenticación está verificada**: la credencial `admin` del dispositivo devuelve `200` a
-través del túnel. Lo que *no* se ejercita es la consola en sí — nada de lo que sigue describe qué
-se puede ver o hacer una vez dentro.
+**La autenticación está verificada**: la credencial `admin` del appliance devuelve `200` a través
+del túnel. Lo que *no* se ejercita es la consola en sí — nada de lo que sigue describe qué puede
+ver o hacer una vez dentro.
 
-**Azure RBAC no está verificado.** Todas las ejecuciones se hicieron como propietario de la
-suscripción, por lo que el requisito de Reader del paso 2 es el requisito documentado por
-Microsoft y no algo medido aquí.
+**Azure RBAC no está verificado.** Cada ejecución se hizo como propietario de la suscripción, de
+modo que el requisito de Reader en el paso 2 es el requisito documentado por Microsoft y no algo
+medido aquí.
 </Aside>
 
 <Aside type="caution" title="Bastion es opcional y no se implementa por defecto">
-`enable_bastion` es `false` por defecto, así que en un `terraform apply` predeterminado no hay
-host de Bastion y `terraform output -raw bastion_name` es `null`. Establezca
-`enable_bastion = true` en `terraform/terraform.tfvars` — en esta implementación es `true`.
+`enable_bastion` es `false` por defecto, por lo que en un `terraform apply` predeterminado no hay
+host de Bastion y `terraform output -raw bastion_name` es `null`. Establezca `enable_bastion = true`
+en `terraform/terraform.tfvars` — es `true` en esta implementación.
 
 La razón de que sea opcional es el coste, no el riesgo: un host de SKU Standard factura un cargo
 fijo por hora desde el momento en que se aprovisiona, tanto si alguien abre un túnel como si no —
-USD 0,29/hora en `eastus` para las dos unidades de escalado incluidas (precio de lista, 2026-07),
-aproximadamente USD 212 al mes. Vuelva a desactivarlo cuando la demostración no necesite acceso a
+USD 0,29/hora en `eastus` por las dos unidades de escala incluidas (precio de lista, 2026-07),
+aproximadamente USD 212 al mes. Desactívelo de nuevo cuando la demostración no necesite acceso a
 la consola.
 </Aside>
 
@@ -65,21 +65,21 @@ la consola.
 
 <Steps>
 
-1. Inicie sesión en Azure y añada la extensión de Bastion. El túnel es una función del cliente
-   nativo y la extensión no está instalada por defecto.
+1. Inicie sesión en Azure y añada la extensión de Bastion. La creación de túneles es una función
+   del cliente nativo y la extensión no está instalada por defecto.
 
    ```bash
    az login
    az extension add --name bastion
    ```
 
-2. Disponga de **Reader** sobre la máquina virtual del CE, su interfaz de red y el host de
-   Bastion. Este es el requisito documentado por Microsoft y **no está verificado aquí** — todas
-   las ejecuciones en esta implementación se hicieron como propietario de la suscripción, por lo
-   que no se ha demostrado que ningún rol inferior sea suficiente o insuficiente.
+2. Disponga del rol **Reader** en la máquina virtual del CE, su interfaz de red y el host de
+   Bastion. Este es el requisito documentado por Microsoft y **no está verificado aquí** — cada
+   ejecución en esta implementación se hizo como propietario de la suscripción, por lo que no se
+   ha demostrado que ningún rol inferior sea suficiente o insuficiente.
 
-3. Confirme que Bastion está implementado y es capaz. La SKU Basic no admite ni el túnel ni la
-   conexión basada en IP, por lo que `Standard` y `True` aquí son ambos determinantes.
+3. Confirme que Bastion está implementado y es capaz. La SKU Basic no admite ni túneles ni
+   conexión basada en IP, de modo que aquí tanto `Standard` como `True` son determinantes.
 
    ```bash
    az network bastion list -g "$(terraform output -raw resource_group_name)" \
@@ -89,7 +89,7 @@ la consola.
    ```text
    Name               Sku       Tunneling
    -----------------  --------  -----------
-   ce-ha-lab-bastion  Standard  True
+   mcn-ce-ha-bastion  Standard  True
    ```
 
 </Steps>
@@ -97,7 +97,7 @@ la consola.
 ## Abrir el túnel
 
 Tome los valores de `terraform output` en lugar de escribirlos — el id de recurso no es algo que
-convenga montar a mano.
+convenga componer a mano.
 
 <Steps>
 
@@ -111,15 +111,15 @@ convenga montar a mano.
    ```
 
    ```text
-   ce-ha-lab-bastion
+   mcn-ce-ha-bastion
    rg-mcn-ce-ha-rmordasiewicz
    /subscriptions/…/providers/Microsoft.Compute/virtualMachines/f5-xc-ce-vm-01
    ```
 
    <Aside type="caution" title="El mapa se indexa por sitio, no por nombre de VM">
-   Las claves de `ce_vm_ids` son `eastus01`, `eastus02`, `eastus03` — **no** los nombres de las
-   VM. Un filtro como `jq -r '."f5-xc-ce-vm-01"'` devuelve `null`, y entonces el túnel falla con
-   un id de recurso vacío. Enumérelas si tiene dudas:
+   Las claves de `ce_vm_ids` son `eastus01`, `eastus02`, `eastus03` — **no** los nombres de las VM. Un
+   filtro como `jq -r '."f5-xc-ce-vm-01"'` devuelve `null`, y entonces el túnel falla con un id de
+   recurso vacío. Enumérelas si no está seguro:
 
    ```bash
    terraform output -json ce_vm_ids | jq -r 'keys | join(", ")'
@@ -149,10 +149,10 @@ convenga montar a mano.
    WARNING: Ctrl + C to close
    ```
 
-   Las tres líneas llevan el prefijo `WARNING:`. Eso es la CLI de Azure escribiendo el progreso
-   en stderr, no un problema. Espere a `Tunnel is ready` antes de conectarse.
+   Las tres líneas llevan el prefijo `WARNING:`. Se trata de la CLI de Azure escribiendo el
+   progreso en stderr, no de un problema. Espere a `Tunnel is ready` antes de conectarse.
 
-3. Confirme que el escuchador es local, en loopback:
+3. Confirme que el listener es local, en loopback:
 
    ```bash
    lsof -nP -iTCP:65500 -sTCP:LISTEN
@@ -163,24 +163,24 @@ convenga montar a mano.
    Python  41648  you   7u  IPv4  …            0t0   TCP  127.0.0.1:65500 (LISTEN)
    ```
 
-4. Abra la consola. El túnel la hace local, así que la dirección es `localhost` — no la dirección
-   del nodo.
+4. Abra la consola. El túnel la hace local, por lo que la dirección es `localhost` — no la
+   dirección del nodo.
 
    ```bash
    open https://localhost:65500/          # macOS
    xdg-open https://localhost:65500/      # Linux
    ```
 
-5. Detenga el túnel cuando termine — `Ctrl-C`, o `kill %1` si lo dejó en segundo plano. Dejarlo
-   abierto retiene el puerto local 65500 y la sesión de Bastion.
+5. Detenga el túnel cuando haya terminado — `Ctrl-C`, o `kill %1` si lo puso en segundo plano.
+   Dejarlo abierto mantiene ocupado el puerto local 65500 y la sesión de Bastion.
 
 </Steps>
 
 ## Qué verá
 
 **Un cuadro de diálogo de credenciales, no una página de inicio de sesión.** La consola usa
-autenticación HTTP Basic, por lo que el navegador muestra su propia solicitud de nombre de
-usuario y contraseña. No hay ningún formulario que mirar:
+autenticación HTTP Basic, por lo que el navegador muestra su propio aviso de usuario y
+contraseña. No hay ningún formulario que mirar:
 
 ```bash
 curl -skI https://localhost:65500/
@@ -193,8 +193,8 @@ Content-Type: text/html; charset=utf-8
 Content-Length: 0
 ```
 
-Un `401` con ese realm significa que la consola funciona correctamente. Es lo que se supone que
-recibe una solicitud no autenticada — y suministrar la credencial `admin` a la misma URL responde
+Un `401` con ese realm significa que la consola funciona correctamente. Es lo que se espera que
+reciba una solicitud no autenticada — y facilitar la credencial `admin` a la misma URL responde
 `200`, que es la forma de confirmar la credencial antes de abrir un navegador:
 
 ```bash
@@ -209,7 +209,7 @@ Enter host password for user 'admin':
 `-u admin` sin dos puntos hace que `curl` solicite la contraseña en lugar de tomarla de la línea
 de comandos, donde acabaría en el historial del shell y en la lista de procesos.
 
-**Una advertencia de certificado, por tres motivos a la vez.** Comprobando el certificado
+**Una advertencia de certificado, por tres razones a la vez.** Comprobando el certificado
 directamente:
 
 ```bash
@@ -224,45 +224,45 @@ notBefore=Oct 25 04:51:31 2024 GMT
 notAfter=Oct 25 04:51:31 2025 GMT
 ```
 
-El sujeto coincide con el emisor, por lo que es autofirmado. El nombre es
-`site-local.volterra.io` mientras usted se conecta a `localhost`, así que no coincidirá. Y en la
-compilación que ejecuta esta implementación, **el certificado caducó el 25 de octubre de 2025** —
-el dispositivo lo incluye, y nada en este repositorio lo renueva.
+El sujeto es igual al emisor, por lo que es autofirmado. El nombre es `site-local.volterra.io`
+mientras usted se conecta a `localhost`, así que no coincidirá. Y en la compilación que ejecuta
+esta implementación, **el certificado caducó el 25 de octubre de 2025** — el appliance lo incluye,
+y nada en este repositorio lo renueva.
 
 Espere una advertencia contundente del navegador, y espérela cada vez. La línea del sujeto de
-arriba es la parte útil: es cómo confirma que llegó al dispositivo y no a otra cosa escuchando en
-el puerto local 65500.
+arriba es la parte útil: es como confirma que ha llegado al appliance y no a otra cosa que esté
+escuchando en el puerto local 65500.
 
-## La credencial de administrador
+## La credencial de admin
 
 Inicie sesión como `admin`. **Esta documentación no publica la contraseña, y no debería hacerlo.**
 
-<Aside type="danger" title="En esta implementación esa contraseña sigue siendo el valor de fábrica de F5">
-Este es un hecho medido, no una sospecha: la credencial predeterminada de fábrica se autentica y
-devuelve `200` en los tres CE a día de hoy. F5 publica ese valor predeterminado y exige que se
-cambie, y no se ha hecho.
+<Aside type="danger" title="En esta implementación esa contraseña sigue siendo el valor predeterminado de fábrica de F5">
+Es un hecho medido, no una sospecha: la credencial predeterminada de fábrica se autentica y
+devuelve `200` hoy en los tres CE. F5 publica ese valor predeterminado y exige que se cambie, y no
+se ha cambiado.
 
-La consecuencia práctica es que en esta implementación "tener Reader sobre el Bastion" equivale a
-acceso completo a la consola del dispositivo, para cualquiera que conozca un valor que está en la
+La consecuencia práctica es que en esta implementación "tener Reader en el Bastion" equivale a
+acceso completo a la consola del appliance, para cualquiera que conozca un valor que está en la
 documentación pública de F5. Cámbielo, y trate ese cambio como parte de la implementación de un
 nodo y no como un endurecimiento posterior.
 </Aside>
 
-Dos razones por las que no publicarla importa más aquí de lo que podría parecer:
+Dos razones por las que no publicarla importa aquí más de lo que podría parecer:
 
 - Esta documentación es pública. Imprimir la contraseña actual de la consola de la flota
-  convertiría "tener Reader sobre el Bastion" en acceso completo al dispositivo para cualquiera
-  que lea la página.
-- Una contraseña publicada en la documentación queda incorrecta en el momento en que alguien la
-  rota, y de la forma más engañosa — el lector concluye que su acceso está roto en lugar de que
+  convertiría "tener Reader en el Bastion" en acceso completo al appliance para cualquiera que lea
+  la página.
+- Una contraseña publicada en la documentación es incorrecta en el momento en que alguien la rota,
+  y errónea de la forma más engañosa — el lector concluye que su acceso está roto en lugar de que
   la página está obsoleta.
 
 Una vez rotada, obténgala de donde su equipo guarde los secretos operativos.
 
 <Aside type="caution" title="Establecer la contraseña desde Terraform no está verificado">
-`admin_user_credentials.admin_password` en el objeto de sitio parece la forma declarativa de
+`admin_user_credentials.admin_password` en el objeto del sitio parece la forma declarativa de
 establecerla. **No** se ha confirmado que llegue a la Consola del sitio en esta compilación, así
-que no dé por supuesto que lo hace.
+que no dé por sentado que lo hace.
 
 No interprete la [página de SSH](../ssh/) como evidencia en ningún sentido. Su hallazgo de que
 `admin_password` "no cambió nada" se midió contra la autenticación SSH, que `vpm` omite por
@@ -271,8 +271,8 @@ completo para el usuario `admin`. Eso no dice nada sobre la consola.
 
 ## Por qué el túnel debe apuntar al id de recurso
 
-`--target-resource-id` es obligatorio. Apuntar a la dirección del nodo se rechaza — sea cual sea
-la dirección que use, por lo que deliberadamente no se imprime aquí ninguna real:
+`--target-resource-id` es obligatorio. Apuntar en su lugar a la dirección del nodo se rechaza —
+sea cual sea la dirección que use, por lo que deliberadamente no se imprime aquí ninguna real:
 
 ```bash
 az network bastion tunnel --name "$BASTION" -g "$RG" \
@@ -283,7 +283,7 @@ az network bastion tunnel --name "$BASTION" -g "$RG" \
 ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.
 ```
 
-La razón **no** es que la conexión basada en IP esté deshabilitada — en este Bastion
+La razón **no** es que la conexión basada en IP esté desactivada — en este Bastion
 `ip_connect_enabled` es `true`. Microsoft no admite puertos personalizados en conexiones de
 cliente nativo basadas en IP, independientemente de ese ajuste
 ([documentación de Azure](https://learn.microsoft.com/azure/bastion/connect-ip-address)), y 65500
@@ -295,35 +295,35 @@ parte; use el id de recurso.
 | Síntoma | Causa | Solución |
 | --- | --- | --- |
 | `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | Se usó `--target-ip-address` | Use `--target-resource-id` |
-| `ERROR: Defined port is currently unavailable` | Otro túnel ya retiene ese puerto local | Detenga el otro túnel, o pase un `--port` distinto; `--resource-port` sigue siendo 65500 |
+| `ERROR: Defined port is currently unavailable` | Otro túnel ya ocupa ese puerto local | Detenga el otro túnel, o pase un `--port` distinto; `--resource-port` se mantiene en 65500 |
 | `terraform output -raw bastion_name` es `null` o está vacío | Bastion no está implementado | Establezca `enable_bastion = true` y aplique |
-| El túnel se inicia pero el id de recurso está vacío | El filtro de `jq` usó el nombre de la VM en lugar de la clave del sitio | Indexe por `eastus01`/`02`/`03` |
-| `401 Unauthorized`, realm `Volterra Site Console` | No es un fallo — solicitud no autenticada | Suministre la credencial `admin` |
-| El navegador rechaza el certificado | Autofirmado, nombre no coincidente y caducado desde octubre de 2025 | Esperado; confirme que el sujeto es `CN=site-local.volterra.io` y continúe |
+| El túnel arranca pero el id de recurso está vacío | El filtro `jq` usó el nombre de la VM en lugar de la clave del sitio | Indexe por `eastus01`/`02`/`03` |
+| `401 Unauthorized`, realm `Volterra Site Console` | No es un fallo — solicitud no autenticada | Facilite la credencial `admin` |
+| El navegador rechaza el certificado | Autofirmado, nombre no coincidente y caducado desde octubre de 2025 | Es lo esperado; confirme que el sujeto es `CN=site-local.volterra.io` y continúe |
 
 <Aside type="note" title="Los fallos de autorización no se reprodujeron">
 Un RBAC insuficiente es la otra forma obvia en que esto falla, pero reproducirlo implicaría
-eliminar asignaciones de roles de una implementación compartida, por lo que no se documenta aquí
-con un error textual. Si el túnel falla al iniciarse con un error de autorización, compruebe
-Reader en los tres: la VM, su NIC y el host de Bastion.
+eliminar asignaciones de rol de una implementación compartida, por lo que no se documenta aquí con
+un error literal. Si el túnel falla al iniciarse con un error de autorización, compruebe Reader en
+los tres elementos: la VM, su NIC y el host de Bastion.
 </Aside>
 
 ## Las otras rutas
 
 <CardGrid>
   <LinkCard
-    title="API de depuración"
-    description="Programable y repetible, no necesita acceso a la VNet. 34 comandos, y el sitio debe estar <code>ONLINE</code>."
+    title="Debug API"
+    description="Scripted and repeatable, needs no VNet access. 34 commands, and the site must be <code>ONLINE</code>."
     href="../debug-api/"
   />
   <LinkCard
     title="SSH"
-    description="La CLI del sitio completa en el equipo. Necesita una clave presente desde el primer arranque y un host dentro de la VNet."
+    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
     href="../ssh/"
   />
   <LinkCard
-    title="Consola serie"
-    description="Para un nodo sin ninguna ruta de red operativa. Una sesión por VM, límite de pegado de 2048 caracteres."
+    title="Serial console"
+    description="For a node with no working network path at all. One session per VM, 2,048-character paste cap."
     href="../serial-console/"
   />
 </CardGrid>

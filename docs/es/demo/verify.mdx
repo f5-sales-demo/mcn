@@ -3,24 +3,24 @@ title: Demuestre que está en buen estado
 description: >-
   Cuatro comprobaciones en orden, cada una acotando dónde estaría un fallo, y
   los cuatro resultados de apariencia normal que se leen como una interrupción y
-  no lo son — una consulta de un único peering, un 404 con la IP desnuda, un VIP
-  con pérdidas en una compilación recién creada y un sondeo de puerto desde la
+  no lo son — una consulta de un único peering, un 404 con IP desnuda, un VIP
+  con pérdidas en una compilación reciente y un sondeo de puerto desde la
   interfaz equivocada o la red equivocada.
 sidebar:
   order: 30
   label: Verificar
 i18n:
-  sourceHash: 4e5376ee9ecd
+  sourceHash: 200ef0fb5d0c
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Ejecute estas comprobaciones antes de presentar. Cada una acota dónde estaría un fallo, de modo que un error le
-dice algo en lugar de solamente que algo va mal.
+Ejecute esto antes de presentar. Cada comprobación acota dónde estaría un fallo, de modo que un fallo le
+dice algo en lugar de solo que algo va mal.
 
-Cada comando lee lo que necesita del despliegue. Defina esto una vez y el resto sigue:
+Cada comando lee lo que necesita del despliegue. Defina esto una vez y el resto se deriva:
 
 ```bash
 cd terraform
@@ -36,7 +36,7 @@ NIC=$(terraform output -raw client_nic_name)
 
 <Steps>
 
-1. **Todos los sitios están `ONLINE`.** Nada de lo que sigue puede ser cierto si esto no lo es.
+1. **Todos los sitios están `ONLINE`.** Nada aguas abajo puede ser cierto si esto no lo es.
 
    ```bash
    for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
@@ -49,13 +49,13 @@ NIC=$(terraform output -raw client_nic_name)
    Observado el 2026-07-28, tres CE:
 
    ```text
-   ar-bgp-eastus01 -> ONLINE
-   ar-bgp-eastus02 -> ONLINE
-   ar-bgp-eastus03 -> ONLINE
+   mcn-ce-ha-eastus01 -> ONLINE
+   mcn-ce-ha-eastus02 -> ONLINE
+   mcn-ce-ha-eastus03 -> ONLINE
    ```
 
 2. **Cada peering está aprendiendo el anuncio del VIP de ese CE.** Consulte cada peering
-   por separado — vea la primera trampa más abajo, porque aquí es donde la demostración parece
+   por separado — vea la primera trampa más abajo, porque es aquí donde la demostración parece
    estar rota con más frecuencia y no lo está.
 
    ```bash
@@ -85,11 +85,11 @@ NIC=$(terraform output -raw client_nic_name)
    10.250.0.10/32  10.0.1.6   64512     EBgp
    ```
 
-   Tres peerings, tres siguientes saltos distintos, un prefijo. Ese es el lado del anuncio de
-   ECMP demostrado.
+   Tres peerings, tres siguientes saltos distintos, un prefijo. Eso demuestra el lado del anuncio de
+   ECMP.
 
-3. **Las rutas efectivas del cliente incluyen todos los siguientes saltos.** Esto es el ECMP en sí,
-   tal como lo ha programado la VNet — no lo que afirman los CE, sino lo que Azure ha hecho con ello.
+3. **Las rutas efectivas del cliente incluyen todos los siguientes saltos.** Esto es el ECMP en sí, tal como
+   la VNet lo ha programado — no lo que los CE afirman, sino lo que Azure hizo con ello.
 
    ```bash
    az network nic show-effective-route-table -g "$RG" -n "$NIC" \
@@ -111,12 +111,12 @@ NIC=$(terraform output -raw client_nic_name)
    ```
 
    `state: Active` con una entrada por CE en `nh` es la comprobación. **El orden no es
-   significativo y no es estable** — Azure los devuelve de forma distinta entre llamadas, así que
-   cuéntelos en lugar de compararlos con una ejecución anterior. Un solo siguiente salto donde espera tres significa
-   que un CE ha dejado de anunciar, y el paso 2 identifica cuál.
+   significativo y no es estable** — Azure los devuelve de forma distinta entre llamadas, así que cuéntelos
+   en lugar de compararlos con una ejecución anterior. Un solo siguiente salto donde espera tres significa que un
+   CE ha dejado de anunciar, y el paso 2 identifica cuál.
 
-4. **El VIP sirve tráfico.** Desde la VM cliente, y **con la cabecera `Host`** — vea la
-   segunda trampa. Muestree suficientes peticiones para ver un problema: unas pocas docenas se leen como 100 % incluso
+4. **El VIP sirve tráfico.** Desde la VM cliente, y **con el encabezado `Host`** — vea la
+   segunda trampa. Muestree suficientes solicitudes para ver un problema: unas pocas docenas se leen como 100 % incluso
    dentro de la ventana de convergencia descrita más abajo.
 
    ```bash
@@ -142,20 +142,21 @@ NIC=$(terraform output -raw client_nic_name)
 
 ## Trampa: un peering muestra una sola ruta, y eso es correcto
 
-`list-learned-routes` se limita al peering que usted indica. Informa de lo que **ese** peer
+`list-learned-routes` se limita al peering que usted nombra. Informa de lo que **ese** par
 anunció, no de toda la tabla del Route Server.
 
 Así que consultar un solo peering devuelve un único `/32` del VIP a través de un único siguiente salto, y resulta
 tentador leerlo como «solo un CE está anunciando — los demás están caídos». Nada está
-caído. Los otros anuncios son visibles en sus propios peerings, que es lo que recorre el paso 2.
+caído. Los otros anuncios son visibles en sus propios peerings, que es lo que el paso 2 recorre
+en bucle.
 
-Confirmar ECMP a partir de la consulta de un único peering no es posible. Bien recorra todos los peerings, bien
-lea la tabla de rutas efectivas del cliente, que muestra el resultado combinado en una sola llamada.
+Confirmar ECMP desde la consulta de un único peering no es posible. O recorre todos los peerings, o
+lee la tabla de rutas efectivas del cliente, que muestra el resultado combinado en una sola llamada.
 
-## Trampa: una petición con la IP desnuda devuelve 404
+## Trampa: una solicitud con IP desnuda devuelve 404
 
-El balanceador de carga hace coincidencias sobre `Host`. El VIP no es un servidor virtual que sirva algo a
-quienquiera que se conecte a la dirección.
+El balanceador de carga coincide por `Host`. El VIP no es un servidor virtual que sirva cualquier cosa a
+quien se conecte a la dirección.
 
 Ambos resultados provienen de la misma ejecución contra el despliegue en buen estado:
 
@@ -164,49 +165,66 @@ curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
 curl                     http://$VIP/   ->  404
 ```
 
-**Un 404 con la IP desnuda es prueba de que la ruta funciona** — la petición llegó al CE, el proxy del CE
-respondió, y la rechazó porque ningún dominio configurado coincidía. Leerlo como una interrupción
-le hace mirar el BGP, donde no encontrará nada mal.
+**Un 404 con IP desnuda es prueba de que la ruta funciona** — la solicitud llegó al CE, el proxy del CE
+respondió, y la rechazó porque ningún dominio configurado coincidió. Leerlo como una interrupción
+le lleva a mirar BGP, donde no encontrará nada mal.
 
-Lo mismo se aplica durante una demostración: si escribe la dirección en un navegador en lugar de resolver
-el dominio a ella, obtiene el 404.
+Lo mismo aplica durante una demostración: si escribe la dirección en un navegador en lugar de resolver
+el dominio hacia ella, obtiene el 404.
 
-## El VIP descarta peticiones durante los primeros tres cuartos de hora, y luego deja de hacerlo
+## El VIP descarta solicitudes durante los primeros tres cuartos de hora, y luego deja de hacerlo
 
-En una pila recién construida, el VIP pierde una pequeña fracción de las peticiones durante aproximadamente los
-primeros 45 minutos después de que los CE alcanzan `ONLINE`, y después sirve sin problemas. Medido sobre 1.470
-peticiones desde la VM cliente, todas con la cabecera `Host`:
+En una pila recién construida el VIP pierde una pequeña fracción de solicitudes durante aproximadamente los primeros
+45 minutos después de que los CE alcancen `ONLINE`, y después sirve de forma limpia. Medido sobre 1.470
+solicitudes desde la VM cliente, todas con el encabezado `Host`:
 
-| Ventana | Peticiones | Fallos | Tasa |
+| Ventana | Solicitudes | Fallos | Tasa |
 | --- | --- | --- | --- |
 | Primeros ~45 minutos tras el establecimiento de ECMP | 570 | 12 | **2,11 %** |
 | Los 23 minutos siguientes | 900 | **0** | **0,00 %** |
 
-Cada fallo fue `curl: (28)` — un tiempo de espera agotado con cero bytes recibidos — no un estado de error
-HTTP. El último se produjo unos 43 minutos después de que ECMP se estableciera. De las 900 peticiones correctas,
-400 se ejecutaron con un tiempo de espera de 30 segundos y todas ellas terminaron en menos de 2 segundos, así que nada quedó
+Todos los fallos fueron `curl: (28)` — un tiempo de espera agotado con cero bytes recibidos — no un estado
+de error HTTP. El último ocurrió unos 43 minutos después de que ECMP se estableciera. De las 900 solicitudes limpias,
+400 se ejecutaron con un tiempo de espera de 30 segundos y todas terminaron en menos de 2 segundos, así que nada quedó
 oculto por un tiempo de espera corto.
 
+Se reprodujo de nuevo en una reconstrucción posterior el mismo día, y esa ejecución es la imagen más clara
+porque se muestreó mientras transcurría la ventana en lugar de después. 360 solicitudes, todas con
+el encabezado `Host`, cada lote emparejado con un control directo al origen:
+
+| Tiempo tras `ONLINE` | Solicitudes | Fallos | Tasa | Control al origen |
+| --- | --- | --- | --- | --- |
+| inmediatamente | 60 | 8 | **13,3 %** | 30/30 limpias |
+| ~25–40 min (3 lotes) | 180 | 3 | **1,67 %** | 60/60 limpias |
+| ~50 min | 120 | **0** | **0,00 %** | 40/40 limpias |
+
+Decreciendo monótonamente hasta cero, y el origen estuvo limpio en todos los lotes — incluido
+aquel en el que falló una de cada ocho solicitudes al VIP.
+
 **El origen no fue la causa.** Un lote de control directo al origen
-(`terraform output -raw origin_ip`, evitando el VIP) ejecutó 120 de 120 correctas *simultáneamente
-con* lotes fallidos contra el VIP. El fallo está en algún punto de la ruta VIP, ECMP o CE.
+(`terraform output -raw origin_ip`, evitando el VIP) ejecutó 120 de 120 limpias *simultáneamente
+con* lotes al VIP que fallaban. El fallo está en algún punto de la ruta VIP, ECMP o CE.
 
 Dos cosas que deliberadamente no se llaman así:
 
-- **No es un defecto de estado estable.** Se resuelve por completo y sigue resuelto. Una demostración que ha
-  estado activa durante una hora no tiene este problema — 60 de 60 en la comprobación 4 anterior, en una pila
-  que había estado activa durante horas.
-- **No es atribuible a un CE concreto.** Nada en esta topología proporciona un listener HTTP por nodo,
-  así que no hay forma de asociar una petición descartada al nodo que la descartó.
-  Las interfaces externas de los CE no tienen ningún listener HTTP — solo responde el `/32` del VIP.
+- **No es un defecto de estado estable.** Se resuelve por completo y permanece resuelto — 120 de 120 en
+  la marca de los 50 minutos, y 60 de 60 en una pila que llevaba horas en funcionamiento.
+- **No concluya que está ausente a partir de una pequeña muestra temprana.** Un lote de 60 solicitudes tomado
+  inmediatamente después de una reconstrucción devolvió 60 de 60, lo que se leyó como «sin transitorio»; el mismo
+  despliegue perdió 8 de 60 una hora más tarde en la siguiente reconstrucción. Sesenta solicitudes no son suficientes
+  para ver una pérdida en ráfagas. Muestree 100 o más, en lotes separados en el tiempo — la tabla anterior
+  necesitó 360 para mostrar la forma.
+- **No es atribuible a un CE en particular.** Nada en esta topología ofrece un escucha HTTP
+  por nodo, así que no hay forma de vincular una solicitud descartada al nodo que la descartó.
+  Las interfaces externas de los CE no tienen ningún escucha HTTP — solo el `/32` del VIP responde.
 
-Se reprodujo en una reconstrucción limpia en un tenant distinto, así que sigue a la topología y no
-al entorno.
+Se reprodujo en una reconstrucción limpia en un tenant diferente, así que depende de la topología más que
+del entorno.
 
-<Aside type="caution" title="No muestree 40 peticiones y concluya que va bien">
-Los lotes de 40 a 50 se leen como 100 % la mayoría de las veces, incluso dentro de la ventana de fallo. Así es
-como esto se caracterizó erróneamente primero como un fallo continuo de baja tasa y después como la ausencia total de
-fallo. Muestree 100 o más, en lotes separados en el tiempo.
+<Aside type="caution" title="No muestree 40 solicitudes y concluya que está bien">
+Lotes de 40 a 50 se leen como 100 % la mayoría de las veces incluso dentro de la ventana con fallos. Así es
+como esto se caracterizó erróneamente primero como un fallo continuo de baja tasa y después como ningún fallo en
+absoluto. Muestree 100 o más, en lotes separados en el tiempo.
 </Aside>
 
 ## Dos trampas más de medición
@@ -214,20 +232,30 @@ fallo. Muestree 100 o más, en lotes separados en el tiempo.
 Ambas produjeron respuestas erróneas con total confianza en este entorno, y ninguna es obvia.
 
 - **Sondee desde dentro de la VNet, no desde su estación de trabajo.** Un proxy corporativo puede completar
-  él mismo el establecimiento TCP en puertos comunes, de modo que un sondeo desde la estación de trabajo informa de un puerto **abierto**
+  él mismo el saludo TCP en puertos comunes, de modo que un sondeo desde la estación de trabajo informa de un puerto **abierto**
   que en realidad está cerrado. Los puertos 80 y 443 se leen como abiertos en las direcciones públicas de los CE desde una
   estación de trabajo y están cerrados cuando se sondean desde dentro de la VNet. Use la VM cliente.
-- **El puerto 22 de un CE responde únicamente en la dirección interna (SLI).** Sondeado desde la VM cliente,
-  la dirección interna de cada CE devuelve un banner de OpenSSH, mientras que sus direcciones de gestión y externa
-  expiran — igual que una dirección sin usar utilizada como control. eth0 se renombra
-  `a-i-eth0` y no lleva IP de host, porque el datapath es su propietario. Así que sondear la dirección
+- **El puerto 22 en un CE responde únicamente en la dirección interna (SLI).** Sondeado desde la VM cliente,
+  la dirección interna de cada CE devuelve un banner de OpenSSH, mientras que sus direcciones de gestión y externas
+  agotan el tiempo de espera — igual que una dirección sin usar empleada como control. eth0 se renombra a
+  `a-i-eth0` y no lleva IP de host, porque el plano de datos es su dueño. Así que sondear la dirección
   por la que conoce el nodo no le dice nada sobre el estado de SSH del nodo.
 
 <Aside type="danger" title="Nunca codifique de forma fija una dirección interna de CE — se reasignan en cada reconstrucción">
-Azure no preserva qué CE recibe qué dirección en la subred interna. Observado el
-2026-07-28, tras una reconstrucción, los tres CE tenían `10.0.3.7`, `10.0.3.5` y `10.0.3.4`: no
-en orden de nodo, no contiguas y distintas de las que tenían antes. La propia NIC del cliente de prueba
-está en la misma subred y ha tenido una dirección que antes tenía un CE.
+Azure no conserva qué CE recibe qué dirección en la subred interna, y las
+direcciones no están en orden de nodo. Observado el 2026-07-28, los tres CE tenían `10.0.3.7`,
+`10.0.3.5` y `10.0.3.4` — no secuenciales, y distintas de las que tenían antes de esa
+reconstrucción.
+
+Lo que decide si cambian es la **NIC**, no la VM. Reemplazar solo las VM de los CE
+deja las NIC en su lugar y todas las direcciones sobreviven: verificado el mismo día, cuando adoptar
+los nombres de objeto derivados reemplazó las tres VM de CE y las tres direcciones internas volvieron
+idénticas. Un desmantelamiento que elimina las NIC las reasigna desde el conjunto libre de la subred,
+en el orden en que Azure lo llene.
+
+La NIC del cliente de prueba está en esa misma subred, así que una dirección que recuerda como la de un CE puede
+ser ahora la del cliente — en este despliegue tiene `10.0.3.6`, que un CE tuvo antes de una
+reconstrucción anterior.
 
 Léalas en lugar de recordarlas:
 
@@ -235,7 +263,7 @@ Léalas en lugar de recordarlas:
 terraform output -json ce_sli_private_ips
 ```
 
-Sin el estado de Terraform a mano, pregunte a Azure por el nombre de la NIC, que *sí* es estable:
+Sin el estado de Terraform a mano, pregunte a Azure por nombre de NIC, que *sí* es estable:
 
 ```bash
 az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
@@ -243,7 +271,7 @@ az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
 ```
 
 Conectarse a una dirección recordada le lleva al nodo equivocado, a una VM que no es un CE,
-o a ningún sitio — y esto último tiene exactamente el mismo aspecto que «SSH no está habilitado».
+o a ninguna parte — y lo último es idéntico a «SSH no está habilitado».
 </Aside>
 
 ## Confirme que la superficie de comandos en el equipo sigue coincidiendo con la documentación
@@ -254,12 +282,12 @@ bash scripts/capture-sitecli.sh --check \
   --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
 ```
 
-`--check` no escribe nada, así que es seguro ejecutarlo contra la demostración en producción.
+`--check` no escribe nada, así que es seguro contra la demostración en vivo.
 
 <CardGrid>
   <LinkCard
-    title="Acceder a un Customer Edge"
-    description="Qué vía de acceso aplica, las credenciales que requiere cada una y por qué la elección no es una preferencia."
+    title="Acceso a un Customer Edge"
+    description="Qué ruta de acceso aplica, las credenciales que necesita cada una y por qué la elección no es una preferencia."
     href="../../customer-edge/access/"
   />
   <LinkCard
