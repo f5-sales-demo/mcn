@@ -3,8 +3,9 @@
 #
 # This wrapper exists because the shared Shell Unit Tests job globs
 # `tests/test-*.sh` and nothing else, so a bare .py test would never run in CI.
+# The Python module is named for pylint's snake_case rule, not the glob.
 # Everything it drives is hermetic: no network, no pty, no Customer Edge.
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
-exec python3 "${REPO_ROOT}/tests/test-sitecli-harvest.py"
+exec python3 "${REPO_ROOT}/tests/sitecli_harvest_test.py"

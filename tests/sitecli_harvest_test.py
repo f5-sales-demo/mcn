@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Hermetic tests for scripts/sitecli_ssh_harvest.py.
 
+Run via tests/test-sitecli-harvest.sh, which is what CI globs.
+
 No network, no pty, no CE. Everything under test is a pure function that takes
 bytes the appliance already produced and decides something about them.
 
@@ -112,7 +114,7 @@ def test_a_description_containing_spaces_is_not_split_further():
 
 
 def test_empty_input_yields_nothing():
-    assert h.parse_menu("") == []
+    assert not h.parse_menu("")
 
 
 # --- accumulation across a scrolling menu ------------------------------------

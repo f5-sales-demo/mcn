@@ -249,12 +249,18 @@ class SiteCliSession:
         if jump:
             argv += ["-o", f"ProxyJump={jump}"]
         argv.append(f"{user}@{node}")
-        self.proc = subprocess.Popen(  # noqa: S603 - fixed argv, resolved executable, no shell
-            argv,
-            stdin=slave,
-            stdout=slave,
-            stderr=slave,
-            close_fds=True,
+        self._stack = contextlib.ExitStack()
+        # The session must outlive this constructor, so the process cannot sit in
+        # a `with` block here — that would terminate it before a single command
+        # ran. An ExitStack gives the same guaranteed teardown, unwound by close().
+        self.proc = self._stack.enter_context(
+            subprocess.Popen(  # noqa: S603 - fixed argv, resolved executable, no shell
+                argv,
+                stdin=slave,
+                stdout=slave,
+                stderr=slave,
+                close_fds=True,
+            ),
         )
         os.close(slave)
         self.fd = master
@@ -344,6 +350,7 @@ class SiteCliSession:
             self.send("\x03")
             self.read_until_idle(idle=0.5, hard=3)
         self.proc.terminate()
+        self._stack.close()
         with contextlib.suppress(OSError):
             os.close(self.fd)
 
@@ -353,7 +360,9 @@ class SiteCliSession:
 
 def main(argv: list[str] | None = None) -> int:
     """Enumerate the command surface of one node and write the catalog."""
-    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
+    parser = argparse.ArgumentParser(
+        description=(__doc__ or "").split("\n", maxsplit=1)[0]
+    )
     parser.add_argument("--node", required=True, help="CE SLI address, e.g. 10.0.3.5")
     parser.add_argument(
         "--jump", default="", help="jump host inside the VNet, e.g. azureuser@1.2.3.4"
