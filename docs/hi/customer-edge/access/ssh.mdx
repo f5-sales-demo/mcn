@@ -1,139 +1,172 @@
 ---
 title: SSH
 description: >-
-  इस Customer Edge बिल्ड पर कोई समर्थित admin SSH पथ नहीं है। इसमें वह vpm
-  साक्ष्य शामिल है कि admin_user_credentials कभी नोड पर लागू नहीं होता, sshd
-  केवल आंतरिक पते पर क्यों उत्तर देता है, और वे दो मार्ग जो वास्तव में काम करते
-  हैं।
+  ऑपरेटर Customer Edge के admin अकाउंट पर SSH करता है, जिसका लॉगिन शेल Site CLI
+  है। इसमें बताया गया है कि API का वह फ़ील्ड जो इसे सक्षम करता दिखता है वह कुछ
+  नहीं करता, sshd केवल आंतरिक पते पर क्यों जवाब देता है, Site CLI के लिए टर्मिनल
+  की ज़रूरतें, और इसे चलते हुए deployment पर सक्षम करने का क्या असर होता है।
 sidebar:
   order: 25
   label: SSH
 i18n:
-  sourceHash: 4c6d5777469f
+  sourceHash: f986c2b5d440
   translator: machine
 ---
 
-import { Aside, CardGrid } from "@astrojs/starlight/components";
+import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-**इस टेनेंट द्वारा चलाए जा रहे CE बिल्ड पर कोई समर्थित `admin` SSH पथ नहीं है** —
-`crt-20250613-3382`, OS `9.2024.6`। यह कॉन्फ़िगरेशन का मामला नहीं है। `admin`
-खाता मौजूद है, `sshd` चल रहा है, और `admin_user_credentials.ssh_key`
-साइट ऑब्जेक्ट द्वारा स्वीकार किया जाता है और एक API रीड-बैक द्वारा लौटाया जाता है — परंतु कुंजी
-नोड पर कभी लागू नहीं होती, इसलिए हर प्रमाणीकरण प्रयास अस्वीकृत हो जाता है।
+SSH appliance के `admin` अकाउंट तक पहुँचता है, जिसका लॉगिन शेल Site CLI
+(`/opt/bin/vpmu`) है। यह **पूर्ण ऑन-बॉक्स कमांड सतह** तक पहुँचने का एकमात्र मार्ग है —
+[debug API](../debug-api/) 34 कमांड उजागर करता है, और appliance स्वयं कई और प्रदान करता है
+जो उस API पर बिल्कुल नहीं हैं।
 
-इसके बजाय [debug API](../debug-api/) का उपयोग करें। यह नोड के केवल-पठन कमांड
-सरफेस तक पहुँचता है और इस रिपॉज़िटरी में पहले से स्क्रिप्टेड है।
-
-<Aside type="danger" title="इसके लिए Terraform समर्थन हटा दिया गया था">
-`admin_user_credentials` को `terraform/modules/xc-site` में जोड़ा गया था और फिर नीचे दिए गए
-साक्ष्य एकत्र होने के बाद उसे वापस ले लिया गया (#660, PR #663)। यह कोई भरे जाने की प्रतीक्षा करती
-कमी नहीं है — यह फ़ील्ड नोड पर कुछ भी कॉन्फ़िगर नहीं करती। इसे फिर से न जोड़ें।
-</Aside>
-
-## हर प्रयास नेटवर्क समस्या जैसा क्यों दिखता है
-
-`sshd` CE पर `0.0.0.0:22` से बाइंड होता है, परंतु केवल **आंतरिक (SLI)** पता ही
-होस्ट नेटवर्क स्टैक पर होता है। उसी VNet के अंदर से, `ar-ecmp-client` से तीनों
-डेमो CE के विरुद्ध जाँच की गई:
-
-```text
-10.0.1.4     TimeoutError: timed out         ← CE mgmt/SLO  (eth0)
-10.0.2.4     TimeoutError: timed out         ← CE external  (eth1)
-10.0.3.5     CONNECTED  SSH-2.0-OpenSSH_8.7  ← CE internal/SLI
-10.0.3.6     CONNECTED  SSH-2.0-OpenSSH_8.7
-10.0.3.7     CONNECTED  SSH-2.0-OpenSSH_8.7
-10.0.3.99    TimeoutError: timed out         ← unused address, negative control
+```bash
+ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> admin@10.0.3.5
 ```
 
-यह तंत्र [`health`](../../commands/system/health/) में दिखाई देता है: **eth0 का नाम बदलकर
-`a-i-eth0` कर दिया जाता है और उस पर कोई होस्ट IP पता नहीं होता** — उस इंटरफ़ेस का स्वामित्व
-Argo डेटा प्लेन के पास है — जबकि eth1 और eth2 होस्ट स्टैक पर ही रहते हैं जहाँ `sshd` सुन रहा है।
+उस कमांड लाइन का हर हिस्सा महत्वपूर्ण है, और अगले तीन अनुभाग बताते हैं
+कि प्रत्येक किस विफलता को रोकता है।
 
-इसलिए जिस पते से आप नोड को जानते हैं, उसके प्रबंधन पते के विरुद्ध की गई जाँच
-ठीक उसी तरह टाइमआउट होती है जैसे कोई बंद सुरक्षा समूह होता। कुछ भी उसे अवरोधित नहीं कर रहा है;
-उस पते पर उत्तर देने वाला कोई लिसनर ही नहीं है।
-
-<Aside type="caution" title="VNet के अंदर से जाँच करें, और आंतरिक पते की जाँच करें">
-यहाँ दो मापन-संबंधी गलतियाँ आत्मविश्वास से भरे गलत उत्तर उत्पन्न करती हैं।
-
-पोर्ट 22 के लिए eth0 या बाहरी इंटरफ़ेस की जाँच सदैव बंद रिपोर्ट करती है, चाहे नोड की
-SSH स्थिति कोई भी हो, इसलिए यह आपको SSH के बारे में कुछ नहीं बता सकती। केवल SLI पता ही
-उत्तर देता है।
-
-और एक कॉर्पोरेट वर्कस्टेशन से की गई जाँच किसी बंद पोर्ट को **खुला** बता सकती है:
-Netskope सामान्य पोर्टों पर TCP हैंडशेक स्वयं पूरा कर देता है। वर्कस्टेशन से CE सार्वजनिक
-पतों पर पोर्ट 80 और 443 खुले दिखते हैं और VNet के अंदर से जाँचने पर बंद होते हैं।
-VNet में स्थित किसी VM से जाँच करें।
+<Aside type="caution" title="इसे चलते हुए deployment पर सक्षम करने से VMs बदल जाते हैं">
+की cloud-init द्वारा लिखी जाती है, और cloud-init `write_files` केवल **पहले
+बूट** पर चलता है। मौजूदा नोड्स के लिए इसे चालू करने का अर्थ है उन्हें बदलना, जो वर्तमान में
+registration को अटका देता है: पुराना registration अनन्य `(tenant, cluster_name, hostname)`
+इंडेक्स रखता है, बदला गया नोड कभी register नहीं हो सकता, और `terraform plan`
+हर बार "No changes" रिपोर्ट करता है। परिवर्तन की योजना बनाने से **पहले**
+[issue 674](https://github.com/f5-sales-demo/mcn/issues/674) देखें, बाद में नहीं।
 </Aside>
 
-## `admin` प्रमाणीकरण क्यों नहीं कर सकता
+## API नहीं, cloud-init की लिखी है — क्यों
 
-`vpm` पंजीकरण के समय नोड के स्थानीय उपयोगकर्ताओं को कॉन्फ़िगर करता है, और यह इस
-उपयोगकर्ता को छूने से इनकार कर देता है। नोड के अपने लॉग से, एक ही बूट के दौरान तीन बार:
+site ऑब्जेक्ट पर `admin_user_credentials.ssh_key` बिल्कुल इसी के लिए बना फ़ील्ड जैसा दिखता है। यह स्वीकार होता है, read-back में भी बना रहता है, और कुछ भी कॉन्फ़िगर नहीं करता। `vpm` नोड के स्थानीय उपयोगकर्ताओं का स्वामी है और इसे छूने से मना कर देता है — नोड के अपने लॉग से, एक बूट के दौरान तीन बार:
 
 ```text
 vpm  users.go:165: Won't do any change for user admin (internal skip)
 ```
 
-बाकी सब कुछ उस एक पंक्ति के अनुरूप है:
+उस एक लाइन से सब कुछ स्पष्ट होता है। `/var/home/admin/.ssh` कभी मौजूद नहीं होता, न site के `ONLINE` होने से पहले, न बाद में। `admin` का shadow last-change date इमेज बिल्ड तारीख पर बना रहता है जबकि `vesbkp` और `vesopcon` मौजूदा तारीख दिखाते हैं, क्योंकि `vpm` ने उन दोनों को सेट किया और `admin` को छोड़ दिया। और `vpm` किसी भी समय `ssh_key` या `authorized_keys` के बारे में कुछ लॉग नहीं करता।
 
-- खाता मौजूद है — `uid=2202(admin) gid=2202(admin) groups=2202(admin),2301(vpm)`,
-  होम `/var/home/admin`, लॉगिन शेल `/opt/bin/vpmu`, जो Site CLI है।
-- `/var/home/admin/.ssh` **कभी मौजूद नहीं होता**, न साइट के `ONLINE` होने से पहले, न बाद में।
-  किसी भी समय कोई `authorized_keys` फ़ाइल नहीं लिखी जाती।
-- `sshd -T` रिपोर्ट करता है `pubkeyauthentication yes`, `passwordauthentication no`,
-  `kbdinteractiveauthentication no`। `/etc/ssh/sshd_config` में एकमात्र
-  `PasswordAuthentication yes` `Match User vesbkp,xcuser` के अंदर है, इसलिए `admin`
-  **इमेज स्तर पर** पासवर्ड प्रमाणीकरण से बाहर रखा गया है।
-- `admin` की shadow अंतिम-परिवर्तन तिथि इमेज बिल्ड तिथि, 2024-02-16 है, जबकि
-  `vesbkp` और `vesopcon` वर्तमान तिथि दिखाते हैं। `vpm` ने उन दोनों को सेट किया और
-  `admin` को कभी नहीं छुआ।
-- `vpm` `ssh_key` या `authorized_keys` के बारे में कुछ भी लॉग नहीं करता।
+इसलिए फ़ाइल को `vpm` के बाहर लिखना होता है। `admin` uid 2202 है, नोड इमेज में बेक किया गया है, इसलिए यह cloud-init चलने से पहले मौजूद होता है और `owner: admin:admin` लिखते समय resolve हो जाता है — कोई `runcmd` नहीं, कोई ownership fix-up नहीं:
 
-क्लाइंट पक्ष भी यही कहता है। तीन शुरुआत-से किए गए परिनियोजन, दो इन-प्लेस अपडेट और तीन
-भिन्न CE बिल्ड — जिनमें OpenSSH 9.9 चलाने वाला सबसे नया भी शामिल है — में फैले
-45 प्रमाणीकरण प्रयासों में:
-
-```text
-debug1: Authenticating to <sli-ip>:22 as 'admin'
-debug1: Offering public key: ... ED25519 SHA256:ENH3M0bFPYMt... explicit
-debug1: Authentications that can continue: publickey
-admin@<sli-ip>: Permission denied (publickey).
+```yaml
+- path: /var/home/admin/.ssh/authorized_keys
+  permissions: "0600"
+  owner: admin:admin
+  content: |
+    ${ssh_public_key}
 ```
 
-सर्वर कभी पासवर्ड या कीबोर्ड-इंटरैक्टिव प्रमाणीकरण प्रस्तुत नहीं करता, और
-नोड पर `journalctl -u sshd`
-`Connection closed by authenticating user admin ... [preauth]` दर्ज करता है।
+`sshd` हमेशा से तैयार था। `sshd -T` रिपोर्ट करता है `pubkeyauthentication yes`, और `admin`
+नोड पर शिप होने वाली दोनों `sshd_config` फ़ाइलों में `AllowUsers` में मौजूद है। कभी कुछ सक्षम नहीं करना था — केवल एक गायब फ़ाइल थी।
+
+<Aside type="danger" title="admin_user_credentials वापस न जोड़ें, और sshd_config संपादित न करें">
+`admin_user_credentials` को `terraform/modules/xc-site` में जोड़ा गया था और यह साक्ष्य एकत्र होने के बाद वापस कर दिया गया (#660, PR #663)। यह भरी जाने वाली कोई कमी नहीं है।
+
+`sshd_config` registration के दौरान बदल दिया जाता है, इसलिए इसमें किया गया संपादन सबसे असुविधाजनक समय पर हटा दिया जाता है।
+</Aside>
+
+## यह केवल एक पते पर क्यों जवाब देता है
+
+`sshd` `0.0.0.0:22` से bind करता है, लेकिन केवल **आंतरिक (SLI)** पता ही host नेटवर्क स्टैक पर है। eth0 का नाम बदलकर `a-i-eth0` हो जाता है और कोई host IP नहीं रखता — Argo data plane उस interface का स्वामी है — जबकि eth1 और eth2 host स्टैक पर बने रहते हैं, जहाँ `sshd` सुन रहा है।
+
+VNet के अंदर एक VM से probe करने पर:
+
+```text
+10.0.1.4     timed out             CE mgmt/SLO  (eth0)
+10.0.2.4     timed out             CE external  (eth1)
+10.0.3.5     OPEN                  CE internal/SLI
+10.0.3.6     OPEN
+10.0.3.7     OPEN
+```
+
+जिस पते से आप नोड को जानते हैं उसके विरुद्ध probe ठीक वही लौटाती है जो एक बंद security group लौटाता है। कुछ भी block नहीं कर रहा; उस पते पर कोई listener नहीं है।
+
+CE के सार्वजनिक पतों पर भी 22 पर कोई listener नहीं है, यही कारण है कि ऊपर का कमांड `-J` से जाता है: VNet के अंदर एक operator VM, SLI पतों के समान subnet में।
+
+<Aside type="caution" title="दो माप गलतियाँ जो आत्मविश्वास से गलत उत्तर देती हैं">
+eth0, external interface, या सार्वजनिक पते पर port 22 के लिए probe करने पर नोड की SSH स्थिति चाहे जो हो, बंद रिपोर्ट होती है, इसलिए यह आपको कुछ भी नहीं बता सकती। केवल SLI पता जवाब देता है।
+
+और एक कॉर्पोरेट वर्कस्टेशन से probe एक ऐसे port को **open** रिपोर्ट कर सकती है जो बंद है:
+Netskope सामान्य ports पर TCP handshake स्वयं पूरा करता है। वर्कस्टेशन से CE सार्वजनिक पतों पर Ports 80 और 443 open दिखते हैं और VNet के अंदर से probe करने पर बंद होते हैं। VNet में एक VM से probe करें।
+</Aside>
+
+## Site CLI को एक टर्मिनल और एक carriage return चाहिए
+
+`admin` लॉगिन शेल कोई शेल नहीं है। यह एक `go-prompt` एप्लीकेशन है, जो टर्मिनल को raw mode में डालती है और lines की जगह keystrokes पढ़ती है। चार परिणाम, जिनमें से प्रत्येक इस तरह विफल होता है जो अलग समस्या जैसा दिखता है:
+
+| तंत्र | इसके बिना क्या होता है |
+| --- | --- |
+| एक टर्मिनल आवंटित करें (`ssh -tt`) | `go-prompt.NewStandardInputParser` से `panic: no such device or address`, जो टूटे appliance जैसा दिखता है |
+| Enter के लिए line feed नहीं, carriage return भेजें | Line कभी submit नहीं होती, और session end-of-input पर बिना कुछ print किए बंद हो जाता है |
+| standard input खुला रखें | command render होने से पहले कनेक्शन समाप्त हो जाता है, इसलिए एक काम करने वाला command चुप दिखता है |
+| command text और Enter byte **अलग-अलग** लिखें | newline buffer में literal character के रूप में जाती है और CLI `unknown command` जवाब देती है, जो ऐसा दिखता है जैसे command मौजूद नहीं |
+
+इसलिए `ssh host 'some-command'` काम नहीं करता: argument नजरअंदाज होता है और interactive prompt वैसे भी शुरू होता है। इसे टर्मिनल के रूप में चलाएं या बिल्कुल न चलाएं।
+`scripts/sitecli_ssh_harvest.py` संदर्भ implementation है।
+
+लॉगिन banner नोड की registration स्थिति रिपोर्ट करता है, जो अभी आ रहे नोड को टूटे नोड से पहचानने का सबसे तेज़ तरीका है:
+
+```text
+Registration Status: PROVISIONING
+SLO IP: 10.0.1.4/26
+```
+
+## keypair प्रदान करना
+
+<Steps>
+
+1. यदि आपके पास पहले से नहीं है तो एक keypair बनाएं। RSA की बजाय Ed25519: छोटा,
+   और appliance `sshd` द्वारा स्वीकृत।
+
+   ```bash
+   ssh-keygen -t ed25519 -C "ce-operator" -f ~/.ssh/id_ed25519
+   ```
+
+2. deployment को **public** भाग पर इंगित करें। root module एक बार फ़ाइल पढ़ता है और
+   string को हर नोड तक पहुँचाता है:
+
+   ```hcl
+   # terraform/terraform.tfvars
+   ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+   ```
+
+   `ssh_public_key` इसके बजाय material inline लेता है, जो plan tests उपयोग करते हैं।
+   private भाग कभी आपके workstation से नहीं जाता।
+
+3. Apply करें। पहले इस पृष्ठ के शीर्ष पर चेतावनी पढ़ें — मौजूदा deployment पर यह CE VMs को बदल देता है।
+
+</Steps>
+
+<Aside type="note" title="VM का अपना admin_ssh_key एक अलग चीज़ है">
+`modules/ce-node` में `azurerm_linux_virtual_machine.admin_ssh_key` Azure VM administrator को अधिकृत करता है, न कि appliance के `admin` अकाउंट को। यह कोई Site CLI access नहीं देता, और इसका सेट होना यह प्रमाण नहीं है कि CE SSH कॉन्फ़िगर है।
+</Aside>
 
 ## यह क्या नहीं है
 
-इनमें से प्रत्येक का परीक्षण किया गया और खारिज किया गया, और प्रत्येक इतना विश्वसनीय अनुमान है
-कि एक दिन खर्च करा दे।
+इनमें से प्रत्येक का परीक्षण किया गया और तब खारिज किया गया जब मार्ग को अभी भी असंभव माना जा रहा था।
+प्रत्येक इतना प्रशंसनीय है कि एक दिन बर्बाद कर सकता है।
 
-| कारण नहीं है | इसे कैसे खारिज किया गया |
+| कारण नहीं | इसे कैसे खारिज किया गया |
 | --- | --- |
-| क्रेडेंशियल केवल निर्माण के समय लागू होता है | `sshd` पहले बूट के लगभग 90 सेकंड में शुरू होता है, *साइट ऑब्जेक्ट के अस्तित्व में आने से पहले* — 13:04:56 पर `sshd[1238]: Server listening on 0.0.0.0 port 22`, साइट 13:05:23 पर बनाई गई। `admin_user_credentials` `ReplaceSpecType` में भी उपस्थित है और इन-प्लेस लागू होता है। |
-| `block_all_services` | SLO पोर्ट-22 की बंदी समान रहती है, चाहे सेवाएँ अवरोधित हों या न हों। |
-| कुंजी पर अंत में एक न्यूलाइन | दोनों तरह से परीक्षण किया गया। कोई परिवर्तन नहीं। |
-| पिन किया गया, पुराना CE सॉफ़्टवेयर | तीन बिल्ड पर पुनरुत्पादित, जिनमें एक OpenSSH 9.9 वाला भी था। |
-| अनुपस्थित `admin_password` | शुरुआत-से बने CE पर `ssh_key` के साथ `admin_password` सेट करने से कुछ नहीं बदला। |
+| credential केवल create के समय लागू होता है | `sshd` पहले बूट के लगभग 90 सेकंड में शुरू होता है, site object के अस्तित्व से पहले। `admin_user_credentials` `ReplaceSpecType` में भी मौजूद है और जगह पर लागू होता है। |
+| `block_all_services` | management address पर port-22 बंद होना services block हों या न हों, समान है। |
+| key पर trailing newline | दोनों तरीकों से परीक्षण किया, कोई बदलाव नहीं। Cloud-init फिर भी इसे strip करता है, क्योंकि literal block अन्यथा एक दूसरी, खाली line render करता। |
+| पुराना, pinned CE software | तीन builds पर reproduced, जिसमें OpenSSH 9.9 चलाने वाला एक भी शामिल है। |
+| गायब `admin_password` | scratch से बने CE पर `ssh_key` के साथ `admin_password` सेट करने से कुछ नहीं बदला। |
 
-<Aside type="caution" title="दो API फ़ील्ड जो विभेदक लगते हैं परंतु नहीं हैं">
-`gc_spec.admin_ssh_key` **टेनेंट की सभी 88 साइटों पर** खाली है, जिनमें वे 20 भी शामिल हैं
-जो `admin_password` सेट करती हैं। किसी काम करने वाली और न करने वाली साइट के बीच इसकी तुलना
-आपको कुछ नहीं बताती, क्योंकि यह हर जगह खाली है।
+<Aside type="caution" title="दो API फ़ील्ड जो discriminator जैसे दिखते हैं और नहीं हैं">
+`gc_spec.admin_ssh_key` tenant के **सभी 88 sites** पर खाली है, जिनमें वे 20 भी शामिल हैं जो `admin_password` सेट करते हैं। काम करने वाले और न करने वाले site के बीच इसकी तुलना करने से कुछ पता नहीं चलता, क्योंकि यह हर जगह खाली है।
 
-`registrations_by_site` इस फ़ील्ड को पूरी तरह छोड़ देता है और इसके लिए `None` लौटाता है, जो
-"रिपोर्ट नहीं किया गया" की तुलना में "कॉन्फ़िगर नहीं किया गया" जैसा पढ़ा जाता है।
+`registrations_by_site` फ़ील्ड को पूरी तरह छोड़ देता है और उसके लिए `None` लौटाता है, जो "not configured" की बजाय "not reported" जैसा दिखता है।
 </Aside>
 
-## इसके बजाय इन्हें उपयोग करें
+## अन्य मार्ग
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="The recommended route, and already scripted here as <code>scripts/capture-sitecli.sh</code>. Needs the site <code>ONLINE</code>."
+    description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Covers 34 commands and needs the site <code>ONLINE</code>."
     href="../debug-api/"
   />
   <LinkCard
@@ -143,46 +176,10 @@ admin@<sli-ip>: Permission denied (publickey).
   />
 </CardGrid>
 
-debug API डेमो के विरुद्ध सत्यापित है। यह इस बिल्ड पर उजागर किए गए 34 कमांड को कवर करता है —
-Site CLI के केवल-ऑन-बॉक्स भाग किसी भी तरह पहुँच से बाहर रहते हैं। पुष्टि करें कि
-सरफेस दस्तावेज़ीकरण के नीचे से हिला नहीं है:
+<Aside type="caution" title="नए बने site को operate API के जवाब देने से पहले लगभग आधा घंटा चाहिए">
+किसी नए site के `ONLINE` रिपोर्ट करने के लगभग 25 से 30 मिनट तक, `vpm/debug` endpoints
+एक BIG-IP `503` पृष्ठ लौटाते हैं जिसमें लिखा होता है `The requested URL was rejected`। यह वेब
+एप्लीकेशन फ़ायरवॉल block जैसा, या revoked token जैसा दिखता है, और दोनों में से कोई नहीं है: site अभी relay के लिए तैयार नहीं है। कुछ भी बदलने की बजाय प्रतीक्षा करें और पुनः प्रयास करें।
 
-```bash
-bash scripts/capture-sitecli.sh --check --site ar-bgp-eastus01 --node f5-xc-ce-vm-01
-```
-
-```text
-catalog matches the live CE (build crt-20250613-3382, 34 commands)
-```
-
-<Aside type="caution" title="नई बनाई गई साइट को operate API के उत्तर देने से पहले लगभग आधे घंटे की आवश्यकता होती है">
-किसी नई साइट के `ONLINE` रिपोर्ट करने के बाद लगभग 25 से 30 मिनट तक, `vpm/debug`
-एंडपॉइंट एक BIG-IP `503` पृष्ठ लौटाते हैं जिसमें लिखा होता है `The requested URL was rejected`। वह
-किसी वेब एप्लिकेशन फ़ायरवॉल अवरोध, या निरस्त टोकन जैसा लगता है, और इनमें से कुछ भी नहीं है —
-साइट अभी रिले करने के लिए तैयार नहीं है। कुछ भी बदलने के बजाय प्रतीक्षा करें और पुनः प्रयास करें।
-</Aside>
-
-### `az vm run-command` के माध्यम से Site CLI चलाना
-
-`/opt/bin/vpmu` `admin` का लॉगिन शेल है, इसलिए इसे `az vm run-command` के माध्यम से आमंत्रित करने पर
-वही इंटरैक्टिव Site CLI मिलता है जिस तक SSH पहुँचता।
-उसी बिल्ड के एक डिस्पोज़ेबल CE पर सत्यापित; `execcli docker-ps`,
-`execcli ip-link-show` और `health` सभी उसी तरह कैप्चर किए गए।
-
-दो यांत्रिकताएँ आवश्यक हैं और दोनों में से कोई भी स्पष्ट नहीं है:
-
-- **PTY के बिना `vpmu` panic करता है** —
-  `go-prompt … NewStandardInputParser: no such device or address`। एक आवंटित करें।
-- **कमांड टेक्स्ट और Enter बाइट अलग-अलग राइट होने चाहिए।** एक ही राइट में
-  न्यूलाइन बफ़र में एक शाब्दिक वर्ण के रूप में पहुँचती है और CLI उत्तर देता है
-  `unknown command "execcli\n"`, जो ऐसा पढ़ा जाता है मानो वह कमांड मौजूद ही नहीं है।
-
-इंटरैक्टिव मेनू में `configure`, `configure-generic-hardware`,
-`configure-network`, `configure-http-proxy`, `diagnosis` और `health` सूचीबद्ध हैं। **`execcli` एक
-छिपा हुआ कमांड है** — यह उस मेनू में नहीं है, और यह अपने तर्क के रूप में एक कैटलॉग कमांड नाम लेता है।
-
-<Aside type="note" title="यह पथ एक डिस्पोज़ेबल CE पर सत्यापित है, डेमो पर नहीं">
-`run-command` मार्ग को उसी बिल्ड और उसी कॉन्फ़िगरेशन को चलाने वाले एक फेंकने योग्य CE पर
-आज़माया गया था। इसे `ar-bgp-eastus01/02/03` के विरुद्ध दोबारा नहीं चलाया गया है, इसलिए वहाँ इसके
-व्यवहार को सिद्ध किए गए के बजाय अपेक्षित मानें। debug API मार्ग डेमो के विरुद्ध *सत्यापित* है।
+SSH का ऐसा कोई warm-up नहीं है। यह `sshd` के चालू होते ही जवाब देता है, यही कारण है कि यह वह मार्ग है जो नोड के अभी register होने के दौरान काम करता है।
 </Aside>

@@ -1,70 +1,81 @@
 ---
 title: Acceso a un Customer Edge
 description: >-
-  Lea este nivel antes de ejecutar cualquier comando. Cubre la autenticación, la
-  regla nivel-a-endpoint que decide dónde se envía un comando y la vía de
-  emergencia para un nodo no registrado.
+  Lea este nivel antes de ejecutar cualquier comando. Cubre las tres rutas hacia
+  un Customer Edge — la API de depuración, SSH al Site CLI integrado y la
+  consola serie — con autenticación para cada una, la regla de nivel a punto
+  final que decide dónde se envía un comando de la API de depuración, y la ruta
+  de acceso de emergencia para un nodo no registrado. Comience aquí para elegir
+  una ruta, ya que solo SSH y la consola serie acceden a la superficie completa
+  de comandos integrada.
 sidebar:
   order: 10
   label: Acceso
 i18n:
-  sourceHash: 479fed005588
+  sourceHash: 4f47fbc1e917
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Dos rutas funcionan, y cuál de ellas se aplica lo decide el estado del nodo y no
-la preferencia.
+Existen tres rutas disponibles, y cuál aplica se determina por el estado del nodo y desde
+dónde se conecta, en lugar de por preferencia.
 
-| Ruta | Requiere nodo `ONLINE` | Requiere alcanzabilidad de red | Límites | Cubre |
+| Ruta | Requiere nodo `ONLINE` | Requiere accesibilidad de red | Limitaciones | Cubre |
 | --- | --- | --- | --- | --- |
-| [Debug API](./debug-api/) | **sí** | sí | unos 25–30 minutos de calentamiento en un sitio nuevo | 34 comandos |
-| [Consola serie](./serial-console/) | no | no | una sesión por VM; límite de pegado de 2.048 caracteres | La CLI de Site completa en el equipo |
+| [API de depuración](./debug-api/) | **sí** | sí | aproximadamente 25–30 minutos de calentamiento en un sitio nuevo | 34 comandos |
+| [SSH](./ssh/) | no | desde dentro de la VNet, solo a la dirección interna | la clave debe estar presente desde el primer arranque | El Site CLI completo integrado |
+| [Consola serie](./serial-console/) | no | no | una sesión por VM; límite de pegado de 2.048 caracteres | El Site CLI completo integrado |
 
 La consola serie es el último recurso, y la única ruta que sobrevive a un nodo sin
-ninguna vía de red operativa.
+ruta de red funcional.
 
-[**SSH no es una tercera ruta.**](./ssh/) La cuenta `admin` no puede autenticarse en la
-compilación que ejecuta este tenant, `vpm` nunca aplica la clave, y no existe ninguna
-configuración de sitio que cambie eso. La página existe para documentar la evidencia,
-porque todos los modos de fallo allí parecen un problema de firewall o de credenciales.
+SSH es la opción a utilizar cuando la API de depuración no es suficiente, porque el
+dispositivo ofrece sustancialmente más comandos que los 34 que expone esa API. Tiene dos
+costos. La clave es escrita por cloud-init y por lo tanto debe estar presente en el
+**primer arranque**, lo que significa que habilitarla en nodos en ejecución los reemplaza
+— y esto actualmente bloquea el registro
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). Y `sshd` responde solo
+en la dirección interna del nodo, por lo que requiere un host dentro de la VNet; sondear
+la dirección por la que conoce el nodo siempre reportará cerrado.
 
 ## Por qué la división no es una preferencia
 
-La debug API la sirve el plano de control de F5 Distributed Cloud, que retransmite al
-nodo a través del túnel que `vpm` establece durante el registro. Sin registro no hay
-túnel, lo que significa que la API no tiene nada a lo que retransmitir.
+La API de depuración es servida por el plano de control de F5 Distributed Cloud, que
+retransmite al nodo a través del túnel que `vpm` establece durante el registro. Sin
+registro no hay túnel, lo que significa que la API no tiene nada a lo que retransmitir.
 
-Falla de una forma poco útil en lugar de evidente, por lo que un nodo que nunca arrancó
-parece un problema de la API.
+Falla de manera poco informativa en lugar de obvia, por lo que un nodo que nunca
+arrancó parece un problema de la API.
 
-La consola serie va por el camino totalmente opuesto: a través de la plataforma Azure hasta
-el puerto serie emulado del nodo. No le importa si el nodo se ha registrado, si tiene
-alcanzabilidad de red o si tiene un plano de datos operativo. Esa independencia es
-precisamente el punto, y es la razón por la que el diagnóstico de arranque debe permanecer
-habilitado en las VM de CE.
+La consola serie funciona de manera completamente diferente — a través de la plataforma
+de Azure hacia el puerto serie emulado del nodo. No le importa si el nodo se ha
+registrado, si tiene accesibilidad de red o si tiene un plano de datos funcional. Esa
+independencia es precisamente el objetivo, y es por eso que el diagnóstico de arranque
+debe permanecer habilitado en las VM de CE.
 
-<Aside type="note" title="Qué usar">
-Si está escribiendo automatización, o recopilando evidencia que quiera volver a ejecutar
-más adelante, use la debug API. Si el registro es lo que está roto, la consola serie no es
-una alternativa: es la única opción.
+<Aside type="note" title="Qué utilizar">
+Si está escribiendo Automatización, o recopilando evidencia que desea volver a ejecutar
+más adelante, utilice la API de depuración. Si el registro es lo que está roto, la
+consola serie no es una alternativa — es la única opción.
 </Aside>
 
 ## Credenciales
 
-Ambas rutas usan credenciales distintas, y ninguna debe aparecer en una línea de comandos.
+Ambas rutas utilizan credenciales diferentes, y ninguna pertenece a una línea de
+comandos.
 
-- **Debug API** — un token de API de F5 Distributed Cloud, como `XCSH_API_TOKEN`, con la
-  URL del tenant como `XCSH_API_URL`. El archivo de contexto de `xcsh` en
+- **API de depuración** — un token de API de F5 Distributed Cloud, como `XCSH_API_TOKEN`,
+  con la URL del inquilino como `XCSH_API_URL`. El archivo de contexto de `xcsh` en
   `~/.config/xcsh/contexts/<tenant>.json` contiene ambos, que es lo que
-  `scripts/capture-sitecli.sh` lee cuando el entorno no los proporciona.
-- **Consola serie** — su inicio de sesión interactivo de Azure. No hay un service principal
-  para esto: el tenant corporativo de Entra de F5 no permite aprovisionar uno, que es
-  también la razón por la que ninguna parte de esto se ejecuta en CI.
+  `scripts/capture-sitecli.sh` lee cuando el entorno no los suministra.
+- **Consola serie** — su inicio de sesión interactivo de Azure. No existe ninguna entidad
+  de servicio para esto: el inquilino corporativo de F5 Entra no permite aprovisionar
+  una, lo que también explica por qué ninguna parte de esto se ejecuta en CI.
 
 <Aside type="danger" title="Nunca pase un token como argumento">
-Un token en una línea de comandos acaba en el historial del shell y en la lista de procesos,
-donde cualquier otro usuario de la máquina puede leerlo. `capture-sitecli.sh` rechaza
-`--token` de plano por ese motivo y en su lugar entrega el encabezado a `curl` por stdin.
+Un token en una línea de comandos queda registrado en el historial del shell y en la
+lista de procesos, donde cualquier otro usuario de la máquina puede leerlo.
+`capture-sitecli.sh` rechaza `--token` por completo por esa razón y suministra el
+encabezado a `curl` por stdin en su lugar.
 </Aside>

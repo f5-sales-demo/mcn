@@ -1,14 +1,14 @@
 ---
-title: Diagnóstico do Customer Edge
+title: Diagnósticos do Customer Edge
 description: >-
-  Leia este nível primeiro quando um Customer Edge apresentar comportamento
-  inesperado. Ele determina qual dos dois caminhos de acesso se aplica, porque o
-  caminho errado retorna silenciosamente nada.
+  Leia esta seção primeiro quando um Customer Edge apresentar problemas.
+  Estabelece qual dos dois caminhos de acesso se aplica, pois o caminho
+  incorreto retorna silenciosamente nada.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: 991cdd445e1e
+  sourceHash: b4cc7a6da640
   translator: machine
 ---
 
@@ -16,50 +16,52 @@ import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
 Um Customer Edge (CE) é o nó do F5 Distributed Cloud que este repositório provisiona no
-Azure — `terraform/modules/ce-node`, construído a partir da imagem de marketplace
-`volterraedgeservices/volterra-node`.
+Azure — `terraform/modules/ce-node`, construído a partir da
+imagem do marketplace `volterraedgeservices/volterra-node`.
 
-Ele executa o data plane (Argo), o control plane (Vega), um proxy Envoy, uma stack
-Kubernetes e o `vpm`, o agente que registra o nó e gerencia todo o resto nele.
+Ele executa o plano de dados (Argo), o plano de controle (Vega), um proxy Envoy, uma
+stack Kubernetes e o `vpm`, o agente que registra o nó e gerencia tudo o mais nele.
 
-Quando um CE apresenta comportamento inesperado, o Site CLI é o instrumento. A primeira decisão é qual
-caminho de acesso se aplica, e errar isso desperdiça tempo de uma forma que parece um
-nó defeituoso.
+Quando um CE apresenta problemas, o Site CLI é o instrumento. A primeira decisão é qual
+caminho de acesso se aplica, e escolher o errado desperdiça tempo de uma forma que parece
+um nó com defeito.
 
 ## Dois caminhos de acesso, e eles não são intercambiáveis
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    description="Para um nó que está <code>ONLINE</code>. Programável via script, somente leitura e cobre 34 comandos."
     href="./access/debug-api/"
   />
   <LinkCard
     title="Serial console"
-    description="For a node that never registered. The only route when the API cannot answer."
+    description="Para um nó que nunca se registrou. A única rota quando a API não consegue responder."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-A debug API alcança o nó **através do control plane do F5 Distributed Cloud**.
-Essa é justamente a razão pela qual a distinção importa: a API só pode responder depois que o nó
-foi registrado e reporta `ONLINE`.
+A debug API alcança o nó **através do plano de controle do F5 Distributed Cloud**.
+Essa é a razão pela qual a divisão importa: a API só consegue responder depois que o nó se
+registrou e reporta `ONLINE`.
 
-Um nó que falhou no registro — cloud-init inválido, um token expirado, sem rota para
-`register.ves.volterra.io` — é exatamente o caso em que você precisa de diagnóstico, e
-exatamente o caso que a API não pode atender.
+Um nó que falhou ao se registrar — cloud-init incorreto, token expirado, sem rota para
+`register.ves.volterra.io` — é exatamente o caso em que você precisa de diagnósticos, e
+exatamente o caso que a API não consegue atender.
 
-SSH não é uma terceira opção. O `sshd` roda no nó e responde em seu endereço interno (SLI),
-mas a conta `admin` não consegue se autenticar: o `vpm` ignora esse usuário, portanto a
-`ssh_key` que você configura no objeto de site nunca é aplicada. Nenhuma regra de security group
-muda isso. A evidência está na página [SSH](./access/ssh/), que existe porque
-cada sintoma ali se parece com uma falha de firewall ou de credencial.
+O [SSH](./access/ssh/) é a terceira opção, e a única que alcança a superfície de comandos
+completa do appliance — a debug API expõe 34 comandos e o próprio nó oferece muito mais.
+Dois fatores a restringem. O `sshd` responde apenas no endereço interno (SLI) do nó,
+portanto requer um host dentro da VNet; e a chave é gravada pelo cloud-init na primeira
+inicialização, pois o campo `ssh_key` no objeto do site é inerte — o `vpm` ignora o
+usuário `admin` e nunca a aplica. Portanto, habilitá-lo em nós em execução os substitui.
 
-Então: se o site estiver `ONLINE`, use a debug API. Se não estiver, o console serial é a
-única forma de entrar.
+Resumindo: se o site está `ONLINE` e 34 comandos são suficientes, use a debug API. Se você
+precisar do restante da superfície e conseguir alcançar a VNet, use SSH. Se o registro for
+o que está com problema, o serial console é a única forma de acesso.
 
-<Aside type="caution" title="Verifique primeiro o estado do site">
-Uma única requisição indica em qual caminho você está:
+<Aside type="caution" title="Verifique o estado do site primeiro">
+Uma requisição informa em qual caminho você está:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -67,40 +69,40 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` significa que a debug API funcionará. Qualquer outra coisa — ou um site que não
-existe — significa console serial.
+`ONLINE` significa que a debug API funcionará. Qualquer outro valor — ou um site que não
+existe — significa serial console.
 </Aside>
 
 ## Regras de segurança
 
-Elas valem para todos os comandos em todas as páginas abaixo.
+Estas se aplicam a todos os comandos em todas as páginas abaixo.
 
-- **Somente leitura, a menos que você tenha certeza.** A superfície de comandos é dividida em dois
-  níveis de privilégio, e o nível `Exec` ou altera o nó ou lê um marcador de
-  estado. Nada nestas páginas executa um comando `Exec`, e o harness de captura
-  também não.
-- **Nunca presuma que um comando é seguro pelo nome.** `ip-link-set` parece uma
-  consulta e derruba uma interface. `systemctl-restart-crio` reinicia o
-  container runtime sob um data plane ativo.
-- **Prefira o comando mais restrito que responda à pergunta.** `health` e
-  `diagnosis` resumem o nó de forma econômica; `flow-l` despeja uma tabela de fluxos com
-  629.760 entradas.
-- **Um CE atende tráfego ativo.** Estes são ambientes de demonstração compartilhados. Presuma que alguém
-  está apresentando a partir do site que você está depurando.
+- **Somente leitura, a menos que você tenha certeza.** A superfície de comandos é dividida
+  em dois níveis de privilégio, e o nível `Exec` ou modifica o nó ou lê um marcador de
+  estado. Nenhuma das páginas aqui executa um comando `Exec`, e tampouco o faz o harness
+  de captura.
+- **Nunca assuma que um comando é seguro pelo seu nome.** `ip-link-set` parece uma
+  consulta e derruba uma interface. `systemctl-restart-crio` reinicia o runtime de
+  contêiner sob um plano de dados ativo.
+- **Prefira o comando mais específico que responda à pergunta.** `health` e
+  `diagnosis` resumem o nó de forma eficiente; `flow-l` despeja uma tabela de fluxos
+  com 629.760 entradas.
+- **Um CE serve tráfego de produção.** Estes são ambientes de demonstração compartilhados.
+  Assuma que alguém está apresentando a partir do site que você está depurando.
 
 ## O que está documentado aqui
 
-Todos os comandos acessíveis pela debug API na build de software que este tenant executa,
-cada um com saída capturada de um nó ativo em vez de transcrita de outro lugar.
+Todos os comandos acessíveis através da debug API na versão do software que este tenant
+executa, cada um com saída capturada de um nó ativo em vez de transcrita de outra fonte.
 
 A [referência de comandos](./commands/) lista todos eles com sua categoria, nível de
-privilégio e transporte; os [fluxos de trabalho](./workflows/) os encadeiam nas sequências que você
-realmente usa quando algo está errado.
+privilégio e transporte; os [fluxos de trabalho](./workflows/) os encadeiam nas sequências
+que você realmente usa quando algo está errado.
 
-As partes do Site CLI que existem apenas no equipamento — `configure`, `configure-network`,
-`factory-reset`, `upgrade` e cerca de sessenta outros comandos `ExecCLI` — não são
-abordadas.
+As partes do Site CLI acessíveis apenas no dispositivo — `configure`, `configure-network`,
+`factory-reset`, `upgrade` e aproximadamente sessenta comandos `ExecCLI` adicionais — não
+estão documentadas.
 
-Elas são acessíveis apenas a partir de uma sessão de console serial, portanto nada sobre elas pode ser
-verificado programaticamente, e sintaxe de comando não verificada é o defeito que esta
-documentação existe para evitar repetir.
+Elas são acessíveis apenas a partir de uma sessão de serial console; portanto, nada sobre
+elas pode ser verificado programaticamente, e a sintaxe de comandos não verificada é o
+defeito que esta documentação existe para evitar repetir.

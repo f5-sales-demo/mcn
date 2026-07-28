@@ -1,74 +1,81 @@
 ---
-title: Zugriff auf eine Customer Edge
+title: Zugang zum Customer Edge
 description: >-
-  Lesen Sie diese Ebene, bevor Sie einen Befehl ausführen. Sie behandelt die
-  Authentifizierung, die Regel zwischen Ebene und Endpunkt, die entscheidet,
-  wohin ein Befehl gesendet wird, und den Notfallpfad für einen nicht
-  registrierten Knoten.
+  Lesen Sie diesen Abschnitt, bevor Sie einen Befehl ausführen. Beschreibt die
+  drei Wege zum Customer Edge — die Debug-API, SSH zur On-Box-Site-CLI und die
+  serielle Konsole — mit Authentifizierung für jeden Weg, die
+  Tier-zu-Endpunkt-Regel, die bestimmt, wohin ein Debug-API-Befehl gesendet
+  wird, und den Break-Glass-Pfad für einen nicht registrierten Knoten. Beginnen
+  Sie hier, um einen Weg zu wählen, denn nur SSH und die serielle Konsole
+  erreichen die vollständige On-Box-Befehlsoberfläche.
 sidebar:
   order: 10
-  label: Zugriff
+  label: Zugang
 i18n:
-  sourceHash: 479fed005588
+  sourceHash: 4f47fbc1e917
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Zwei Routen funktionieren, und welche davon zutrifft, entscheidet der Zustand des Knotens
-und nicht eine Vorliebe.
+Es gibt drei Routen, und welche davon gilt, wird durch den Zustand des Knotens und den
+Verbindungsort bestimmt — nicht durch persönliche Präferenz.
 
-| Route | Erfordert Knoten `ONLINE` | Erfordert Netzwerkerreichbarkeit | Grenzen | Umfang |
+| Route | Knoten `ONLINE` erforderlich | Netzwerkerreichbarkeit erforderlich | Einschränkungen | Abdeckung |
 | --- | --- | --- | --- | --- |
-| [Debug-API](./debug-api/) | **ja** | ja | etwa 25–30 Minuten Aufwärmzeit bei einem neuen Standort | 34 Befehle |
-| [Serielle Konsole](./serial-console/) | nein | nein | eine Sitzung pro VM; Einfügelimit von 2.048 Zeichen | Die vollständige Site-CLI auf dem Gerät |
+| [Debug-API](./debug-api/) | **ja** | ja | ca. 25–30 Minuten Anlaufzeit bei einer neuen Site | 34 Befehle |
+| [SSH](./ssh/) | nein | von innerhalb des VNet, nur zur internen Adresse | Schlüssel muss ab dem ersten Start vorhanden sein | Die vollständige On-Box-Site-CLI |
+| [Serielle Konsole](./serial-console/) | nein | nein | eine Sitzung pro VM; 2.048-Zeichen-Einfügegrenze | Die vollständige On-Box-Site-CLI |
 
 Die serielle Konsole ist das letzte Mittel und die einzige Route, die einen Knoten ohne
-funktionierenden Netzwerkpfad übersteht.
+funktionierenden Netzwerkpfad überlebt.
 
-[**SSH ist keine dritte Route.**](./ssh/) Das Konto `admin` kann sich auf dem Build, den
-dieser Tenant ausführt, nicht authentifizieren, `vpm` wendet den Schlüssel nie an, und es
-gibt keine Standorteinstellung, die daran etwas ändert. Die Seite existiert, um die Belege
-zu dokumentieren, denn jeder Fehlerfall dort sieht wie ein Firewall- oder ein
-Anmeldedatenproblem aus.
+SSH ist die erste Wahl, wenn die Debug-API nicht ausreicht, da das Gerät wesentlich mehr
+Befehle anbietet als die 34, die die API verfügbar macht. Damit sind zwei Kosten verbunden.
+Der Schlüssel wird von cloud-init geschrieben und muss daher beim **ersten Start** vorhanden
+sein, was bedeutet, dass dessen Aktivierung auf laufenden Knoten diese ersetzt — und dies
+derzeit die Registrierung blockiert
+([Issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). Und `sshd` antwortet nur
+auf der internen Adresse des Knotens, sodass ein Host innerhalb des VNet benötigt wird;
+das Prüfen der Ihnen bekannten Knotenaddresse wird stets als geschlossen gemeldet.
 
-## Warum die Aufteilung keine Vorliebe ist
+## Warum die Aufteilung keine Frage der Präferenz ist
 
-Die Debug-API wird von der F5 Distributed Cloud Control Plane bereitgestellt, die über den
-Tunnel, den `vpm` während der Registrierung aufbaut, an den Knoten weiterleitet. Keine
-Registrierung bedeutet keinen Tunnel, was bedeutet, dass die API nichts hat, wohin sie
-weiterleiten könnte.
+Die Debug-API wird von der F5 Distributed Cloud Control Plane bereitgestellt, die Anfragen
+über den Tunnel weiterleitet, den `vpm` während der Registrierung aufbaut. Keine Registrierung
+bedeutet keinen Tunnel, was bedeutet, dass die API nichts weiterleiten kann.
 
-Sie schlägt auf eine unhilfreiche und nicht auf eine offensichtliche Weise fehl, sodass ein
-Knoten, der nie hochgekommen ist, wie ein API-Problem aussieht.
+Der Fehler äußert sich auf eine wenig hilfreiche statt auf eine offensichtliche Weise, sodass
+ein Knoten, der nie hochgefahren ist, wie ein API-Problem aussieht.
 
-Die serielle Konsole geht den völlig anderen Weg — über die Azure-Plattform zum
-emulierten seriellen Port des Knotens. Es ist ihr gleichgültig, ob der Knoten registriert
-ist, Netzwerkerreichbarkeit besitzt oder eine funktionierende Data Plane hat. Diese
-Unabhängigkeit ist der ganze Sinn, und deshalb muss die Boot-Diagnose auf den CE-VMs
-aktiviert bleiben.
+Die serielle Konsole geht den entgegengesetzten Weg — durch die Azure-Plattform zum
+emulierten seriellen Port des Knotens. Es spielt keine Rolle, ob der Knoten registriert ist,
+Netzwerkerreichbarkeit hat oder eine funktionierende Datenebene besitzt. Diese Unabhängigkeit
+ist der eigentliche Zweck, und deshalb müssen die Boot-Diagnosen auf den CE-VMs aktiviert
+bleiben.
 
-<Aside type="note" title="Wozu Sie greifen sollten">
-Wenn Sie Automatisierung schreiben oder Belege sammeln, die Sie später erneut ausführen
-möchten, verwenden Sie die Debug-API. Wenn die Registrierung das Defekte ist, ist die
-serielle Konsole kein Ausweichweg — sie ist die einzige Option.
+<Aside type="note" title="Was zu verwenden ist">
+Wenn Sie eine Automatisierung schreiben oder Belege sammeln, die Sie später erneut ausführen
+möchten, verwenden Sie die Debug-API. Wenn die Registrierung das Problem ist, ist die serielle
+Konsole kein Fallback — sie ist die einzige Option.
 </Aside>
 
 ## Anmeldedaten
 
-Beide Routen verwenden unterschiedliche Anmeldedaten, und keine davon gehört auf eine
+Beide Routen verwenden unterschiedliche Anmeldedaten, und keine davon gehört in eine
 Befehlszeile.
 
 - **Debug-API** — ein F5 Distributed Cloud API-Token als `XCSH_API_TOKEN`, mit der
-  Tenant-URL als `XCSH_API_URL`. Die `xcsh`-Kontextdatei unter
-  `~/.config/xcsh/contexts/<tenant>.json` enthält beides, und genau diese liest
-  `scripts/capture-sitecli.sh`, wenn die Umgebung sie nicht bereitstellt.
-- **Serielle Konsole** — Ihre interaktive Azure-Anmeldung. Es gibt dafür keinen Service
-  Principal: Der F5-Unternehmens-Entra-Tenant erlaubt keine Bereitstellung eines solchen,
-  weshalb auch kein Teil davon in CI läuft.
+  Mandanten-URL als `XCSH_API_URL`. Die `xcsh`-Kontextdatei unter
+  `~/.config/xcsh/contexts/<tenant>.json` enthält beide, was
+  `scripts/capture-sitecli.sh` liest, wenn die Umgebungsvariablen nicht gesetzt sind.
+- **Serielle Konsole** — Ihre interaktive Azure-Anmeldung. Es gibt keinen Dienstprinzipal
+  dafür: Der F5-Unternehmens-Entra-Mandant erlaubt keine Bereitstellung eines solchen, was
+  auch der Grund ist, warum kein Teil davon in CI ausgeführt wird.
 
 <Aside type="danger" title="Übergeben Sie ein Token niemals als Argument">
-Ein Token auf einer Befehlszeile landet in der Shell-Historie und in der Prozessliste, wo
-jeder andere Benutzer auf der Maschine es lesen kann. `capture-sitecli.sh` verweigert
-`--token` deshalb kategorisch und übergibt den Header stattdessen über stdin an `curl`.
+Ein Token in einer Befehlszeile landet in der Shell-Historie und in der Prozessliste, wo
+jeder andere Benutzer auf dem Rechner es lesen kann. `capture-sitecli.sh` lehnt
+`--token` aus diesem Grund grundsätzlich ab und übergibt den Header stattdessen über stdin
+an `curl`.
 </Aside>
