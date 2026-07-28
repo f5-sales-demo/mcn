@@ -1,25 +1,25 @@
 ---
 title: Routes et sauts suivants
 description: >-
-  Ce sur quoi le plan de données Argo achemine réellement, ce qui n'est pas
-  nécessairement ce que Linux croit. Couvre la table de routage du vRouter, la
+  Ce que le plan de données Argo transmet réellement, qui ne correspond pas
+  nécessairement à ce que Linux croit. Couvre la table de routage vRouter, la
   table des sauts suivants et les interfaces virtuelles.
 sidebar:
   order: 50
   label: Routes et sauts suivants
 i18n:
-  sourceHash: 80785e30393a
+  sourceHash: 9e8dd5045310
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Argo conserve l'état de transfert séparément du noyau Linux. Lorsque
-[`ip`](../ip/) et ces commandes divergent, ce sont ces commandes qui déterminent le trafic.
+Argo conserve l'état de transfert séparé du noyau Linux. Lorsque
+[`ip`](../ip/) et ces commandes ne concordent pas, ce sont ces commandes qui acheminent le trafic.
 
 ## `rt`
 
-La table de routage du vRouter, par VRF.
+La table de routage vRouter, par VRF.
 
 ```bash
 {"command":["rt","--dump","2"]}
@@ -28,23 +28,23 @@ La table de routage du vRouter, par VRF.
 ```text file=../../../../_data/sitecli-rt.txt
 ```
 
-<Aside type="danger" title="L'identifiant de VRF n'est pas celui que rapporte BGP">
-`show-ip-bgp-summary` affiche `vrf-id 3`. Il s'agit de la numérotation de FRR, qui relève d'un
-espace de noms différent de celui de l'identifiant de table du vRouter. Le transmettre ici échoue d'une manière
-qui laisse penser à un nœud défaillant :
+<Aside type="danger" title="L'identifiant VRF n'est pas celui que BGP rapporte">
+`show-ip-bgp-summary` affiche `vrf-id 3`. Il s'agit de la numérotation FRR et il s'agit d'un
+espace de nommage différent de l'identifiant de table vRouter. Le passer ici échoue d'une manière qui
+se présente comme un nœud défaillant :
 
 ```
 vRouter(Response):  [No such file or directory (2)]
 ```
 
 La même réponse est renvoyée pour `--dump 0`. Sur cette topologie, **VRF 2** est la
-table inet4 renseignée, VRF 1 contenant deux routes. Si vous ne connaissez pas l'identifiant,
-sondez à partir de 1 en montant plutôt que de vous fier à la sortie BGP.
+table inet4 remplie, avec VRF 1 contenant deux routes. Si vous ne connaissez pas l'identifiant,
+sondez vers le haut à partir de 1 plutôt que de vous fier à la sortie BGP.
 </Aside>
 
 ## `nh`
 
-La table des sauts suivants. Chaque route pointe vers un identifiant de saut suivant, et cette commande les résout.
+La table des sauts suivants. Chaque route pointe vers un identifiant de saut suivant, et ceci les résout.
 
 ```bash
 {"command":["nh","--list"]}
@@ -53,26 +53,26 @@ La table des sauts suivants. Chaque route pointe vers un identifiant de saut sui
 ```text file=../../../../_data/sitecli-nh.txt
 ```
 
-Chaque entrée porte un `Type` et la VRF à laquelle elle appartient. Huit types apparaissent sur ces nœuds, dans
-ces proportions — identiques sur les trois CE lorsqu'on les dénombre :
+Chaque entrée comporte un `Type` et le VRF auquel elle appartient. Huit types apparaissent sur ces nœuds,
+dans ces proportions — identiques sur les trois CE lorsqu'ils sont comptés :
 
 ```text
 Tunnel 558   Encap 27   NAT 22   Vrf 16   Receive 14   Composite 4   Drop 2   Resolve 2
 ```
 
-Une route qui se résout vers un saut suivant `Drop` est un trou noir, et cette combinaison mérite d'être vérifiée
-dès qu'un préfixe est présent dans `rt` alors que le trafic disparaît malgré tout.
+Une route se résolvant vers un saut suivant `Drop` est un trou noir, et cette combinaison vaut la peine d'être vérifiée
+chaque fois qu'un préfixe est présent dans `rt` alors que le trafic disparaît quand même.
 
-<Aside type="caution" title="La capture ci-dessus est tronquée, elle ne contient donc pas tous les types">
-Il s'agit des 60 premières lignes sur 3 849. `Tunnel`, de loin le type le plus courant, n'apparaît
-pas du tout dans ces 60 lignes — ne considérez donc pas la capture comme l'inventaire complet des types, et n'en
-concluez pas qu'un type est absent d'un nœud parce qu'il est absent d'une capture tronquée. Les décomptes
+<Aside type="caution" title="La capture ci-dessus est tronquée et ne contient donc pas tous les types">
+Il s'agit des 60 premières lignes sur 3 849. `Tunnel`, le type de loin le plus courant, n'apparaît
+pas du tout dans ces 60 lignes — ne lisez donc pas la capture comme l'inventaire complet des types, et ne
+concluez pas qu'un type est absent d'un nœud parce qu'il est absent d'une capture tronquée. Les comptages
 ci-dessus proviennent de la réponse non tronquée.
 </Aside>
 
 ## `vif`
 
-La table des interfaces virtuelles : ce à quoi le plan de données se rattache, ainsi que les
+La table des interfaces virtuelles : ce à quoi le plan de données se lie, ainsi que les
 compteurs par interface.
 
 ```bash
@@ -82,7 +82,23 @@ compteurs par interface.
 ```text file=../../../../_data/sitecli-vif.txt
 ```
 
-La légende des indicateurs en haut mérite d'être lue une fois — `Vp` désigne l'interface physique
-vhost, `Dpdk` une interface gérée par DPDK. Utilisez-la pour confirmer que le plan de données a bien pris
-en charge l'interface attendue, et pour consulter les compteurs RX et TX que Linux n'affiche pas
-parce que le trafic n'atteint jamais le noyau.
+La légende des indicateurs en haut mérite d'être lue une fois — `Vp` marque l'interface
+physique vhost, `Dpdk` une interface gérée par DPDK. Utilisez ceci pour confirmer que le plan de données a réclamé
+l'interface attendue, et pour consulter les compteurs RX et TX que Linux n'affiche pas
+car le trafic n'atteint jamais le noyau.
+
+## `mpls`
+
+```bash
+execcli mpls --help
+```
+
+La table MPLS Argo. Accessible **uniquement depuis la machine** — `mpls` n'est pas sur l'API de débogage, donc
+contrairement à `rt`, `nh` et `vif` ci-dessus, il nécessite [SSH](../../../access/ssh/) ou la
+[console série](../../../access/serial-console/), via
+[`execcli`](../../on-box/).
+
+Aucune sortie capturée ici. Sur ce déploiement, le CE transfère IPv4 avec BGP et ECMP et n'utilise
+pas d'étiquettes MPLS, donc une capture montrerait une table vide sans rien enseigner. Son existence
+et la forme de son argument `--help` sont vérifiées depuis le menu de complétion propre à l'appliance ; sa
+sortie remplie n'est pas reproduite.

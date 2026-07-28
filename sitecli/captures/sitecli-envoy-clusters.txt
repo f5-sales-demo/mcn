@@ -1,4 +1,3 @@
->>> execcli envoy-clusters
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0cert_cache::observability_name::cert_cache
@@ -560,4 +559,3 @@ aspen_cluster::169.254.100.1:65144::local_origin_success_rate::-1
 <uuid>::[ff::17:e901:9675]:80::metadata::envoy.ves_data::{"dst_vs":"S:<public-ip>","discovered_ip":"<public-ip>","dst_instance_name":"STATIC"}
 <uuid>::[ff::17:e901:9675]:80::metadata::envoy.lb::{"ves-lb-port":"80","ves-site":"sy5-syd"}
       0 --:--:-- --:--:-- --:--:-- 3998k
->>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

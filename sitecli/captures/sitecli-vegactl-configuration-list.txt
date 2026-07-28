@@ -1,4 +1,3 @@
->>> execcli vegactl-configuration-list
 List configuration objects
 
 Usage:
@@ -168,4 +167,3 @@ Global Flags:
       --via-apigw                        Do URI remapping as expected by API gateway
 
 Use "vegactl configuration list [command] --help" for more information about a command.
->>>  configure                   Initial configuration of the node                                             configure-generic-hardware  Configure Hardware that isn't certified by F5XC.                              configure-network           Initial configuration of the network                                          configure-http-proxy        Initial configuration of the HTTP proxy                                       diagnosis                   Network diagnosis of the node                                                 health                      Status of the node

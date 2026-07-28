@@ -1,0 +1,127 @@
+---
+title: คำสั่งบนกล่อง
+description: >-
+  คำสั่ง 82 รายการที่ Site CLI ของอุปกรณ์มีให้ โดย 55
+  รายการไม่สามารถเข้าถึงได้ผ่าน debug API เลย อธิบายคำสั่ง execcli
+  ที่ซ่อนอยู่ซึ่งใช้รันคำสั่งเหล่านั้น เหตุใดพื้นที่นี้จึงกว้างกว่า API
+  คำสั่งใดที่มีเอกสารครบถ้วนและคำสั่งใดที่แสดงรายการไว้เท่านั้น
+  และวิธีวัดชุดคำสั่ง
+sidebar:
+  order: 40
+  label: บนกล่อง
+i18n:
+  sourceHash: 1f8259efff3f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+[debug API](../../access/debug-api/) เปิดเผย **34 คำสั่ง** ส่วนตัวอุปกรณ์เองมีให้ถึง **82 รายการ** และ **55 รายการในนั้นไม่มี API ที่เทียบเท่า** — control plane ของ Vega ทั้งหมด, wrapper ของ Envoy, การจับแพ็กเก็ต, ชุดพารามิเตอร์ kubelet, ไฟล์ `edit-*` และคู่การเข้าถึง root เสริม สามารถเข้าถึงได้จากกล่องเท่านั้น
+
+การเข้าถึงต้องใช้ [SSH](../../access/ssh/) หรือ
+[serial console](../../access/serial-console/) และมีสิ่งหนึ่งที่ไม่ได้รับการบันทึกไว้ที่ใดเลย:
+
+<Aside type="tip" title="execcli เป็นคำสั่งที่ซ่อนอยู่">
+`execcli` ไม่ปรากฏในเมนูโต้ตอบของ Site CLI โดยรับชื่อคำสั่งเป็นอาร์กิวเมนต์ และการพิมพ์ `execcli ` ตามด้วย **Tab** จะแสดงรายการทั้ง 82 รายการพร้อมคำอธิบายหนึ่งบรรทัดของอุปกรณ์สำหรับแต่ละรายการ เมนูการเติมคำอัตโนมัตินั้นคือแคตตาล็อกที่เชื่อถือได้สำหรับ build และเป็นสิ่งที่ `sitecli/exec-catalog.json` บันทึกไว้
+</Aside>
+
+## วิธีวัดค่านี้
+
+ชุดด้านล่างไม่ได้ถอดมาจากเอกสารของผู้ขาย แต่อ่านจากโหนดที่ใช้งานจริงสองโหนดและ
+commit ลงใน `sitecli/exec-catalog.json` พร้อมแหล่งที่มา:
+
+| | ระดับบนสุด | `execcli` |
+| --- | --- | --- |
+| วัดที่ `site_state: PROVISIONING` | 6 | 82 |
+| วัดที่ `site_state: PROVISIONED` | 6 | 82 |
+
+การรันสองครั้งให้ผล **ชุดเดียวกัน** สิ่งนี้มีความสำคัญมากกว่าตัวเลข: หมายความว่าพื้นที่คำสั่งไม่เปลี่ยนแปลงตามสถานะการลงทะเบียน ดังนั้นคำสั่งที่ไม่มีอยู่นั้นไม่มีอยู่จริงๆ ไม่ใช่แค่ยังไม่ได้เสนอให้
+
+<Aside type="caution" title="ห้าคำสั่งที่ไม่มีอยู่">
+`factory-reset`, `upgrade`, `reboot`, `show` และ `clear` **ไม่** อยู่ใน build นี้ เป็นประเภทคำสั่งที่ Site CLI น่าจะมีได้ ซึ่งถูกระบุไว้ในการจำแนกประเภทของ repository นี้ชั่วระยะหนึ่งตามการสันนิษฐานนั้น และการระบุตัวตนทั้งสองครั้งก็ไม่พบ ระดับบนสุดมีรายการแน่นอนหกรายการ: `configure`, `configure-generic-hardware`,
+`configure-network`, `configure-http-proxy`, `diagnosis` และ `health`
+</Aside>
+
+## สิ่งที่มีเอกสาร และสิ่งที่แสดงรายการไว้เท่านั้น
+
+Customer Edge รัน Linux และ daemon ของบุคคลที่สามหลายตัว การจัดทำเอกสารคำสั่งของพวกเขาจะซ้ำซ้อนกับเอกสารอ้างอิงของตนเองและบ่งชี้ว่า F5 เป็นเจ้าของ ดังนั้นกฎคือ: **จัดทำเอกสารซอฟต์แวร์ของ F5 และสำหรับทุกอย่างอื่นให้จัดทำเอกสารเฉพาะสิ่งที่เฉพาะเจาะจงกับ CE เท่านั้น**
+
+สามระดับ เนื่องจาก "ของเรา" และ "ของพวกเขา" ไม่ใช่การแบ่งที่ชัดเจน การแบ่งนี้บันทึกไว้ใน
+`sitecli/command-classification.json`
+
+| ระดับ | การปฏิบัติ |
+| --- | --- |
+| **ซอฟต์แวร์ F5** | เอกสารครบถ้วน — วัตถุประสงค์, ไวยากรณ์, อาร์กิวเมนต์, ผลลัพธ์ที่จับได้, สิ่งที่ควรมองหา โดยครอบคลุม Argo, Vega, `vpm`, `vifdump`, `configure*`, ชุด `edit-*`, พารามิเตอร์ kubelet, การเข้าถึง root |
+| **การตีความเฉพาะ CE** | เครื่องมือบุคคลที่สามที่ผลลัพธ์มีความหมายเฉพาะเจาะจงบน CE การอ่านแบบ CE เฉพาะได้รับการบันทึกไว้ และความหมายของเครื่องมือเองถูกปล่อยให้เป็นไปตาม upstream |
+| **Passthrough** | Linux ธรรมดาหรือบุคคลที่สามที่ไม่มีอะไรเฉพาะ CE จะพูดถึง แสดงรายการว่ามีให้ใช้งาน พร้อมตัวชี้ไปยัง upstream ไม่มีร้อยแก้ว |
+
+ความแตกต่างนั้นตัดสินว่าจะมีหน้าอยู่หรือไม่ และเป็นสิ่งที่ป้องกันไม่ให้เอกสารนี้กลายเป็นสำเนาที่แย่กว่าของ man pages
+
+## ซอฟต์แวร์ F5
+
+<CardGrid>
+  <LinkCard
+    title="Vega control plane"
+    description="Six <code>vegactl</code> commands: configuration objects, introspection tables, trace buffers, and which node holds the primary role."
+    href="./vega/"
+  />
+  <LinkCard
+    title="Envoy"
+    description="Four wrappers around Envoy's admin interface — listeners, clusters, and two config dumps."
+    href="./envoy/"
+  />
+  <LinkCard
+    title="Packet capture"
+    description="The five <code>vifdump</code> commands. Documented, never run here: they write capture files onto the node."
+    href="./packet-capture/"
+  />
+  <LinkCard
+    title="Kubelet parameters"
+    description="Read, add and remove custom kubelet parameters. Support-directed."
+    href="./kubelet/"
+  />
+  <LinkCard
+    title="vpm service"
+    description="The agent that registers the node and runs the platform containers."
+    href="./vpm/"
+  />
+  <LinkCard
+    title="Configuration files"
+    description="The four <code>edit-*</code> commands that open F5-owned files on the node."
+    href="./config-files/"
+  />
+  <LinkCard
+    title="Auxiliary root access"
+    description="Creating and removing the <code>xuser</code> root account. Support-directed, and it leaves the node modified."
+    href="./root-access/"
+  />
+  <LinkCard
+    title="Node configuration"
+    description="The four <code>configure*</code> commands at the Site CLI top level."
+    href="./configure/"
+  />
+</CardGrid>
+
+## Passthrough
+
+มีให้ใช้งานบนกล่องและ **ไม่ได้รับการบันทึกที่นี่** — เหล่านี้คือระบบปฏิบัติการและ daemon ของบุคคลที่สาม ไม่ใช่ซอฟต์แวร์ของ F5 และเอกสารอ้างอิงของตนเองดีกว่าสิ่งที่หน้านี้จะสรุปได้
+
+| คำสั่ง | Upstream |
+| --- | --- |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, BIND utilities |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | ไฟล์เหล่านี้เป็นของระบบปฏิบัติการ |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — ทุกรายการในนี้จะขัดจังหวะ workload บนโหนด |
+
+สองรายการในเหล่านี้ควรทราบแม้ว่าจะไม่มีหน้าของตัวเอง `files` ดำเนินการไฟล์และจะเขียนได้เฉพาะใต้ `/tmp` เท่านั้น และทุก `systemctl-restart-*` นั้นก่อให้เกิดการหยุดชะงักโดยนิยาม — การรีสตาร์ท `crio` หรือ `kubelet` จะขัดจังหวะ workload บนโหนดนั้น
+
+<Aside type="note" title="เจ็ดคำสั่งมีอยู่ใน build ที่ใหม่กว่าและไม่มีใน build นี้">
+`collect-database-stats`, `iptables-lv`, คำสั่ง `marker-exists-*` สามรายการ,
+`systemctl-restart-NetworkManager` และ `systemctl-start-crio-prune` ถูกพบผ่าน
+debug API บน build `crt-20260201-0179` รายการเหล่านี้บันทึกไว้ใน
+`not_on_this_build.newer_build_debug_api` ในการจำแนกประเภท เพื่อไม่ให้สิ่งใดที่นี่ถูกเข้าใจผิดว่าเป็นสิ่งที่คุณสามารถรันบน `crt-20250613-3382`
+
+`collect-debug-info` เป็นกรณีแยกต่างหาก: ไม่ปรากฏในเมนูใดและแคตตาล็อกใด ข้อความต้อนรับของ Site CLI กล่าวว่า CLI "อนุญาตให้ … รวบรวมข้อมูล debug สำหรับฝ่ายสนับสนุน" ดังนั้นชื่อน่าจะมาจากร้อยแก้วนั้นมากกว่าที่จะถูกสังเกต ถูกทำเครื่องหมายว่าไม่ได้รับการยืนยันและจงใจไม่ทดสอบ — การรันคำสั่งที่ไม่รู้จักโดยการคาดเดาบนโหนดที่ใช้งานจริงคือวิธีที่การจับแพ็กเก็ต `vifdump` เริ่มต้นขึ้นบน CE ที่ยังลงทะเบียนอยู่
+</Aside>

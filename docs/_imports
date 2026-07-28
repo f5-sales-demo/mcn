@@ -33,3 +33,13 @@ sitecli/captures/sitecli-show-ip-bgp-summary.txt
 sitecli/captures/sitecli-show-ip-bgp.txt
 sitecli/captures/sitecli-vif.txt
 sitecli/captures/serial-console-boot.txt
+sitecli/captures/sitecli-envoy-clusters.txt
+sitecli/captures/sitecli-envoy-config-dump.txt
+sitecli/captures/sitecli-envoy-hc-config-dump.txt
+sitecli/captures/sitecli-envoy-listeners.txt
+sitecli/captures/sitecli-etcdctl-cluster-member-status.txt
+sitecli/captures/sitecli-kubelet-get-params.txt
+sitecli/captures/sitecli-systemctl-status-vpm.txt
+sitecli/captures/sitecli-vegactl-configuration-list.txt
+sitecli/captures/sitecli-vegactl-introspect-list-tracebuffers.txt
+sitecli/captures/sitecli-vegactl-introspect-show-election.txt

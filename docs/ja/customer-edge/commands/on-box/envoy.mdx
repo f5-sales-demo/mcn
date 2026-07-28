@@ -1,0 +1,84 @@
+---
+title: Envoy
+description: >-
+  Customer Edge 上の Envoy 管理インターフェースを囲む 4 つのラッパー — リスナー、クラスター、2 つの設定ダンプ。それぞれが
+  curl プログレスメーターで始まる理由と、リスナー出力がアドバタイズされた VIP について何を示すかを説明します。
+sidebar:
+  order: 20
+  label: Envoy
+i18n:
+  sourceHash: 6ca185ca6ece
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Envoy は Customer Edge 上でアプリケーショントラフィックを終端してプロキシします。これらの 4 つのコマンドは Envoy の管理インターフェースを照会するものであり、いずれも [デバッグ API](../../../access/debug-api/) には含まれていません。
+
+<Aside type="note" title="これらはすべて curl プログレスメーターで始まります">
+これらは Envoy の管理エンドポイントへの `curl` ラッパーであり、`-s` オプションなしで呼び出されます。そのため、以下の各キャプチャの最初の 2〜3 行は curl の転送進捗が stderr に出力されたものです:
+
+```text
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0 …
+```
+
+これは Envoy の出力ではなく、エラーでもありません。また有用な情報でもあります: `% Received` のバイト数によって、Envoy が何かを返したかどうかがわかるため、「リスナーが設定されていない」と「管理インターフェースが応答しなかった」を区別できます。
+</Aside>
+
+## `envoy-listeners`
+
+Envoy にインストールされているすべてのリスナーを `name:address:port` の形式で表示します。
+
+```bash
+execcli envoy-listeners
+```
+
+```text file=../../../../_data/sitecli-envoy-listeners.txt
+```
+
+**確認すべき点。** このデプロイメントでは、リスナーに `10.250.0.10:80` — CE が BGP にアドバタイズする VIP — が含まれています。この 1 行で 3 つのレイヤーが結び付きます: [`show-ip-bgp-summary`](../../network/bgp/) でプレフィックスがアドバタイズされているにもかかわらずこのリスナーが存在しない場合、ルートはトラフィックを処理しないノードに引き寄せられていることを意味します。これは ECMP セットにおいて最悪の障害モードであり、トラフィックがブラックホールに負荷分散されてしまいます。
+
+末尾の `[fe80:…]:80` は、リスナーがバインドされているインターフェースのリンクローカルアドレスです。
+
+**表示されない情報。** アップストリームの健全性については何も表示されません — リスナーは背後の何かが到達可能かどうかに関わらず存在します。その情報については `envoy-clusters` を使用してください。
+
+## `envoy-clusters`
+
+すべてのクラスターを、優先度ごとの接続数およびリクエスト数の制限とともに表示します。
+
+```bash
+execcli envoy-clusters
+```
+
+```text file=../../../../_data/sitecli-envoy-clusters.txt
+```
+
+**確認すべき点。** 行の形式は `cluster::scope::key::value` です。`observability_name` エントリーで各クラスターを識別でき、`default_priority::max_connections`、`max_pending_requests`、`max_requests` の 3 つの値にリクエスト制限が表示されます — クラスターが `max_pending_requests` に達している場合、アップストリームの問題ではなく設定によってスロットリングされています。
+
+## `envoy-config-dump`
+
+Envoy の完全な設定を JSON 形式で表示します。アイドル状態のデモノードでも 126 KB と大きなサイズになります。
+
+```bash
+execcli envoy-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-config-dump.txt
+```
+
+**確認すべき点。** トップレベルの `configs` 配列には、設定タイプごとに 1 つのオブジェクト — ブートストラップ、クラスター、リスナー、ルート、シークレット — が含まれています。リスナーやクラスターは存在するが予期しない動作をしている場合にこれを参照し、全体を読むのではなく検索して使用してください。
+
+## `envoy-hc-config-dump`
+
+ヘルスチェックの設定のみを表示します。
+
+```bash
+execcli envoy-hc-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
+```
+
+**確認すべき点。** このデプロイメントでは **1 バイト** のみを返します — curl メーターに `100 1` として表示されます — つまり、ヘルスチェックの設定がインストールされていないことを意味します。これはヘルスチェック対象のオリジンプールを持たない CE の想定される状態であり、認識しておく価値があります: ここでの空の結果はクエリの失敗ではありません。

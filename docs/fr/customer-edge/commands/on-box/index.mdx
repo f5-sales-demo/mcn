@@ -1,0 +1,158 @@
+---
+title: Commandes embarquées
+description: >-
+  Les 82 commandes proposées par le Site CLI propre à l'appliance, dont 55 sont
+  totalement inaccessibles via l'API de débogage. Explique la commande cachée
+  execcli qui permet de les exécuter, pourquoi cette surface est plus étendue
+  que celle de l'API, quelles commandes sont entièrement documentées et
+  lesquelles sont seulement listées, et comment l'ensemble a été mesuré.
+sidebar:
+  order: 40
+  label: Embarquées
+i18n:
+  sourceHash: 1f8259efff3f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+L'[API de débogage](../../access/debug-api/) expose **34 commandes**. L'appliance elle-même
+en propose **82**, et **55 d'entre elles n'ont aucun équivalent dans l'API** — l'intégralité
+du plan de contrôle Vega, les wrappers Envoy, la capture de paquets, l'ensemble des
+paramètres kubelet, les fichiers `edit-*` et la paire d'accès root auxiliaire ne sont
+accessibles que depuis la boîte.
+
+Y accéder nécessite [SSH](../../access/ssh/) ou la
+[console série](../../access/serial-console/), ainsi qu'un élément nulle part documenté :
+
+<Aside type="tip" title="execcli est une commande cachée">
+`execcli` n'apparaît pas dans le menu interactif du Site CLI. Elle prend un nom de commande
+comme argument, et saisir `execcli ` suivi de **Tab** affiche les 82 commandes avec la
+description d'une ligne propre à l'appliance pour chacune. Ce menu de complétion constitue
+le catalogue de référence pour une version donnée, et c'est ce que `sitecli/exec-catalog.json`
+enregistre.
+</Aside>
+
+## Comment cela a été mesuré
+
+L'ensemble ci-dessous n'est pas retranscrit d'un document fournisseur. Il a été lu sur deux
+nœuds en production et consigné dans `sitecli/exec-catalog.json` avec sa provenance :
+
+| | Niveau supérieur | `execcli` |
+| --- | --- | --- |
+| Mesuré à `site_state: PROVISIONING` | 6 | 82 |
+| Mesuré à `site_state: PROVISIONED` | 6 | 82 |
+
+Les deux exécutions ont retourné **des ensembles identiques**. Cela importe plus que le
+nombre : cela signifie que la surface de commandes ne change pas avec l'état d'enregistrement,
+de sorte qu'une commande absente est véritablement absente et non simplement pas encore
+proposée.
+
+<Aside type="caution" title="Cinq commandes qui n'existent pas">
+`factory-reset`, `upgrade`, `reboot`, `show` et `clear` **ne figurent pas** dans cette
+version. Ce sont le genre de commandes qu'un Site CLI pourrait plausiblement avoir ; elles
+ont été portées dans la classification de ce dépôt pendant un certain temps sur cette
+hypothèse, et aucune des deux énumérations ne les a trouvées. Le niveau supérieur comporte
+exactement six entrées : `configure`, `configure-generic-hardware`, `configure-network`,
+`configure-http-proxy`, `diagnosis` et `health`.
+</Aside>
+
+## Ce qui est documenté, et ce qui est seulement listé
+
+Un Customer Edge exécute Linux et un certain nombre de démons tiers. Documenter leurs
+commandes reviendrait à dupliquer leurs propres références et à laisser entendre que F5 les
+possède ; la règle est donc : **documenter le logiciel F5, et pour tout le reste documenter
+uniquement ce qui est spécifique à un CE.**
+
+Trois niveaux, car « le nôtre » et « le leur » n'est pas une distinction nette. La distinction
+est consignée dans `sitecli/command-classification.json`.
+
+| Niveau | Traitement |
+| --- | --- |
+| **Logiciel F5** | Documentation complète — objectif, syntaxe, arguments, sortie capturée, ce qu'il faut rechercher. Argo, Vega, `vpm`, `vifdump`, `configure*`, l'ensemble `edit-*`, les paramètres kubelet, l'accès root. |
+| **Interprétation spécifique au CE** | Un outil tiers dont la sortie a une signification particulière sur un CE. La lecture spécifique au CE est documentée et la sémantique propre à l'outil est laissée en amont. |
+| **Passthrough** | Linux standard ou tiers sans rien de spécifique au CE à signaler. Listé comme disponible, avec un pointeur vers la source amont. Aucune prose. |
+
+Cette distinction détermine si une page existe ou non, et c'est ce qui empêche cette
+documentation de se dégrader en une copie de moindre qualité des pages de manuel.
+
+## Logiciel F5
+
+<CardGrid>
+  <LinkCard
+    title="Vega control plane"
+    description="Six <code>vegactl</code> commands: configuration objects, introspection tables, trace buffers, and which node holds the primary role."
+    href="./vega/"
+  />
+  <LinkCard
+    title="Envoy"
+    description="Four wrappers around Envoy's admin interface — listeners, clusters, and two config dumps."
+    href="./envoy/"
+  />
+  <LinkCard
+    title="Packet capture"
+    description="The five <code>vifdump</code> commands. Documented, never run here: they write capture files onto the node."
+    href="./packet-capture/"
+  />
+  <LinkCard
+    title="Kubelet parameters"
+    description="Read, add and remove custom kubelet parameters. Support-directed."
+    href="./kubelet/"
+  />
+  <LinkCard
+    title="vpm service"
+    description="The agent that registers the node and runs the platform containers."
+    href="./vpm/"
+  />
+  <LinkCard
+    title="Configuration files"
+    description="The four <code>edit-*</code> commands that open F5-owned files on the node."
+    href="./config-files/"
+  />
+  <LinkCard
+    title="Auxiliary root access"
+    description="Creating and removing the <code>xuser</code> root account. Support-directed, and it leaves the node modified."
+    href="./root-access/"
+  />
+  <LinkCard
+    title="Node configuration"
+    description="The four <code>configure*</code> commands at the Site CLI top level."
+    href="./configure/"
+  />
+</CardGrid>
+
+## Passthrough
+
+Disponibles sur la boîte et **non documentées ici** — il s'agit du système d'exploitation et
+des démons tiers, et non du logiciel F5 ; leurs propres références sont meilleures que ce
+que cette page pourrait reformuler.
+
+| Commandes | Source amont |
+| --- | --- |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, utilitaires BIND |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | Les fichiers appartiennent au système d'exploitation |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — chacune de ces commandes interrompt les charges de travail sur le nœud |
+
+Deux d'entre elles méritent d'être connues même si elles ne font l'objet d'aucune page.
+`files` effectue des opérations sur les fichiers et n'écrit que sous `/tmp`. Et chaque
+`systemctl-restart-*` est par définition perturbatrice — redémarrer `crio` ou `kubelet`
+interrompt les charges de travail sur ce nœud.
+
+<Aside type="note" title="Sept commandes existent sur des versions plus récentes mais pas sur celle-ci">
+`collect-database-stats`, `iptables-lv`, les trois commandes `marker-exists-*`,
+`systemctl-restart-NetworkManager` et `systemctl-start-crio-prune` ont été observées via
+l'API de débogage sur la version `crt-20260201-0179`. Elles sont enregistrées sous
+`not_on_this_build.newer_build_debug_api` dans la classification afin que rien ici ne soit
+confondu avec quelque chose que vous pouvez exécuter sur `crt-20250613-3382`.
+
+`collect-debug-info` est un cas à part : elle n'apparaît dans aucun menu ni aucun catalogue.
+Le texte d'accueil du Site CLI indique que le CLI « permet de… collecter des informations de
+débogage pour le support », de sorte que le nom a très probablement été dérivé de cette
+prose plutôt qu'observé. Elle est marquée comme non vérifiée et délibérément non sondée —
+exécuter de manière spéculative une commande inconnue sur un nœud en production, c'est
+ainsi qu'une capture de paquets `vifdump` a été démarrée sur un CE qui était encore en
+cours d'enregistrement.
+</Aside>

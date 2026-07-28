@@ -1,0 +1,51 @@
+---
+title: 辅助 root 访问
+description: >-
+  用于在客户边缘节点上创建和删除 xuser root 账户的两个命令。由 F5 支持团队指导使用，执行后将对节点产生持久性修改，且创建命令是访问 admin
+  账户无法读取的文件的唯一有据可查的方式。
+sidebar:
+  order: 70
+  label: Root 访问
+i18n:
+  sourceHash: c2417b409442
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+以下两个命令用于创建和删除名为 `xuser` 的 root 账户。它们由 F5 提供，不在
+[debug API](../../../access/debug-api/) 中公开，是执行 `admin`
+账户无法完成的操作的应急手段。
+
+<Aside type="danger" title="这些命令会修改节点的账户状态，请勿在此处执行">
+`get-auxilary-root-access-to-node` 会创建一个 **root 用户**。该操作对节点的修改在会话结束后依然有效，不应随意探索性地执行。两个命令均来自设备自身的命令补全菜单；均未实际运行，且采集框架拒绝执行这两个命令。
+
+"auxiliary"的拼写错误来自设备本身，并非本页的笔误。请按原样输入，否则命令将无法找到。
+</Aside>
+
+## `get-auxilary-root-access-to-node`
+
+创建 `xuser` root 账户。
+
+```bash
+execcli get-auxilary-root-access-to-node
+```
+
+**此命令真正适用的场景。** 某些诊断操作以 `admin` 身份根本无法访问。在此版本上经过验证的最典型示例是 [`kubelet-get-params`](../kubelet/)，该命令会以 `open /etc/vpm/kubelet-custom-params.txt: permission denied` 失败——该文件存在，但 `admin` 账户无法读取。Root 访问是处理此类问题的官方记录方式。
+
+**在使用此命令之前**，请先考虑 [debug API](../../../access/debug-api/) 是否已能回答问题。其 `exec` 层可以以特权方式运行命令，而无需创建持久性账户，对节点的修改更小。
+
+## `remove-auxilary-root-access-to-node`
+
+删除 `xuser` 账户。
+
+```bash
+execcli remove-auxilary-root-access-to-node
+```
+
+**完成操作后请执行此命令。** 为某次诊断会话创建的 root 账户若未及时删除，将作为一个常驻凭据留存在设备上，且不会有任何提醒。请将创建与删除视为一对操作，在同一会话中配套使用，正如
+[`vifdump`](../packet-capture/) 与 `vifdump-file-rm` 是配套命令一样。
+
+<Aside type="note" title="尚未确认的内容">
+两个命令的输出均未记录，因此本页无法告知您成功时的输出内容、`xuser` 账户创建时使用的密码或密钥，以及在会话处于打开状态时删除操作是否会被拒绝。这些信息需要在您可以接受修改的节点上进行验证。
+</Aside>

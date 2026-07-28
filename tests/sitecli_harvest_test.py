@@ -22,6 +22,7 @@ be wrong.
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -272,12 +273,73 @@ def test_ssh_argv_includes_proxyjump_and_user():
     assert argv[-1] == "admin@10.0.3.7"
 
 
+# --- command output is trimmed of Site CLI chrome ---------------------------
+#
+# A captured command carries two pieces of interface with it: the prompt line
+# echoing what was typed, and the completion menu the CLI repaints afterwards.
+# Committing those verbatim puts `>>> execcli vegactl-...` and the whole
+# six-entry top-level menu into the documentation as though the command had
+# printed them.
+
+MENU_REPAINT = (
+    ">>>  configure                   Initial configuration of the node"
+    "                configure-generic-hardware  Configure Hardware that isn't"
+    " certified by F5XC.                configure-network           Initial"
+    " configuration of the network"
+)
+
+
+def test_trim_drops_the_prompt_echo():
+    raw = ">>> execcli vegactl-introspect-show-election\nrole: Master\n"
+    assert h.trim_command_output(raw) == "role: Master"
+
+
+def test_trim_drops_a_trailing_menu_repaint():
+    raw = f">>> execcli envoy-listeners\nlistener-1:80\n{MENU_REPAINT}\n"
+    assert h.trim_command_output(raw) == "listener-1:80"
+
+
+def test_trim_keeps_interior_content_and_blank_lines():
+    raw = ">>> execcli x\nfirst\n\nsecond\n>>> \n"
+    assert h.trim_command_output(raw) == "first\n\nsecond"
+
+
+def test_trim_keeps_output_that_merely_mentions_the_prompt_string():
+    # A line containing >>> but not starting the line is real output.
+    raw = ">>> execcli x\nusage: foo >>> bar\n"
+    assert h.trim_command_output(raw) == "usage: foo >>> bar"
+
+
+def test_trim_of_empty_or_prompt_only_output_is_empty():
+    assert h.trim_command_output("") == ""
+    assert h.trim_command_output(">>> execcli x\n>>> \n") == ""
+
+
+#: Failures a test here can plausibly raise other than AssertionError. Enumerated
+#: rather than catching Exception: a test written before the function it exercises
+#: raises AttributeError, and that must be reported as one failing test rather
+#: than aborting the remaining tests. Anything outside this set is unexpected and
+#: is deliberately left to propagate — the run then ends with a traceback and a
+#: non-zero exit, which is loud, rather than being folded into a tidy report.
+EXPECTED_TEST_FAILURES = (
+    AttributeError,
+    IndexError,
+    KeyError,
+    OSError,
+    TypeError,
+    ValueError,
+    subprocess.SubprocessError,
+)
+
+
 def run_one(fn):
     """Run one test and return its failure message, or None if it passed."""
     try:
         fn()
     except AssertionError as exc:
         return str(exc) or "assertion failed"
+    except EXPECTED_TEST_FAILURES as exc:
+        return f"{type(exc).__name__}: {exc}"
     return None
 
 

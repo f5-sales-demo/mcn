@@ -1,0 +1,107 @@
+---
+title: Vega コントロールプレーン
+description: >-
+  Customer Edge コントロールプレーンをイントロスペクトする 6 つの vegactl コマンド —
+  設定オブジェクト、イントロスペクションテーブル、トレースバッファ、およびプライマリロールを保持するノード。ボックスからのみアクセス可能で、デバッグ API
+  経由では不可。
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega は Customer Edge コントロールプレーンです。`vegactl` はそのための F5 クライアントであり、これら
+6 つのコマンドはいずれも [デバッグ API](../../../access/debug-api/) には存在しません — ボックス上にのみ存在し、
+[`execcli`](../) を通じてアクセスします。
+
+データプレーンが正しく見えないが、インターフェースとルートは正常に見える場合にこのページを参照してください。
+Argo は Vega がプログラムした内容を転送します。両者が一致しない場合、答えはここにあります。
+
+## `vegactl-introspect-show-election`
+
+CE クラスター内でどのノードが現在プライマリロールを保持しているか。このページで最も有用な
+コマンドであり、最もコストが低いものです。
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**確認すべき点。** 3 ノード CE において、ちょうど 1 つのノードが `role: Master` を報告します。その他のノードは
+フォロワーロールを報告します。マスターが 2 つ存在する、またはまったく存在しない場合、クラスターが収束していないことを意味し、
+コントロールプレーンから読み取る他のいかなる情報も、収束するまで信頼できません。
+
+**このコマンドが教えてくれないこと。** 選出されたプライマリが *正常*かどうかについては何も示しません — 選出が
+解決されたという事実のみを示します。
+
+## `vegactl-configuration-list`
+
+コントロールプレーンが保持する設定オブジェクトを一覧表示します。引数なしで実行すると独自の使用法を表示し、
+これはこのビルドが認識するオブジェクトタイプを調べる実用的な方法です。
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**確認すべき点。** `Usage` および `Examples` ブロックは、完全修飾オブジェクト
+タイプ — `ves.io.<service>.<object>.Object` — を示します。これらの名前は他の
+イントロスペクションコマンドが期待する引数であるため、不明なオブジェクトタイプをクエリする前に
+この出力で解決します。
+
+## `vegactl-introspect-list-tracebuffers`
+
+コントロールプレーンが管理するすべてのトレースバッファ（サイズと現在の占有量を含む）。
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**確認すべき点。** バッファ名は `vegactl-introspect-show-tracebuffer` の引数になります。
+これはディレクトリであり、診断結果ではありません — その価値は何をインスペクトできるかを示すことにあります。
+
+## `vegactl-introspect-show-tracebuffer`
+
+指定された名前のトレースバッファの内容。
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="引数が必要であり、ここでは出力はキャプチャされていません">
+引数なしで実行すると `not sufficient args` と報告されます。どのバッファを読む価値があるかは完全に
+追跡している内容によって異なるため、公開する代表的なキャプチャはありません — 上記の `vegactl-introspect-list-tracebuffers` から名前を取得してください。
+</Aside>
+
+## `vegactl-introspect-get`
+
+タイプとキーでコントロールプレーンから単一のオブジェクトを取得します。
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+イントロスペクションテーブル全体をダンプします。
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="両コマンドともデバッグ内容に固有の引数が必要です">
+このページには両コマンドのキャプチャされた出力はありません。両コマンドとも `vegactl-configuration-list` または `vegactl-introspect-list-tracebuffers` から取得した
+オブジェクトタイプまたはテーブル名が必要であり、任意のテーブルのダンプは何も説明しない大きなファイルになります。それらの存在と
+引数の形式は検証済みですが、出力は再現されていません。
+</Aside>

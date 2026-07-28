@@ -1,0 +1,111 @@
+---
+title: Vega-Steuerungsebene
+description: >-
+  Die sechs vegactl-Befehle zur Introspektion der Customer Edge-Steuerungsebene
+  – Konfigurationsobjekte, Introspektionstabellen, Trace-Puffer und welcher
+  Knoten die primäre Rolle innehat. Nur von der Box aus erreichbar, nie über die
+  Debug-API.
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega ist die Customer Edge-Steuerungsebene. `vegactl` ist F5s Client dafür, und keiner dieser
+sechs Befehle ist in der [Debug-API](../../../access/debug-api/) enthalten – sie existieren nur auf der
+Box und sind über [`execcli`](../) erreichbar.
+
+Lesen Sie diese Seite, wenn die Datenebene fehlerhaft erscheint, die Schnittstellen und Routen jedoch korrekt aussehen.
+Argo leitet weiter, was Vega programmiert hat; wenn die beiden nicht übereinstimmen, finden Sie hier die Antwort.
+
+## `vegactl-introspect-show-election`
+
+Welcher Knoten derzeit die primäre Rolle im CE-Cluster innehat. Der nützlichste
+Befehl auf dieser Seite und gleichzeitig der ressourcenschonendste.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**Worauf zu achten ist.** Genau ein Knoten in einem CE mit drei Knoten meldet `role: Master`; die anderen
+melden eine Follower-Rolle. Zwei Master oder keiner bedeutet, dass der Cluster nicht konvergiert ist, und
+nichts anderes, das Sie von der Steuerungsebene lesen, kann vertraut werden, bis dies der Fall ist.
+
+**Was der Befehl nicht anzeigt.** Nichts darüber, ob der gewählte primäre Knoten *fehlerfrei* ist – nur
+dass die Wahl abgeschlossen wurde.
+
+## `vegactl-configuration-list`
+
+Listet Konfigurationsobjekte auf, die die Steuerungsebene enthält. Ohne Argumente aufgerufen, gibt er seine eigene Verwendung aus,
+was der praktische Weg ist, um die Objekttypen zu ermitteln, die dieser Build kennt.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**Worauf zu achten ist.** Die Blöcke `Usage` und `Examples` benennen die vollständig qualifizierten Objekttypen
+– `ves.io.<service>.<object>.Object`. Diese Namen sind die Argumente, die die anderen
+Introspektionsbefehle erwarten, daher ist diese Ausgabe der Ort, an dem ein unbekannter Objekttyp aufgelöst wird,
+bevor Sie ihn abfragen.
+
+## `vegactl-introspect-list-tracebuffers`
+
+Jeder Trace-Puffer, den die Steuerungsebene verwaltet, mit seiner Größe und aktuellen Belegung.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**Worauf zu achten ist.** Die Puffernamen sind das Argument für
+`vegactl-introspect-show-tracebuffer`. Dies ist ein Verzeichnis, keine Diagnose – sein Wert liegt darin,
+Ihnen mitzuteilen, was inspiziert werden kann.
+
+## `vegactl-introspect-show-tracebuffer`
+
+Inhalt eines benannten Trace-Puffers.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="Erfordert ein Argument, und hier wird keine Ausgabe erfasst">
+Ohne Argumente aufgerufen, meldet der Befehl `not sufficient args`. Welcher Puffer es wert ist, gelesen zu werden, hängt vollständig
+davon ab, was Sie untersuchen, daher gibt es keine repräsentative Erfassung zur Veröffentlichung – nehmen Sie einen Namen
+aus `vegactl-introspect-list-tracebuffers` oben.
+</Aside>
+
+## `vegactl-introspect-get`
+
+Ruft ein einzelnes Objekt aus der Steuerungsebene nach Typ und Schlüssel ab.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+Gibt eine vollständige Introspektionstabelle aus.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="Beide nehmen Argumente entgegen, die spezifisch für das sind, was Sie debuggen">
+Keiner der Befehle hat eine erfasste Ausgabe auf dieser Seite. Beide benötigen einen Objekttyp oder Tabellennamen, entnommen
+aus `vegactl-configuration-list` oder `vegactl-introspect-list-tracebuffers`, und ein Dump einer
+beliebigen Tabelle wäre eine große Datei, die nichts veranschaulicht. Ihr Vorhandensein und
+ihre Argumentstruktur sind verifiziert; ihre Ausgabe wird nicht reproduziert.
+</Aside>

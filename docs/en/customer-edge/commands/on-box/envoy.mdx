@@ -1,0 +1,99 @@
+---
+title: Envoy
+description: The four wrappers around Envoy's admin interface on a Customer Edge — listeners, clusters and two config dumps. Explains why every one of them starts with a curl progress meter, and what the listener output tells you about the advertised VIP.
+sidebar:
+  order: 20
+  label: Envoy
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Envoy terminates and proxies application traffic on the Customer Edge. These four commands
+query its admin interface, and none of them are on the
+[debug API](../../../access/debug-api/).
+
+<Aside type="note" title="Every one of these starts with a curl progress meter">
+They are `curl` wrappers around Envoy's admin endpoint, invoked without `-s`, so the first
+two or three lines of every capture below are curl's transfer progress written to stderr:
+
+```text
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0 …
+```
+
+That is not Envoy output and not an error. It is also useful: the `% Received` byte count
+tells you whether Envoy returned anything at all, which distinguishes "no listeners
+configured" from "the admin interface did not answer".
+</Aside>
+
+## `envoy-listeners`
+
+Every listener Envoy has installed, as `name:address:port`.
+
+```bash
+execcli envoy-listeners
+```
+
+```text file=../../../../_data/sitecli-envoy-listeners.txt
+```
+
+**What to look for.** On this deployment the listener carries `10.250.0.10:80` — the VIP the
+CE advertises into BGP. That single line ties three layers together: if
+[`show-ip-bgp-summary`](../../network/bgp/) shows the prefix being advertised but this
+listener is absent, the route is being attracted to a node that will not serve it, which is
+the worst failure mode in an ECMP set because traffic is load-shared into a black hole.
+
+The trailing `[fe80:…]:80` is the link-local address of the interface the listener is bound
+to.
+
+**What it does not tell you.** Nothing about upstream health — a listener exists whether or
+not anything behind it is reachable. Use `envoy-clusters` for that.
+
+## `envoy-clusters`
+
+Every cluster, with its per-priority connection and request limits.
+
+```bash
+execcli envoy-clusters
+```
+
+```text file=../../../../_data/sitecli-envoy-clusters.txt
+```
+
+**What to look for.** Lines are `cluster::scope::key::value`. The `observability_name` entry
+identifies each cluster, and the `default_priority::max_connections`,
+`max_pending_requests` and `max_requests` triple is where request limits show up — a cluster
+pinned at its `max_pending_requests` is being throttled by configuration rather than by the
+upstream.
+
+## `envoy-config-dump`
+
+Envoy's complete configuration as JSON. Large: 126 KB on an otherwise idle demo node.
+
+```bash
+execcli envoy-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-config-dump.txt
+```
+
+**What to look for.** The top-level `configs` array holds one object per config type —
+bootstrap, clusters, listeners, routes, secrets. Reach for this when a listener or cluster
+exists but behaves unexpectedly, and search it rather than reading it.
+
+## `envoy-hc-config-dump`
+
+The health-check configuration specifically.
+
+```bash
+execcli envoy-hc-config-dump
+```
+
+```text file=../../../../_data/sitecli-envoy-hc-config-dump.txt
+```
+
+**What to look for.** On this deployment it returns a **single byte** — visible as `100 1`
+in the curl meter — meaning no health-check configuration is installed. That is the expected
+state for a CE with no health-checked origin pools, and it is worth recognising: an empty
+result here is not a failed query.

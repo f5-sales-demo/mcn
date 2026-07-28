@@ -1,0 +1,127 @@
+---
+title: أوامر الصندوق المحلي
+description: >-
+  الأوامر الـ 82 التي تقدمها واجهة CLI الخاصة بالجهاز، و55 منها لا يمكن الوصول
+  إليها عبر debug API على الإطلاق. يشرح أمر execcli المخفي الذي يُشغّلها، وسبب
+  كون هذه الواجهة أوسع من واجهة API، والأوامر الموثقة بالكامل والمدرجة فقط،
+  وكيفية قياس المجموعة.
+sidebar:
+  order: 40
+  label: الصندوق المحلي
+i18n:
+  sourceHash: 1f8259efff3f
+  translator: machine
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+تُتيح [debug API](../../access/debug-api/) **34 أمراً**. أما الجهاز نفسه
+فيوفر **82 أمراً**، و**55 منها لا تقابلها أي أوامر في API** — فمستوى التحكم الكامل بـ Vega،
+وأغلفة Envoy، والتقاط الحزم، ومعاملات kubelet، وملفات `edit-*` والزوج الاحتياطي لصلاحية root
+لا يمكن الوصول إليها إلا من داخل الجهاز.
+
+يتطلب الوصول إليها استخدام [SSH](../../access/ssh/) أو
+[وحدة التحكم التسلسلية](../../access/serial-console/)، بالإضافة إلى شيء واحد غير موثق في أي مكان:
+
+<Aside type="tip" title="execcli أمر مخفي">
+لا يظهر `execcli` في قائمة Site CLI التفاعلية. يأخذ اسم أمر كوسيطة له، وعند كتابة `execcli ` يليها **Tab** تظهر قائمة بجميع الأوامر الـ 82 مع الوصف المختصر الخاص بالجهاز لكل منها. تلك القائمة المنبثقة هي المرجع الرسمي لأوامر إصدار البناء، وهي ما يُسجله ملف `sitecli/exec-catalog.json`.
+</Aside>
+
+## كيف تم القياس
+
+المجموعة أدناه لم تُنقل من وثيقة صادرة عن البائع. بل قُرئت من عقدتين نشطتين
+وخُزّنت في `sitecli/exec-catalog.json` مع مصدرها:
+
+| | المستوى الأعلى | `execcli` |
+| --- | --- | --- |
+| قيس عند `site_state: PROVISIONING` | 6 | 82 |
+| قيس عند `site_state: PROVISIONED` | 6 | 82 |
+
+أعادت عمليتا التشغيل **مجموعات متطابقة**. هذا أهم من العدد ذاته: إذ يعني أن واجهة الأوامر لا تتغير بتغير حالة التسجيل، فالأمر الغائب غائب فعلاً وليس لأنه لم يُعرض بعد.
+
+<Aside type="caution" title="خمسة أوامر غير موجودة">
+`factory-reset` و`upgrade` و`reboot` و`show` و`clear` **غير موجودة** في هذا الإصدار. وهي من النوع الذي قد تمتلكه Site CLI بشكل معقول، وقد وُجدت في تصنيف هذا المستودع لفترة بناءً على هذا الافتراض، إلا أن أياً من عمليتي الحصر لم تجدها. يضم المستوى الأعلى ست إدخالات فقط: `configure` و`configure-generic-hardware`
+و`configure-network` و`configure-http-proxy` و`diagnosis` و`health`.
+</Aside>
+
+## ما هو موثق وما هو مدرج فقط
+
+تشغّل Customer Edge نظام Linux وعدداً من عمليات الخدمة التابعة لجهات خارجية. إن توثيق أوامرها سيُكرر مراجعها الخاصة ويوحي بأن F5 تمتلكها، لذا فالقاعدة هي: **توثيق برمجيات F5، وبالنسبة لكل شيء آخر يُوثّق فقط ما هو خاص بـ CE.**
+
+ثلاث مستويات، لأن التمييز بين "ملكنا" و"ملكهم" ليس تقسيماً نظيفاً. يُسجَّل التقسيم في `sitecli/command-classification.json`.
+
+| المستوى | المعالجة |
+| --- | --- |
+| **برمجيات F5** | توثيق كامل — الغرض والصياغة والوسائط والمخرجات المُلتقطة وما يجب البحث عنه. Argo وVega و`vpm` و`vifdump` وأوامر `configure*` ومجموعة `edit-*` ومعاملات kubelet وصلاحية root. |
+| **تفسير خاص بـ CE** | أداة تابعة لجهة خارجية تحمل مخرجاتها معنىً خاصاً على بيئة CE. يُوثَّق المعنى الخاص بـ CE وتُترك دلالات الأداة الأصلية لمصدرها الخارجي. |
+| **تمرير مباشر** | Linux العادي أو طرف ثالث دون أي شيء خاص بـ CE يستحق الذكر. مدرج بوصفه متاحاً مع إشارة للمصدر الخارجي. لا نص توضيحي. |
+
+هذا التمييز يحدد ما إذا كانت الصفحة ستُنشأ أصلاً، وهو ما يمنع هذا التوثيق من أن يتحول إلى نسخة أسوأ من صفحات man.
+
+## برمجيات F5
+
+<CardGrid>
+  <LinkCard
+    title="Vega control plane"
+    description="Six <code>vegactl</code> commands: configuration objects, introspection tables, trace buffers, and which node holds the primary role."
+    href="./vega/"
+  />
+  <LinkCard
+    title="Envoy"
+    description="Four wrappers around Envoy's admin interface — listeners, clusters, and two config dumps."
+    href="./envoy/"
+  />
+  <LinkCard
+    title="Packet capture"
+    description="The five <code>vifdump</code> commands. Documented, never run here: they write capture files onto the node."
+    href="./packet-capture/"
+  />
+  <LinkCard
+    title="Kubelet parameters"
+    description="Read, add and remove custom kubelet parameters. Support-directed."
+    href="./kubelet/"
+  />
+  <LinkCard
+    title="vpm service"
+    description="The agent that registers the node and runs the platform containers."
+    href="./vpm/"
+  />
+  <LinkCard
+    title="Configuration files"
+    description="The four <code>edit-*</code> commands that open F5-owned files on the node."
+    href="./config-files/"
+  />
+  <LinkCard
+    title="Auxiliary root access"
+    description="Creating and removing the <code>xuser</code> root account. Support-directed, and it leaves the node modified."
+    href="./root-access/"
+  />
+  <LinkCard
+    title="Node configuration"
+    description="The four <code>configure*</code> commands at the Site CLI top level."
+    href="./configure/"
+  />
+</CardGrid>
+
+## التمرير المباشر
+
+متاحة على الجهاز و**غير موثقة هنا** — هذه هي نظام التشغيل وعمليات خدمة الجهات الخارجية، لا برمجيات F5، ومراجعها الخاصة أفضل مما يمكن لهذه الصفحة إعادة صياغته.
+
+| الأوامر | المصدر الخارجي |
+| --- | --- |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath`, `dig` | iproute2, NetworkManager, أدوات BIND |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | الملفات تخص نظام التشغيل |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — كل واحد من هذه الأوامر يُعطّل أعباء العمل على العقدة |
+
+اثنان من هذه الأوامر يستحقان المعرفة حتى دون أن تخصص لهما صفحة. يقوم `files` بعمليات على الملفات ولا يكتب إلا داخل `/tmp`. وكل `systemctl-restart-*` مُعطِّل بطبيعته — فإعادة تشغيل `crio` أو `kubelet` يُعطّل أعباء العمل على تلك العقدة.
+
+<Aside type="note" title="سبعة أوامر موجودة في إصدارات أحدث وغير موجودة في هذا الإصدار">
+رُصدت `collect-database-stats` و`iptables-lv` وأوامر `marker-exists-*` الثلاثة
+و`systemctl-restart-NetworkManager` و`systemctl-start-crio-prune` عبر debug API في إصدار البناء `crt-20260201-0179`. وهي مُسجَّلة تحت
+`not_on_this_build.newer_build_debug_api` في التصنيف لضمان عدم الخلط بين أي منها وبين شيء يمكن تشغيله على `crt-20250613-3382`.
+
+`collect-debug-info` حالة منفصلة: لا تظهر في أي قائمة ولا في أي كتالوج. يذكر النص الترحيبي لـ Site CLI أن الواجهة "تتيح … جمع معلومات التصحيح للدعم الفني"، لذا على الأرجح اشتُق الاسم من هذا النص بدلاً من مشاهدته فعلياً. وهو مُصنَّف على أنه غير مُتحقق منه ولا يُختبر عمداً — فتشغيل أمر مجهول تخمينياً على عقدة نشطة هو ما أدى إلى بدء التقاط حزم `vifdump` على بيئة CE كانت لا تزال في طور التسجيل.
+</Aside>

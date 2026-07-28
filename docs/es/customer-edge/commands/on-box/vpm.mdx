@@ -1,0 +1,89 @@
+---
+title: vpm y estado del clúster
+description: >-
+  El agente vpm que registra el nodo y ejecuta los contenedores de plataforma,
+  más el estado del miembro etcd que mantiene el clúster CE. Incluye el detalle
+  verificado de que vpm se ejecuta como un contenedor Docker con privilegios y
+  que etcd reporta un miembro, no tres.
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` es el agente que registra un Customer Edge con el tenant y supervisa los
+contenedores de plataforma. Cuando un nodo no puede conectarse, su estado es lo primero que
+se debe establecer.
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**Qué buscar.**
+
+- `Active: active (running) since …` y el tiempo transcurrido. Un `vpm` que se reinició hace
+  minutos en un nodo que lleva horas activo es la señal — los fallos de registro aparecen
+  como bucles de reinicio mucho antes de que se manifiesten en el tenant.
+- **`Main PID` es `docker`.** `vpm` se ejecuta como un contenedor Docker con privilegios, no como un
+  proceso nativo, lanzado con `--net=host --privileged` y una larga lista de montajes bind del host
+  que incluye `/`, `/dev` y `/etc`. Por eso `vpm` aparece en
+  [`docker-ps`](../../system/docker/) y nunca en [`crictl-ps`](../../system/crictl/) —
+  que es también la razón por la que un `docker-ps` con tres entradas en un CE es completo y no
+  un síntoma.
+- Las últimas líneas del journal. `statusreporter.go: Status reporter loop has finished without
+  error, sleeping for 5m…` es el estado estable y saludable: `vpm` reporta aproximadamente
+  cada cinco minutos. `module.go: Running intra-cluster, type: node` confirma que se ha unido
+  al clúster en lugar de ejecutarse de forma independiente.
+
+**Lo que no indica.** Nada sobre si el tenant *aceptó* el registro.
+Un `vpm` perfectamente saludable puede iterar indefinidamente contra un plano de control que lo
+está rechazando — lea las líneas del journal para conocer el motivo.
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="Disruptivo y no capturado aquí">
+Reiniciar `vpm` interrumpe y restablece la conexión del nodo con el tenant. Está en
+la lista de rechazo del harness de recolección, por lo que se documenta a partir de sus metadatos
+del catálogo y nunca se ejecuta. Recurra a él solo cuando así se le indique.
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+El clúster etcd que respalda el plano de control de Kubernetes del CE, consultado desde el pod
+etcd en este nodo.
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**Qué buscar.** `IS LEADER`, `RAFT TERM`, y si `RAFT INDEX` y
+`RAFT APPLIED INDEX` coinciden. Una brecha persistente entre ambos significa que el miembro
+está aplicando registros con retraso respecto al log. `ERRORS` vacío es el caso saludable.
+
+<Aside type="caution" title="Un miembro, en un despliegue de tres nodos">
+Este despliegue ejecuta tres nodos CE, y el comando reporta un único miembro —
+`https://etcd-0.etcd:2379`, `IS LEADER: true`. Eso es lo que devolvió el comando, y vale la pena
+indicarlo claramente porque la suposición natural es que tres nodos CE implican un etcd de
+tres miembros y que una tabla de una sola fila significa que faltan dos miembros.
+
+Lo que **no** se ha establecido es el motivo: si cada nodo ejecuta su propio etcd de un solo
+miembro, o si la consulta `--cluster` solo llega siempre al pod local. Ambas situaciones son
+consistentes con esta salida. No interprete la tabla de una sola fila como evidencia de un
+clúster degradado sin verificar los otros dos nodos.
+</Aside>

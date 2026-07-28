@@ -1,0 +1,78 @@
+---
+title: 数据包捕获
+description: >-
+  在 Customer Edge 虚拟接口上捕获数据包的五条 vifdump
+  命令。内容来源于经过验证的目录元数据，从未在此处实际运行，因为这些命令会将捕获文件写入节点——包括一次将其作为无害探测调用时所发生情况的记录。
+sidebar:
+  order: 30
+  label: 数据包捕获
+i18n:
+  sourceHash: ff41ac658325
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vifdump` 在 Argo 数据平面的虚拟接口上捕获数据包。共五条命令，均为 F5 所有，均不属于 [debug API](../../../access/debug-api/)。
+
+<Aside type="danger" title="这些命令会写入节点，且本页均不会执行">
+`vifdump` 和 `vifdump-d` 会启动捕获，并将 `.pcap` 文件写入 Argo 容器内的 `/tmp` 目录。在磁盘容量为 31 GiB 的 CE 上，持续运行的捕获就是一个附带计时器的磁盘空间问题。
+
+本页的所有命令均来源于设备自身的目录元数据及其补全菜单描述。**本页不展示任何捕获输出**，且采集程序拒绝执行其中任何一条命令。
+</Aside>
+
+## 本页无输出的具体原因
+
+Site CLI 上的参数数量可通过不带参数运行命令来探测——此时命令会返回 `not sufficient args for command <name>`。对于只读命令而言，这是安全的。在本次文档编写过程中，将此方法应用于 `vifdump` 时，在一个仍处于注册状态的节点上**未返回任何错误**。捕获是否已启动不得而知，因为该节点在检查之前就已被销毁并重建。
+
+这正是采集程序设计的全部依据：执行策略为**默认拒绝**，而非黑名单拒绝。`vifdump` 未出现在任何黑名单中，因为没有人事先想到它。只有显式白名单才能拒绝那些没有人预先想到的命令。
+
+## `vifdump`
+
+在指定的 vif 上捕获数据包。
+
+```bash
+execcli vifdump <vif-id> [options]
+```
+
+vif id 可从 [`vif --list`](../../network/dataplane-forwarding/) 获取。
+
+## `vifdump-d`
+
+捕获**丢弃**的数据包，可针对单个 vif 或全部 vif。
+
+```bash
+execcli vifdump-d <vif-id|all>
+```
+
+与 [`dropstats`](../../network/dataplane-drops/) 配合使用：`dropstats` 告知您丢包正在发生及哪个计数器在递增，`vifdump-d` 则展示具体的数据包。
+
+## `vifdump-stop`
+
+停止由上次运行遗留下来的捕获。
+
+```bash
+execcli vifdump-stop
+```
+
+设备自身的描述为"若上次运行异常结束，则停止 vifdump 命令"，这说明该故障模式是预期中的：捕获的生命周期可能超过启动它的会话。如果您已运行过 `vifdump` 且不确定其是否仍在运行，请执行此命令。
+
+## `vifdump-file-cp`
+
+将捕获文件从 Argo 容器复制到宿主机的 `/tmp/vifdump/` 目录。
+
+```bash
+execcli vifdump-file-cp
+```
+
+等同于 `docker cp $(argo):/tmp/. /tmp/vifdump/`。由于捕获文件写入在*容器内部*，因此此步骤不可或缺。
+
+## `vifdump-file-rm`
+
+从 Argo 容器中删除 `.pcap` 文件。
+
+```bash
+execcli vifdump-file-rm
+```
+
+**完成捕获后请执行此命令。** 它与 `vifdump-stop` 共同构成任何捕获操作的清理步骤，也是当您接手一个可能被他人遗留有捕获进程的节点时，应首先执行的两条命令。

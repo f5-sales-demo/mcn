@@ -1,0 +1,99 @@
+---
+title: مستوى التحكم Vega
+description: >-
+  الأوامر الستة لـ vegactl التي تستعرض مستوى التحكم في Customer Edge — كائنات
+  الإعداد وجداول الاستبطان ومخازن التتبع والعقدة التي تحمل الدور الأساسي. لا
+  يمكن الوصول إليها إلا من الجهاز مباشرةً، وليس عبر debug API.
+sidebar:
+  order: 10
+  label: Vega
+i18n:
+  sourceHash: 75571f29d9c1
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Vega هو مستوى التحكم في Customer Edge. `vegactl` هو عميل F5 الخاص به، ولا يوجد أيٌّ من هذه
+الأوامر الستة في [debug API](../../../access/debug-api/) — فهي موجودة فقط على
+الجهاز، ويمكن الوصول إليها عبر [`execcli`](../).
+
+اقرأ هذه الصفحة عندما يبدو مستوى البيانات غير صحيح بينما تبدو الواجهات والمسارات صحيحة.
+تُعيد Argo توجيه ما برمجته Vega؛ وإذا كان ثمة تعارض بين الاثنين، فهنا تجد الإجابة.
+
+## `vegactl-introspect-show-election`
+
+العقدة التي تحمل حاليًا الدور الأساسي في مجموعة CE. يُعدّ هذا الأمر الأكثر فائدةً
+في هذه الصفحة، وهو الأقل تكلفةً.
+
+```bash
+execcli vegactl-introspect-show-election
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
+
+**ما الذي تبحث عنه.** تُبلّغ عقدة واحدة بالضبط في مجموعة CE المكوّنة من ثلاث عقد عن `role: Master`؛ وتُبلّغ العقد الأخرى عن دور تابع. وجود خادمَين أساسيَّين أو عدم وجود أيٍّ منهما يعني أن المجموعة لم تتقارب بعد، ولا يمكن الوثوق بأي بيانات تقرأها من مستوى التحكم حتى يتحقق ذلك.
+
+**ما الذي لا يخبرك به.** لا شيء حول ما إذا كان الخادم الأساسي المنتخب *يعمل بصحة* — فهو يُثبت فقط أن الانتخاب قد تمّ.
+
+## `vegactl-configuration-list`
+
+يُدرج كائنات الإعداد التي يحتفظ بها مستوى التحكم. عند تشغيله دون وسائط يطبع تعليمات استخدامه، وهي الطريقة العملية لاكتشاف أنواع الكائنات التي يعرفها هذا الإصدار.
+
+```bash
+execcli vegactl-configuration-list
+```
+
+```text file=../../../../_data/sitecli-vegactl-configuration-list.txt
+```
+
+**ما الذي تبحث عنه.** تُسمّي كتلتا `Usage` و`Examples` أنواع الكائنات المؤهلة بالكامل —
+`ves.io.<service>.<object>.Object`. هذه الأسماء هي الوسائط التي تتوقعها أوامر الاستبطان الأخرى، لذا فهذا المخرج هو المكان الذي يُحلَّل فيه نوع الكائن غير المألوف قبل الاستعلام عنه.
+
+## `vegactl-introspect-list-tracebuffers`
+
+كل مخازن التتبع التي يحتفظ بها مستوى التحكم، مع حجمها وإشغالها الحالي.
+
+```bash
+execcli vegactl-introspect-list-tracebuffers
+```
+
+```text file=../../../../_data/sitecli-vegactl-introspect-list-tracebuffers.txt
+```
+
+**ما الذي تبحث عنه.** أسماء المخازن هي الوسيطة التي تُمرَّر إلى
+`vegactl-introspect-show-tracebuffer`. هذا دليل لا تشخيص — وقيمته في إخبارك بما يمكن استبطانه.
+
+## `vegactl-introspect-show-tracebuffer`
+
+محتويات مخزن تتبع واحد محدد بالاسم.
+
+```bash
+execcli vegactl-introspect-show-tracebuffer <buffer-name>
+```
+
+<Aside type="note" title="يتطلب وسيطة، ولا يوجد مخرج محفوظ هنا">
+عند تشغيله دون وسائط يُبلّغ عن `not sufficient args`. يعتمد تحديد المخزن الجدير بالقراءة كليًّا على ما تبحث عنه، لذا لا يوجد مخرج تمثيلي لنشره — خذ اسمًا من `vegactl-introspect-list-tracebuffers` أعلاه.
+</Aside>
+
+## `vegactl-introspect-get`
+
+يجلب كائنًا واحدًا من مستوى التحكم بحسب النوع والمفتاح.
+
+```bash
+execcli vegactl-introspect-get <object-type> <key>
+```
+
+## `vegactl-introspect-dump-table`
+
+يفرغ جدول استبطان بأكمله.
+
+```bash
+execcli vegactl-introspect-dump-table <table>
+```
+
+<Aside type="caution" title="كلاهما يأخذ وسائط خاصة بما تقوم بتشخيصه">
+لا يوجد مخرج محفوظ لأيٍّ منهما في هذه الصفحة. كلاهما يحتاج إلى نوع كائن أو اسم جدول، يُؤخذ من
+`vegactl-configuration-list` أو `vegactl-introspect-list-tracebuffers`، كما أن تفريغ جدول عشوائي سيكون ملفًا ضخمًا لا يُوضّح شيئًا. وجودهما وشكل وسائطهما موثَّقان؛ غير أن مخرجهما غير مُعاد إنتاجه.
+</Aside>

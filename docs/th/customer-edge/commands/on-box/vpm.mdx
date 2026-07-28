@@ -1,0 +1,69 @@
+---
+title: สถานะ vpm และคลัสเตอร์
+description: >-
+  vpm agent ที่ลงทะเบียนโหนดและรันคอนเทนเนอร์ของแพลตฟอร์ม รวมถึงสถานะสมาชิก etcd
+  ที่คลัสเตอร์ CE เก็บรักษา ครอบคลุมรายละเอียดที่ยืนยันแล้วว่า vpm รันในรูปแบบ
+  Docker container แบบ privileged และ etcd รายงานสมาชิกเพียงรายเดียว ไม่ใช่สาม
+sidebar:
+  order: 50
+  label: vpm
+i18n:
+  sourceHash: 93a61d7541e3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`vpm` คือ agent ที่ลงทะเบียน Customer Edge กับ tenant และดูแลคอนเทนเนอร์ของแพลตฟอร์ม เมื่อโหนดไม่สามารถออนไลน์ได้ สถานะของโหนดคือสิ่งแรกที่ต้องตรวจสอบ
+
+## `systemctl-status-vpm`
+
+```bash
+execcli systemctl-status-vpm
+```
+
+```text file=../../../../_data/sitecli-systemctl-status-vpm.txt
+```
+
+**สิ่งที่ควรสังเกต**
+
+- `Active: active (running) since …` และเวลาที่ผ่านไป หาก `vpm` รีสตาร์ทเมื่อไม่กี่นาทีที่ผ่านมาบนโหนดที่ทำงานมาหลายชั่วโมง นั่นคือสัญญาณเตือน — ความล้มเหลวในการลงทะเบียนจะปรากฏเป็นลูปการรีสตาร์ทก่อนที่จะปรากฏใน tenant
+- **`Main PID` คือ `docker`.** `vpm` รันในรูปแบบ Docker container แบบ privileged ไม่ใช่ process แบบ native โดยเปิดใช้งานด้วย `--net=host --privileged` และรายการ host bind mounts ยาวๆ รวมถึง `/`, `/dev` และ `/etc` ดังนั้น `vpm` จึงปรากฏใน
+  [`docker-ps`](../../system/docker/) และไม่ปรากฏใน [`crictl-ps`](../../system/crictl/) —
+  นี่คือเหตุผลที่ `docker-ps` ที่มีสามรายการบน CE ถือว่าสมบูรณ์ ไม่ใช่อาการผิดปกติ
+- บรรทัด journal ท้ายสุด `statusreporter.go: Status reporter loop has finished without
+  error, sleeping for 5m…` คือสถานะปกติที่ดี: `vpm` รายงานสถานะในรอบประมาณห้านาที `module.go: Running intra-cluster, type: node` ยืนยันว่าได้เข้าร่วมคลัสเตอร์แล้ว ไม่ใช่รันแบบ standalone
+
+**สิ่งที่คำสั่งนี้ไม่บอก** ไม่มีข้อมูลว่า tenant *ยอมรับ* การลงทะเบียนหรือไม่
+`vpm` ที่ทำงานปกติสมบูรณ์สามารถวนซ้ำได้อย่างไม่มีกำหนดกับ control plane ที่ปฏิเสธการเชื่อมต่อ — ให้อ่านบรรทัด journal เพื่อหาสาเหตุ
+
+## `systemctl-restart-vpm`
+
+```bash
+execcli systemctl-restart-vpm
+```
+
+<Aside type="danger" title="มีผลกระทบต่อระบบ และไม่ได้บันทึกไว้ที่นี่">
+การรีสตาร์ท `vpm` จะยกเลิกและสร้างการเชื่อมต่อของโหนดกับ tenant ขึ้นใหม่ คำสั่งนี้อยู่ในรายการที่ harvest harness ปฏิเสธการรัน จึงมีการจัดทำเอกสารจาก catalog metadata เท่านั้นและไม่เคยถูกรันจริง ใช้คำสั่งนี้เฉพาะเมื่อได้รับคำแนะนำให้ทำเท่านั้น
+</Aside>
+
+## `etcdctl-cluster-member-status`
+
+คลัสเตอร์ etcd ที่รองรับ Kubernetes control plane ของ CE โดยสอบถามจาก etcd pod บนโหนดนี้
+
+```bash
+execcli etcdctl-cluster-member-status
+```
+
+```text file=../../../../_data/sitecli-etcdctl-cluster-member-status.txt
+```
+
+**สิ่งที่ควรสังเกต** `IS LEADER`, `RAFT TERM` และความสอดคล้องระหว่าง `RAFT INDEX` กับ
+`RAFT APPLIED INDEX` หากมีช่องว่างที่คงอยู่ระหว่างค่าทั้งสองหมายความว่าสมาชิกกำลัง apply ล้าหลัง log `ERRORS` ที่ว่างเปล่าคือสถานะปกติที่ดี
+
+<Aside type="caution" title="สมาชิกรายเดียว บนการติดตั้งสามโหนด">
+การติดตั้งนี้รัน CE สามโหนด และคำสั่งรายงานสมาชิก **เพียงรายเดียว** —
+`https://etcd-0.etcd:2379`, `IS LEADER: true` นั่นคือสิ่งที่คำสั่งส่งคืนมา และควรระบุให้ชัดเจน เพราะการสันนิษฐานตามธรรมชาติคือ CE สามโหนดหมายถึง etcd สามสมาชิก และตารางที่มีแถวเดียวหมายความว่าสมาชิกสองรายหายไป
+
+สิ่งที่ **ยังไม่ได้รับการยืนยัน** คือเหตุผล: ไม่ว่าจะเป็นเพราะแต่ละโหนดรัน etcd แบบสมาชิกเดี่ยวของตัวเอง หรือเพราะการสอบถาม `--cluster` เข้าถึงเฉพาะ local pod เท่านั้น ทั้งสองกรณีสอดคล้องกับผลลัพธ์นี้ อย่าอ่านตารางที่มีแถวเดียวว่าเป็นหลักฐานของคลัสเตอร์ที่เสื่อมสภาพ โดยไม่ตรวจสอบโหนดอีกสองโหนดก่อน
+</Aside>

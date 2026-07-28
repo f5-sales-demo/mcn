@@ -1,0 +1,81 @@
+---
+title: Kubelet 參數
+description: >-
+  用於讀取、新增及移除 Customer Edge 上自訂 kubelet 參數的三個指令。包含已驗證的發現：讀取指令完全無法從管理員 Site CLI
+  使用，因為該帳號無法讀取參數檔案。
+sidebar:
+  order: 40
+  label: Kubelet 參數
+i18n:
+  sourceHash: 4490323ac4fd
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+三個指令負責管理自訂 kubelet 參數檔案
+`/etc/vpm/kubelet-custom-params.txt`。三者均為 F5 所提供，均不在
+[debug API](../../../access/debug-api/) 上，且三者皆為支援導向指令——kubelet
+參數會改變節點執行 Kubernetes 工作負載的方式。
+
+<Aside type="danger" title="除非 F5 支援要求，否則請勿使用這些指令">
+自訂 kubelet 參數在重新開機後仍會保留，並套用至節點執行的每個工作負載。
+此處不進行驗證：錯誤的參數會被接受，並在下次 kubelet 啟動時生效。
+</Aside>
+
+## `kubelet-get-params`
+
+讀取目前的自訂參數。
+
+```bash
+execcli kubelet-get-params
+```
+
+```text file=../../../../_data/sitecli-kubelet-get-params.txt
+```
+
+**此指令在此版本的 Site CLI 上無法運作。** `admin` 帳號無法讀取參數檔案，因此無論是否設有任何參數，該指令均會失敗：
+
+```text
+Error: failed to read all params: failed to read custom param file:
+open /etc/vpm/kubelet-custom-params.txt: permission denied
+```
+
+**為何這比表面看起來更重要。** 此失敗為*權限*錯誤，而非空的結果，兩者容易混淆——「failed to read all params」讀起來像是「沒有任何參數」。這並不能證明未設定任何參數。在此版本上，從 Site CLI 查看參數的唯一方式是透過
+[輔助 root 存取](../root-access/)，而該方式本身也是支援導向的。
+
+<Aside type="note" title="已驗證的內容">
+該指令存在、可執行，並在版本
+`crt-20250613-3382` 上以 `admin` 身份返回上述錯誤。是否能在 `xuser` root 帳號下成功執行**未經測試**——因為取得該帳號會修改節點。
+</Aside>
+
+## `kubelet-add-param`
+
+新增自訂參數。
+
+```bash
+execcli kubelet-add-param <parameter>
+```
+
+不帶引數執行時，它會回報自身的參數數量要求，這是在未實際設定任何內容的情況下確認需求的方式：
+
+```text
+Error: at least one parameter is required
+```
+
+**無擷取輸出。** 此指令會寫入節點。已驗證其存在且需要引數；未以引數執行。
+
+## `kubelet-remove-param`
+
+移除自訂參數。
+
+```bash
+execcli kubelet-remove-param <parameter>
+```
+
+**無擷取輸出**，原因相同。
+
+<Aside type="caution" title="兩個寫入指令均不在唯讀允許清單上">
+`scripts/sitecli_ssh_harvest.py` 拒絕執行 `kubelet-add-param` 和
+`kubelet-remove-param`：只有明確列在其唯讀允許清單上的名稱才可執行，其他一切均會被列舉但永不執行。這是刻意為之——拒絕清單只能阻止被想到要列入的項目。
+</Aside>

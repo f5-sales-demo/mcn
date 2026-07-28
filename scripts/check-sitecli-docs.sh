@@ -158,10 +158,14 @@ else
 $ALL_CMDS
 EOF
 
+  # Documented commands are checked against BOTH catalogs. The debug API surface
+  # must be documented (the loop above); the larger on-box surface may be, and
+  # 55 of its commands exist nowhere in catalog.json. A name in neither catalog
+  # is still a violation — that is the case this rule exists for.
   while IFS= read -r cmd; do
     [ -n "$cmd" ] || continue
-    is_in "$cmd" "$ALL_CMDS" ||
-      violation "a page documents '${cmd}', which is not a command in the catalog"
+    is_in "$cmd" "$KNOWN_CMDS" ||
+      violation "a page documents '${cmd}', which is not a command in either catalog"
   done <<EOF
 $DOCUMENTED
 EOF

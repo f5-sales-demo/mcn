@@ -1,0 +1,90 @@
+---
+title: Configuração do nó
+description: >-
+  Os quatro comandos de configuração no nível superior do Site CLI — registro,
+  rede, proxy HTTP e hardware não certificado. Assistentes interativos que
+  reconfiguram um nó ativo, documentados a partir do próprio menu do appliance
+  sem serem executados, além de por que este repositório configura tudo isso por
+  meio do cloud-init.
+sidebar:
+  order: 80
+  label: Configurar
+i18n:
+  sourceHash: 3e28cc551bca
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Quatro comandos estão no **nível superior** do Site CLI, e não por trás do
+[`execcli`](../) — são o que o menu interativo oferece ao fazer login, juntamente com
+[`health`](../../system/health/) e [`diagnosis`](../../system/diagnosis/).
+
+```text
+configure                   Initial configuration of the node
+configure-generic-hardware  Configure Hardware that isn't certified by F5XC.
+configure-network           Initial configuration of the network
+configure-http-proxy        Initial configuration of the HTTP proxy
+```
+
+Esse é o próprio texto do menu do appliance, e essas seis entradas constituem todo o nível superior.
+
+<Aside type="caution" title="Cinco comandos que você poderia esperar não estão aqui">
+`factory-reset`, `upgrade`, `reboot`, `show` e `clear` **não existem** na build
+`crt-20250613-3382`. Eles foram mantidos na classificação de comandos deste repositório por
+algum tempo, com base na suposição de que um Site CLI os teria, e duas enumerações independentes —
+uma em `site_state: PROVISIONING`, outra em `PROVISIONED` — não encontraram nenhum rastro
+deles. Consulte [o índice no appliance](../) para saber como isso foi verificado.
+</Aside>
+
+<Aside type="danger" title="Interativos e reconfiguram um nó ativo">
+Cada um destes é um assistente que reescreve a configuração do nó. Nenhum foi executado durante
+este trabalho de documentação e nenhum capturou saída — não há uma forma somente leitura para
+capturar. O que está verificado é que todos os quatro existem, e suas descrições, a partir do
+menu de conclusão.
+</Aside>
+
+## `configure`
+
+Configuração inicial do nó: os detalhes de registro que o vinculam a um tenant e a um site.
+
+## `configure-network`
+
+Configuração inicial da rede — endereçamento para as interfaces do nó.
+
+## `configure-http-proxy`
+
+Configura um proxy HTTP de saída, para um CE que não consegue acessar o plano de controle da F5 diretamente.
+
+## `configure-generic-hardware`
+
+Configura hardware que a F5 não certificou. Relacionado à configuração de hardware certificado
+acessível por meio do [`edit-certified-hardware`](../config-files/): sem um endpoint de hardware
+certificado válido, o `vpmd` encerra com *"fail to match certified hardware"* e o nó nunca
+se registra.
+
+## Por que este repositório não os utiliza
+
+Esses são o caminho manual, e esta implantação adota o automatizado. O registro é escrito pelo
+cloud-init na primeira inicialização — `terraform/cloud-init/ce-node.yaml` escreve
+`/etc/vpm/config.yaml` com o nome do cluster, o token e o endpoint de hardware certificado —
+de modo que um nó já sobe configurado e o `configure` não tem nada a fazer.
+
+Isso importa por duas razões além da organização:
+
+- **Reprodutibilidade.** Um nó configurado por assistente é configurado de forma diferente a
+  cada vez que alguém o faz. Um nó configurado por cloud-init é configurado de forma idêntica
+  a cada vez, o que é o que torna a demonstração reimplantável.
+- **Eles são o caminho de recuperação, não o de implantação.** Recorra ao `configure` quando
+  um nó precisar ser redirecionado e o Terraform não for uma opção — um nó que nunca se
+  registrou, pelo [console serial](../../../access/serial-console/), onde nada mais consegue
+  alcançá-lo.
+
+<Aside type="note" title="O registro é um estado, e substituir um nó costumava deixá-lo preso">
+Registrar novamente não é uma operação puramente do lado do nó: o tenant mantém um objeto de
+registro indexado por `(tenant, cluster_name, hostname)`. Substituir um CE mantendo seu nome
+costumava travar a implantação permanentemente, porque o registro do nó destruído ainda
+mantinha essa chave. Isso está corrigido — consulte o [fluxo de trabalho de registro](../../../workflows/registration/) —
+mas é por isso que o `configure` sozinho nem sempre é suficiente para recolocar um nó
+reconstruído em funcionamento.
+</Aside>
