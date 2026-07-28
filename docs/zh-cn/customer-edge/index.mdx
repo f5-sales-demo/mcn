@@ -1,48 +1,59 @@
 ---
-title: Customer Edge 诊断
-description: 当 Customer Edge 出现异常时，请首先阅读本层级内容。该文档说明了两种访问路径的适用情形，因为选错路径会导致静默返回空结果。
+title: 客户边缘节点诊断
+description: 当客户边缘节点出现异常时，请先阅读本层级内容。确定适用于两种访问路径中的哪一种，因为选错路径会静默地返回空结果。
 sidebar:
   order: 10
-  label: Customer Edge
+  label: 客户边缘节点
 i18n:
-  sourceHash: b4cc7a6da640
+  sourceHash: f6d78e1c7066
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Customer Edge（CE）是本代码库通过 `terraform/modules/ce-node` 配置到 Azure 中的 F5 Distributed Cloud 节点，基于 `volterraedgeservices/volterra-node` 市场镜像构建。
+客户边缘节点（Customer Edge，CE）是本仓库向 Azure 预配的 F5 Distributed Cloud 节点 ——
+`terraform/modules/ce-node`，基于 `volterraedgeservices/volterra-node` 市场镜像构建。
 
-它运行数据平面（Argo）、控制平面（Vega）、Envoy 代理、Kubernetes 堆栈，以及 `vpm`——负责注册节点并管理其上所有其他组件的代理程序。
+它运行数据平面（Argo）、控制平面（Vega）、一个 Envoy 代理、一套 Kubernetes
+栈，以及 `vpm` —— 负责注册节点并管理节点上其他一切内容的代理。
 
-当 CE 出现异常时，Site CLI 是首选诊断工具。首要判断是选择哪条访问路径，选错路径会浪费大量时间，且表现形式与节点故障毫无二致。
+当 CE 出现异常时，Site CLI 就是诊断工具。首先要判断适用哪条访问路径，
+一旦判断错误就会浪费时间，而且表现得就像节点已经损坏一样。
 
-## 两条访问路径，且互不通用
+## 两条访问路径，且不可互换
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="适用于状态为 <code>ONLINE</code> 的节点。可脚本化、只读，涵盖 34 条命令。"
+    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
     href="./access/debug-api/"
   />
   <LinkCard
-    title="串口控制台"
-    description="适用于从未完成注册的节点。当 API 无法响应时，这是唯一的访问途径。"
+    title="Serial console"
+    description="For a node that never registered. The only route when the API cannot answer."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-Debug API 通过 **F5 Distributed Cloud 控制平面**访问节点。这正是两条路径需要区分的根本原因：API 只有在节点完成注册并报告 `ONLINE` 状态后才能响应。
+调试 API **通过 F5 Distributed Cloud 控制平面**访问节点。
+这正是这一区分之所以重要的原因：只有在节点完成注册并报告 `ONLINE` 之后，API 才能作出响应。
 
-注册失败的节点——无论是 cloud-init 错误、令牌过期，还是无法路由到 `register.ves.volterra.io`——恰恰是最需要诊断的场景，也恰恰是 API 无法提供服务的场景。
+注册失败的节点 —— 错误的 cloud-init、过期的令牌、无法路由到
+`register.ves.volterra.io` —— 恰恰是最需要诊断的情况，
+也恰恰是 API 无法提供服务的情况。
 
-[SSH](./access/ssh/) 是第三种选项，也是唯一能够访问设备完整命令集的方式——Debug API 仅暴露 34 条命令，而节点本身提供的命令远不止于此。但它受到两个条件限制：`sshd` 仅监听节点的内部（SLI）地址，因此需要 VNet 内的一台主机才能访问；且密钥由 cloud-init 在首次启动时写入，因为 Site 对象上的 `ssh_key` 字段是无效的——`vpm` 会跳过 `admin` 用户，不会应用该字段。因此，在运行中的节点上启用 SSH 将导致节点被替换。
+[SSH](./access/ssh/) 是第三种选择，也是唯一能够触及设备完整命令面的方式 —— 调试 API 暴露 34 条命令，
+而节点本身提供的远不止于此。有两点限制。`sshd` 仅在节点的内部（SLI）地址上响应，
+因此需要一台位于 VNet 内部的主机；而密钥是由 cloud-init 在首次启动时写入的，
+因为站点对象上的 `ssh_key` 字段是无效的 —— `vpm` 会跳过 `admin` 用户，
+从不应用该字段。因此，要在运行中的节点上启用它就意味着替换这些节点。
 
-综上所述：若 Site 状态为 `ONLINE` 且 34 条命令已足够，请使用 Debug API；若需要访问完整命令集且能够访问 VNet，请使用 SSH；若注册本身存在问题，串口控制台是唯一的进入途径。
+所以：如果站点处于 `ONLINE` 且 34 条命令已经够用，就使用调试 API。如果你需要其余的命令面
+并且能够访问 VNet，就使用 SSH。如果问题出在注册环节，串行控制台就是唯一的入口。
 
-<Aside type="caution" title="请先检查 Site 状态">
-一条请求即可告知您当前适用哪条路径：
+<Aside type="caution" title="首先检查站点状态">
+一个请求即可告诉你应该走哪条路径：
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -50,24 +61,38 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` 表示 Debug API 可用。其他任何状态——或 Site 不存在——均表示需使用串口控制台。
+`ONLINE` 意味着调试 API 可用。其他任何状态 —— 或者站点根本不存在 ——
+都意味着需要使用串行控制台。
 </Aside>
 
 ## 安全规则
 
-以下规则适用于以下各页面中的每一条命令。
+以下规则适用于下方各页面中的每一条命令。
 
-- **除非确定无误，否则仅执行只读操作。** 命令集分为两个权限层级，`Exec` 层级的命令要么会修改节点状态，要么读取状态标记。本文档各页面均不执行 `Exec` 命令，采集脚本同样如此。
-- **切勿仅凭命令名称判断其安全性。** `ip-link-set` 看起来像查询命令，实际上会关闭网络接口；`systemctl-restart-crio` 会在实时数据平面下重启容器运行时。
-- **优先使用能回答问题的最精简命令。** `health` 和 `diagnosis` 能以较低开销汇总节点状态；而 `flow-l` 则会转储包含 629,760 条记录的流表。
-- **CE 承载着实时流量。** 这些是共享演示环境，请始终假设有人正在使用您正在调试的 Site 进行演示。
+- **除非你确有把握，否则只做只读操作。** 命令面被划分为两个权限层级，
+  而 `Exec` 层级要么会改动节点，要么会读取状态标记。本文档各页面不会运行任何
+  `Exec` 命令，采集工具也不会。
+- **切勿凭命令名称假定其安全。** `ip-link-set` 读起来像是一条查询命令，
+  实际上会关闭某个接口。`systemctl-restart-crio` 会在数据平面处于运行状态时
+  重启容器运行时。
+- **优先选择能回答问题的最小范围命令。** `health` 和 `diagnosis`
+  能以很低的开销概括节点状态；而 `flow-l` 会导出一张包含 629,760 条目的流表。
+- **CE 承载着实时流量。** 这些是共享的演示环境。请假定有人正在使用
+  你正在调试的站点做演示。
 
 ## 本文档涵盖的内容
 
-本租户所运行软件版本上，通过 Debug API 可访问的每条命令均有记录，且每条命令的输出均采集自实时节点，而非从其他来源转录。
+本租户所运行的软件版本上，可通过调试 API 访问的每一条命令，
+其输出均从实际运行的节点上采集，而非从别处转录而来。
 
-[命令参考](./commands/)列出了所有命令及其类别、权限层级和传输方式；[工作流程](./workflows/)将这些命令串联成在实际出现问题时所需执行的操作序列。
+[命令参考](./commands/)列出了所有命令及其类别、权限层级和传输方式；
+[工作流](./workflows/)将它们串联成你在出现问题时实际使用的操作序列。
 
-仅在节点本地可用的 Site CLI 部分——`configure`、`configure-network`、`factory-reset`、`upgrade` 以及约六十条其他 `ExecCLI` 命令——不在本文档涵盖范围内。
+Site CLI 中仅限本机使用的部分 —— `configure`、`configure-network`、
+`factory-reset`、`upgrade` 以及大约六十条其他 `ExecCLI` 命令 —— 未被涵盖，
+因为它们的输出没有像下方每个页面那样从实际运行的节点上采集过。
 
-这些命令只能通过串口控制台会话访问，因此无法以编程方式验证，而未经验证的命令语法正是本文档旨在避免重蹈的缺陷。
+不过，它们已不再遥不可及。`scripts/sitecli_ssh_harvest.py` 通过 [SSH](./access/ssh/) 驱动
+设备自身的补全菜单，并记录设备为每条命令给出的描述，从而使这一命令面可以被实际测量而非
+凭空猜测。它的执行默认拒绝 —— 它会枚举全部内容，但只运行白名单中的命令 ——
+因为未经验证的命令语法以及未经验证的命令*效果*，正是本文档存在的意义所在：避免重蹈覆辙。

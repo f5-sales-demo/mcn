@@ -1,78 +1,81 @@
 ---
 title: Acessando um Customer Edge
 description: >-
-  Leia este nível antes de executar qualquer comando. Abrange as três rotas para
-  um Customer Edge — a API de depuração, SSH para o Site CLI local e console
-  serial — com autenticação para cada uma, a regra de nível para endpoint que
-  decide para onde um comando da API de depuração é enviado, e o caminho de
-  emergência para um nó não registrado. Comece aqui para escolher uma rota, pois
-  apenas SSH e console serial alcançam a superfície completa de comandos do
-  dispositivo.
+  Leia este nível antes de executar qualquer comando. Cobre as três rotas de
+  acesso a um Customer Edge — a API de depuração, SSH para o Site CLI no próprio
+  equipamento e o console serial — com a autenticação de cada uma, a regra
+  nível-para-endpoint que decide para onde um comando da API de depuração é
+  enviado, e o caminho de emergência para um nó não registrado. Comece por aqui
+  para escolher uma rota, porque somente SSH e console serial alcançam toda a
+  superfície de comandos disponível no equipamento.
 sidebar:
   order: 10
   label: Acesso
 i18n:
-  sourceHash: 4f47fbc1e917
+  sourceHash: 662d9cee32ed
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Três rotas funcionam, e qual delas se aplica é determinado pelo estado do nó e de
-onde você está se conectando, e não por preferência.
+Três rotas funcionam, e qual delas se aplica é determinado pelo estado do nó e de onde
+você está se conectando, e não por preferência.
 
-| Rota | Requer nó `ONLINE` | Requer acessibilidade de rede | Limitações | Abrange |
+| Rota | Exige nó `ONLINE` | Exige alcançabilidade de rede | Limites | Abrange |
 | --- | --- | --- | --- | --- |
-| [API de depuração](./debug-api/) | **sim** | sim | cerca de 25–30 minutos de aquecimento em um novo site | 34 comandos |
-| [SSH](./ssh/) | não | de dentro da VNet, somente para o endereço interno | a chave deve estar presente desde o primeiro boot | O Site CLI completo do dispositivo |
-| [Console serial](./serial-console/) | não | não | uma sessão por VM; limite de 2.048 caracteres para colagem | O Site CLI completo do dispositivo |
+| [API de depuração](./debug-api/) | **sim** | sim | cerca de 25–30 minutos de aquecimento em um site novo | 34 comandos |
+| [SSH](./ssh/) | não | de dentro da VNet, somente para o endereço interno | a chave precisa estar presente desde o primeiro boot | O Site CLI completo no equipamento |
+| [Console serial](./serial-console/) | não | não | uma sessão por VM; limite de colagem de 2.048 caracteres | O Site CLI completo no equipamento |
 
-O console serial é o último recurso e a única rota que sobrevive a um nó sem
+O console serial é o último recurso, e a única rota que sobrevive a um nó sem nenhum
 caminho de rede funcional.
 
-O SSH é o recurso a ser utilizado quando a API de depuração não é suficiente, pois o appliance oferece
-substancialmente mais comandos do que os 34 que a API expõe. Ele tem dois custos. A chave é
-gravada pelo cloud-init e, portanto, deve estar presente no **primeiro boot**, o que significa que habilitá-la em
+SSH é a opção quando a API de depuração não é suficiente, porque o appliance oferece
+substancialmente mais comandos do que os 34 que essa API expõe. Ele tem dois custos. A chave é
+escrita pelo cloud-init e, portanto, precisa estar presente no **primeiro boot**, o que significa que habilitá-la em
 nós em execução os substitui — e isso atualmente trava o registro
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). E o `sshd` responde somente no
-endereço interno do nó, portanto requer um host dentro da VNet; sondar o endereço pelo qual você
-conhece o nó sempre reportará como fechado.
+([issue 674](https://github.com/f5-sales-demo/mcn/issues/674)). E o `sshd` responde apenas no
+endereço interno do nó, então é preciso um host dentro da VNet; sondar o endereço pelo qual
+você conhece o nó sempre reportará porta fechada.
 
 ## Por que a divisão não é uma preferência
 
-A API de depuração é fornecida pelo plano de controle do F5 Distributed Cloud, que repassa para
-o nó pelo túnel que o `vpm` estabelece durante o registro. Sem registro, não há
-túnel, o que significa que a API não tem nada para repassar.
+A API de depuração é servida pelo control plane do F5 Distributed Cloud, que faz o relay para
+o nó pelo túnel que o `vpm` estabelece durante o registro. Sem registro não há
+túnel, o que significa que a API não tem para onde fazer o relay.
 
-Ela falha de forma pouco informativa em vez de óbvia, então um nó que nunca subiu
-parece um problema da API.
+Ela falha de um modo pouco útil em vez de óbvio, então um nó que nunca subiu
+parece um problema de API.
 
-O console serial segue um caminho completamente diferente — através da plataforma Azure até a
-porta serial emulada do nó. Ele não se preocupa se o nó foi registrado, tem
-acessibilidade de rede ou tem um plano de dados funcional. Essa independência é o ponto
-central, e é por isso que o diagnóstico de boot deve permanecer habilitado nas VMs do CE.
+O console serial vai pelo caminho oposto — através da plataforma Azure até a
+porta serial emulada do nó. Não importa se o nó registrou, se tem
+alcançabilidade de rede ou se tem um data plane funcional. Essa independência é o objetivo
+central, e é por isso que o boot diagnostics precisa permanecer habilitado nas VMs de CE.
 
-<Aside type="note" title="O que utilizar">
-Se você está escrevendo automação ou coletando evidências que deseja executar novamente mais tarde, use
-a API de depuração. Se o registro é o que está com problema, o console serial não é um
-recurso alternativo — é a única opção.
+<Aside type="note" title="O que usar">
+Se você está escrevendo automação, ou coletando evidências que quer reexecutar depois, use
+a API de depuração. Se o registro é justamente o que está quebrado, o console serial não é um
+plano B — é a única opção.
 </Aside>
 
 ## Credenciais
 
-Ambas as rotas utilizam credenciais diferentes, e nenhuma delas deve ser passada em uma linha de comando.
+Cada rota usa credenciais diferentes, e nenhuma delas deve estar em uma linha de comando.
 
 - **API de depuração** — um token de API do F5 Distributed Cloud, como `XCSH_API_TOKEN`, com a
   URL do tenant como `XCSH_API_URL`. O arquivo de contexto do `xcsh` em
-  `~/.config/xcsh/contexts/<tenant>.json` armazena ambos, que é o que
-  `scripts/capture-sitecli.sh` lê quando o ambiente não os fornece.
+  `~/.config/xcsh/contexts/<tenant>.json` contém ambos, e é o que
+  o `scripts/capture-sitecli.sh` lê quando o ambiente não os fornece.
+- **SSH** — a metade privada do par de chaves cuja metade pública o deployment escreveu em
+  `/var/home/admin/.ssh/authorized_keys` no primeiro boot, mais um host dentro da VNet para
+  alcançar o endereço interno. Conecte-se como `admin`, não como `azureuser`.
 - **Console serial** — seu login interativo do Azure. Não há service principal
-  para isso: o tenant corporativo F5 no Entra não permite provisionar um, o que
-  também é o motivo pelo qual nenhuma parte disso é executada em CI.
+  para isso: o tenant Entra corporativo da F5 não permite provisionar um, o que
+  também explica por que nenhuma parte disso roda em CI.
 
 <Aside type="danger" title="Nunca passe um token como argumento">
 Um token em uma linha de comando fica no histórico do shell e na lista de processos, onde
-todos os outros usuários da máquina podem lê-lo. O `capture-sitecli.sh` rejeita
-`--token` completamente por esse motivo e fornece o cabeçalho ao `curl` via stdin
+qualquer outro usuário da máquina pode lê-lo. O `capture-sitecli.sh` recusa
+`--token` categoricamente por esse motivo e fornece o cabeçalho ao `curl` via stdin
 em vez disso.
 </Aside>
