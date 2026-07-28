@@ -44,8 +44,21 @@ bastion_subnet_prefix      = "10.0.5.0/26"   # only used when enable_bastion = t
 # Provide the key path (read once at the root) OR paste the material in ssh_public_key.
 ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 
+# --- F5 XC tenant ---
+# The tenant is CONFIG, not something XCSH_API_URL decides. Leave it at the default
+# unless you are deliberately driving a different tenant, in which case give that
+# deployment a state key of its own too — the two belong together (issue #696).
+#
+# Export only the CREDENTIAL: XCSH_API_TOKEN (or the P12/PEM pair). Any
+# XCSH_API_URL naming a different tenant fails the plan with a message saying so,
+# rather than quietly rebuilding the demo somewhere else, which is what happened.
+#
+# expected_xc_tenant = "f5-sales-demo"
+
 # --- F5 XC data-plane ---
-xc_app_namespace = "r-mordasiewicz"
+# A PRE-EXISTING namespace: it is read, never created or destroyed. It must exist
+# in expected_xc_tenant before the first apply.
+xc_app_namespace = "multi-cloud-networking"
 origin_ip        = "20.98.232.135"
 origin_port      = 80
 lb_domain        = "ar-bgp-ecmp.bankexample.com"
