@@ -19,6 +19,26 @@ mgmt_subnet_prefix         = "10.0.1.0/26"
 external_subnet_prefix     = "10.0.2.0/26"
 internal_subnet_prefix     = "10.0.3.0/26"
 route_server_subnet_prefix = "10.0.4.0/27"
+bastion_subnet_prefix      = "10.0.5.0/26"   # only used when enable_bastion = true
+
+# --- Azure Bastion (CE Site Console access) ---
+# Off by default: Bastion bills an hourly standing charge whether or not anyone
+# connects, and nothing in the BGP/ECMP demo depends on it. Turn it on to reach
+# each CE's Site Console web UI (65500, user admin) over an RBAC-controlled tunnel
+# instead of an SSH key and a jump host:
+#
+#   enable_bastion = true
+#   terraform apply
+#   az network bastion tunnel --name "$(terraform output -raw bastion_name)" \
+#     -g "$(terraform output -raw resource_group_name)" \
+#     --target-resource-id "$(terraform output -json ce_vm_ids | jq -r .eastus01)" \
+#     --resource-port 65500 --port 65500 &
+#   open https://localhost:65500/     # log in as admin
+#
+# Target the VM resource id, not the SLI address: Azure refuses a custom resource
+# port over an IP-targeted tunnel (only 22 and 3389 are allowed there).
+#
+# enable_bastion = true
 
 # --- SSH ---
 # Provide the key path (read once at the root) OR paste the material in ssh_public_key.

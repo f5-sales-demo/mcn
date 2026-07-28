@@ -8,6 +8,11 @@ output "mgmt_private_ip" {
   value       = azurerm_network_interface.mgmt.private_ip_address
 }
 
+output "sli_private_ip" {
+  description = "Private IP of the internal/SLI NIC — the only one of the CE's three private addresses that answers, and where the Site Console web UI (TCP 65500) is served. Reach it from a workstation with `az network bastion tunnel --target-resource-id <this CE's vm_id> --resource-port 65500`; the mgmt/SLO and external addresses serve nothing."
+  value       = azurerm_network_interface.internal.private_ip_address
+}
+
 output "vm_name" {
   description = "CE VM name."
   value       = azurerm_linux_virtual_machine.this.name
