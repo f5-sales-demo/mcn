@@ -1,0 +1,42 @@
+Jul 28 18:43:50 f5-xc-ce-vm-01 vpm[11329]: FIREBALL_IMAGE=gcr.io/volterraio/fireball:latest
+Jul 28 18:43:50 f5-xc-ce-vm-01 vpm[11329]: checker.go:626: Site hash ed85caf57f47d3964c3d1df44217d258b475467b7ed919a6d16adc0dafe74157 is same as current version
+Jul 28 18:43:50 f5-xc-ce-vm-01 vpm[11329]: checker.go:680: Fetched OS version '9.2024.6' is same as current OS version '9.2024.6', no action is needed
+Jul 28 18:43:50 f5-xc-ce-vm-01 vpm[11329]: checker.go:793: Fetched version 'crt-20250613-3382' is same as current version 'crt-20250613-3382' and fetched manifest hash '34e093824d66558c3558762bf76925d1' is same as current manifest '34e093824d66558c3558762bf76925d1' hash, no action is needed
+Jul 28 18:43:50 f5-xc-ce-vm-01 vpm[11329]: checker.go:885: Fetched fleet hash '1abcd3fcb09a31cd3aea9dffb82d71c3' is same as current fleet hash '1abcd3fcb09a31cd3aea9dffb82d71c3', no action is needed
+Jul 28 18:43:50 f5-xc-ce-vm-01 vpm[11329]: checker.go:127: running all cron tasks in another routine
+Jul 28 18:43:50 f5-xc-ce-vm-01 vpm[11329]: checker.go:153: Workload check has finished without error, sleeping for 5m9.331335492s, until 2026-07-28 18:48:59.80445056 +0000 UTC m=+2475.728846836
+Jul 28 18:44:37 f5-xc-ce-vm-01 vpm[11329]: statusreporter.go:195: Status reporter loop has finished without error, sleeping for 5m16.157715989s, until 2026-07-28 18:49:53.706286882 +0000 UTC m=+2529.630683258
+Jul 28 18:44:44 f5-xc-ce-vm-01 vpm[11329]: module.go:84: Running intra-cluster, type: node
+Jul 28 18:44:44 f5-xc-ce-vm-01 vpm[11329]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+Jul 28 18:45:22 f5-xc-ce-vm-01 vpm[11329]: etcd.go:123: Holding dictator lock for path /_lock/dictator
+Jul 28 18:45:44 f5-xc-ce-vm-01 vpm[11329]: module.go:84: Running intra-cluster, type: node
+Jul 28 18:45:44 f5-xc-ce-vm-01 vpm[11329]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+Jul 28 18:46:44 f5-xc-ce-vm-01 vpm[11329]: module.go:84: Running intra-cluster, type: node
+Jul 28 18:46:44 f5-xc-ce-vm-01 vpm[11329]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+Jul 28 18:47:27 f5-xc-ce-vm-01 vpm[11329]: etcd.go:123: Holding dictator lock for path /_lock/dictator
+Jul 28 18:47:44 f5-xc-ce-vm-01 vpm[11329]: module.go:84: Running intra-cluster, type: node
+Jul 28 18:47:44 f5-xc-ce-vm-01 vpm[11329]: module.go:90: Running intra-cluster, type: fabric
+Jul 28 18:47:44 f5-xc-ce-vm-01 vpm[11329]: pinger.go:38: Stats for connectivity-check: <name: fabric, type: fabric, success: true>
+Jul 28 18:47:44 f5-xc-ce-vm-01 vpm[11329]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+Jul 28 18:48:44 f5-xc-ce-vm-01 vpm[11329]: module.go:84: Running intra-cluster, type: node
+Jul 28 18:48:44 f5-xc-ce-vm-01 vpm[11329]: pinger.go:38: Stats for connectivity-check: <name: intra-cluster, type: intra-cluster, success: true>
+Jul 28 18:48:59 f5-xc-ce-vm-01 vpm[11329]: checker.go:281: Starting check for new workload version, with timeout 1h0m0s
+Jul 28 18:48:59 f5-xc-ce-vm-01 vpm[11329]: client.go:175: Client is using proxy &InternetProxy{HttpProxy:,HttpsProxy:,NoProxy:,ProxyCacertUrl:,EnableReTunnel:false,ProxyBypass:,}
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: vpm.go:111: Image is current one, won't update VP_MANAGER_IMAGE. Current:
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: VP_MANAGER_IMAGE=gcr.download.volterra.io/volterraio/vpm@sha256:cea8d6acc1d30088ecc39e0b7ac2e413210de6d34e284c42ba5b7e1104893539
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: vpm.go:111: Image is current one, won't update SITE_CONSOLE_IMAGE. Current:
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: SITE_CONSOLE_IMAGE=gcr.download.volterra.io/volterraio/site-console@sha256:cd5ea23fe1fa532a234077910f5667496ff0fb842ac2074d149d4b1c6f128bb3
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: vpm.go:111: Image is current one, won't update ARGO_WATCH_IMAGE. Current:
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: ARGO_WATCH_IMAGE=gcr.download.volterra.io/volterraio/argo@sha256:2855e6de4d67ddff0606bfb24f20a07f9bd73598b4ece7b9c8d924b247f2efe6
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: vpm.go:111: Image is current one, won't update FIREBALL_IMAGE. Current:
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: FIREBALL_IMAGE=gcr.io/volterraio/fireball:latest
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: checker.go:626: Site hash ed85caf57f47d3964c3d1df44217d258b475467b7ed919a6d16adc0dafe74157 is same as current version
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: checker.go:680: Fetched OS version '9.2024.6' is same as current OS version '9.2024.6', no action is needed
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: checker.go:793: Fetched version 'crt-20250613-3382' is same as current version 'crt-20250613-3382' and fetched manifest hash '34e093824d66558c3558762bf76925d1' is same as current manifest '34e093824d66558c3558762bf76925d1' hash, no action is needed
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: checker.go:885: Fetched fleet hash '1abcd3fcb09a31cd3aea9dffb82d71c3' is same as current fleet hash '1abcd3fcb09a31cd3aea9dffb82d71c3', no action is needed
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: checker.go:127: running all cron tasks in another routine
+Jul 28 18:49:03 f5-xc-ce-vm-01 vpm[11329]: checker.go:153: Workload check has finished without error, sleeping for 5m1.163265698s, until 2026-07-28 18:54:04.858024853 +0000 UTC m=+2780.782421129
+Jul 28 18:49:37 f5-xc-ce-vm-01 vpm[11329]: etcd.go:123: Holding dictator lock for path /_lock/dictator
+Jul 28 18:49:44 f5-xc-ce-vm-01 vpm[11329]: module.go:84: Running intra-cluster, type: node
+
+... [capture trimmed: first 40 of 200 lines]

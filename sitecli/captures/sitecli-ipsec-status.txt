@@ -1,7 +1,7 @@
 Security Associations (2 up, 0 connecting):
-ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io[49]: ESTABLISHED 23 minutes ago, 10.0.1.4[ver.ar-bgp-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io]
-ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io{39}:  INSTALLED, TUNNEL, reqid 65541, ESP in UDP SPIs: ffff3cc0_i ffff8a40_o
-ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io{39}:   10.0.1.4/32 === <public-ip>/32
-ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io[48]: ESTABLISHED 38 minutes ago, 10.0.1.4[ver.ar-bgp-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io]
-ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io{38}:  INSTALLED, TUNNEL, reqid 65542, ESP in UDP SPIs: ffff39b0_i ffffc870_o
-ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io{38}:   10.0.1.4/32 === <public-ip>/32
+ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io[6]: ESTABLISHED 47 minutes ago, 10.0.1.4[ver.mcn-ce-ha-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io]
+ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io{6}:  INSTALLED, TUNNEL, reqid 65540, ESP in UDP SPIs: ffffe640_i ffff9ab0_o
+ver.ny8-nyc.ves-io.<uuid>.tenant.int.ves.io{6}:   10.0.1.4/32 === <public-ip>/32
+ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io[5]: ESTABLISHED 47 minutes ago, 10.0.1.4[ver.mcn-ce-ha-eastus01.<tenant>.<uuid>.tenant.int.ves.io]...<public-ip>[ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io]
+ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io{5}:  INSTALLED, TUNNEL, reqid 65539, ESP in UDP SPIs: ffff0fb0_i ffffb480_o
+ver.dc12-ash.ves-io.<uuid>.tenant.int.ves.io{5}:   10.0.1.4/32 === <public-ip>/32

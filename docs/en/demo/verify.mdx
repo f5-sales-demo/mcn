@@ -41,9 +41,9 @@ NIC=$(terraform output -raw client_nic_name)
    Observed 2026-07-28, three CEs:
 
    ```text
-   ar-bgp-eastus01 -> ONLINE
-   ar-bgp-eastus02 -> ONLINE
-   ar-bgp-eastus03 -> ONLINE
+   mcn-ce-ha-eastus01 -> ONLINE
+   mcn-ce-ha-eastus02 -> ONLINE
+   mcn-ce-ha-eastus03 -> ONLINE
    ```
 
 2. **Every peering is learning that CE's VIP advertisement.** Query each peering

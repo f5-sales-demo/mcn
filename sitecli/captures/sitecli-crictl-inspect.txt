@@ -1,13 +1,13 @@
 {
   "status": {
-    "id": "89a5bee1ab6ceb0d3be5b1bfe40b55576d0bad5bbdf3867729e3836b7ddda906",
+    "id": "01abfe4e370e17a2dbe586dfea73a457a7b570b36e02ded9a49faf550db51aba",
     "metadata": {
       "attempt": 2,
       "name": "voucher"
     },
     "state": "CONTAINER_RUNNING",
-    "createdAt": "2026-07-24T03:02:24.447873234Z",
-    "startedAt": "2026-07-24T03:02:24.471753861Z",
+    "createdAt": "2026-07-28T18:23:34.16698681Z",
+    "startedAt": "2026-07-28T18:23:34.191178669Z",
     "finishedAt": "0001-01-01T00:00:00Z",
     "exitCode": 0,
     "image": {
@@ -19,12 +19,12 @@
     "message": "",
     "labels": {
       "io.kubernetes.container.name": "voucher",
-      "io.kubernetes.pod.name": "voucher-jnpfr",
+      "io.kubernetes.pod.name": "voucher-m76f4",
       "io.kubernetes.pod.namespace": "webhook",
       "io.kubernetes.pod.uid": "<uuid>"
     },
     "annotations": {
-      "io.kubernetes.container.hash": "98586484",
+      "io.kubernetes.container.hash": "e5954d1b",
       "io.kubernetes.container.ports": "[{\"hostPort\":8444,\"containerPort\":8444,\"protocol\":\"TCP\"},{\"hostPort\":8443,\"containerPort\":8443,\"protocol\":\"TCP\"}]",
       "io.kubernetes.container.restartCount": "2",
       "io.kubernetes.container.terminationMessagePath": "/dev/termination-log",
@@ -34,7 +34,7 @@
     "mounts": [
       {
         "containerPath": "/dev/termination-log",
-        "hostPath": "/var/lib/kubelet/pods/<uuid>/containers/voucher/d2f51848",
+        "hostPath": "/var/lib/kubelet/pods/<uuid>/containers/voucher/76075f48",
         "propagation": "PROPAGATION_PRIVATE",
         "readonly": false,
         "selinuxRelabel": false
