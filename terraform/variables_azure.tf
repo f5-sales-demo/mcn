@@ -72,6 +72,41 @@ variable "route_server_name" {
   default     = "ce-ha-lab-rrs"
 }
 
+variable "bastion_subnet_prefix" {
+  description = "AzureBastionSubnet prefix. MUST be /26 or larger, named literally AzureBastionSubnet, with no NSG or route table. 10.0.5.0/26 is the first free /26 in the hub (10.0.1.0/26 mgmt, 10.0.2.0/26 external, 10.0.3.0/26 internal, 10.0.4.0/27 RouteServerSubnet are taken)."
+  type        = string
+  default     = "10.0.5.0/26"
+
+  validation {
+    # Azure rejects anything smaller than /26 at APPLY time, long after the plan
+    # looked healthy. Fail at plan time instead.
+    condition     = tonumber(split("/", var.bastion_subnet_prefix)[1]) <= 26
+    error_message = "AzureBastionSubnet must be /26 or larger (a smaller prefix, e.g. /27, is rejected by Azure)."
+  }
+}
+
+# --------------------------------------------------------------------------
+# Azure Bastion
+# --------------------------------------------------------------------------
+# Default false, deliberately. Bastion is the only resource in this deployment
+# that is not load-bearing for the BGP/ECMP demo — the data path, the sites and
+# the VIP all work without it — yet a Standard-SKU host bills an hourly standing
+# charge from the moment it is provisioned, whether or not anyone opens a tunnel.
+# Opting in keeps the cost of a default `terraform apply` exactly what it is
+# today and makes the spend a conscious choice by whoever needs CE console
+# access. Turn it on with `enable_bastion = true` in terraform.tfvars.
+variable "enable_bastion" {
+  description = "Deploy Azure Bastion so developers can reach each CE's Site Console web UI (https://<sli-ip>:65500) with Azure RBAC instead of an SSH key and a jump host."
+  type        = bool
+  default     = false
+}
+
+variable "bastion_name" {
+  description = "Azure Bastion host name (the --name argument of `az network bastion tunnel`)."
+  type        = string
+  default     = "ce-ha-lab-bastion"
+}
+
 # ---------------------------------------------------------
 # CE / client VM inputs
 # ---------------------------------------------------------
