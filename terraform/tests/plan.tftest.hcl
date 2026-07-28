@@ -7,6 +7,17 @@ mock_provider "azurerm" {}
 mock_provider "azuread" {}
 mock_provider "xcsh" {}
 
+variables {
+  # Pinned rather than inherited. Both now have NO default (an origin default is
+  # one specific machine; an lb_domain default belongs to whoever deploys), and
+  # `terraform test` also reads the gitignored terraform.tfvars — so without these
+  # CI fails on a missing required variable and any assertion against them depends
+  # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
+  # space: unroutable by design, so it cannot name a real host.
+  lb_domain = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip = "203.0.113.10"
+}
+
 run "root_plans_end_to_end" {
   command = plan
 
@@ -24,13 +35,13 @@ run "root_plans_end_to_end" {
   }
 
   assert {
-    condition     = output.loadbalancer_name == "ar-bgp-ecmp-lb"
-    error_message = "Load balancer name should be ar-bgp-ecmp-lb."
+    condition     = output.loadbalancer_name == "mcn-ce-ha-f5se"
+    error_message = "Load balancer name should be mcn-ce-ha-f5se."
   }
 
   assert {
-    condition     = output.origin_pool_name == "wsp-demo-pool"
-    error_message = "Origin pool name should be wsp-demo-pool."
+    condition     = output.origin_pool_name == "mcn-ce-ha-pool"
+    error_message = "Origin pool name should be mcn-ce-ha-pool."
   }
 
   assert {
@@ -39,8 +50,8 @@ run "root_plans_end_to_end" {
   }
 
   assert {
-    condition     = output.xc_site_names["eastus01"] == "ar-bgp-eastus01"
-    error_message = "CE-01 XC site name should be ar-bgp-eastus01."
+    condition     = output.xc_site_names["eastus01"] == "mcn-ce-ha-eastus01"
+    error_message = "CE-01 XC site name should be mcn-ce-ha-eastus01."
   }
 
   assert {
@@ -96,7 +107,7 @@ run "bastion_enabled_root_wiring" {
   }
 
   assert {
-    condition     = output.bastion_name == "ce-ha-lab-bastion"
+    condition     = output.bastion_name == "mcn-ce-ha-bastion"
     error_message = "Root must surface the Bastion host name so the tunnel command is copy-pasteable."
   }
 

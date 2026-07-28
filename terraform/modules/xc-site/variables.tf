@@ -1,5 +1,5 @@
 variable "site_name" {
-  description = "XC securemesh_site_v2 name (e.g. ar-bgp-eastus01), created in namespace system."
+  description = "XC securemesh_site_v2 name (e.g. mcn-ce-ha-eastus01), created in namespace system."
   type        = string
 }
 

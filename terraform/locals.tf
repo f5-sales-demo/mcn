@@ -40,6 +40,25 @@ locals {
 
   deployer = replace(lower(local.deployer_resolved), "/[^a-z0-9]/", "")
 
+  # --- Derived object names ---
+  # Every name in the deployment descends from var.component (plus the resolved
+  # deployer for the resource group, which is per-person by nature). Terraform
+  # variable defaults cannot reference other variables, so each of these variables
+  # defaults to null and is resolved here instead; an explicit value always wins.
+  #
+  # The point is that NO object name is a literal anyone has to maintain, and none
+  # can carry a customer's or an individual's name by accident: change
+  # var.component and the sites, load balancer, origin pool, Route Server, Bastion
+  # and resource group all follow.
+  region_short        = coalesce(var.region_short, var.location)
+  site_prefix         = coalesce(var.site_prefix, var.component)
+  resource_group_name = coalesce(var.resource_group_name, "rg-${var.component}-${local.deployer}")
+  route_server_name   = coalesce(var.route_server_name, "${var.component}-rs")
+  bastion_name        = coalesce(var.bastion_name, "${var.component}-bastion")
+  origin_pool_name    = coalesce(var.origin_pool_name, "${var.component}-pool")
+  # `-f5se` matches the convention this tenant's other load balancers already use.
+  lb_name = coalesce(var.lb_name, "${var.component}-f5se")
+
   # --- Standard tags (applied to every Azure resource) ---
   standard_tags = {
     component   = var.component

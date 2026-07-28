@@ -37,9 +37,13 @@ variable "hostname_prefix" {
 }
 
 variable "site_prefix" {
-  description = "Prefix for XC site names (site = <prefix>-<region_short>0<n>)."
+  description = "Prefix for XC site names (site = <prefix>-<region_short>0<n>). REQUIRED, deliberately without a default: the root passes var.component, so every object name in the deployment derives from one place and no deployment-specific prefix can hide in a module default."
   type        = string
-  default     = "ar-bgp"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", var.site_prefix))
+    error_message = "site_prefix must be a DNS-style label: lowercase alphanumerics and hyphens, not starting or ending with a hyphen (it becomes part of an XC object name)."
+  }
 }
 
 locals {

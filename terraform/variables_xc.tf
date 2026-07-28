@@ -30,15 +30,19 @@ variable "xc_app_namespace" {
 }
 
 variable "origin_pool_name" {
-  description = "Name of the origin pool."
+  description = "Name of the origin pool. Leave null (the default) to derive `<component>-pool`."
   type        = string
-  default     = "wsp-demo-pool"
+  default     = null
 }
 
 variable "origin_ip" {
-  description = "Public IP of the origin server the pool targets."
+  description = "Public IP of the origin server the pool targets. REQUIRED, deliberately without a default: any default here is one specific machine, and a wrong one silently sends a fresh deployment's traffic to somebody else's host instead of failing."
   type        = string
-  default     = "20.98.232.135"
+
+  validation {
+    condition     = can(cidrhost("${var.origin_ip}/32", 0))
+    error_message = "origin_ip must be a single IPv4 address."
+  }
 }
 
 variable "origin_port" {
@@ -48,15 +52,19 @@ variable "origin_port" {
 }
 
 variable "lb_name" {
-  description = "Name of the HTTP load balancer."
+  description = "Name of the HTTP load balancer. Leave null (the default) to derive `<component>-f5se`, matching the naming this tenant's other load balancers use."
   type        = string
-  default     = "ar-bgp-ecmp-lb"
+  default     = null
 }
 
 variable "lb_domain" {
-  description = "Domain served by the HTTP load balancer."
+  description = "Domain served by the HTTP load balancer. REQUIRED, deliberately without a default: the load balancer matches on Host, so this value is what every request must send, and it belongs to whoever runs the deployment."
   type        = string
-  default     = "ar-bgp-ecmp.bankexample.com"
+
+  validation {
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.lb_domain))
+    error_message = "lb_domain must be a fully-qualified lowercase domain name (for example mcn-ce-ha.f5-sales-demo.com)."
+  }
 }
 
 variable "vip" {

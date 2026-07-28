@@ -14,9 +14,15 @@ variable "ce_count" {
 }
 
 variable "region_short" {
-  description = "Short region token used to build the per-CE key/site name (e.g. eastus -> ar-bgp-eastus01)."
+  description = "Short region token used to build the per-CE key and site name (component `mcn-ce-ha` + region `eastus` -> site `mcn-ce-ha-eastus01`). Leave null (the default) to use var.location verbatim; set it only when the Azure region name is longer than you want inside object names."
   type        = string
-  default     = "eastus"
+  default     = null
+}
+
+variable "site_prefix" {
+  description = "Prefix for XC site names (site = <prefix>-<region_short>0<n>). Leave null (the default) to use var.component, which is what keeps every object name descending from one value. Set it only to hold existing site names steady: renaming a site replaces the CE VM, because the site name is the ClusterName baked into cloud-init and cloud-init only runs on first boot."
+  type        = string
+  default     = null
 }
 
 variable "ce_asn" {

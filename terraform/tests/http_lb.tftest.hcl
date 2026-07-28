@@ -7,7 +7,15 @@ mock_provider "azuread" {}
 mock_provider "xcsh" {}
 
 variables {
-  deployer = "tester"
+  # Pinned rather than inherited. Both now have NO default (an origin default is
+  # one specific machine; an lb_domain default belongs to whoever deploys), and
+  # `terraform test` also reads the gitignored terraform.tfvars — so without these
+  # CI fails on a missing required variable and any assertion against them depends
+  # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
+  # space: unroutable by design, so it cannot name a real host.
+  lb_domain = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip = "203.0.113.10"
+  deployer  = "tester"
   # enable_bgp left at its true default; the LB/advertise/origin-pool under test are
   # independent of bgp either way. It used to be forced false only to dodge the provider's
   # object-ref name length cap, relaxed in v3.74.0.
@@ -34,8 +42,8 @@ run "loadbalancer_advertise_and_pool" {
   }
 
   assert {
-    condition     = length(xcsh_http_loadbalancer.this.domains) == 1 && contains(xcsh_http_loadbalancer.this.domains, "ar-bgp-ecmp.bankexample.com")
-    error_message = "LB should serve exactly ar-bgp-ecmp.bankexample.com."
+    condition     = length(xcsh_http_loadbalancer.this.domains) == 1 && contains(xcsh_http_loadbalancer.this.domains, "mcn-ce-ha.f5-sales-demo.com")
+    error_message = "LB should serve exactly mcn-ce-ha.f5-sales-demo.com."
   }
 
   assert {

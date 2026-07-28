@@ -12,14 +12,14 @@ run "hub_names_and_subnets" {
   }
 
   variables {
-    resource_group_name        = "rmordasiewicz-f5-xc-ce-infra"
+    resource_group_name        = "rg-mcn-ce-ha-testdeployer"
     location                   = "eastus"
     hub_cidr                   = "10.0.0.0/16"
     mgmt_subnet_prefix         = "10.0.1.0/26"
     external_subnet_prefix     = "10.0.2.0/26"
     internal_subnet_prefix     = "10.0.3.0/26"
     route_server_subnet_prefix = "10.0.4.0/27"
-    route_server_name          = "ce-ha-lab-rrs"
+    route_server_name          = "mcn-ce-ha-rs"
     # Required like every other *_subnet_prefix, even with enable_bastion off:
     # the module never defaults a network address on the caller's behalf.
     bastion_subnet_prefix = "10.0.5.0/26"
@@ -63,7 +63,7 @@ run "bastion_absent_when_disabled" {
   }
 
   variables {
-    resource_group_name        = "rmordasiewicz-f5-xc-ce-infra"
+    resource_group_name        = "rg-mcn-ce-ha-testdeployer"
     location                   = "eastus"
     hub_cidr                   = "10.0.0.0/16"
     mgmt_subnet_prefix         = "10.0.1.0/26"
@@ -107,7 +107,7 @@ run "bastion_enabled_shape" {
   }
 
   variables {
-    resource_group_name        = "rmordasiewicz-f5-xc-ce-infra"
+    resource_group_name        = "rg-mcn-ce-ha-testdeployer"
     location                   = "eastus"
     hub_cidr                   = "10.0.0.0/16"
     mgmt_subnet_prefix         = "10.0.1.0/26"
@@ -116,7 +116,7 @@ run "bastion_enabled_shape" {
     route_server_subnet_prefix = "10.0.4.0/27"
     bastion_subnet_prefix      = "10.0.5.0/26"
     enable_bastion             = true
-    bastion_name               = "ce-ha-lab-bastion"
+    bastion_name               = "mcn-ce-ha-bastion"
     tags                       = {}
   }
 
@@ -163,12 +163,12 @@ run "bastion_enabled_shape" {
   }
 
   assert {
-    condition     = azurerm_public_ip.bastion[0].name == "ce-ha-lab-bastion-pip"
+    condition     = azurerm_public_ip.bastion[0].name == "mcn-ce-ha-bastion-pip"
     error_message = "Bastion public IP must be named <bastion_name>-pip."
   }
 
   assert {
-    condition     = output.bastion_name == "ce-ha-lab-bastion"
+    condition     = output.bastion_name == "mcn-ce-ha-bastion"
     error_message = "bastion_name output must expose the host name the tunnel command needs."
   }
 }

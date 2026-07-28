@@ -84,25 +84,26 @@ module "ce_topology" {
   source = "./modules/ce-topology"
 
   ce_count           = var.ce_count
-  region_short       = var.region_short
+  region_short       = local.region_short
   mgmt_subnet_prefix = var.mgmt_subnet_prefix
+  site_prefix        = local.site_prefix
 }
 
 # Hub: RG, VNet, four subnets, Azure Route Server.
 module "azure_hub" {
   source = "./modules/azure-hub"
 
-  resource_group_name        = var.resource_group_name
+  resource_group_name        = local.resource_group_name
   location                   = var.location
   hub_cidr                   = var.hub_cidr
   mgmt_subnet_prefix         = var.mgmt_subnet_prefix
   external_subnet_prefix     = var.external_subnet_prefix
   internal_subnet_prefix     = var.internal_subnet_prefix
   route_server_subnet_prefix = var.route_server_subnet_prefix
-  route_server_name          = var.route_server_name
+  route_server_name          = local.route_server_name
   bastion_subnet_prefix      = var.bastion_subnet_prefix
   enable_bastion             = var.enable_bastion
-  bastion_name               = var.bastion_name
+  bastion_name               = local.bastion_name
   tags                       = local.tags
 }
 
@@ -202,7 +203,7 @@ data "xcsh_namespace" "mcn" {
 }
 
 resource "xcsh_origin_pool" "this" {
-  name        = var.origin_pool_name
+  name        = local.origin_pool_name
   namespace   = data.xcsh_namespace.mcn.name
   description = "MCN reference origin pool -> ${var.origin_ip}:${var.origin_port}"
 
@@ -221,7 +222,7 @@ resource "xcsh_origin_pool" "this" {
 }
 
 resource "xcsh_http_loadbalancer" "this" {
-  name        = var.lb_name
+  name        = local.lb_name
   namespace   = data.xcsh_namespace.mcn.name
   description = "BGP/ECMP HA: custom VIP ${var.vip} advertised from every CE site."
 

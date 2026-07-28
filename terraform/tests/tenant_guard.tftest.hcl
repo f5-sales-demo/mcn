@@ -21,6 +21,14 @@ mock_provider "azuread" {}
 mock_provider "xcsh" {}
 
 variables {
+  # Pinned rather than inherited. Both now have NO default (an origin default is
+  # one specific machine; an lb_domain default belongs to whoever deploys), and
+  # `terraform test` also reads the gitignored terraform.tfvars — so without these
+  # CI fails on a missing required variable and any assertion against them depends
+  # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
+  # space: unroutable by design, so it cannot name a real host.
+  lb_domain      = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip      = "203.0.113.10"
   ce_count       = 1
   deployer       = "tester"
   enable_bastion = false

@@ -10,9 +10,9 @@ variable "subscription_id" {
 }
 
 variable "resource_group_name" {
-  description = "Resource group that holds the hub VNet, Route Server, CE VMs and test client."
+  description = "Resource group that holds the hub VNet, Route Server, CE VMs and test client. Leave null (the default) to derive `rg-<component>-<deployer>`, where the deployer is resolved from Azure AD — so a fresh clone names the group after whoever deploys it rather than after whoever wrote it."
   type        = string
-  default     = "rmordasiewicz-f5-xc-ce-infra"
+  default     = null
 }
 
 variable "location" {
@@ -67,9 +67,9 @@ variable "route_server_subnet_prefix" {
 }
 
 variable "route_server_name" {
-  description = "Azure Route Server name."
+  description = "Azure Route Server name. Leave null (the default) to derive `<component>-rs`."
   type        = string
-  default     = "ce-ha-lab-rrs"
+  default     = null
 }
 
 variable "bastion_subnet_prefix" {
@@ -104,9 +104,9 @@ variable "enable_bastion" {
 }
 
 variable "bastion_name" {
-  description = "Azure Bastion host name (the --name argument of `az network bastion tunnel`)."
+  description = "Azure Bastion host name (the --name argument of `az network bastion tunnel`). Leave null (the default) to derive `<component>-bastion`."
   type        = string
-  default     = "ce-ha-lab-bastion"
+  default     = null
 }
 
 # ---------------------------------------------------------
