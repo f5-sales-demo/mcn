@@ -1,14 +1,14 @@
 ---
 title: Diagnostica Customer Edge
 description: >-
-  Leggere prima questo livello quando un Customer Edge si comporta in modo
-  anomalo. Stabilisce quale dei due percorsi di accesso è applicabile, perché
-  quello sbagliato non restituisce nulla senza segnalarlo.
+  Leggi questo livello per primo quando un Customer Edge si comporta in modo
+  anomalo. Stabilisce quale dei due percorsi di accesso si applica, poiché
+  quello errato restituisce silenziosamente nulla.
 sidebar:
   order: 10
   label: Customer Edge
 i18n:
-  sourceHash: 991cdd445e1e
+  sourceHash: b4cc7a6da640
   translator: machine
 ---
 
@@ -16,18 +16,18 @@ import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
 Un Customer Edge (CE) è il nodo F5 Distributed Cloud che questo repository esegue il provisioning in
-Azure — `terraform/modules/ce-node`, creato dall'immagine del marketplace
+Azure — `terraform/modules/ce-node`, creato a partire dall'immagine marketplace
 `volterraedgeservices/volterra-node`.
 
-Esegue il data plane (Argo), il control plane (Vega), un proxy Envoy, uno stack
+Esegue il piano dati (Argo), il piano di controllo (Vega), un proxy Envoy, uno stack
 Kubernetes e `vpm`, l'agente che registra il nodo e gestisce tutto il resto su
 di esso.
 
-Quando un CE si comporta in modo anomalo, la Site CLI è lo strumento da usare. La prima decisione riguarda quale
-percorso di accesso è applicabile, e sbagliarlo fa perdere tempo in un modo che sembra un
-nodo guasto.
+Quando un CE si comporta in modo anomalo, la Site CLI è lo strumento da utilizzare. La prima decisione è quale
+percorso di accesso si applica, e scegliere quello sbagliato fa perdere tempo in un modo che sembra un
+nodo difettoso.
 
-## Due percorsi di accesso, e non sono interscambiabili
+## Due percorsi di accesso, e non sono intercambiabili
 
 <CardGrid>
   <LinkCard
@@ -42,25 +42,27 @@ nodo guasto.
   />
 </CardGrid>
 
-La debug API raggiunge il nodo **attraverso il control plane di F5 Distributed Cloud**.
-È proprio per questo che la distinzione conta: l'API può rispondere solo dopo che il nodo si è
+La debug API raggiunge il nodo **attraverso il piano di controllo di F5 Distributed Cloud**.
+Questa è la ragione per cui la distinzione è importante: l'API può rispondere solo una volta che il nodo si è
 registrato e riporta `ONLINE`.
 
-Un nodo che non è riuscito a registrarsi — cloud-init errato, un token scaduto, nessuna rotta verso
-`register.ves.volterra.io` — è esattamente il caso in cui serve la diagnostica, ed
-esattamente il caso che l'API non può servire.
+Un nodo che non è riuscito a registrarsi — cloud-init non valido, token scaduto, nessuna route verso
+`register.ves.volterra.io` — è esattamente il caso in cui si ha bisogno della diagnostica, e
+esattamente il caso in cui l'API non può rispondere.
 
-SSH non è una terza opzione. `sshd` è in esecuzione sul nodo e risponde sul suo indirizzo interno
-(SLI), ma l'account `admin` non può autenticarsi: `vpm` salta quell'utente, quindi la
-`ssh_key` configurata sull'oggetto del sito non viene mai applicata. Nessuna regola del gruppo di sicurezza
-lo cambia. Le prove sono nella pagina [SSH](./access/ssh/), che esiste perché
-ogni sintomo riportato lì sembra un problema di firewall o di credenziali.
+[SSH](./access/ssh/) è la terza opzione, e l'unica che raggiunge l'intera superficie di
+comandi dell'appliance — la debug API espone 34 comandi e il nodo stesso ne offre molti
+di più. Due cose la limitano. `sshd` risponde solo sull'indirizzo interno (SLI) del nodo,
+quindi richiede un host all'interno della VNet; e la chiave viene scritta da cloud-init al primo avvio,
+poiché il campo `ssh_key` sull'oggetto site è inattivo — `vpm` ignora l'utente `admin` e
+non lo applica mai. L'abilitazione su nodi in esecuzione li sostituisce quindi.
 
-Quindi: se il sito è `ONLINE`, usare la debug API. Se non lo è, la console seriale è l'unica
-via d'accesso.
+Quindi: se il sito è `ONLINE` e 34 comandi sono sufficienti, utilizzare la debug API. Se si ha bisogno della
+restante superficie e si può raggiungere la VNet, utilizzare SSH. Se la registrazione è ciò che non funziona,
+la console seriale è l'unico modo per accedere.
 
 <Aside type="caution" title="Verificare prima lo stato del sito">
-Una sola richiesta indica su quale percorso vi trovate:
+Una sola richiesta indica su quale percorso ci si trova:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -74,34 +76,33 @@ esiste — significa console seriale.
 
 ## Regole di sicurezza
 
-Valgono per ogni comando su ogni pagina elencata sotto.
+Queste si applicano a ogni comando su ogni pagina sottostante.
 
-- **Sola lettura, a meno che non siate certi.** La superficie dei comandi è divisa in due
-  livelli di privilegio, e il livello `Exec` modifica il nodo oppure legge un
-  marcatore di stato. Nessun comando `Exec` viene eseguito in queste pagine, e nemmeno dal
-  capture harness.
-- **Non dare mai per scontato che un comando sia sicuro in base al suo nome.** `ip-link-set` sembra una
-  query e invece disattiva un'interfaccia. `systemctl-restart-crio` riavvia il
-  runtime dei container sotto un data plane attivo.
-- **Preferire il comando più circoscritto che risponda alla domanda.** `health` e
-  `diagnosis` riassumono lo stato del nodo con poche risorse; `flow-l` scarica una tabella di flusso
+- **Solo lettura, salvo certezza assoluta.** La superficie dei comandi è suddivisa in due
+  livelli di privilegi, e il livello `Exec` o muta il nodo o legge un marcatore di stato.
+  Nessuna di queste pagine esegue un comando `Exec`, e nemmeno il harness di acquisizione.
+- **Non assumere mai che un comando sia sicuro in base al nome.** `ip-link-set` sembra una
+  query e disabilita un'interfaccia. `systemctl-restart-crio` riavvia il
+  runtime del container sotto un piano dati attivo.
+- **Preferire il comando più specifico che risponda alla domanda.** `health` e
+  `diagnosis` riassumono il nodo in modo economico; `flow-l` scarica una tabella di flusso
   da 629.760 voci.
-- **Un CE serve traffico reale.** Si tratta di ambienti demo condivisi. Presumete che qualcuno
-  stia presentando dal sito che state analizzando.
+- **Un CE gestisce traffico attivo.** Questi sono ambienti demo condivisi. Si assuma che qualcuno
+  stia presentando dal sito che si sta eseguendo il debug.
 
 ## Cosa è documentato qui
 
-Ogni comando raggiungibile tramite la debug API nella build software in uso su questo tenant,
-ciascuno con l'output acquisito da un nodo reale e non trascritto da altre fonti.
+Ogni comando raggiungibile tramite la debug API sulla build software che questo tenant esegue,
+ciascuno con output acquisito da un nodo attivo piuttosto che trascritto da altre fonti.
 
-Il [riferimento dei comandi](./commands/) li elenca tutti con la relativa categoria, livello
-di privilegio e trasporto; i [workflow](./workflows/) li concatenano nelle sequenze che
-si usano effettivamente quando qualcosa non funziona.
+Il [riferimento ai comandi](./commands/) li elenca tutti con la loro categoria, livello di privilegi
+e trasporto; i [flussi di lavoro](./workflows/) li concatenano nelle sequenze che si
+utilizzano effettivamente quando qualcosa non funziona.
 
-Le parti della Site CLI disponibili solo sul nodo — `configure`, `configure-network`,
-`factory-reset`, `upgrade` e circa altri sessanta comandi `ExecCLI` — non sono
+Le parti della Site CLI accessibili solo sul nodo — `configure`, `configure-network`,
+`factory-reset`, `upgrade` e circa sessanta ulteriori comandi `ExecCLI` — non sono
 trattate.
 
-Sono raggiungibili solo da una sessione di console seriale, quindi nulla che le riguardi può essere
-verificato in modo programmatico, e la sintassi di comandi non verificata è proprio il difetto che questa
+Sono raggiungibili solo da una sessione di console seriale, quindi nulla di ciò che le riguarda può essere
+verificato programmaticamente, e la sintassi dei comandi non verificata è il difetto che questa
 documentazione esiste per evitare di ripetere.
