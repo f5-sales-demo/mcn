@@ -20,7 +20,10 @@ be wrong.
 """
 
 import logging
+import os
+import signal
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -190,6 +193,83 @@ def test_allow_list_contains_no_mutating_verb():
         assert not any(word in name for word in forbidden), (
             f"{name} looks mutating but is on the read-only allow-list"
         )
+
+
+# --- process teardown is bounded -------------------------------------------
+#
+# These use a real child on a real pty, because the bug they exist to catch was
+# invisible to pure-function tests. close() used to let ExitStack unwind
+# Popen.__exit__, which calls wait() with no timeout; a child that ignores
+# SIGTERM then hangs the caller forever. A completed harvest was lost that way,
+# since the catalog is written after close() returns. No network, no CE — just a
+# process that refuses to die politely.
+
+
+def test_close_returns_promptly_for_a_cooperative_child():
+    p = h.PtyProcess(["sleep", "60"])
+    started = time.monotonic()
+    p.close()
+    assert time.monotonic() - started < 5, (
+        "close() should not linger on a child that dies"
+    )
+    assert p.proc.poll() is not None, "child must be reaped"
+
+
+def test_close_kills_a_child_that_ignores_sigterm():
+    # sh -c "trap '' TERM; sleep 60" does NOT work: sh exec's the final command,
+    # replacing itself and discarding the trap, so the child dies on SIGTERM and
+    # the SIGKILL path is never exercised. Install the handler in the process that
+    # actually sleeps.
+    #
+    # The child must announce readiness. Closing immediately races interpreter
+    # startup: SIGTERM arriving before the handler is installed kills the child
+    # under the default disposition, and the SIGKILL path is never reached.
+    child = (
+        "import signal, sys, time; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "sys.stdout.write('ARMED\\n'); sys.stdout.flush(); "
+        "time.sleep(60)"
+    )
+    p = h.PtyProcess([sys.executable, "-u", "-c", child])
+    deadline = time.monotonic() + 10
+    armed = ""
+    while "ARMED" not in armed and time.monotonic() < deadline:
+        armed += os.read(p.fd, 4096).decode("utf-8", "replace")
+    assert "ARMED" in armed, "child never installed its SIGTERM handler"
+    started = time.monotonic()
+    p.close()
+    elapsed = time.monotonic() - started
+    assert p.proc.poll() is not None, "close() must reap even a SIGTERM-proof child"
+    assert elapsed < 2 * h.PtyProcess.TERMINATE_GRACE + 2, (
+        f"close() took {elapsed:.1f}s; teardown must stay bounded"
+    )
+    assert p.proc.returncode in (-signal.SIGKILL, signal.SIGKILL, 137), (
+        f"expected SIGKILL, got returncode {p.proc.returncode}"
+    )
+
+
+def test_close_is_idempotent():
+    p = h.PtyProcess(["sleep", "60"])
+    p.close()
+    p.close()  # must not raise on an already-closed pty or a reaped child
+
+
+# --- ssh argv ---------------------------------------------------------------
+
+
+def test_ssh_argv_omits_proxyjump_when_no_jump_host():
+    argv = h.ssh_argv("10.0.3.7", "", "key-path-not-read")
+    assert not any(a.startswith("ProxyJump") for a in argv)
+    assert argv[-1] == "admin@10.0.3.7"
+
+
+def test_ssh_argv_includes_proxyjump_and_user():
+    argv = h.ssh_argv(
+        "10.0.3.7", "azureuser@1.2.3.4", "key-path-not-read", user="admin"
+    )
+    assert "ProxyJump=azureuser@1.2.3.4" in argv
+    assert "BatchMode=yes" in argv
+    assert argv[-1] == "admin@10.0.3.7"
 
 
 def run_one(fn):
