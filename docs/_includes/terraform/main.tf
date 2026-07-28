@@ -1,0 +1,278 @@
+# MCN CE-HA (BGP/ECMP) — top-level wiring.
+#
+# N single-node Secure Mesh v2 CE sites, each originating the LB VIP 10.250.0.10/32
+# via eBGP (ASN 64512) to Azure Route Server (ASN 65515). Equal-cost advertisements
+# from multiple CEs program ECMP (active/active) into the hub VNet.
+#
+# Deploy-time ordering: Azure (VNet/subnets/RS/NICs/VMs) -> XC site (explicit
+# interface) -> token -> CE cloud-init boot -> CE registers -> registration
+# approval -> CE ONLINE -> xcsh_bgp + RS bgpConnection -> LB advertise.
+#
+# Approval is automated, but the deploy is inherently TWO-PHASE, not a single
+# hands-off apply: a CE's registration is named r-<uuid> and only exists after
+# the node has booted and registered. The xc-site module resolves that name with
+# the xcsh_site_registration data source and approves it with
+# xcsh_registration_approval, gated on found — so the first apply plans no
+# approval, and a re-apply once the CEs have registered creates them. The bgp/LB
+# objects can be applied before ONLINE; they converge once the CE is up.
+
+# Guard: the F5 XC tenant in the environment MUST be the one this deployment
+# belongs to.
+#
+# providers.tf already pins the xcsh endpoint to var.expected_xc_tenant, so a
+# stray XCSH_API_URL can no longer redirect the deployment. What it can still do
+# is mean the operator's TOKEN belongs to a different tenant — and the symptom of
+# that is a bare 401 from the first API call, which reads like an expired
+# credential and not like "you are pointed at the wrong tenant". This turns it
+# into a sentence that says so.
+#
+# It is not hypothetical. The MCN demo was built in f5-sales-demo; the credential
+# file later started exporting an f5-amer-ent XCSH_API_URL; subsequent applies
+# minted an f5-amer-ent token, the CE VMs re-registered there, and their
+# f5-sales-demo registrations were abandoned. Every plan in between was clean,
+# because nothing in the configuration had an opinion about the tenant (#696).
+#
+# The external program reads the environment and nothing else — no credential, no
+# network call — which is what keeps `terraform test` and CI's
+# `terraform init -backend=false` credential-free. Where XCSH_API_URL is unset the
+# program reports an empty tenant and the guard abstains.
+#
+# postcondition, not check{}: a check block only WARNS, and a warning scrolls past
+# in exactly the situation this exists to stop.
+data "external" "xc_env_tenant" {
+  program = ["${path.module}/scripts/xc-env-tenant.sh"]
+
+  lifecycle {
+    postcondition {
+      condition     = contains(["", var.expected_xc_tenant], self.result.tenant)
+      error_message = "Wrong F5 XC tenant. XCSH_API_URL in this environment names tenant '${self.result.tenant}', but this deployment belongs to '${var.expected_xc_tenant}' (state key mcn.tfstate). Source the credential file for '${var.expected_xc_tenant}', or — if you really do mean to act on '${self.result.tenant}' — say so explicitly with -var expected_xc_tenant=${self.result.tenant} and a state key of its own."
+    }
+  }
+}
+
+# Guard: the HA VIP MUST be outside every VNet CIDR, or Azure prefers the VNet
+# system route over the more-specific BGP /32. Masks the VIP to each CIDR's prefix
+# length and compares network addresses (a correct containment test for any prefix).
+check "vip_outside_vnet_cidrs" {
+  assert {
+    condition     = cidrhost(var.hub_cidr, 0) != cidrhost("${var.vip}/${split("/", var.hub_cidr)[1]}", 0)
+    error_message = "vip ${var.vip} must be OUTSIDE hub_cidr ${var.hub_cidr}."
+  }
+  assert {
+    condition     = cidrhost(var.spoke_cidr, 0) != cidrhost("${var.vip}/${split("/", var.spoke_cidr)[1]}", 0)
+    error_message = "vip ${var.vip} must be OUTSIDE spoke_cidr ${var.spoke_cidr}."
+  }
+}
+
+# Tenant-scoped, reusable site registration token. The provider now ships
+# xcsh_token with a Computed `uid` (system_metadata.uid) — the token VALUE a CE
+# feeds to VPM at registration (the resource `id` is the token NAME, not the
+# value). The spec is empty; only metadata is needed and namespace defaults to
+# system. This replaces the manual var.registration_token prerequisite (#1205).
+# The console approval step (#1206 / #1210) is likewise gone: each CE's runtime
+# registration is resolved by site name and approved in the post-registration
+# phase (see modules/xc-site/main.tf and the deploy ordering above).
+resource "xcsh_token" "ce" {
+  name        = "mcn-ce-registration"
+  namespace   = "system"
+  description = "MCN CE-HA registration token (tenant-scoped, reusable across CE sites)"
+}
+
+# Pure expansion of ce_count into the per-CE node map (hostname, site_name,
+# slo_ip, az, interface_name). Drives every for_each below.
+module "ce_topology" {
+  source = "./modules/ce-topology"
+
+  ce_count           = var.ce_count
+  region_short       = local.region_short
+  mgmt_subnet_prefix = var.mgmt_subnet_prefix
+  site_prefix        = local.site_prefix
+}
+
+# Hub: RG, VNet, four subnets, Azure Route Server.
+module "azure_hub" {
+  source = "./modules/azure-hub"
+
+  resource_group_name        = local.resource_group_name
+  location                   = var.location
+  hub_cidr                   = var.hub_cidr
+  mgmt_subnet_prefix         = var.mgmt_subnet_prefix
+  external_subnet_prefix     = var.external_subnet_prefix
+  internal_subnet_prefix     = var.internal_subnet_prefix
+  route_server_subnet_prefix = var.route_server_subnet_prefix
+  route_server_name          = local.route_server_name
+  bastion_subnet_prefix      = var.bastion_subnet_prefix
+  enable_bastion             = var.enable_bastion
+  bastion_name               = local.bastion_name
+  tags                       = local.tags
+}
+
+# One CE VM (3 NICs + identity) per node.
+module "ce_node" {
+  source   = "./modules/ce-node"
+  for_each = module.ce_topology.ce_nodes
+
+  hostname            = each.value.hostname
+  resource_group_name = module.azure_hub.resource_group_name
+  location            = module.azure_hub.location
+  zone                = each.value.az
+  vm_size             = var.ce_vm_size
+  mgmt_subnet_id      = module.azure_hub.management_subnet_id
+  external_subnet_id  = module.azure_hub.external_subnet_id
+  internal_subnet_id  = module.azure_hub.internal_subnet_id
+  mgmt_private_ip     = each.value.slo_ip
+  admin_username      = var.admin_username
+  ssh_public_key      = local.ssh_public_key
+
+  custom_data = base64encode(local.ce_cloud_init[each.key])
+
+  tags = local.tags
+}
+
+# One XC SMSv2 site + bgp object per node. The MAC is wired from the mgmt NIC so
+# a NIC recreate updates the site binding automatically.
+module "xc_site" {
+  source   = "./modules/xc-site"
+  for_each = module.ce_topology.ce_nodes
+
+  site_name      = each.value.site_name
+  hostname       = each.value.hostname
+  interface_name = each.value.interface_name
+  mgmt_nic_mac   = module.ce_node[each.key].mgmt_nic_mac
+  # Couples the site object's lifecycle to the CE VM INSTANCE (issue #674):
+  # replacing the VM replaces the site, which takes the registration bound to the
+  # destroyed instance with it. Must be virtual_machine_id, not the ARM resource
+  # id — the latter is name-derived and identical after a replacement.
+  ce_vm_instance_id    = module.ce_node[each.key].vm_instance_id
+  rs_peer_ips          = module.azure_hub.rs_peer_ips
+  ce_asn               = var.ce_asn
+  rs_asn               = var.rs_asn
+  os_version           = var.ce_os_version
+  sw_version           = var.ce_sw_version
+  enable_bgp           = var.enable_bgp
+  approve_registration = var.approve_registration
+}
+
+# The Azure side of each eBGP session (Route Server -> CE eth0/SLO IP).
+module "azure_route_server_bgp" {
+  source   = "./modules/azure-route-server-bgp"
+  for_each = module.ce_topology.ce_nodes
+
+  name            = "${each.key}-bgp"
+  route_server_id = module.azure_hub.route_server_id
+  peer_asn        = var.ce_asn
+  peer_ip         = module.ce_node[each.key].mgmt_private_ip
+}
+
+# Test client in snet-hub-internal.
+module "client_vm" {
+  source = "./modules/client-vm"
+
+  resource_group_name = module.azure_hub.resource_group_name
+  location            = module.azure_hub.location
+  subnet_id           = module.azure_hub.internal_subnet_id
+  admin_username      = var.admin_username
+  ssh_public_key      = local.ssh_public_key
+  tags                = local.tags
+}
+
+# ---------------------------------------------------------
+# F5 XC data-plane (app tier)
+# ---------------------------------------------------------
+
+# The application namespace (origin pool + VIP load balancer live here) is an
+# input, never an owned object. `multi-cloud-networking` predates this deployment
+# and outlives it, and a `resource` block would put a namespace full of other
+# people's demos on this stack's destroy list — which is how issue #637 happened.
+#
+# Issues #634 ("cannot be recreated, POST is 403") and #639 ("defaults to a
+# namespace that no longer exists") were symptoms of reading the WRONG TENANT, not
+# of a permissions or lifecycle problem: the namespace exists, in f5-sales-demo,
+# and always did. The tenant guard at the top of this file is the actual fix (#696).
+# Reading rather than owning the namespace is still correct, for the #637 reason.
+#
+# Reading it means Terraform never creates, updates or destroys it. The
+# read still gives the pool and the load balancer their apply-time ordering: they
+# take their namespace from this data source, so a missing namespace fails the
+# plan loudly rather than half-applying. `namespace` is empty because a namespace
+# object is not itself contained in a namespace (the API returns
+# `metadata.namespace: ""` for one).
+data "xcsh_namespace" "mcn" {
+  name      = var.xc_app_namespace
+  namespace = ""
+}
+
+resource "xcsh_origin_pool" "this" {
+  name        = local.origin_pool_name
+  namespace   = data.xcsh_namespace.mcn.name
+  description = "MCN reference origin pool -> ${var.origin_ip}:${var.origin_port}"
+
+  port = var.origin_port
+
+  origin_servers {
+    labels {}
+    public_ip {
+      ip = var.origin_ip
+    }
+  }
+
+  no_tls {}
+  loadbalancer_algorithm = "ROUND_ROBIN"
+  endpoint_selection     = "DISTRIBUTED"
+}
+
+resource "xcsh_http_loadbalancer" "this" {
+  name        = local.lb_name
+  namespace   = data.xcsh_namespace.mcn.name
+  description = "BGP/ECMP HA: custom VIP ${var.vip} advertised from every CE site."
+
+  domains = [var.lb_domain]
+
+  http {
+    port                 = 80
+    dns_volterra_managed = false
+  }
+
+  # Advertise the VIP on the outside network of every CE site.
+  advertise_custom {
+    dynamic "advertise_where" {
+      for_each = module.ce_topology.ce_nodes
+      content {
+        site {
+          network = "SITE_NETWORK_OUTSIDE"
+          site {
+            namespace = "system"
+            name      = advertise_where.value.site_name
+          }
+          ip = var.vip
+        }
+        use_default_port {}
+      }
+    }
+  }
+
+  default_route_pools {
+    pool {
+      namespace = data.xcsh_namespace.mcn.name
+      name      = xcsh_origin_pool.this.name
+    }
+    weight   = 1
+    priority = 1
+  }
+
+  round_robin {}
+  no_challenge {}
+  user_id_client_ip {}
+  disable_waf {}
+  disable_rate_limit {}
+  disable_api_discovery {}
+  disable_api_testing {}
+  disable_api_definition {}
+  l7_ddos_protection {}
+  service_policies_from_namespace {}
+  disable_trust_client_ip_headers {}
+  disable_malicious_user_detection {}
+  disable_malware_protection {}
+  disable_threat_mesh {}
+  default_sensitive_data_policy {}
+}
