@@ -19,6 +19,7 @@ be wrong.
   - The prompt is redrawn inside the same stream and is not a menu row.
 """
 
+import json
 import logging
 import os
 import signal
@@ -180,6 +181,51 @@ def test_an_unknown_command_is_refused():
     # The whole point: a command nobody has classified yet cannot be run.
     assert not h.may_execute("some-command-from-a-future-build")
     assert not h.may_execute("")
+
+
+def test_newer_build_read_only_commands_are_allowed():
+    # Seven commands exist on 20260703-e2c462a and not on crt-20250613-3382
+    # (issue #710). Five of them only read state, so they may be captured for the
+    # documentation.
+    for name in (
+        "collect-database-stats",
+        "iptables-lv",
+        "marker-exists-NetworkManager",
+        "marker-exists-crio",
+        "marker-exists-kubelet",
+    ):
+        assert h.may_execute(name), name
+
+
+def test_newer_build_mutating_commands_stay_refused():
+    # The other two of the seven change the node. Enumeration records them; they
+    # are documented by name and never run, on a disposable node or otherwise.
+    for name in ("systemctl-restart-NetworkManager", "systemctl-start-crio-prune"):
+        assert not h.may_execute(name), name
+
+
+def test_classification_mutating_list_agrees_with_the_allow_list():
+    # The documentation data and the harness must not disagree about which
+    # commands are safe to run. Reading the JSON rather than restating its
+    # contents is the point: adding a name to `_mutating` and to READ_ONLY at the
+    # same time fails here instead of quietly permitting execution.
+    root = Path(__file__).resolve().parent.parent
+    data = json.loads(
+        (root / "sitecli" / "command-classification.json").read_text(encoding="utf-8")
+    )
+    bucket = data["not_on_this_build"]["newer_build"]
+    mutating = bucket["_mutating"]
+
+    assert mutating, "expected a non-empty _mutating list to test against"
+    for name in mutating:
+        assert name in bucket["commands"], f"{name} is not in the bucket it annotates"
+        assert not h.may_execute(name), f"{name} is mutating but on the allow-list"
+
+    # And the converse: every non-mutating command in the bucket IS runnable, so
+    # the two files cannot drift into disagreeing about the safe subset either.
+    for name in bucket["commands"]:
+        if name not in mutating:
+            assert h.may_execute(name), f"{name} is read-only but not on the allow-list"
 
 
 def test_guard_raises_rather_than_returning_quietly():

@@ -216,6 +216,17 @@ READ_ONLY = frozenset(
         # Site CLI top level
         "health",
         "diagnosis",
+        # Present on 20260703-e2c462a and absent on crt-20250613-3382 (#710). Only
+        # the five that read state are here: `marker-exists-*` test for a file,
+        # `iptables-lv` lists rules, `collect-database-stats` reports counters. The
+        # other two of that set — `systemctl-restart-NetworkManager` and
+        # `systemctl-start-crio-prune` — are deliberately absent, and the
+        # mutating-verb tripwire below would reject them anyway.
+        "collect-database-stats",
+        "iptables-lv",
+        "marker-exists-NetworkManager",
+        "marker-exists-crio",
+        "marker-exists-kubelet",
     }
 )
 

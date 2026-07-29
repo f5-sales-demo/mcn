@@ -123,8 +123,26 @@
       "Commands that are NOT on build crt-20250613-3382. Kept because they are real,",
       "but separated so nothing here is mistaken for something a reader can run."
     ],
-    "newer_build_debug_api": {
-      "_seen_on": "crt-20260201-0179, via the vpm/debug catalog on a different tenant",
+    "newer_build": {
+      "_note": [
+        "Verified present on build 20260703-e2c462a, which is what the Azure marketplace",
+        "image ships as of 2026-07-28. Measured in the Site CLI completion menu over SSH,",
+        "on a disposable single-node Azure SMSv2 CE stood up for the purpose (mcn#710):",
+        "89 execcli commands there against 82 on crt-20250613-3382, and the difference is",
+        "exactly these seven with nothing removed.",
+        "",
+        "These were previously recorded as seen on crt-20260201-0179 via the vpm/debug",
+        "catalog on a different tenant. That sighting was never verified here, and it",
+        "cannot be reproduced on this site shape: crt-20260201-0179 fails to install on a",
+        "single-node Azure SMSv2 CE, at the voucher DaemonSet. So the build named below is",
+        "the one they were actually measured on, not the one first reported.",
+        "",
+        "site_state was PROVISIONING at capture, because the node never reached ONLINE.",
+        "Presence is still evidence; absence would not have been — and nothing was absent."
+      ],
+      "_verified_on_build": "20260703-e2c462a",
+      "_verified_date": "2026-07-28",
+      "_verified_how": "Site CLI completion menu over SSH; site_state PROVISIONING",
       "commands": [
         "collect-database-stats",
         "iptables-lv",
@@ -133,7 +151,8 @@
         "marker-exists-kubelet",
         "systemctl-restart-NetworkManager",
         "systemctl-start-crio-prune"
-      ]
+      ],
+      "_mutating": ["systemctl-restart-NetworkManager", "systemctl-start-crio-prune"]
     },
     "unverified": {
       "_note": [
