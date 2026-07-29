@@ -156,10 +156,11 @@ node.
 
 <Aside type="note" title="Seven commands exist on newer builds and not on this one">
 `collect-database-stats`, `iptables-lv`, the three `marker-exists-*` commands,
-`systemctl-restart-NetworkManager` and `systemctl-start-crio-prune` were observed through
-the debug API on build `crt-20260201-0179`. They are recorded under
-`not_on_this_build.newer_build_debug_api` in the classification so that nothing here is
-mistaken for something you can run on `crt-20250613-3382`.
+`systemctl-restart-NetworkManager` and `systemctl-start-crio-prune` are absent here and
+present on build `20260703-e2c462a`, giving 89 `execcli` commands there against 82 here.
+[Commands on newer builds](../newer-builds/) documents them. They are recorded under
+`not_on_this_build.newer_build` in the classification so that nothing here is mistaken for
+something you can run on `crt-20250613-3382`.
 
 `collect-debug-info` is a separate case: it appears in no menu and no catalog. The Site CLI
 welcome text says the CLI "allows to … collect debug information for support", so the name

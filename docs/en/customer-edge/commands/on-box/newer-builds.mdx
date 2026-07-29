@@ -1,0 +1,151 @@
+---
+title: Commands on newer builds
+description: Seven Site CLI commands that exist on a newer Customer Edge build and not on the one this fleet runs — what each one does, the output five of them produce, and why the two that restart services are documented by name only.
+sidebar:
+  order: 90
+  label: Newer builds
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The Site CLI command surface grows between builds. Seven `execcli` commands exist on a
+newer build than the one this fleet runs, so an operator reading the rest of this section
+will not find them — and someone reading F5's own newer documentation may expect them.
+
+The surface is a superset, not a rearrangement: **89** `execcli` commands on the newer
+build against **82** on this fleet's, with these seven added and nothing removed.
+
+<Aside type="caution" title="You cannot run these on this fleet">
+These were measured on build `20260703-e2c462a`, which is what the Azure marketplace image
+ships. This fleet runs `crt-20250613-3382`, where all seven are absent — `execcli` reports
+an unknown command. Everything below describes the newer build.
+</Aside>
+
+## What each one does
+
+The descriptions are the appliance's own, from the completion menu.
+
+| Command | The appliance's description |
+| --- | --- |
+| `collect-database-stats` | collect database statistics |
+| `iptables-lv` | show iptables -L -v -n |
+| `marker-exists-crio` | check if crio restart marker exists |
+| `marker-exists-kubelet` | check if kubelet restart marker exists |
+| `marker-exists-NetworkManager` | check if NetworkManager restart marker exists |
+| `systemctl-restart-NetworkManager` | restart NetworkManager service |
+| `systemctl-start-crio-prune` | start crio image prune service |
+
+Read as a set they describe one workflow rather than seven unrelated tools: three commands
+ask whether a service has been flagged for restart, and two carry out the restart or the
+prune. The marker check is the safe half of a pair whose other half is disruptive.
+
+## `marker-exists-crio`
+
+Reports whether a restart marker file exists for `crio`.
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+All three answered `missing`, meaning no restart was pending for that service.
+
+<Aside type="note" title="Read this output as a shape, not as a healthy baseline">
+`Observed 2026-07-28.` The node these were captured on never reached `ONLINE` — it was
+`PROVISIONING` after a failed software install, which is why it existed at all. `missing`
+is what the command prints when no marker is present, and that is the useful part. It is
+**not** established that a healthy node answers the same way, and nothing here says what a
+node with a pending restart prints.
+</Aside>
+
+## `iptables-lv`
+
+Runs `iptables -L -v -n` and returns it unchanged, so it is a packet-and-byte counted view
+of the node's filter tables rather than an F5 abstraction.
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+Most of what it prints is Kubernetes': the `KUBE-` chains are kube-proxy's service, nodeport
+and firewall rules, and `DOCKER-USER` belongs to the container runtime. The first line is
+worth noticing rather than skipping —
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+— because it says this view is **incomplete**. Rules in the legacy tables are not shown
+here, and the Site CLI offers no command that reads them.
+
+## `collect-database-stats`
+
+Reports on the node's `etcd`: the open-file limit, how many descriptors and connections
+`etcd` holds, and an `lsof` listing for the process.
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+The first two figures are the ones to read together — the open-file `ulimit` against the
+descriptor count — because that is the pair a support engineer asks for when `etcd` is
+suspected of exhausting its limit.
+
+## The two that are not run here
+
+`systemctl-restart-NetworkManager` and `systemctl-start-crio-prune` are documented by name
+and have no captured output.
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+Restarting `NetworkManager` interrupts the node's networking, and the prune service deletes
+container images. Both change the node, so neither was run — not even on the disposable node
+these captures came from.
+
+<Aside type="caution" title="Neither is on the read-only allow-list">
+`scripts/sitecli_ssh_harvest.py` refuses to execute either one: only names on its explicit
+read-only allow-list may run, and everything else is enumerated and never executed. A test
+asserts that these two stay off that list, so the refusal cannot be undone by accident.
+</Aside>
+
+<Aside type="note" title="What was verified, and what was only reported">
+All seven were observed in the `execcli` completion menu on build `20260703-e2c462a`, over
+SSH, on a single-node Azure Secure Mesh v2 Customer Edge deployed for the purpose.
+`Observed 2026-07-28.`
+
+They were previously recorded as seen through the [debug API](../../../access/debug-api/) on
+build `crt-20260201-0179`, on a different tenant. That was not reproduced: `crt-20260201-0179`
+does not install on this site shape — see
+[Software versions and rebuilds](../../../lifecycle/). So the build named here is the one they
+were measured on, not the one first reported, and whether these commands are reachable over
+the debug API rather than only on-box is **not** established.
+</Aside>
