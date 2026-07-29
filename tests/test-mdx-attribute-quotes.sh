@@ -61,13 +61,13 @@ printf '2. the check itself catches a planted violation\n'
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-cat > "${TMP}/bad.mdx" <<'BAD'
+cat >"${TMP}/bad.mdx" <<'BAD'
 <Aside type="caution" title="a phrase "quoted" inside the attribute">
 body
 </Aside>
 BAD
 
-cat > "${TMP}/good.mdx" <<'GOOD'
+cat >"${TMP}/good.mdx" <<'GOOD'
 <Aside type="caution" title="a phrase 'quoted' with single quotes">
 body
 </Aside>
