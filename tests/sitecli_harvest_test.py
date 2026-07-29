@@ -242,8 +242,9 @@ def test_no_allow_listed_command_has_a_capture_showing_writes():
         if hits:
             offenders.append(f"{name} (capture shows {', '.join(hits)})")
 
-    assert not offenders, "allow-listed commands whose own output proves they write: " + "; ".join(
-        offenders
+    assert not offenders, (
+        "allow-listed commands whose own output proves they write: "
+        + "; ".join(offenders)
     )
 
 
