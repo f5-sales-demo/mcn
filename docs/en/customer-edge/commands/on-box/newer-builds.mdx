@@ -35,9 +35,12 @@ The descriptions are the appliance's own, from the completion menu.
 | `systemctl-restart-NetworkManager` | restart NetworkManager service |
 | `systemctl-start-crio-prune` | start crio image prune service |
 
-Read as a set they describe one workflow rather than seven unrelated tools: three commands
-ask whether a service has been flagged for restart, and two carry out the restart or the
-prune. The marker check is the safe half of a pair whose other half is disruptive.
+Read as a set, most of them describe one workflow rather than seven unrelated tools: three
+commands ask whether a service has been flagged for restart, and two carry out the restart or
+the prune. The marker check is the safe half of a pair whose other half is disruptive.
+
+**Four of the seven only read. Three change the node** — and one of those three is not the
+one you would guess, which is the subject of its own section below.
 
 ## `marker-exists-crio`
 
@@ -101,10 +104,33 @@ worth noticing rather than skipping —
 — because it says this view is **incomplete**. Rules in the legacy tables are not shown
 here, and the Site CLI offers no command that reads them.
 
-## `collect-database-stats`
+## `collect-database-stats` writes to the node, despite its name
 
-Reports on the node's `etcd`: the open-file limit, how many descriptors and connections
-`etcd` holds, and an `lsof` listing for the process.
+This one is a trap, and the trap is the name. "collect database statistics" and the
+appliance's own description both read as observational. The command begins that way — the
+open-file limit, how many descriptors and connections `etcd` holds, an `lsof` listing, and
+`df` for the `etcd` filesystem — and then it runs a **fifteen-second `fio` random-write
+benchmark**:
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+It lays out a **250 MiB** file and wrote 10.6 MiB of random I/O in the run below, on a
+filesystem that had 3.5 GiB free. It does pre-check whether it can run safely, so it is not
+reckless — but it is **not** a read.
+
+<Aside type="danger" title="Treat this as a disruptive command on a live node">
+A random-write benchmark against the filesystem `etcd` writes its own journal to competes
+with `etcd` for exactly the resource `etcd` is most sensitive to. The output itself points at
+this — "Healthy etcd disks should have p99 < 10ms" — which is a statement about a node under
+test, not a node serving traffic. Run it when F5 support asks for it, on a node whose latency
+you are willing to disturb.
+</Aside>
 
 ```bash
 execcli collect-database-stats
@@ -113,14 +139,23 @@ execcli collect-database-stats
 ```text file=../../../../_data/sitecli-collect-database-stats.txt
 ```
 
-The first two figures are the ones to read together — the open-file `ulimit` against the
-descriptor count — because that is the pair a support engineer asks for when `etcd` is
-suspected of exhausting its limit.
+Reading it: the open-file `ulimit` against the descriptor count is the pair a support engineer
+asks for when `etcd` is suspected of exhausting its limit, and the `clat` percentiles are the
+point of the benchmark. The `util=94.00%` in the disk-stats line is how busy the device was
+**during the test** — it is not a filesystem-fullness figure, and the two are easy to confuse.
 
-## The two that are not run here
+<Aside type="note" title="How this page came to have that output at all">
+This command was mistakenly treated as read-only and run once, on the disposable node these
+captures came from — its name and description gave no hint of a benchmark, and the writes only
+became visible in its own output. The harness now refuses it, and a test scans committed
+captures for write markers and fails if such a command is on the read-only allow-list, because
+a name cannot establish that a command only reads.
+</Aside>
 
-`systemctl-restart-NetworkManager` and `systemctl-start-crio-prune` are documented by name
-and have no captured output.
+## The two that were never run
+
+`systemctl-restart-NetworkManager` and `systemctl-start-crio-prune` are documented by name and
+have no captured output.
 
 ```bash
 execcli systemctl-restart-NetworkManager
@@ -128,13 +163,13 @@ execcli systemctl-start-crio-prune
 ```
 
 Restarting `NetworkManager` interrupts the node's networking, and the prune service deletes
-container images. Both change the node, so neither was run — not even on the disposable node
-these captures came from.
+container images. Both change the node, so neither was run — not even on a disposable one.
 
-<Aside type="caution" title="Neither is on the read-only allow-list">
-`scripts/sitecli_ssh_harvest.py` refuses to execute either one: only names on its explicit
-read-only allow-list may run, and everything else is enumerated and never executed. A test
-asserts that these two stay off that list, so the refusal cannot be undone by accident.
+<Aside type="caution" title="None of the three mutating commands is on the read-only allow-list">
+`scripts/sitecli_ssh_harvest.py` refuses to execute these two and `collect-database-stats`:
+only names on its explicit read-only allow-list may run, and everything else is enumerated
+and never executed. Tests assert that all three stay off that list, so the refusal cannot be
+undone by accident.
 </Aside>
 
 <Aside type="note" title="What was verified, and what was only reported">

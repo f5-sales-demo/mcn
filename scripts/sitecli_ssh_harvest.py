@@ -217,12 +217,18 @@ READ_ONLY = frozenset(
         "health",
         "diagnosis",
         # Present on 20260703-e2c462a and absent on crt-20250613-3382 (#710). Only
-        # the five that read state are here: `marker-exists-*` test for a file,
-        # `iptables-lv` lists rules, `collect-database-stats` reports counters. The
-        # other two of that set — `systemctl-restart-NetworkManager` and
-        # `systemctl-start-crio-prune` — are deliberately absent, and the
-        # mutating-verb tripwire below would reject them anyway.
-        "collect-database-stats",
+        # the four that read state are here: `marker-exists-*` test for a file and
+        # `iptables-lv` lists rules.
+        #
+        # `collect-database-stats` is NOT here, and the reason is worth keeping.
+        # Its name and the appliance's own description ("collect database
+        # statistics") both read as observational, so it was allow-listed and run
+        # — and its output shows it runs a 15 second fio RANDOM-WRITE benchmark
+        # against the etcd filesystem, laying out a 250 MiB file. That is vifdump
+        # again: a command admitted because nobody suspected it. The lesson is
+        # that a name cannot establish that a command is read-only, so
+        # `test_no_allow_listed_command_has_a_capture_showing_writes` now checks
+        # what commands actually printed instead.
         "iptables-lv",
         "marker-exists-NetworkManager",
         "marker-exists-crio",

@@ -138,7 +138,15 @@
         "the one they were actually measured on, not the one first reported.",
         "",
         "site_state was PROVISIONING at capture, because the node never reached ONLINE.",
-        "Presence is still evidence; absence would not have been — and nothing was absent."
+        "Presence is still evidence; absence would not have been — and nothing was absent.",
+        "",
+        "_mutating lists three, and collect-database-stats is the one to know about: its",
+        "name and the appliance's own description both read as observational, but it runs a",
+        "15 second fio RANDOM-WRITE benchmark against the etcd filesystem and lays out a",
+        "250 MiB file. It was allow-listed on the strength of the name and run once on the",
+        "disposable node; only its own output revealed the writes. A name cannot establish",
+        "that a command is read-only, so a test now scans committed captures for write",
+        "markers and fails if such a command is on the harness allow-list."
       ],
       "_verified_on_build": "20260703-e2c462a",
       "_verified_date": "2026-07-28",
@@ -152,7 +160,7 @@
         "systemctl-restart-NetworkManager",
         "systemctl-start-crio-prune"
       ],
-      "_mutating": ["systemctl-restart-NetworkManager", "systemctl-start-crio-prune"]
+      "_mutating": ["collect-database-stats", "systemctl-restart-NetworkManager", "systemctl-start-crio-prune"]
     },
     "unverified": {
       "_note": [
