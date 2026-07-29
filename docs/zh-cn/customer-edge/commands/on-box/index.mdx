@@ -1,113 +1,113 @@
 ---
 title: 设备内置命令
 description: >-
-  Site CLI 自身的命令集——6 个顶级命令和 82 个 execcli 子命令——及其与调试 API 独立目录（共 34
-  条）的重叠关系，两者互不包含。说明用于执行这些命令的隐藏 execcli 命令、哪些命令有完整文档、哪些仅作列举，以及命令集的统计方式。
+  Site CLI 自身的命令集——6 个顶级命令和 82 个 execcli 子命令——以及它与调试 API 独立目录（34
+  个命令）的交叉关系，两者互不包含。介绍运行这些命令的隐藏 execcli 命令、哪些命令有完整文档、哪些仅作列举，以及命令集的测量方法。
 sidebar:
   order: 40
   label: 设备内置
 i18n:
-  sourceHash: da52a578a40b
+  sourceHash: f3baec8d1963
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-两套独立的命令集均可访问 Customer Edge，且互不包含。
+有两套独立的命令集可访问 Customer Edge，且两者互不包含。
 
-- **设备本地**：Site CLI 提供 **6 个顶级命令**和 **82 个 `execcli` 子命令**。
-- **网络远程**：[调试 API](../../access/debug-api/) 拥有独立的 **34** 条命令目录。
+- **设备本地**，Site CLI 拥有 **6 个顶级命令**和 **82 个 `execcli` 子命令**。
+- **通过网络**，[调试 API](../../access/debug-api/) 拥有独立的 **34** 个命令目录。
 
-设备本地的大部分接口没有等效的 API：整个 Vega 控制平面、Envoy 封装器、数据包捕获、kubelet 参数集、`edit-*` 文件以及辅助 root 访问对，均只能从设备本地访问。
+大多数设备本地功能没有对应的 API 等效项：整个 Vega 控制平面、Envoy 包装器、数据包捕获、kubelet 参数集、`edit-*` 文件以及辅助 root 访问对，均只能从设备本地访问。
 
-访问这些命令需要使用 [SSH](../../access/ssh/) 或[串口控制台](../../access/serial-console/)，还有一件在任何文档中都未提及的事项：
+访问这些功能需要使用 [SSH](../../access/ssh/) 或[串口控制台](../../access/serial-console/)，以及一个在任何文档中均未提及的内容：
 
 <Aside type="tip" title="execcli 是一个隐藏命令">
-`execcli` 不会出现在 Site CLI 的交互式菜单中。它以命令名称作为参数，输入 `execcli ` 后按 **Tab** 键可列出全部 82 个子命令，并附带设备自身对每个命令的单行说明。该补全菜单是某个构建版本的权威命令目录，也正是 `sitecli/exec-catalog.json` 所记录的内容。
+`execcli` 不会出现在 Site CLI 的交互式菜单中。它以命令名称作为参数，输入 `execcli ` 后按 **Tab** 键可列出全部 82 个命令，并显示设备自带的单行说明。该补全菜单是某一构建版本的权威命令目录，也是 `sitecli/exec-catalog.json` 所记录的内容。
 </Aside>
 
-## 统计方式及命令集重叠情况
+## 测量方式及命令集的交叉关系
 
-以下命令集并非从厂商文档中转录，而是通过 `scripts/sitecli_ssh_harvest.py` 从在线节点读取，并连同出处信息提交至 `sitecli/exec-catalog.json`。共进行了三次采集，涵盖三种注册状态：
+以下命令集并非从供应商文档中转录，而是通过 `scripts/sitecli_ssh_harvest.py` 从实时节点读取，并连同其来源信息提交至 `sitecli/exec-catalog.json`。共进行了三次测量，分别处于三种注册状态：
 
-| 采集时刻 | 顶级命令数 | `execcli` 子命令数 |
+| 测量时机 | 顶级命令 | `execcli` |
 | --- | --- | --- |
 | `site_state: PROVISIONING` | 6 | 82 |
 | `site_state: PROVISIONED` | 6 | 82 |
 | `site_state: ONLINE` | 6 | 82 |
 
-三次采集返回**完全相同的命令集**——名称完全一致，而不仅仅是总数相同。最后一次采集来自不同的部署环境，具有不同的站点和资源名称。因此，命令接口不随注册状态变化，某个命令的缺失是真实意义上的缺失，而非尚未提供。
+三次测量返回了**完全相同的命令集**——不仅总数相同，命令名称也完全一致；且最后一次测量来自不同的部署环境，站点和资源名称均不同。因此，命令集不会随注册状态变化，某个命令若不存在，则是真实缺失，而非尚未开放。
 
-对比调试 API 的 34 条命令，有两个数字值得区分：
+与调试 API 的 34 个命令对比，有两个数字值得区分：
 
-- **51** 个 `execcli` 子命令没有等效的 API。
-- **55** 是在整个设备本地接口范围内统计的相同数字，因为它还包括四个 `configure*` 命令——这些命令位于顶级，而非 `execcli` 之下。
+- **51** 个 `execcli` 子命令没有对应的 API 等效项。
+- **55** 是将整个设备本地命令面统计后得出的数字，因为它还包括 4 个 `configure*` 命令——这些命令位于顶级而非 `execcli` 之下。
 
-两个数字均正确；若读者重新计算其中一个并得到另一个，并非出错。本文所有数字均来源于 `sitecli/catalog.json` 和 `sitecli/exec-catalog.json`。
+两个数字均正确；若读者重新计算其中一个后得到另一个，并不说明有误。本文所有数字均源自 `sitecli/catalog.json` 和 `sitecli/exec-catalog.json`。
 
 <Aside type="caution" title="五个不存在的命令">
-`factory-reset`、`upgrade`、`reboot`、`show` 和 `clear` **不存在于**本构建版本中。这些命令是 Site CLI 合理可能具备的功能，曾基于此假设被纳入本仓库的分类一段时间，但任何枚举都未发现它们。顶级命令恰好有六个：`configure`、`configure-generic-hardware`、`configure-network`、`configure-http-proxy`、`diagnosis` 和 `health`。
+`factory-reset`、`upgrade`、`reboot`、`show` 和 `clear` **不存在于**此构建版本中。这些命令是 Site CLI 可能具备的功能，曾一度基于此假设被收录在本仓库的分类中，但所有枚举操作均未发现它们。顶级命令恰好有六个：`configure`、`configure-generic-hardware`、`configure-network`、`configure-http-proxy`、`diagnosis` 和 `health`。
 </Aside>
 
 <Aside type="caution" title="三个 API 命令不是 execcli 子命令">
-在 `execcli` 下查找以下命令将一无所获，这看起来像"命令缺失"：
+在 `execcli` 下查找这些命令会一无所获，表现为"命令缺失"：
 
-- **`health`** 和 **`diagnosis`** 是 Site CLI 的**顶级**命令。直接在 `>>>` 提示符下输入，无需 `execcli` 前缀。
-- **`dig`** 可通过调试 API 访问，但在**任何**设备本地菜单中均不存在，因此不在下方的透传列表中。它仅限 API 访问。
+- **`health`** 和 **`diagnosis`** 是 Site CLI 的**顶级**命令，请直接在 `>>>` 提示符下输入，无需添加 `execcli` 前缀。
+- **`dig`** 可通过调试 API 访问，但**两个**设备本地菜单中均未出现，因此不在下方的直通列表中，它是纯 API 命令。
 
 </Aside>
 
 ## 哪些命令有完整文档，哪些仅作列举
 
-Customer Edge 运行 Linux 及多个第三方守护进程。为这些命令编写文档会与其自身参考资料重复，并暗示 F5 对其拥有所有权，因此原则是：**为 F5 的软件编写文档，对于其他所有内容，仅记录 CE 特有的部分。**
+Customer Edge 运行 Linux 及若干第三方守护进程。为其命令编写文档会与上游参考资料重复，并暗示 F5 拥有这些软件的所有权，因此原则是：**为 F5 的软件编写文档，对其他软件仅记录 CE 特有的内容。**
 
-分为三个层级，因为"我们的"与"他们的"并非泾渭分明。该分类记录于 `sitecli/command-classification.json`。
+共分三个层级，因为"我们的"和"第三方的"并非泾渭分明。分类结果记录在 `sitecli/command-classification.json` 中。
 
 | 层级 | 处理方式 |
 | --- | --- |
-| **F5 软件** | 完整文档——用途、语法、参数、捕获的输出、关注要点。涵盖 Argo、Vega、`vpm`、`vifdump`、`configure*`、`edit-*` 命令集、kubelet 参数、root 访问。 |
-| **CE 特有解读** | 某第三方工具的输出在 CE 上具有特定含义。记录 CE 特有的解读，工具本身的语义留给上游。 |
-| **透传** | 纯粹的 Linux 或第三方工具，无 CE 特有内容。仅列出可用性并指引至上游。无说明文字。 |
+| **F5 软件** | 完整文档——用途、语法、参数、捕获的输出、关注要点。涵盖 Argo、Vega、`vpm`、`vifdump`、`configure*`、`edit-*` 集、kubelet 参数、root 访问。 |
+| **CE 特有解读** | 某个第三方工具的输出在 CE 上具有特殊含义。记录 CE 特有的解读方式，工具本身的语义留由上游文档说明。 |
+| **直通** | 标准 Linux 或第三方工具，无 CE 特有内容。仅列出其可用性并指向上游文档，不提供说明性文字。 |
 
-该区分决定了是否需要为某个命令单独创建页面，同时也避免本文档退化为劣质的手册页副本。
+该分类决定了是否需要为命令创建独立页面，也是避免本文档沦为 man 手册劣质副本的关键所在。
 
 ## F5 软件
 
 <CardGrid>
   <LinkCard
     title="Vega 控制平面"
-    description="六个 <code>vegactl</code> 命令：配置对象、自省表、跟踪缓冲区，以及哪个节点持有主角色。"
+    description="六个 <code>vegactl</code> 命令：配置对象、内省表、跟踪缓冲区，以及持有主角色的节点。"
     href="./vega/"
   />
   <LinkCard
     title="Envoy"
-    description="围绕 Envoy 管理接口的四个封装器——监听器、集群以及两个配置转储。"
+    description="围绕 Envoy 管理接口的四个包装命令——监听器、集群及两个配置转储。"
     href="./envoy/"
   />
   <LinkCard
     title="数据包捕获"
-    description="五个 <code>vifdump</code> 命令。已记录文档，但不在此处运行：它们会将捕获文件写入节点。"
+    description="五个 <code>vifdump</code> 命令。已有文档，此处不执行：它们会将捕获文件写入节点。"
     href="./packet-capture/"
   />
   <LinkCard
     title="Kubelet 参数"
-    description="读取、添加和删除自定义 kubelet 参数。需在支持指导下操作。"
+    description="读取、添加和删除自定义 kubelet 参数。由技术支持指导操作。"
     href="./kubelet/"
   />
   <LinkCard
     title="vpm 服务"
-    description="负责注册节点并运行平台容器的代理。"
+    description="负责注册节点并运行平台容器的代理程序。"
     href="./vpm/"
   />
   <LinkCard
     title="配置文件"
-    description="用于打开节点上 F5 托管文件的四个 <code>edit-*</code> 命令。"
+    description="用于在节点上打开 F5 所属文件的四个 <code>edit-*</code> 命令。"
     href="./config-files/"
   />
   <LinkCard
     title="辅助 root 访问"
-    description="创建和删除 <code>xuser</code> root 账户。需在支持指导下操作，且会留下节点修改。"
+    description="创建和删除 <code>xuser</code> root 账户。由技术支持指导操作，操作后节点状态将发生变化。"
     href="./root-access/"
   />
   <LinkCard
@@ -117,22 +117,22 @@ Customer Edge 运行 Linux 及多个第三方守护进程。为这些命令编�
   />
 </CardGrid>
 
-## 透传命令
+## 直通命令
 
-这些命令在设备上可用，但**不在此处记录文档**——它们属于操作系统和第三方守护进程，而非 F5 的软件，其自身参考资料比本页所能转述的内容更为权威。
+以下命令在设备上可用，但**本文档不作介绍**——它们属于操作系统和第三方守护进程，而非 F5 的软件，其上游参考资料远比本文能提供的更为权威。
 
 | 命令 | 上游 |
 | --- | --- |
-| `ping`、`netstat`、`lsof`、`ip`、`ip-link-show`、`nmcli`、`tracepath` | iproute2、NetworkManager |
-| `top`、`check-mem`、`sysctl`、`load-sysctl-conf`、`journalctl`、`files`、`rpm-ostree`、`chronyc-sources` | coreutils、procps、systemd、rpm-ostree、chrony |
-| `edit-etc-hosts`、`edit-sysctl-conf` | 这些文件属于操作系统 |
-| `systemctl-status-crio`、`systemctl-status-docker`、`systemctl-status-kubelet`、`systemctl-status-iscsid`、`systemctl-status-multipathd` | systemd |
-| `systemctl-restart-crio`、`systemctl-restart-docker`、`systemctl-restart-kubelet`、`systemctl-restart-iscsid`、`systemctl-restart-multipathd` | systemd——每一个此类命令都会中断节点上的工作负载 |
+| `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath` | iproute2, NetworkManager |
+| `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
+| `edit-etc-hosts`, `edit-sysctl-conf` | 这些文件属于操作系统 |
+| `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
+| `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd——每个命令都会中断节点上的工作负载 |
 
-其中有两个值得关注，即便它们没有单独的页面。`files` 执行文件操作，且只会在 `/tmp` 目录下写入。每个 `systemctl-restart-*` 命令从定义上就具有破坏性——重启 `crio` 或 `kubelet` 会中断该节点上的工作负载。
+其中两个命令虽无独立页面，但值得特别说明。`files` 执行文件操作，且只会在 `/tmp` 目录下写入。每个 `systemctl-restart-*` 命令从定义上就具有破坏性——重启 `crio` 或 `kubelet` 会中断该节点上的工作负载。
 
-<Aside type="note" title="七个命令存在于较新构建版本而非本版本">
-`collect-database-stats`、`iptables-lv`、三个 `marker-exists-*` 命令、`systemctl-restart-NetworkManager` 和 `systemctl-start-crio-prune` 是在构建版本 `crt-20260201-0179` 上通过调试 API 观察到的。它们记录在分类文件的 `not_on_this_build.newer_build_debug_api` 下，以确保此处的任何内容不会被误认为可在 `crt-20250613-3382` 上运行。
+<Aside type="note" title="七个命令存在于较新构建版本，但本构建版本中没有">
+`collect-database-stats`、`iptables-lv`、三个 `marker-exists-*` 命令、`systemctl-restart-NetworkManager` 和 `systemctl-start-crio-prune` 在本构建版本中不存在，但在构建版本 `20260703-e2c462a` 中存在，该版本共有 89 个 `execcli` 命令，而本版本有 82 个。[较新构建版本中的命令](../newer-builds/)对其进行了说明。这些命令在分类文件中以 `not_on_this_build.newer_build` 标注，以避免与可在 `crt-20250613-3382` 上运行的命令混淆。
 
-`collect-debug-info` 是一个特殊情况：它不出现在任何菜单或目录中。Site CLI 欢迎文本中提到该 CLI"允许……收集用于支持的调试信息"，因此该名称很可能是从这段文字推断而来，而非实际观察到的。它被标记为未经验证，且被刻意不作探测——在在线节点上推测性地运行未知命令，正是导致一台仍在注册中的 CE 上意外启动了 `vifdump` 数据包捕获的原因。
+`collect-debug-info` 是另一个特殊情况：它既未出现在任何菜单中，也未出现在任何目录里。Site CLI 欢迎文本称该 CLI "允许……为技术支持收集调试信息"，因此该命令名称很可能是从这段说明文字推断而来，而非实际观察所得。它被标记为未验证，且刻意未作探测——对实时节点上的未知命令进行试探性执行，曾导致一台仍在注册过程中的 CE 上意外启动了 `vifdump` 数据包捕获。
 </Aside>

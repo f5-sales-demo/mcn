@@ -39,7 +39,6 @@ while [ $# -gt 0 ]; do
 done
 
 CATALOG="${ROOT}/sitecli/catalog.json"
-EXEC_CATALOG="${ROOT}/sitecli/exec-catalog.json"
 CLASSIFICATION="${ROOT}/sitecli/command-classification.json"
 MANIFEST="${ROOT}/sitecli/capture-manifest.json"
 CAPTURE_DIR="${ROOT}/sitecli/captures"
@@ -79,13 +78,25 @@ fi
 BUILD=$(jq -r '.build' "$CATALOG")
 ALL_CMDS=$(jq -r '.commands | keys[]' "$CATALOG")
 
-# The appliance's own Site CLI is a second, larger surface: 82 commands, 55 of
-# which the vpm/debug API never exposes. Captures for those are keyed by
-# exec-catalog.json. Optional, because a checkout may predate the SSH harvest.
+# The appliance's own Site CLI is a second, larger surface: 82 commands on the
+# build this fleet runs, most of which the vpm/debug API never exposes. Captures
+# for those are keyed by exec-catalog.json. Optional, because a checkout may
+# predate the SSH harvest.
+#
+# There is one catalog per BUILD, because the surface grows between builds: a
+# glob rather than a single path, so a page may document a command that exists
+# on a build the fleet does not run (issue #710). Every such catalog carries its
+# build in `_provenance.build`, and the pages say which build they describe —
+# the gate only decides whether a documented name was ever observed somewhere,
+# not whether an operator can run it today.
 ON_BOX_CMDS=""
-if [ -f "$EXEC_CATALOG" ]; then
-  ON_BOX_CMDS=$(jq -r '((.top_level // {}) + (.execcli // {})) | keys[]' "$EXEC_CATALOG")
-fi
+for catalog in "${ROOT}"/sitecli/exec-catalog*.json; do
+  [ -f "$catalog" ] || continue
+  ON_BOX_CMDS=$(
+    printf '%s\n%s\n' "$ON_BOX_CMDS" \
+      "$(jq -r '((.top_level // {}) + (.execcli // {})) | keys[]' "$catalog")"
+  )
+done
 KNOWN_CMDS=$(printf '%s\n%s\n' "$ALL_CMDS" "$ON_BOX_CMDS" | sed '/^$/d' | sort -u)
 # Exec tier is privileged: every member either mutates the node or reads a state
 # marker. It is never executed, so it has no manifest entry and no capture.

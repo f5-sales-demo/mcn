@@ -1,29 +1,30 @@
 ---
 title: SSH
 description: >-
-  ऑपरेटर का Customer Edge एडमिन अकाउंट में SSH, जिसका लॉगिन शेल Site CLI है।
-  इसमें बताया गया है कि API का वह फ़ील्ड जो इसे सक्षम करता दिखता है वह कुछ नहीं
-  करता, sshd केवल आंतरिक पते पर क्यों जवाब देता है, Site CLI के लिए आवश्यक
-  टर्मिनल मैकेनिक्स, और एक चालू डिप्लॉयमेंट पर इसे सक्षम करने की क्या कीमत है।
+  ऑपरेटर SSH द्वारा Customer Edge के admin अकाउंट पर पहुँचना, जिसका लॉगिन शेल
+  Site CLI है। इसमें यह बताया गया है कि API का वह फ़ील्ड जो इसे सक्षम करता
+  प्रतीत होता है वह कुछ नहीं करता, sshd केवल internal address पर क्यों जवाब देता
+  है, Site CLI के लिए आवश्यक टर्मिनल मैकेनिक्स, और किसी चल रहे deployment पर इसे
+  सक्षम करने की क्या कीमत है।
 sidebar:
   order: 25
   label: SSH
 i18n:
-  sourceHash: 98f7cdca022e
+  sourceHash: 744a2d3c3c3c
   translator: machine
 ---
 
 import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-इस डिप्लॉयमेंट के एक CE से 2026-07-28 को कैप्चर किया गया। `sitecli/capture-manifest.json`
-रिकॉर्ड करता है कि कौन सा नोड है, और `scripts/capture-sitecli.sh --check` एक लाइव CE के
-विरुद्ध कमांड सरफेस को पुनः सत्यापित करता है।
+इस deployment के एक CE से 2026-07-28 को कैप्चर किया गया। `sitecli/capture-manifest.json`
+यह रिकॉर्ड करता है कि कौन सा नोड है, और `scripts/capture-sitecli.sh --check` किसी live CE के
+विरुद्ध command surface को पुनः सत्यापित करता है।
 
-SSH अप्लायंस के `admin` अकाउंट तक पहुँचता है, जिसका लॉगिन शेल Site CLI
-(`/opt/bin/vpmu`) है। यह **पूर्ण ऑन-बॉक्स कमांड सरफेस** तक पहुँचने का एकमात्र मार्ग है —
-[debug API](../debug-api/) 34 कमांड उजागर करता है, और अप्लायंस स्वयं कई और प्रदान करता है
-जो उस API पर बिल्कुल नहीं हैं।
+SSH उपकरण के `admin` अकाउंट तक पहुँचता है, जिसका लॉगिन शेल Site CLI
+(`/opt/bin/vpmu`) है। यह **पूर्ण on-box command surface** तक पहुँचने का एकमात्र मार्ग है —
+[debug API](../debug-api/) 34 commands को एक्सपोज़ करता है, और उपकरण स्वयं कई और commands
+प्रदान करता है जो उस API पर बिल्कुल नहीं हैं।
 
 ```bash
 cd terraform
@@ -31,24 +32,23 @@ SLI=$(terraform output -json ce_sli_private_ips | jq -r '.eastus01')
 ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> "admin@$SLI"
 ```
 
-उस कमांड लाइन का प्रत्येक भाग आवश्यक है, और अगले तीन खंड बताते हैं
-कि प्रत्येक एक किस विफलता को रोकता है।
+उस command line का हर हिस्सा महत्वपूर्ण है, और अगले तीन अनुभाग बताते हैं
+कि प्रत्येक किस विफलता को रोकता है।
 
-लैंड करने के लिए कोई शेल प्रॉम्प्ट नहीं है: `admin` का लॉगिन शेल **है ही** Site CLI,
-इसलिए आप उसके `>>>` प्रॉम्प्ट पर पहुँचते हैं। वहाँ `execcli <name>` के रूप में ऑन-बॉक्स
-कमांड चलाएं — देखें
-[on-box commands](../../commands/on-box/)।
+लैंड करने के लिए कोई शेल प्रॉम्प्ट नहीं है: `admin` का लॉगिन शेल **ही** Site CLI है, इसलिए आप
+उसके `>>>` प्रॉम्प्ट पर पहुँचते हैं। वहाँ on-box commands को `execcli <name>` के रूप में चलाएँ —
+[on-box commands](../../commands/on-box/) देखें।
 
-<Aside type="danger" title="आंतरिक पते को देखकर प्राप्त करें — कभी भी पिछले सत्र से कोई पता न लाएं">
-Azure प्रत्येक पुनर्निर्माण पर आंतरिक सबनेट को पुनः असाइन करता है, और नोड क्रम में नहीं। सबसे
-हालिया निर्माण के बाद `f5-xc-ce-vm-01`, `-02` और `-03` के पास क्रमशः `10.0.3.7`, `10.0.3.5` और `10.0.3.4` हैं;
-एक पिछले बिल्ड में वे पूरी तरह अलग क्रम में थे, और टेस्ट क्लाइंट का NIC उसी सबनेट में है
-और एक ऐसे पते पर रहा है जो पहले किसी CE के पास था। इसलिए याद किए गए पते से कनेक्ट करने पर
-गलत नोड पर, एक ऐसी VM पर जो CE नहीं है, या कहीं नहीं — पहुँचा जाता है — और उनमें से
-अंतिम स्थिति "SSH सक्षम नहीं है" से बिल्कुल एक जैसी दिखती है।
+<Aside type="danger" title="internal address को हमेशा देखें — किसी पिछले session की address कभी न लाएँ">
+Azure हर rebuild पर internal subnet को फिर से असाइन करता है, और नोड के क्रम में नहीं। सबसे
+हालिया build के बाद `f5-xc-ce-vm-01`, `-02` और `-03` क्रमशः `10.0.3.7`, `10.0.3.5` और `10.0.3.4`
+रखते हैं; एक पिछले build में वे पूरी तरह अलग क्रम में थे, और test client का NIC उसी subnet में है
+और उस address को रख सकता है जो पहले किसी CE के पास थी। इसलिए किसी याद की गई address से
+कनेक्ट करना गलत नोड पर, किसी ऐसे VM पर जो CE नहीं है, या कहीं नहीं — पहुँचता है, और अंतिम
+स्थिति "SSH सक्षम नहीं है" से बिल्कुल एक जैसी दिखती है।
 
-`terraform output -json ce_sli_private_ips` मैपिंग है। हाथ में स्टेट न हो तो, NIC
-नाम स्थिर है भले ही पता नहीं है:
+`terraform output -json ce_sli_private_ips` यह mapping है। State उपलब्ध न होने पर, NIC
+का नाम स्थिर रहता है भले ही address नहीं रहती:
 
 ```bash
 az network nic show -g "$(terraform output -raw resource_group_name)" \
@@ -58,71 +58,70 @@ az network nic show -g "$(terraform output -raw resource_group_name)" \
 
 </Aside>
 
-<Aside type="caution" title="केवल बूटस्ट्रैप — एक मौजूदा CE बिना पुनर्निर्माण के SSH प्राप्त नहीं कर सकता">
-cloud-init `write_files` **केवल एक बार, पहले बूट पर** चलता है। उसके बाद नोड पर
-`/etc/cloud/cloud-init.disabled` मार्कर मौजूद होता है और cloud-init दोबारा नहीं चलता।
+<Aside type="caution" title="केवल Bootstrap के समय — किसी मौजूदा CE को बिना recreate किए SSH नहीं मिल सकता">
+cloud-init `write_files` **एक बार, पहले boot पर** चलता है। इसके बाद नोड पर
+`/etc/cloud/cloud-init.disabled` मार्कर मौजूद रहता है और cloud-init फिर नहीं चलता।
 
-इसलिए किसी चल रहे CE पर in-place पथ नहीं है। `custom_data` Azure में replace-only है,
-जिसका अर्थ है कि इसे किसी मौजूदा डिप्लॉयमेंट पर अपनाने से **प्रत्येक CE VM बदल जाती है**। पहले से चल रहे
-नोड्स को ऑपरेटर SSH देना एक पुनर्निर्माण है, कोई कॉन्फ़िगरेशन परिवर्तन नहीं — और
-अगली चेतावनी यह है कि उस पुनर्निर्माण की पहले क्या कीमत थी, और अब क्यों नहीं है।
+इसलिए किसी चल रहे CE पर in-place path नहीं है। Azure में `custom_data` replace-only है,
+जिसका अर्थ है कि इसे किसी मौजूदा deployment पर अपनाने से **हर CE VM बदल जाती है**। उन
+नोड्स को ऑपरेटर SSH देना जो पहले से चल रहे हैं, एक rebuild है, configuration परिवर्तन नहीं —
+और अगली चेतावनी यह है कि उस rebuild में पहले क्या कीमत थी, और यह अब क्यों नहीं होती।
 </Aside>
 
-<Aside type="caution" title="CE VM को बदलने से पंजीकरण स्थायी रूप से फंस जाता था — यह ठीक हो गया है, और इसीलिए साइट ऑब्जेक्ट VM से जुड़ा है">
-पुनर्निर्माण की योजना बनाने से पहले जानने योग्य है, क्योंकि विफलता का स्वरूप उस युग्मन को
-स्पष्ट करता है जो आप योजना में देखेंगे।
+<Aside type="caution" title="किसी CE VM को बदलना पहले registration को स्थायी रूप से अटका देता था — यह ठीक हो गया है, और इसीलिए site object VM से जुड़ा है">
+किसी rebuild की योजना बनाने से पहले यह जानना ज़रूरी है, क्योंकि विफलता का स्वरूप उस
+coupling को समझाता है जो आप plan में देखेंगे।
 
-पहले ऐसा होता था कि नष्ट हुए नोड का पंजीकरण कंट्रोल प्लेन के अद्वितीय
-`(tenant, cluster_name, hostname)` इंडेक्स को बनाए रखता था, इसलिए प्रतिस्थापन नोड का
-पंजीकरण `UniqueSecondaryIndexViolationError` के साथ अस्वीकार कर दिया जाता था और हमेशा
-पुनः प्रयास होता रहता था। पंजीकरण को अकेले हटाना पर्याप्त नहीं था: एक शेष `StatusObject`
-फिर वर्कलोड अनुरोध के लिए `500` लौटाता था, और उस समय तक प्रत्येक नोड ने एक
-`registration-obj.yml` बना लिया था जो उसे हटाए गए पंजीकरण से बाँध रहा था, इसलिए यह
-बिना किसी स्व-पुनर्प्राप्ति के `404` पर लूप करता रहता था। पुनर्प्राप्ति में दो पूर्ण
-पुनर्निर्माण लगते थे। इस दौरान `terraform plan` **"No changes"** रिपोर्ट करता था, क्योंकि
-Terraform के दृष्टिकोण से वांछित स्थिति प्राप्त हो चुकी थी।
+पहले ऐसा होता था कि नष्ट किए गए नोड की registration control plane के unique
+`(tenant, cluster_name, hostname)` index को बनाए रखती थी, इसलिए replacement नोड की registration
+को `UniqueSecondaryIndexViolationError` के साथ अस्वीकार कर दिया जाता था और वह हमेशा retry
+करता रहता था। Registration को delete करना अपने आप में पर्याप्त नहीं था: एक बचे हुए
+`StatusObject` ने तब workload request के लिए `500` return किया, और उस समय तक प्रत्येक नोड ने
+एक `registration-obj.yml` persist कर दिया था जो उसे आपके delete किए गए registration से pin कर
+रहा था, इसलिए वह बिना self-recovery के `404` पर loop करता रहा। Recovery के लिए दो पूरे
+rebuilds लगे। इस पूरे समय `terraform plan` ने **"No changes"** रिपोर्ट किया, क्योंकि Terraform
+के दृष्टिकोण से desired state प्राप्त हो चुकी थी।
 
 [Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) बंद है,
 [PR 693](https://github.com/f5-sales-demo/mcn/pull/693) द्वारा। `modules/xc-site` अब CE
-VM इंस्टेंस को `replace_triggered_by` में नामित करता है, इसलिए VM को बदलने से साइट ऑब्जेक्ट
-बदल जाता है, और साइट को हटाने से उसके पंजीकरण भी साथ जाते हैं — प्रतिस्थापन नोड बूट होने
-से पहले इंडेक्स कुंजी मुक्त हो जाती है। तब से फ्लीट को स्क्रैच से पुनर्निर्मित किया गया है
-और तीनों साइटें बिना हस्तक्षेप के `ONLINE` आईं।
+VM instance को `replace_triggered_by` में नामित करता है, इसलिए VM को बदलने से site object
+बदलता है, और किसी site को delete करने से उसकी registrations भी जाती हैं — replacement नोड के
+boot होने से पहले index key मुक्त हो जाती है। तब से fleet को शुरू से rebuild किया गया है और
+तीनों sites बिना हस्तक्षेप के `ONLINE` हो गईं।
 
-युग्मन अवलोकनीय है न कि अनुमानित। प्रत्येक साइट एक VM *इंस्टेंस* id से बंधी है,
-और मिलान पंजीकरण `infra.instance_id` के रूप में समान मान रिपोर्ट करता है:
+यह coupling अनुमानित नहीं, बल्कि observable है। प्रत्येक site एक VM *instance* id से बाँधी
+जाती है, और matching registration वही मान `infra.instance_id` के रूप में रिपोर्ट करती है:
 
 ```bash
 cd terraform && terraform output -json ce_bound_instance_ids
 ```
 
-दोनों के बीच असहमति का अर्थ है कि एक साइट अभी भी उस नोड से बंधी है जो अब मौजूद नहीं है,
-जो वह स्थिति है जिससे एक पुनर्निर्मित CE कभी बाहर नहीं निकल सकता। पंजीकरण के हिस्से को
-पढ़ने के लिए अभी भी सीधी API कॉल की आवश्यकता है — प्रोवाइडर इश्यू
+दोनों के बीच असहमति का अर्थ है कि एक site अभी भी उस नोड से बंधी है जो अब मौजूद नहीं है,
+जो वह अवस्था है जिसमें से एक rebuilt CE कभी register नहीं हो सकता। Registration का आधा हिस्सा
+पढ़ने के लिए अभी भी एक direct API call की आवश्यकता है — provider issue
 [1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376) वही है जो
-इसे डेटा सोर्स पर डालेगा।
+इसे data source पर रखेगा।
 </Aside>
 
-## API नहीं, बल्कि cloud-init क्यों कुंजी लिखता है
+## cloud-init key क्यों लिखता है, API क्यों नहीं
 
-साइट ऑब्जेक्ट पर `admin_user_credentials.ssh_key` बिल्कुल इस काम के लिए फ़ील्ड जैसा दिखता है।
-यह स्वीकार किया जाता है, रीड-बैक में बना रहता है, और कुछ भी कॉन्फ़िगर नहीं करता। `vpm`
-नोड के स्थानीय उपयोगकर्ताओं का स्वामी है और इसे स्पर्श करने से मना करता है — नोड के अपने
-लॉग से, एक ही बूट पर तीन बार:
+site object पर `admin_user_credentials.ssh_key` बिल्कुल उसी फ़ील्ड जैसा दिखता है। यह accept
+होता है, read-back में बना रहता है, और कुछ configure नहीं करता। `vpm` नोड के local users का
+मालिक है और इसे touch करने से मना करता है — नोड के अपने log से, एक single boot में तीन बार:
 
 ```text
 vpm  users.go:165: Won't do any change for user admin (internal skip)
 ```
 
-उस एक पंक्ति से सब कुछ अनुसरण करता है। `/var/home/admin/.ssh` साइट के `ONLINE` होने से
-पहले या बाद में कभी मौजूद नहीं होता। `admin` शैडो की अंतिम-परिवर्तन तिथि इमेज बिल्ड तिथि
-पर रहती है जबकि `vesbkp` और `vesopcon` वर्तमान तिथि दिखाते हैं, क्योंकि `vpm` ने उन दोनों
-को सेट किया और `admin` को छोड़ दिया। और `vpm` किसी भी समय `ssh_key` या `authorized_keys`
-के बारे में कुछ लॉग नहीं करता।
+बाकी सब कुछ उसी एक लाइन से निकलता है। `/var/home/admin/.ssh` कभी मौजूद नहीं होता, site के
+`ONLINE` होने से पहले या बाद में। `admin` shadow last-change date image build date पर बनी रहती
+है जबकि `vesbkp` और `vesopcon` current date दिखाते हैं, क्योंकि `vpm` ने उन दोनों को set किया
+और `admin` को skip किया। और `vpm` किसी भी बिंदु पर `ssh_key` या `authorized_keys` के बारे में
+कुछ log नहीं करता।
 
-इसलिए फ़ाइल को `vpm` के बाहर लिखना होगा। `admin` uid 2202 है, नोड इमेज में बेक किया
-हुआ, इसलिए यह cloud-init चलने से पहले मौजूद होता है और `owner: admin:admin` लिखते समय
-रिज़ॉल्व होता है — कोई `runcmd` नहीं, कोई ownership fix-up नहीं:
+इसलिए file को `vpm` के बाहर लिखा जाना चाहिए। `admin` uid 2202 है, node image में baked in है,
+इसलिए यह cloud-init के चलने से पहले मौजूद होता है और `owner: admin:admin` write समय पर
+resolve होता है — कोई `runcmd` नहीं, कोई ownership fix-up नहीं:
 
 ```yaml
 - path: /var/home/admin/.ssh/authorized_keys
@@ -132,28 +131,27 @@ vpm  users.go:165: Won't do any change for user admin (internal skip)
     ${ssh_public_key}
 ```
 
-`sshd` हमेशा तैयार था। `sshd -T` `pubkeyauthentication yes` रिपोर्ट करता है, और `admin`
-नोड पर शिप होने वाली दोनों `sshd_config` फ़ाइलों में `AllowUsers` में दिखता है। कभी कुछ
-सक्षम नहीं करना था — केवल एक गायब फ़ाइल थी।
+`sshd` हमेशा से तैयार था। `sshd -T` रिपोर्ट करता है `pubkeyauthentication yes`, और `admin`
+नोड पर ship होने वाली दोनों `sshd_config` files में `AllowUsers` में दिखता है। कभी कुछ enable
+करने की ज़रूरत नहीं थी — केवल एक missing file थी।
 
-<Aside type="danger" title="admin_user_credentials को दोबारा न जोड़ें, और sshd_config को संपादित न करें">
-`admin_user_credentials` को `terraform/modules/xc-site` में वायर किया गया था और यह साक्ष्य
-एकत्र होने के बाद वापस किया गया था (#660, PR #663)। यह कोई अंतर नहीं है जिसे भरने की
-प्रतीक्षा है।
+<Aside type="danger" title="admin_user_credentials को फिर से न जोड़ें, और sshd_config को edit न करें">
+`admin_user_credentials` को `terraform/modules/xc-site` में wire किया गया था और यह evidence
+एकत्र होने के बाद revert किया गया (#660, PR #663)। यह कोई gap नहीं है जिसे भरने की प्रतीक्षा हो।
 
-`sshd_config` को पंजीकरण के दौरान बदला जाता है, इसलिए इसका कोई संपादन सबसे असुविधाजनक
-क्षण पर हटा दिया जाता है।
+`sshd_config` registration के दौरान replace होती है, इसलिए उसमें कोई edit सबसे असुविधाजनक
+क्षण पर discarded हो जाती है।
 </Aside>
 
-## यह केवल एक पते पर क्यों जवाब देता है
+## यह केवल एक address पर क्यों जवाब देता है
 
-`sshd` `0.0.0.0:22` से बाइंड करता है, लेकिन केवल **आंतरिक (SLI)** पता ही होस्ट नेटवर्क
-स्टैक पर उस तरह है जिस पर `sshd` जवाब देगा। eth0 का नाम बदलकर `a-i-eth0` है और इस पर
-कोई होस्ट IP बिल्कुल नहीं है — Argo डेटा प्लेन उस इंटरफेस का स्वामी है, और प्रबंधन/SLO
-पता जो उस पर होता, वह इसके बजाय `vhost0` पर दिखाई देता है। अन्य दो NICs अपने नामों के
-अंतर्गत होस्ट स्टैक पर रहते हैं।
+`sshd` `0.0.0.0:22` से bind करता है, लेकिन केवल **internal (SLI)** address ही host network
+stack पर इस तरह है जिस पर `sshd` जवाब देगा। eth0 का नाम बदलकर `a-i-eth0` किया गया है और
+इस पर कोई host IP नहीं है — Argo data plane उस interface का मालिक है, और management/SLO
+address जो उस पर होती, वह बजाय `vhost0` पर दिखती है। बाकी दो NICs अपने नाम से host stack पर
+बने रहते हैं।
 
-VNet के अंदर एक VM से, एक CE के विरुद्ध जाँच:
+VNet के अंदर एक VM से, एक CE के विरुद्ध probe किया गया:
 
 ```text
 management/SLO address    timed out
@@ -162,12 +160,12 @@ internal/SLI address      OPEN     SSH-2.0-OpenSSH_8.7
 an unused address         timed out    (control)
 ```
 
-इसलिए जिस पते से आप नोड को जानते हैं उसके विरुद्ध जाँच ठीक वही लौटाती है जो एक बंद
-सुरक्षा समूह लौटाता है। कुछ भी ब्लॉक नहीं है; उस पते पर कोई लिस्नर नहीं है।
+इसलिए उस address के विरुद्ध probe जिससे आप नोड को जानते हैं, बंद security group जैसा ही
+return करता है। कुछ block नहीं कर रहा; उस address पर कोई listener नहीं है।
 
-<Aside type="caution" title="यह पता लगाने के लिए गेस्ट इंटरफेस नाम न पढ़ें कि आप किस सबनेट पर हैं">
-`eth1` और `eth2` में से कौन सा आंतरिक पता रखता है, **यह इसी डिप्लॉयमेंट के नोड्स के बीच
-भिन्न होता है**। सभी तीन CEs से लाइव पढ़ा गया:
+<Aside type="caution" title="यह जानने के लिए guest interface name न पढ़ें कि आप किस subnet पर हैं">
+`eth1` और `eth2` में से कौन सा internal address रखता है **यह इसी deployment के nodes के
+बीच भिन्न होता है**। तीनों CEs से live पढ़ा गया:
 
 ```text
 f5-xc-ce-vm-01    eth1 -> external      eth2 -> internal/SLI
@@ -175,21 +173,21 @@ f5-xc-ce-vm-02    eth2 -> external      eth1 -> internal/SLI
 f5-xc-ce-vm-03    eth1 -> external      eth2 -> internal/SLI
 ```
 
-केवल दो चीजें प्रत्येक नोड पर सच हैं: `a-i-eth0` का कोई पता नहीं है, और `vhost0`
-प्रबंधन/SLO पता रखता है। बाकी किसी भी चीज के लिए, इंटरफेस नाम के बजाय
-[`ip addr`](../../commands/network/ip/) आउटपुट में पते पर मिलान करें।
+केवल दो बातें हर नोड पर निश्चित हैं: `a-i-eth0` का कोई address नहीं है, और `vhost0` management/SLO
+address रखता है। बाकी किसी भी चीज़ के लिए, interface name के बजाय
+[`ip addr`](../../commands/network/ip/) output में address से मिलान करें।
 </Aside>
 
-CE के सार्वजनिक पतों पर 22 पर भी कोई लिस्नर नहीं है, इसलिए ऊपर दी गई कमांड `-J` से
-होकर जाती है: VNet के अंदर एक ऑपरेटर VM, SLI पतों के समान सबनेट में। यह डिप्लॉयमेंट
-इस उद्देश्य के लिए एक बनाता है —
-`terraform output -raw client_vm_name` इसका नाम बताता है।
+CE public addresses पर भी 22 पर कोई listener नहीं है, इसीलिए ऊपर दिया गया command `-J` से
+जाता है: VNet के अंदर एक ऑपरेटर VM, SLI addresses के समान subnet में। यह deployment इस
+उद्देश्य के लिए एक बनाता है —
+`terraform output -raw client_vm_name` उसका नाम देता है।
 
-<Aside type="caution" title="-J आपके विकल्प जंप लेग तक नहीं पहुँचाता">
-कमांड लाइन पर दिए गए विकल्प अंतिम हॉप पर लागू होते हैं। `-J` के साथ `-o UserKnownHostsFile=/dev/null`
-इसलिए *जंप* होस्ट के लिए आपके असली `known_hosts` को पढ़ता और लिखता है, जो आश्चर्यजनक है
-यदि आप एक पुनर्निर्मित फ्लीट को उससे बाहर रखने की कोशिश कर रहे हैं। जब यह मायने रखे
-तो पहले हॉप को स्पष्ट रूप से लिखें:
+<Aside type="caution" title="-J आपके options को jump leg पर नहीं भेजता">
+command line पर दिए गए options अंतिम hop पर लागू होते हैं। `-o UserKnownHostsFile=/dev/null`
+के साथ `-J` इसलिए *jump* host के लिए आपकी real `known_hosts` को फिर भी देखता और लिखता है,
+जो कि surprise है यदि आप एक rebuilt fleet को उससे बाहर रखने की कोशिश कर रहे हैं। जब यह
+मायने रखे तो पहले hop को स्पष्ट रूप से लिखें:
 
 ```bash
 ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@<operator-vm>" \
@@ -198,51 +196,63 @@ ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@
 
 </Aside>
 
-<Aside type="caution" title="दो माप संबंधी गलतियाँ जो आत्मविश्वास से गलत उत्तर देती हैं">
-port 22 के लिए eth0, बाहरी इंटरफेस, या सार्वजनिक पते की जाँच बंद रिपोर्ट करती है,
-चाहे नोड की SSH स्थिति कुछ भी हो, इसलिए यह आपको कुछ भी नहीं बता सकती। केवल SLI
-पता जवाब देता है।
+<Aside type="caution" title="दो measurement गलतियाँ जो आत्मविश्वास से गलत उत्तर देती हैं">
+eth0, external interface, या public address को port 22 के लिए probe करना नोड की SSH state
+चाहे जो भी हो closed रिपोर्ट करता है, इसलिए यह आपको कुछ नहीं बता सकता। केवल SLI address
+जवाब देती है।
 
-और एक कॉर्पोरेट वर्कस्टेशन से जाँच एक ऐसे पोर्ट को **खुला** रिपोर्ट कर सकती है जो
-बंद है: Netskope सामान्य पोर्ट पर TCP हैंडशेक स्वयं पूरा करता है। पोर्ट 80 और 443
-वर्कस्टेशन से CE के सार्वजनिक पतों पर खुले दिखते हैं और VNet के अंदर से जाँचने पर
-बंद होते हैं। VNet में किसी VM से जाँचें।
+और एक corporate workstation से probe एक ऐसे port को **open** रिपोर्ट कर सकता है जो बंद है:
+Netskope सामान्य ports पर TCP handshake स्वयं पूरा करता है। Ports 80 और 443 workstation से
+CE public addresses पर open दिखते हैं और VNet के अंदर से probe करने पर बंद हैं। VNet में
+किसी VM से probe करें।
 </Aside>
 
-## Site CLI को टर्मिनल और कैरेज रिटर्न चाहिए
+## Site CLI को एक terminal और एक carriage return चाहिए
 
-`admin` लॉगिन शेल कोई शेल नहीं है। यह एक `go-prompt` एप्लिकेशन है, जो टर्मिनल को रॉ
-मोड में डालता है और लाइनों के बजाय कीस्ट्रोक पढ़ता है। चार परिणाम, जिनमें से प्रत्येक
-इस तरह विफल होता है जो एक अलग समस्या जैसा दिखता है:
+`admin` login shell एक शेल नहीं है। यह एक `go-prompt` application है, जो terminal को raw mode
+में डालता है और lines के बजाय keystrokes पढ़ता है। चार परिणाम, जिनमें से प्रत्येक इस तरह
+विफल होता है जो एक अलग समस्या जैसा दिखता है:
 
-| मैकेनिक | इसके बिना क्या होता है |
+| Mechanic | इसके बिना क्या होता है |
 | --- | --- |
-| एक टर्मिनल आवंटित करें (`ssh -tt`) | `go-prompt.NewStandardInputParser` से `panic: no such device or address`, जो एक क्रैश हुए अप्लायंस की तरह पढ़ा जाता है |
-| Enter के लिए लाइन फीड नहीं, कैरेज रिटर्न भेजें | लाइन कभी सबमिट नहीं होती, और सत्र बिना कुछ प्रिंट किए end-of-input पर बंद हो जाता है |
-| स्टैंडर्ड इनपुट खुला रखें | कमांड रेंडर होने से पहले कनेक्शन समाप्त हो जाता है, इसलिए एक काम करने वाली कमांड मूक लगती है |
-| कमांड टेक्स्ट और Enter बाइट **अलग-अलग** लिखें | न्यूलाइन बफर में एक शाब्दिक वर्ण के रूप में उतरती है और CLI `unknown command` का जवाब देती है, जो ऐसा पढ़ा जाता है जैसे कमांड मौजूद नहीं है |
+| Terminal allocate करें (`ssh -tt`) | `go-prompt.NewStandardInputParser` से `panic: no such device or address`, जो एक crashed appliance जैसा दिखता है |
+| Enter के लिए line feed नहीं, carriage return भेजें | Line कभी submit नहीं होती, और session end-of-input पर कुछ print किए बिना बंद हो जाता है |
+| Standard input खुला रखें | Command render होने से पहले connection समाप्त हो जाता है, इसलिए एक काम करने वाला command silent दिखता है |
+| Command text और Enter byte **अलग-अलग** लिखें | Newline buffer में literal character के रूप में आता है और CLI `unknown command` जवाब देता है, जो ऐसा पढ़ता है जैसे command मौजूद नहीं है |
 
-`ssh host 'some-command'` इसलिए काम नहीं करता: तर्क को अनदेखा किया जाता है और
-इंटरएक्टिव प्रॉम्प्ट वैसे ही शुरू होता है। इसे एक टर्मिनल के रूप में चलाएं या बिल्कुल
-नहीं। `scripts/sitecli_ssh_harvest.py` संदर्भ कार्यान्वयन है।
+इसलिए `ssh host 'some-command'` काम नहीं करता: argument ignore होता है और interactive prompt
+वैसे भी शुरू होता है। इसे एक terminal के रूप में चलाएँ या बिल्कुल नहीं।
+`scripts/sitecli_ssh_harvest.py` reference implementation है।
 
-<Aside type="caution" title="'no such device or address' पढ़ने वाला panic का अर्थ है कि प्रमाणीकरण सफल हुआ">
-`vpmu` इसे **लॉगिन के बाद** उत्सर्जित करता है, जब उसे संलग्न करने के लिए कोई टर्मिनल
-नहीं मिलता। एक क्रैश के रूप में पढ़ा जाए तो यह सबसे खराब संभावित परिणाम जैसा लगता है,
-और यह वास्तव में सफलता से पहले की अंतिम त्रुटि है। `-tt` जोड़ें और फिर से कनेक्ट करें।
+<Aside type="caution" title="'no such device or address' पढ़ने वाला panic का अर्थ है authentication सफल हुआ">
+`vpmu` इसे login के **बाद** emit करता है, जब उसे attach करने के लिए कोई terminal नहीं मिलती।
+एक crash के रूप में पढ़ने पर यह सबसे बुरे संभावित परिणाम जैसा दिखता है, और यह वास्तव में
+सफलता से पहले की अंतिम error है। `-tt` जोड़ें और फिर से connect करें।
 </Aside>
 
-<Aside type="caution" title="CE को बदलने से उसकी होस्ट कुंजी बदल जाती है">
-प्रतिस्थापन नोड उसी पते पर एक अलग होस्ट कुंजी प्रस्तुत करता है, इसलिए अगली कनेक्शन
-`REMOTE HOST IDENTIFICATION HAS CHANGED` की चेतावनी देती है और मना कर देती है। उस पते के
-लिए पुरानी प्रविष्टि साफ करें और फिर से कनेक्ट करें। चूंकि SSH देने से VM बदल जाती हैं,
-इसे अपनाने के बाद पहले कनेक्शन पर इसकी उम्मीद करें।
+<Aside type="caution" title="CE की host key दो अलग-अलग कारणों से बदलती है">
+अगला connection `REMOTE HOST IDENTIFICATION HAS CHANGED` चेतावनी देता है और मना कर देता है।
+उस address की पुरानी entry clear करें और फिर connect करें। दो चीज़ें इसे trigger करती हैं:
+
+- **नोड को बदलना।** Replacement एक अलग key उसी address पर प्रस्तुत करता है। चूँकि SSH देने
+  से VMs बदलती हैं, इसे अपनाने के बाद पहले connection पर इसकी अपेक्षा करें।
+- **In-place operating-system upgrade**, बिना किसी replacement के। `2026-07-28 को Observed`:
+  एक नोड जिसका `ce_os_version` upgrade पूरा हुआ, उसने उसी virtual machine पर, उसी address
+  पर एक नई host key प्रस्तुत की।
+
+`StrictHostKeyChecking=accept-new` किसी के साथ भी मदद नहीं करता। यह उन hosts के लिए keys
+accept करता है जिन्हें उसने कभी नहीं देखा; एक *बदली हुई* key वही है जिसे वह मना करता है।
+केवल stale entry हटाने से यह clear होता है।
+
+Addresses भी move कर सकती हैं। किसी deployment को recreate करने से उन्हें उसी subnet से
+फिर से असाइन किया जाता है, इसलिए एक CE और एक jump host addresses बदल सकते हैं — जिसके बाद
+एक stale entry केवल पुरानी नहीं बल्कि गलत machine से attached है।
 </Aside>
 
-## बैनर एक मुफ्त स्वास्थ्य जाँच है
+## Banner एक मुफ़्त health check है
 
-कुछ भी टाइप करने से पहले, लॉगिन बैनर पहले ही उन कई प्रश्नों का उत्तर दे चुका है जिन पर
-आप अन्यथा कमांड में समय बिताते। `f5-xc-ce-vm-01` से, ASCII आर्ट और सार्वजनिक IP हटाकर:
+कुछ type करने से पहले ही, login banner ने उन कई सवालों का जवाब दे दिया है जिन पर आप
+अन्यथा commands पर समय बिताते। `f5-xc-ce-vm-01` से, ASCII art और public IP हटाए गए:
 
 ```text
 UNAUTHORIZED ACCESS TO THIS DEVICE IS PROHIBITED
@@ -262,96 +272,95 @@ SLO IP: 10.0.1.4/26
 WELCOME IN SITE CLI
 ```
 
-`Registration Status` अभी भी आ रहे नोड (`PROVISIONING`) को पूर्ण हुए
-(`PROVISIONED`) से अलग करता है। `Software` वह बिल्ड स्ट्रिंग है जो तय करती है कि कौन से
-कमांड मौजूद हैं। `DNS` और `NTP` उन दो निर्भरताओं को कवर करते हैं जो पंजीकरण को पहले
-तोड़ती हैं, इसलिए जो नोड कभी ऑनलाइन नहीं आया वह आमतौर पर यहाँ पहले ही बता चुका होता है
-कि क्यों —
+`Registration Status` अभी आ रहे नोड (`PROVISIONING`) को पूरे हो चुके (`PROVISIONED`) से
+अलग करता है। `Software` वह build string है जो तय करती है कि कौन से commands मौजूद हैं।
+`DNS` और `NTP` वे दो dependencies cover करते हैं जो सबसे पहले registration तोड़ती हैं, इसलिए
+एक नोड जो कभी online नहीं आया, उसने आमतौर पर यहाँ पहले ही बता दिया होता है क्यों —
 [`chronyc-sources`](../../commands/network/chronyc-sources/) या
-[`dig`](../../commands/network/dig/) की आवश्यकता से पहले।
+[`dig`](../../commands/network/dig/) की आवश्यकता से पहले ही।
 
-## कीपेयर प्रदान करना
+## Keypair उपलब्ध कराना
 
 <Steps>
 
-1. एक कीपेयर जनरेट करें, यदि आपके पास पहले से नहीं है। RSA के बजाय Ed25519: छोटा,
-   और अप्लायंस `sshd` द्वारा स्वीकृत।
+1. यदि आपके पास पहले से एक नहीं है तो keypair generate करें। RSA के बजाय Ed25519: छोटा,
+   और appliance `sshd` द्वारा स्वीकृत।
 
    ```bash
    ssh-keygen -t ed25519 -C "ce-operator" -f ~/.ssh/id_ed25519
    ```
 
-2. डिप्लॉयमेंट को **सार्वजनिक** आधे की ओर इंगित करें। रूट मॉड्यूल फ़ाइल को एक बार पढ़ता
-   है और स्ट्रिंग को प्रत्येक नोड तक पास करता है:
+2. Deployment को **public** half पर point करें। Root module file को एक बार पढ़ता है और
+   string को हर नोड पर pass करता है:
 
    ```hcl
    # terraform/terraform.tfvars
    ssh_public_key_path = "~/.ssh/id_ed25519.pub"
    ```
 
-   `ssh_public_key` इसके बजाय सामग्री इनलाइन लेता है, जो प्लान टेस्ट उपयोग करते हैं।
-   निजी आधा आपके वर्कस्टेशन से कभी नहीं जाता।
+   `ssh_public_key` material को inline लेता है, जो plan tests उपयोग करते हैं।
+   Private half आपके workstation से कभी नहीं जाती।
 
-3. Apply करें। पहले इस पृष्ठ के शीर्ष पर दी गई चेतावनी पढ़ें — किसी मौजूदा डिप्लॉयमेंट
-   पर यह CE VMs को बदल देता है।
+3. Apply करें। पहले इस page की शुरुआत में दी गई चेतावनी पढ़ें — किसी मौजूदा deployment पर
+   यह CE VMs को बदलता है।
 
 </Steps>
 
-<Aside type="note" title="VM का अपना admin_ssh_key एक अलग चीज़ है">
-`modules/ce-node` में `azurerm_linux_virtual_machine.admin_ssh_key` Azure VM
-एडमिनिस्ट्रेटर को अधिकृत करता है, अप्लायंस `admin` अकाउंट को नहीं। यह Site CLI पहुँच
-नहीं देता, और इसका सेट होना इस बात का प्रमाण नहीं है कि CE SSH कॉन्फ़िगर है।
+<Aside type="note" title="VM का अपना admin_ssh_key अलग चीज़ है">
+`modules/ce-node` में `azurerm_linux_virtual_machine.admin_ssh_key` Azure VM administrator
+को authorize करता है, appliance `admin` account को नहीं। यह कोई Site CLI access नहीं देता,
+और इसे set रखना यह साक्ष्य नहीं है कि CE SSH configure है।
 </Aside>
 
 ## यह क्या नहीं है
 
-इनमें से प्रत्येक का परीक्षण किया गया और खारिज कर दिया गया जब मार्ग अभी भी असंभव माना
-जा रहा था। प्रत्येक इतना प्रशंसनीय है कि एक दिन खर्च करवा सके।
+इनमें से प्रत्येक को तब test किया गया और खारिज किया गया जब route को असंभव माना जाता था।
+प्रत्येक इतना प्रशंसनीय है कि एक दिन लग सकता है।
 
 | कारण नहीं | कैसे खारिज किया गया |
 | --- | --- |
-| क्रेडेंशियल केवल क्रिएट समय पर लागू होता है | `sshd` पहले बूट के लगभग 90 सेकंड में शुरू होता है, साइट ऑब्जेक्ट के अस्तित्व से पहले। `admin_user_credentials` `ReplaceSpecType` में भी मौजूद है और in-place लागू होता है। |
-| `block_all_services` | प्रबंधन पते पर port-22 बंद होना समान है चाहे सेवाएं ब्लॉक हों या नहीं। |
-| कुंजी पर पिछली न्यूलाइन | दोनों तरीकों से परीक्षण किया, कोई बदलाव नहीं। Cloud-init फिर भी इसे स्ट्रिप करता है, क्योंकि literal block अन्यथा एक दूसरी, खाली लाइन रेंडर करेगा। |
-| पिन किया हुआ, पुराना CE सॉफ्टवेयर | तीन बिल्ड पर पुनः उत्पन्न किया, जिसमें OpenSSH 9.9 चला रहा एक बिल्ड भी शामिल था। |
-| गायब `admin_password` | स्क्रैच से CE पर `ssh_key` के साथ `admin_password` सेट करने से कुछ नहीं बदला। |
+| Credential केवल create time पर लागू होता है | `sshd` पहले boot में लगभग 90 seconds में शुरू होता है, site object के exist करने से पहले। `admin_user_credentials` भी `ReplaceSpecType` में मौजूद है और in-place लागू होता है। |
+| `block_all_services` | Management address पर port-22 closure वही है चाहे services blocked हों या नहीं। |
+| Key पर trailing newline | दोनों तरह से test किया, कोई बदलाव नहीं। Cloud-init फिर भी इसे strip करता है, क्योंकि literal block अन्यथा एक दूसरी, खाली line render करती। |
+| Pinned, पुराना CE software | तीन builds पर reproduce हुआ, जिसमें OpenSSH 9.9 चलाने वाला एक build शामिल है। |
+| Missing `admin_password` | शुरू से CE पर `ssh_key` के साथ `admin_password` set करने से कुछ नहीं बदला। |
 
-<Aside type="caution" title="दो API फ़ील्ड जो discriminator जैसी दिखती हैं और हैं नहीं">
-`gc_spec.admin_ssh_key` **`f5-sales-demo` की सभी 58 साइटों पर** खाली या अनुपस्थित है —
-उन दो सहित जो `admin_user_credentials.ssh_key` सेट करती हैं। किसी काम करने वाली और न
-काम करने वाली साइट के बीच इसकी तुलना करना आपको कुछ नहीं बताता, क्योंकि यह उन साइटों के
-लिए भी खाली पढ़ता है जहाँ क्रेडेंशियल *कॉन्फ़िगर* है।
+<Aside type="caution" title="दो API fields जो discriminators जैसी दिखती हैं और नहीं हैं">
+`gc_spec.admin_ssh_key` `f5-sales-demo` की **सभी 58 sites पर** empty या absent है — उन दोनों
+सहित जो `admin_user_credentials.ssh_key` set करती हैं। एक working और एक non-working site के
+बीच इसकी तुलना करने से कुछ पता नहीं चलता, क्योंकि यह उन sites के लिए भी empty read होता है
+जहाँ credential *configured* है।
 
-`registrations_by_site` फ़ील्ड को पूरी तरह छोड़ देता है और इसके लिए `None` लौटाता है,
-जो "कॉन्फ़िगर नहीं" के बजाय "रिपोर्ट नहीं" पढ़ा जाता है।
+`registrations_by_site` field को पूरी तरह छोड़ देता है और उसके लिए `None` return करता है,
+जो "configured नहीं" के बजाय "रिपोर्ट नहीं किया" जैसा पढ़ता है।
 </Aside>
 
-## अन्य मार्ग
+## अन्य routes
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Covers 34 commands and needs the site <code>ONLINE</code>."
+    description="Scripted, VNet के अंदर किसी access की आवश्यकता नहीं, और दोहराने योग्य evidence के लिए सही विकल्प। 34 commands cover करता है और site के <code>ONLINE</code> होने की आवश्यकता है।"
     href="../debug-api/"
   />
   <LinkCard
     title="Site Console"
-    description="F5's node troubleshooting UI over an Azure Bastion tunnel. No key, no jump host, and it answers before the site registers."
+    description="Azure Bastion tunnel पर F5 का node troubleshooting UI। कोई key नहीं, कोई jump host नहीं, और site के register होने से पहले जवाब देता है।"
     href="../site-console/"
   />
   <LinkCard
     title="Serial console"
-    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
+    description="किसी ऐसे नोड के लिए जो कभी register नहीं हुआ, या जिसका कोई काम करने वाला network path नहीं है। Terminal की आवश्यकता है, या websocket harness।"
     href="../serial-console/"
   />
 </CardGrid>
 
-<Aside type="caution" title="नई बनाई गई साइट को debug API के जवाब देने से पहले लगभग आधा घंटा चाहिए">
-एक नई साइट के `ONLINE` रिपोर्ट होने के लगभग 25 से 30 मिनट तक, `vpm/debug` एंडपॉइंट
-एक BIG-IP `503` पृष्ठ लौटाते हैं जो पढ़ता है `The requested URL was rejected`। यह एक
-वेब एप्लिकेशन फ़ायरवॉल ब्लॉक, या एक रद्द टोकन जैसा दिखता है, और न तो है: साइट अभी
-रिले करने के लिए तैयार नहीं है। कुछ भी बदलने के बजाय प्रतीक्षा करें और पुनः प्रयास करें।
+<Aside type="caution" title="नई बनाई गई site को debug API के जवाब देने से पहले लगभग आधा घंटा चाहिए">
+किसी नई site के `ONLINE` रिपोर्ट करने के लगभग 25 से 30 मिनट बाद तक, `vpm/debug` endpoints
+BIG-IP `503` page return करते हैं जो `The requested URL was rejected` पढ़ता है। यह web
+application firewall block जैसा दिखता है, या एक revoked token, और यह कोई नहीं है: site अभी
+relay करने के लिए तैयार नहीं है। कुछ भी बदलने के बजाय प्रतीक्षा करें और retry करें।
 
-SSH में ऐसा कोई वार्म-अप नहीं है। यह तब जवाब देता है जब `sshd` चल रहा होता है, यही
-कारण है कि जब नोड अभी भी पंजीकरण कर रहा होता है तो यह वह मार्ग है जो काम करता है।
+SSH में ऐसा कोई warm-up नहीं है। यह जैसे ही `sshd` up होता है जवाब देता है, इसीलिए यह वह
+route है जो तब काम करता है जब एक नोड अभी register हो रहा होता है।
 </Aside>

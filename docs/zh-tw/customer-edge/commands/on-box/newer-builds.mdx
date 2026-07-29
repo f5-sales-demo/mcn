@@ -1,0 +1,146 @@
+---
+title: 較新版本的指令
+description: >-
+  七個僅存在於較新 Customer Edge 版本而非本機群所執行版本的 Site CLI
+  指令——各自的功能說明、其中五個的輸出內容，以及一個名稱顯示為收集統計資料但實際上對 etcd 執行磁碟寫入基準測試的指令。
+sidebar:
+  order: 90
+  label: 較新版本
+i18n:
+  sourceHash: 821e86812dd3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Site CLI 的指令介面會在不同版本之間增長。有七個 `execcli` 指令存在於比本機群所執行版本更新的版本中，因此閱讀本章節其餘部分的操作人員將不會找到這些指令——而閱讀 F5 本身較新文件的人則可能預期它們存在。
+
+此介面是超集而非重新排列：較新版本有 **89** 個 `execcli` 指令，本機群有 **82** 個，新增了這七個且無任何移除。
+
+<Aside type="caution" title="您無法在本機群上執行這些指令">
+這些指令是在版本 `20260703-e2c462a` 上測量的，即 Azure Marketplace 映像所附帶的版本。本機群執行的是 `crt-20250613-3382`，其中七個指令均不存在——`execcli` 會回報未知指令。以下所有內容均描述較新版本的情況。
+</Aside>
+
+## 各指令的功能
+
+以下描述來自設備本身的完成選單。
+
+| 指令 | 設備的描述 |
+| --- | --- |
+| `collect-database-stats` | 收集資料庫統計資料 |
+| `iptables-lv` | 顯示 iptables -L -v -n |
+| `marker-exists-crio` | 檢查 crio 重新啟動標記是否存在 |
+| `marker-exists-kubelet` | 檢查 kubelet 重新啟動標記是否存在 |
+| `marker-exists-NetworkManager` | 檢查 NetworkManager 重新啟動標記是否存在 |
+| `systemctl-restart-NetworkManager` | 重新啟動 NetworkManager 服務 |
+| `systemctl-start-crio-prune` | 啟動 crio 映像清除服務 |
+
+整體而言，大多數指令描述的是一個工作流程而非七個無關的工具：三個指令用於詢問某個服務是否已被標記為需要重新啟動，另外兩個則負責執行重新啟動或清除。標記檢查是一組操作中較安全的那一半，而另一半則具有破壞性。
+
+**七個指令中有四個僅執行讀取，三個會變更節點**——其中一個並非您所料想的那個，這將在下方專屬章節中說明。
+
+## `marker-exists-crio`
+
+回報 `crio` 的重新啟動標記檔案是否存在。
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+三個指令均回應 `missing`，表示該服務目前沒有待處理的重新啟動。
+
+<Aside type="note" title="將此輸出視為一種形式，而非健康基準">
+`觀察於 2026-07-28。` 擷取這些資料的節點從未達到 `ONLINE` 狀態——在軟體安裝失敗後，它的狀態為 `PROVISIONING`，這也是它存在的原因。`missing` 是當沒有標記存在時指令所印出的內容，這才是有用的部分。尚**未**確立健康節點是否會以相同方式回應，且此處也未說明有待處理重新啟動的節點會印出什麼。
+</Aside>
+
+## `iptables-lv`
+
+執行 `iptables -L -v -n` 並原封不動地回傳結果，因此它呈現的是節點過濾表的封包與位元組計數視圖，而非 F5 的抽象化呈現。
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+其中大部分內容屬於 Kubernetes：`KUBE-` 鏈是 kube-proxy 的服務、nodeport 和防火牆規則，而 `DOCKER-USER` 屬於容器執行時期。第一行值得注意而非略過——
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+——因為它表示此視圖是**不完整的**。舊版表格中的規則不會顯示於此，而 Site CLI 也未提供任何能讀取它們的指令。
+
+## `collect-database-stats` 儘管名稱如此，實際上會寫入節點
+
+這個指令是個陷阱，而陷阱就在名稱本身。「收集資料庫統計資料」以及設備本身的描述，讀起來都像是觀察性操作。指令一開始確實如此——開啟檔案限制、`etcd` 持有的描述符和連線數量、一份 `lsof` 清單，以及 `etcd` 檔案系統的 `df`——然後它會執行一個**長達十五秒的 `fio` 隨機寫入基準測試**：
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+它建立了一個 **250 MiB** 的檔案，並在下方的執行中，於一個擁有 3.5 GiB 可用空間的檔案系統上寫入了 10.6 MiB 的隨機 I/O。它確實會預先檢查是否可以安全執行，因此並非魯莽之舉——但它**並非**讀取操作。
+
+<Aside type="danger" title="在線上節點上將此視為破壞性指令">
+針對 `etcd` 寫入其日誌的檔案系統執行隨機寫入基準測試，會與 `etcd` 競爭 `etcd` 最敏感的資源。輸出本身也指出了這一點——「健康的 etcd 磁碟的 p99 應小於 10ms」——這是針對受測節點而非服務中節點的陳述。僅在 F5 支援人員要求時，於您願意承受延遲干擾的節點上執行此指令。
+</Aside>
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+解讀方式：開啟檔案的 `ulimit` 與描述符計數是支援工程師在懷疑 `etcd` 耗盡限制時所要求的配對資訊，而 `clat` 百分位數則是基準測試的重點。磁碟統計列中的 `util=94.00%` 表示裝置在**測試期間**的忙碌程度——這不是檔案系統使用率的數字，兩者很容易混淆。
+
+<Aside type="note" title="此頁面如何取得該輸出">
+此指令被誤以為是唯讀操作並執行了一次，就在這些擷取資料來源的可拋棄節點上——其名稱和描述完全未暗示基準測試的存在，而寫入行為只有在其自身的輸出中才變得可見。測試框架現在會拒絕執行它，並且有一個測試會掃描已提交的擷取資料中的寫入標記，若此類指令出現在唯讀允許清單中則會失敗，因為名稱無法確立一個指令僅執行讀取。
+</Aside>
+
+## 從未執行的兩個指令
+
+`systemctl-restart-NetworkManager` 與 `systemctl-start-crio-prune` 僅以名稱記錄，沒有擷取的輸出。
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+重新啟動 `NetworkManager` 會中斷節點的網路連線，而清除服務則會刪除容器映像。兩者都會變更節點，因此均未執行——即使是在可拋棄的節點上也未執行。
+
+<Aside type="caution" title="三個變更性指令均不在唯讀允許清單上">
+`scripts/sitecli_ssh_harvest.py` 拒絕執行這兩個指令以及 `collect-database-stats`：只有在其明確唯讀允許清單上的名稱才能執行，其他所有指令均被列舉但從不執行。測試會斷言這三個指令始終不在該清單上，因此無法意外解除此拒絕行為。
+</Aside>
+
+<Aside type="note" title="已驗證的內容，以及僅有回報的內容">
+所有七個指令均在版本 `20260703-e2c462a` 上，透過 SSH，在一個為此目的部署的單節點 Azure Secure Mesh v2 Customer Edge 上，於 `execcli` 完成選單中觀察到。`觀察於 2026-07-28。`
+
+這些指令先前被記錄為透過[除錯 API](../../../access/debug-api/) 在版本 `crt-20260201-0179` 上，於不同的租戶中看到。該情況未被重現：`crt-20260201-0179` 無法安裝於此站台形態——請參閱[軟體版本與重建](../../../lifecycle/)。因此此處所列的版本是實際測量這些指令的版本，而非首次回報的版本，且這些指令是否可透過除錯 API 而非僅限於機器本地存取，**尚未**確立。
+</Aside>

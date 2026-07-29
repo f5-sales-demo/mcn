@@ -17,11 +17,17 @@ the opposite of the obvious reading, and the cost of getting it wrong is a fleet
 Separating the phases is the whole subject. Conflated, the behaviour reads as
 self-contradictory.
 
-**On first boot, a node always upgrades.** `terraform/modules/ce-node` deploys the marketplace
-image with `version = "latest"`, and that image ships a build **older** than what the tenant
-runs. So an upgrade happens whether or not you set the field. `ce_sw_version` chooses only its
-**destination** — and leaving it empty means the server chooses, not that nothing happens. The
-same holds for `ce_os_version`.
+**On first boot, a node installs whatever `ce_sw_version` names.**
+`terraform/modules/ce-node` deploys the marketplace image with `version = "latest"`, so the
+build a node arrives with is whatever that image currently ships — and that moves over time.
+`ce_sw_version` chooses the **destination**, not whether anything happens, and leaving it
+empty means the server chooses rather than that the node stays put. The same holds for
+`ce_os_version`.
+
+Do not assume the direction of that change is upwards. `Observed 2026-07-28`, the image
+shipped a build stamped `20260703-e2c462a` — newer than this fleet's `crt-20250613-3382` and
+newer than the `crt-20260201-0179` the tenant was advertising. **Naming an older build than
+the image carries asks the node to go backwards, and that can fail** — see the failure below.
 
 **After that, nothing upgrades on its own.** F5 Distributed Cloud advertises a newer build and
 waits. An empty field is therefore not "track latest": the node stays where it first landed.
@@ -68,12 +74,48 @@ re-tested it, because the test leaves the deployment proposing a failing change 
 plan.
 </Aside>
 
+## A pinned build can fail to install, and the site is then stuck
+
+Accepting the pin is not the same as installing it. On a freshly created single-node Azure
+Secure Mesh v2 Customer Edge pinned to `crt-20260201-0179`, the site object reported the
+pinned version immediately — and the install then failed:
+
+```text
+site_state        PROVISIONING
+phase             UPGRADE_FAILED
+result            Failed
+last_installed    (empty)
+message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed ...
+                  required replicas: 1, current replicas: 0
+```
+
+`Observed 2026-07-28.` The **operating system** pin installed normally in the same run
+(`9.2024.6` to `9.2026.14`, `UPGRADE_COMPLETED`); only the software install failed. The site
+never reached `ONLINE` and `last_installed_version` stayed empty, so nothing rolled back to a
+working build — there was no earlier successful install to roll back to.
+
+**What to take from this.** A version that runs elsewhere is not evidence it installs on your
+site's shape. The same build was `ONLINE` on an Azure Customer Edge that was not Secure Mesh
+v2, and on a Secure Mesh v2 site on VMware; the combination that failed was Azure *and*
+Secure Mesh v2. Test a version change on a disposable site before applying it to a fleet,
+because a fleet that fails this way is stuck in `PROVISIONING` with recreation as the only
+exit.
+
+<Aside type="caution" title="Why this page does not tell you the cause">
+The requested build was **older** than the one the marketplace image shipped, so the node was
+asked to move backwards. That is a plausible explanation for the failure and it is **not**
+established: the two version strings (`20260703-e2c462a` and `crt-20260201-0179`) are not
+known to share a numbering scheme, and no capture from a fleet node was available to compare.
+The failure and the version ordering are observations; the link between them is not.
+</Aside>
+
 ## Which build the documentation describes
 
 The command reference on this site describes **`crt-20250613-3382`**, the build this fleet
-runs. Commands observed only on newer builds are recorded by name in
-`sitecli/command-classification.json` under `not_on_this_build`, and are not documented as
-runnable. See [on-box commands](./commands/on-box/).
+runs. Commands that exist only on newer builds are recorded in
+`sitecli/command-classification.json` under `not_on_this_build` and documented separately, as
+[commands on newer builds](./commands/on-box/newer-builds/), so nothing there reads as
+runnable here. See also [on-box commands](./commands/on-box/).
 
 <Aside type="caution" title="Do not plan a rebuild in order to reach newer commands">
 A newer build is on offer, and whether it installs cleanly on this topology is unsettled —

@@ -1,0 +1,193 @@
+---
+title: Commandes sur les versions plus récentes
+description: >-
+  Sept commandes Site CLI présentes sur une version Customer Edge plus récente
+  que celle utilisée par cette flotte — ce que chacune fait, la sortie produite
+  par cinq d'entre elles, et celle dont le nom indique qu'elle collecte des
+  statistiques alors qu'elle exécute en réalité un benchmark d'écriture disque
+  contre etcd.
+sidebar:
+  order: 90
+  label: Versions plus récentes
+i18n:
+  sourceHash: 821e86812dd3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+La surface de commandes du Site CLI s'enrichit entre les versions. Sept commandes `execcli` existent sur une
+version plus récente que celle utilisée par cette flotte, de sorte qu'un opérateur lisant le reste de cette section
+ne les trouvera pas — et quelqu'un lisant la documentation plus récente de F5 peut s'y attendre.
+
+La surface est un sur-ensemble, non un réagencement : **89** commandes `execcli` sur la version plus récente
+contre **82** sur celle de cette flotte, avec ces sept ajouts et aucune suppression.
+
+<Aside type="caution" title="Vous ne pouvez pas exécuter ces commandes sur cette flotte">
+Ces mesures ont été effectuées sur la version `20260703-e2c462a`, qui est celle fournie par l'image de la place de marché Azure.
+Cette flotte utilise `crt-20250613-3382`, où les sept commandes sont absentes — `execcli` signale
+une commande inconnue. Tout ce qui suit décrit la version plus récente.
+</Aside>
+
+## Ce que chacune fait
+
+Les descriptions sont celles de l'appliance elle-même, issues du menu de complétion.
+
+| Commande | Description de l'appliance |
+| --- | --- |
+| `collect-database-stats` | collecter les statistiques de base de données |
+| `iptables-lv` | afficher iptables -L -v -n |
+| `marker-exists-crio` | vérifier si le marqueur de redémarrage crio existe |
+| `marker-exists-kubelet` | vérifier si le marqueur de redémarrage kubelet existe |
+| `marker-exists-NetworkManager` | vérifier si le marqueur de redémarrage NetworkManager existe |
+| `systemctl-restart-NetworkManager` | redémarrer le service NetworkManager |
+| `systemctl-start-crio-prune` | démarrer le service de nettoyage des images crio |
+
+Considérées dans leur ensemble, la plupart décrivent un seul flux de travail plutôt que sept outils sans rapport :
+trois commandes vérifient si un service a été marqué pour redémarrage, et deux effectuent le redémarrage ou
+le nettoyage. La vérification du marqueur est la moitié sûre d'une paire dont l'autre moitié est perturbatrice.
+
+**Quatre des sept commandes ne font que lire. Trois modifient le nœud** — et l'une de ces trois n'est pas
+celle que vous supposeriez, ce qui fait l'objet de sa propre section ci-dessous.
+
+## `marker-exists-crio`
+
+Indique si un fichier marqueur de redémarrage existe pour `crio`.
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+Les trois ont répondu `missing`, ce qui signifie qu'aucun redémarrage n'était en attente pour ce service.
+
+<Aside type="note" title="Lisez cette sortie comme une forme, non comme une référence saine">
+`Observé le 2026-07-28.` Le nœud sur lequel ces captures ont été effectuées n'a jamais atteint l'état `ONLINE` — il était en
+`PROVISIONING` après un échec d'installation logicielle, ce qui explique son existence. `missing`
+est ce qu'imprime la commande lorsqu'aucun marqueur n'est présent, et c'est la partie utile. Il n'est
+**pas** établi qu'un nœud sain réponde de la même façon, et rien ici n'indique ce qu'imprime un
+nœud avec un redémarrage en attente.
+</Aside>
+
+## `iptables-lv`
+
+Exécute `iptables -L -v -n` et retourne le résultat tel quel, offrant ainsi une vue des tables de filtrage
+du nœud avec le comptage des paquets et des octets, plutôt qu'une abstraction F5.
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+La majeure partie de ce qui est affiché appartient à Kubernetes : les chaînes `KUBE-` correspondent aux règles de service, nodeport
+et pare-feu de kube-proxy, et `DOCKER-USER` appartient au moteur de conteneurs. La première ligne mérite
+attention plutôt qu'être ignorée —
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+— car elle indique que cette vue est **incomplète**. Les règles dans les tables legacy ne sont pas affichées
+ici, et le Site CLI ne propose aucune commande permettant de les lire.
+
+## `collect-database-stats` écrit sur le nœud, malgré son nom
+
+Celle-ci est un piège, et le piège est le nom. « Collecter les statistiques de base de données » et la
+description de l'appliance elle-même semblent toutes deux observationnelles. La commande commence ainsi —
+la limite du nombre de fichiers ouverts, le nombre de descripteurs et de connexions qu'`etcd` détient, une liste `lsof`, et
+`df` pour le système de fichiers `etcd` — puis elle exécute un **benchmark `fio` d'écriture aléatoire de quinze secondes** :
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+Elle crée un fichier de **250 Mio** et a écrit 10,6 Mio d'entrées/sorties aléatoires lors de l'exécution ci-dessous, sur un
+système de fichiers disposant de 3,5 Gio libres. Elle vérifie au préalable si elle peut s'exécuter en toute sécurité, donc elle n'est pas
+imprudente — mais ce n'est **pas** une lecture.
+
+<Aside type="danger" title="Traitez cette commande comme perturbatrice sur un nœud en production">
+Un benchmark d'écriture aléatoire contre le système de fichiers sur lequel `etcd` écrit son propre journal entre en concurrence
+avec `etcd` pour exactement la ressource à laquelle `etcd` est le plus sensible. La sortie elle-même le souligne —
+« Healthy etcd disks should have p99 &lt; 10ms » — ce qui est une affirmation concernant un nœud sous
+test, non un nœud servant du trafic. Exécutez-la lorsque le support F5 le demande, sur un nœud dont vous êtes
+prêt à perturber la latence.
+</Aside>
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+Lecture du résultat : le `ulimit` de fichiers ouverts comparé au nombre de descripteurs est la paire qu'un ingénieur support
+demande lorsqu'on soupçonne `etcd` d'épuiser sa limite, et les percentiles `clat` constituent
+l'intérêt du benchmark. Le `util=94.00%` dans la ligne de statistiques disque indique l'occupation du périphérique
+**pendant le test** — ce n'est pas un indicateur de taux de remplissage du système de fichiers, et les deux sont faciles à confondre.
+
+<Aside type="note" title="Comment cette page en est venue à disposer de cette sortie">
+Cette commande a été traitée par erreur comme une commande en lecture seule et exécutée une fois, sur le nœud jetable dont proviennent ces
+captures — son nom et sa description ne donnaient aucun indice d'un benchmark, et les écritures n'ont été
+visibles que dans sa propre sortie. Le harnais la refuse désormais, et un test analyse les captures validées
+à la recherche de marqueurs d'écriture et échoue si une telle commande figure dans la liste d'autorisation en lecture seule, car
+un nom ne peut pas établir qu'une commande ne fait que lire.
+</Aside>
+
+## Les deux qui n'ont jamais été exécutées
+
+`systemctl-restart-NetworkManager` et `systemctl-start-crio-prune` sont documentées par leur nom et
+ne disposent d'aucune sortie capturée.
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+Le redémarrage de `NetworkManager` interrompt la connectivité réseau du nœud, et le service de nettoyage supprime
+les images de conteneurs. Ces deux commandes modifient le nœud, donc aucune n'a été exécutée — même pas sur un nœud jetable.
+
+<Aside type="caution" title="Aucune des trois commandes mutantes ne figure dans la liste d'autorisation en lecture seule">
+`scripts/sitecli_ssh_harvest.py` refuse d'exécuter ces deux commandes ainsi que `collect-database-stats` :
+seuls les noms figurant dans sa liste d'autorisation explicite en lecture seule peuvent être exécutés, et tout le reste est énuméré
+mais jamais exécuté. Les tests vérifient que les trois restent absentes de cette liste, de sorte que le refus ne peut pas être
+annulé par accident.
+</Aside>
+
+<Aside type="note" title="Ce qui a été vérifié, et ce qui a seulement été rapporté">
+Les sept commandes ont été observées dans le menu de complétion d'`execcli` sur la version `20260703-e2c462a`, via
+SSH, sur un Customer Edge Azure Secure Mesh v2 à nœud unique déployé à cet effet.
+`Observé le 2026-07-28.`
+
+Elles avaient été précédemment enregistrées comme vues via l'[API de débogage](../../../access/debug-api/) sur
+la version `crt-20260201-0179`, sur un tenant différent. Cela n'a pas été reproduit : `crt-20260201-0179`
+ne s'installe pas sur cette forme de site — voir
+[Versions logicielles et reconstructions](../../../lifecycle/). Donc la version mentionnée ici est celle sur laquelle elles ont été
+mesurées, non celle où elles ont été signalées pour la première fois, et la question de savoir si ces commandes sont accessibles via
+l'API de débogage plutôt que seulement en local sur la machine n'est **pas** établie.
+</Aside>

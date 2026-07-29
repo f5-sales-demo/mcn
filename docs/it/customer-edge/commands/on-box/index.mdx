@@ -1,42 +1,42 @@
 ---
 title: Comandi on-box
 description: >-
-  Il set di comandi proprio della Site CLI — 6 comandi di primo livello e 82
-  sottocomandi execcli — e come si sovrappone al catalogo separato di 34 comandi
-  della debug API, senza che nessuno contenga l'altro. Spiega il comando
-  nascosto execcli che li esegue, quali comandi sono documentati integralmente e
-  quali sono solo elencati, e come è stato misurato il set.
+  Il set di comandi propri della Site CLI — 6 comandi di primo livello e 82
+  sottocomandi execcli — e come si sovrappone al catalogo separato di 34
+  dell'API di debug, senza che l'uno contenga l'altro. Spiega il comando execcli
+  nascosto che li esegue, quali comandi sono documentati per intero e quali sono
+  solo elencati, e come è stato misurato il set.
 sidebar:
   order: 40
   label: On-box
 i18n:
-  sourceHash: da52a578a40b
+  sourceHash: f3baec8d1963
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Due set di comandi separati raggiungono un Customer Edge, e nessuno contiene l'altro.
+Due set di comandi separati raggiungono un Customer Edge, e nessuno dei due contiene l'altro.
 
-- **Sul dispositivo**, la Site CLI ha **6 comandi di primo livello** e **82 sottocomandi `execcli`**.
-- **Attraverso la rete**, la [debug API](../../access/debug-api/) ha un proprio catalogo di **34**.
+- **Sul dispositivo**, la Site CLI dispone di **6 comandi di primo livello** e **82 sottocomandi `execcli`**.
+- **Tramite rete**, la [debug API](../../access/debug-api/) ha un proprio catalogo di **34**.
 
 La maggior parte della superficie on-box non ha un equivalente API: l'intero piano di controllo Vega, i wrapper Envoy, la cattura dei pacchetti, il set di parametri kubelet, i file `edit-*` e la coppia ausiliaria di accesso root sono raggiungibili solo dal dispositivo.
 
 Per accedervi è necessario [SSH](../../access/ssh/) o la
-[console seriale](../../access/serial-console/), e una cosa che non è documentata in nessun luogo:
+[console seriale](../../access/serial-console/), e una cosa che non è documentata da nessuna parte:
 
 <Aside type="tip" title="execcli è un comando nascosto">
 `execcli` non appare nel menu interattivo della Site CLI. Accetta un nome di comando come
-argomento, e digitando `execcli ` seguito da **Tab** vengono elencati tutti gli 82 con la
-descrizione su una riga propria dell'appliance per ciascuno. Quel menu di completamento è il
-catalogo autorevole per una build, ed è ciò che `sitecli/exec-catalog.json` registra.
+argomento e digitando `execcli ` seguito da **Tab** vengono elencati tutti gli 82 con la
+descrizione di una riga fornita dall'appliance stessa per ciascuno. Quel menu di completamento
+è il catalogo autorevole per una build ed è ciò che `sitecli/exec-catalog.json` registra.
 </Aside>
 
-## Come è stato misurato e come i set si sovrappongono
+## Come è stato misurato e come si sovrappongono i set
 
-Il set sottostante non è trascritto da un documento del fornitore. È stato letto da nodi live con
+Il set riportato di seguito non è trascritto da un documento del fornitore. È stato letto da nodi attivi con
 `scripts/sitecli_ssh_harvest.py` e salvato in `sitecli/exec-catalog.json` con la relativa provenienza. Tre esecuzioni, in tre stati di registrazione:
 
 | Misurato in | Primo livello | `execcli` |
@@ -45,53 +45,53 @@ Il set sottostante non è trascritto da un documento del fornitore. È stato let
 | `site_state: PROVISIONED` | 6 | 82 |
 | `site_state: ONLINE` | 6 | 82 |
 
-Tutte e tre hanno restituito **set identici** — gli stessi nomi, non solo gli stessi totali, e l'ultima era un deployment diverso con nomi di sito e risorse diversi. Quindi la superficie dei comandi non cambia con lo stato di registrazione, e un comando assente è genuinamente assente piuttosto che non ancora offerto.
+Tutte e tre hanno restituito **set identici** — gli stessi nomi, non semplicemente gli stessi totali, e l'ultima era un deployment diverso con nomi di sito e risorse differenti. Pertanto la superficie dei comandi non cambia con lo stato di registrazione, e un comando assente è genuinamente assente piuttosto che non ancora disponibile.
 
-Rispetto ai 34 della debug API, ciò fornisce due cifre da tenere distinte:
+Rispetto ai 34 dell'API di debug, si ottengono due valori da tenere distinti:
 
 - **51** sottocomandi `execcli` non hanno un equivalente API.
-- **55** è la stessa cifra contata sull'intera superficie on-box, perché include anche
+- **55** è lo stesso valore conteggiato sull'intera superficie on-box, perché include anche
   i quattro comandi `configure*`, che si trovano al primo livello anziché sotto `execcli`.
 
-Entrambe sono corrette; un lettore che ricalcola una e trova l'altra non ha commesso un errore.
-Ogni cifra qui deriva da `sitecli/catalog.json` e `sitecli/exec-catalog.json`.
+Entrambi sono corretti; un lettore che ricalcola uno e trova l'altro non ha commesso un errore.
+Ogni valore qui deriva da `sitecli/catalog.json` e `sitecli/exec-catalog.json`.
 
 <Aside type="caution" title="Cinque comandi che non esistono">
 `factory-reset`, `upgrade`, `reboot`, `show` e `clear` **non** sono presenti in questa build. Sono
 il tipo di comandi che una Site CLI potrebbe plausibilmente avere, sono stati inclusi nella
-classificazione di questo repository per un certo periodo su tale presupposto, e nessuna
+classificazione di questo repository per un certo periodo in base a tale ipotesi, e nessuna
 enumerazione li ha trovati. Il primo livello ha esattamente sei voci: `configure`,
 `configure-generic-hardware`, `configure-network`,
 `configure-http-proxy`, `diagnosis` e `health`.
 </Aside>
 
 <Aside type="caution" title="Tre comandi API non sono sottocomandi execcli">
-Cercarli sotto `execcli` non trova nulla, il che si legge come "il comando è mancante":
+Cercare questi sotto `execcli` non restituisce nulla, il che si legge come "il comando è mancante":
 
-- **`health`** e **`diagnosis`** sono comandi Site CLI **di primo livello**. Digitarli al prompt `>>>`
-  direttamente, senza il prefisso `execcli`.
-- **`dig`** è raggiungibile attraverso la debug API e non appare in **nessuno** dei menu on-box, quindi è
-  assente dall'elenco passthrough sottostante. È solo API.
+- **`health`** e **`diagnosis`** sono comandi Site CLI di **primo livello**. Digitarli direttamente al prompt `>>>`
+  senza alcun prefisso `execcli`.
+- **`dig`** è raggiungibile tramite la debug API e non appare in **nessuno** dei menu on-box, quindi è
+  assente dall'elenco passthrough riportato di seguito. È solo API.
 
 </Aside>
 
 ## Cosa è documentato e cosa è solo elencato
 
-Un Customer Edge esegue Linux e una serie di daemon di terze parti. Documentare i loro comandi
-duplicherebbero i riferimenti propri e implicherebbe che F5 li possiede, quindi la regola è: **documentare
-il software di F5, e per tutto il resto documentare solo ciò che è specifico di un CE.**
+Un Customer Edge esegue Linux e diversi demoni di terze parti. Documentare i loro comandi
+duplicherebbe i loro riferimenti e implicherebbe che F5 ne sia proprietaria, quindi la regola è:
+**documentare il software F5, e per tutto il resto documentare solo ciò che è specifico di un CE.**
 
-Tre livelli, perché "nostro" e "altrui" non è una distinzione netta. La distinzione è registrata in
+Tre livelli, perché "nostro" e "altrui" non è una divisione netta. La divisione è registrata in
 `sitecli/command-classification.json`.
 
 | Livello | Trattamento |
 | --- | --- |
 | **Software F5** | Documentazione completa — scopo, sintassi, argomenti, output acquisito, cosa cercare. Argo, Vega, `vpm`, `vifdump`, `configure*`, il set `edit-*`, parametri kubelet, accesso root. |
-| **Interpretazione specifica del CE** | Uno strumento di terze parti il cui output ha un significato particolare su un CE. La lettura specifica del CE è documentata e la semantica propria dello strumento è lasciata all'upstream. |
-| **Passthrough** | Linux semplice o terze parti senza nulla di specifico del CE da aggiungere. Elencato come disponibile, con un puntatore all'upstream. Nessun testo descrittivo. |
+| **Interpretazione specifica per CE** | Uno strumento di terze parti il cui output ha un significato particolare su un CE. Viene documentata la lettura specifica per CE e la semantica propria dello strumento viene lasciata a monte. |
+| **Passthrough** | Linux puro o terze parti senza nulla di specifico per CE da segnalare. Elencato come disponibile, con un puntatore a monte. Nessun testo descrittivo. |
 
 Questa distinzione determina se una pagina esiste o meno, ed è ciò che impedisce a questa
-documentazione di diventare una copia peggiore delle pagine man.
+documentazione di degradarsi in una copia peggiore delle pagine man.
 
 ## Software F5
 
@@ -140,10 +140,11 @@ documentazione di diventare una copia peggiore delle pagine man.
 
 ## Passthrough
 
-Disponibile sul dispositivo e **non documentato qui** — si tratta del sistema operativo e dei daemon
-di terze parti, non del software di F5, e i loro riferimenti propri sono migliori di qualsiasi cosa questa pagina potrebbe riformulare.
+Disponibili sul dispositivo e **non documentati qui** — si tratta del sistema operativo e dei
+demoni di terze parti, non del software F5, e i loro riferimenti propri sono migliori di qualsiasi
+cosa questa pagina potrebbe riformulare.
 
-| Comandi | Upstream |
+| Comandi | A monte |
 | --- | --- |
 | `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath` | iproute2, NetworkManager |
 | `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
@@ -151,14 +152,22 @@ di terze parti, non del software di F5, e i loro riferimenti propri sono miglior
 | `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
 | `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — ognuno di questi interrompe i workload sul nodo |
 
-Due di questi vale la pena conoscere anche se non hanno una pagina dedicata. `files` esegue operazioni sui file e scriverà solo sotto `/tmp`. E ogni `systemctl-restart-*` è per definizione dirompente — riavviare `crio` o `kubelet` interrompe i workload su quel nodo.
+Due di questi vale la pena conoscere anche se non hanno una pagina dedicata. `files` esegue
+operazioni sui file e scrive solo sotto `/tmp`. E ogni `systemctl-restart-*` è
+per definizione distruttivo — riavviare `crio` o `kubelet` interrompe i workload su quel nodo.
 
-<Aside type="note" title="Sette comandi esistono nelle build più recenti e non in questa">
+<Aside type="note" title="Sette comandi esistono su build più recenti e non su questa">
 `collect-database-stats`, `iptables-lv`, i tre comandi `marker-exists-*`,
-`systemctl-restart-NetworkManager` e `systemctl-start-crio-prune` sono stati osservati attraverso
-la debug API sulla build `crt-20260201-0179`. Sono registrati sotto
-`not_on_this_build.newer_build_debug_api` nella classificazione in modo che nulla qui venga
-scambiato per qualcosa che si può eseguire su `crt-20250613-3382`.
+`systemctl-restart-NetworkManager` e `systemctl-start-crio-prune` sono assenti qui e
+presenti nella build `20260703-e2c462a`, che quindi ha 89 comandi `execcli` rispetto agli 82 qui presenti.
+[Comandi su build più recenti](../newer-builds/) li documenta. Sono registrati sotto
+`not_on_this_build.newer_build` nella classificazione in modo che nulla qui venga scambiato per
+qualcosa che è possibile eseguire su `crt-20250613-3382`.
 
-`collect-debug-info` è un caso separato: non appare in nessun menu né catalogo. Il testo di benvenuto della Site CLI afferma che la CLI "consente di … raccogliere informazioni di debug per il supporto", quindi il nome è stato molto probabilmente derivato da quel testo anziché osservato. È contrassegnato come non verificato e deliberatamente non sondato — eseguire speculativamente un comando sconosciuto su un nodo live è il modo in cui una cattura di pacchetti `vifdump` è stata avviata su un CE ancora in fase di registrazione.
+`collect-debug-info` è un caso a parte: non appare in nessun menu né in nessun catalogo. Il testo di
+benvenuto della Site CLI afferma che la CLI "consente di… raccogliere informazioni di debug per il supporto",
+quindi il nome è stato molto probabilmente derivato da quella dicitura piuttosto che osservato. È
+contrassegnato come non verificato e deliberatamente non testato — eseguire speculativamente un comando
+sconosciuto su un nodo attivo è il modo in cui una cattura di pacchetti `vifdump` è stata avviata su
+un CE che stava ancora registrandosi.
 </Aside>

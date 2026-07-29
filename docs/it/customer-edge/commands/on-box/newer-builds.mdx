@@ -1,0 +1,200 @@
+---
+title: Comandi nelle build più recenti
+description: >-
+  Sette comandi Site CLI presenti in una build di Customer Edge più recente
+  rispetto a quella eseguita da questa flotta — cosa fa ciascuno, l'output
+  prodotto da cinque di essi, e quello il cui nome afferma di raccogliere
+  statistiche mentre in realtà esegue un benchmark di scrittura su disco contro
+  etcd.
+sidebar:
+  order: 90
+  label: Build più recenti
+i18n:
+  sourceHash: 821e86812dd3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+La superficie dei comandi Site CLI cresce tra le build. Sette comandi `execcli` esistono in una
+build più recente rispetto a quella eseguita da questa flotta, quindi un operatore che legge il
+resto di questa sezione non li troverà — e chi legge la documentazione più recente di F5 potrebbe
+aspettarseli.
+
+La superficie è un sovrainsieme, non un riarrangiamento: **89** comandi `execcli` nella build più
+recente contro **82** in quella di questa flotta, con questi sette aggiunti e nulla rimosso.
+
+<Aside type="caution" title="Non è possibile eseguirli su questa flotta">
+Questi sono stati misurati sulla build `20260703-e2c462a`, che è quella fornita dall'immagine del marketplace Azure.
+Questa flotta esegue `crt-20250613-3382`, dove tutti e sette sono assenti — `execcli` segnala
+un comando sconosciuto. Tutto ciò che segue descrive la build più recente.
+</Aside>
+
+## Cosa fa ciascuno
+
+Le descrizioni sono quelle dell'appliance stessa, tratte dal menu di completamento.
+
+| Comando | Descrizione dell'appliance |
+| --- | --- |
+| `collect-database-stats` | raccoglie statistiche del database |
+| `iptables-lv` | mostra iptables -L -v -n |
+| `marker-exists-crio` | verifica se esiste il marker di riavvio di crio |
+| `marker-exists-kubelet` | verifica se esiste il marker di riavvio di kubelet |
+| `marker-exists-NetworkManager` | verifica se esiste il marker di riavvio di NetworkManager |
+| `systemctl-restart-NetworkManager` | riavvia il servizio NetworkManager |
+| `systemctl-start-crio-prune` | avvia il servizio di pulizia immagini crio |
+
+Letti come insieme, la maggior parte di essi descrive un unico flusso di lavoro piuttosto che
+sette strumenti non correlati: tre comandi verificano se un servizio è stato contrassegnato per
+il riavvio, e due eseguono il riavvio o la pulizia. La verifica del marker è la metà sicura
+di una coppia il cui altra metà è distruttiva.
+
+**Quattro dei sette eseguono solo letture. Tre modificano il nodo** — e uno di questi tre non è
+quello che ci si aspetterebbe, il che è l'oggetto della sua sezione dedicata di seguito.
+
+## `marker-exists-crio`
+
+Indica se esiste un file marker di riavvio per `crio`.
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+Tutti e tre hanno risposto `missing`, il che significa che non era in attesa alcun riavvio
+per quel servizio.
+
+<Aside type="note" title="Leggere questo output come una forma, non come una baseline di salute">
+`Osservato il 28-07-2026.` Il nodo da cui sono stati acquisiti non ha mai raggiunto lo stato `ONLINE` — era
+in `PROVISIONING` dopo un'installazione software fallita, che è il motivo per cui esisteva. `missing`
+è ciò che il comando stampa quando non è presente alcun marker, e questa è la parte utile. **Non**
+è stabilito che un nodo sano risponda nello stesso modo, e nulla qui indica cosa stampa un
+nodo con un riavvio in attesa.
+</Aside>
+
+## `iptables-lv`
+
+Esegue `iptables -L -v -n` e restituisce l'output invariato, quindi offre una vista con contatori
+di pacchetti e byte delle tabelle di filtro del nodo, piuttosto che un'astrazione F5.
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+La maggior parte di ciò che stampa appartiene a Kubernetes: le catene `KUBE-` sono le regole di
+kube-proxy per i servizi, i nodeport e il firewall, mentre `DOCKER-USER` appartiene al container
+runtime. La prima riga merita attenzione anziché essere ignorata —
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+— perché indica che questa vista è **incompleta**. Le regole nelle tabelle legacy non sono
+mostrate qui, e la Site CLI non offre alcun comando che le legga.
+
+## `collect-database-stats` scrive sul nodo, nonostante il suo nome
+
+Questo è una trappola, e la trappola è il nome. "raccoglie statistiche del database" e la
+descrizione dell'appliance stessa si leggono entrambe come osservazionali. Il comando inizia
+così — il limite di file aperti, quanti descrittori e connessioni possiede `etcd`, un elenco
+`lsof` e `df` per il filesystem di `etcd` — per poi eseguire un **benchmark `fio` di scrittura
+casuale della durata di quindici secondi**:
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+Dispone un file da **250 MiB** e ha scritto 10,6 MiB di I/O casuale nell'esecuzione seguente,
+su un filesystem che aveva 3,5 GiB liberi. Verifica preventivamente se può essere eseguito in
+modo sicuro, quindi non è avventato — ma **non** è una lettura.
+
+<Aside type="danger" title="Trattare questo come un comando distruttivo su un nodo in produzione">
+Un benchmark di scrittura casuale contro il filesystem su cui `etcd` scrive il proprio journal
+compete con `etcd` esattamente per la risorsa a cui `etcd` è più sensibile. L'output stesso lo
+indica — "Healthy etcd disks should have p99 < 10ms" — il che è un'affermazione su un nodo
+sottoposto a test, non su un nodo che serve traffico. Eseguirlo solo quando il supporto F5 lo
+richiede, su un nodo di cui si è disposti a tollerare una perturbazione della latenza.
+</Aside>
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+Lettura dell'output: la coppia `ulimit` dei file aperti e il conteggio dei descrittori è quella
+che un ingegnere del supporto richiede quando si sospetta che `etcd` stia esaurendo il suo
+limite, mentre le percentuali `clat` sono il punto centrale del benchmark. Il valore `util=94.00%`
+nella riga delle statistiche del disco indica quanto era occupato il dispositivo **durante il test**
+— non è una misura del riempimento del filesystem, e i due valori si confondono facilmente.
+
+<Aside type="note" title="Come questa pagina è arrivata ad avere quell'output">
+Questo comando è stato erroneamente trattato come di sola lettura ed eseguito una volta,
+sul nodo usa-e-getta da cui provengono queste acquisizioni — il suo nome e la sua descrizione
+non davano alcun indizio di un benchmark, e le scritture sono diventate visibili solo nel suo
+stesso output. Il sistema di acquisizione ora lo rifiuta, e un test analizza le acquisizioni
+consolidate alla ricerca di indicatori di scrittura e fallisce se un tale comando è nell'elenco
+consentito di sola lettura, perché un nome non può stabilire che un comando esegua solo letture.
+</Aside>
+
+## I due che non sono mai stati eseguiti
+
+`systemctl-restart-NetworkManager` e `systemctl-start-crio-prune` sono documentati per nome e
+non hanno output acquisito.
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+Il riavvio di `NetworkManager` interrompe la rete del nodo, e il servizio di pulizia elimina
+le immagini dei container. Entrambi modificano il nodo, quindi nessuno dei due è stato
+eseguito — nemmeno su uno usa-e-getta.
+
+<Aside type="caution" title="Nessuno dei tre comandi mutanti è nell'elenco consentito di sola lettura">
+`scripts/sitecli_ssh_harvest.py` si rifiuta di eseguire questi due e `collect-database-stats`:
+solo i nomi presenti nel suo elenco esplicito di sola lettura possono essere eseguiti, e tutto
+il resto viene enumerato e mai eseguito. I test verificano che tutti e tre rimangano fuori da
+quell'elenco, in modo che il rifiuto non possa essere annullato per errore.
+</Aside>
+
+<Aside type="note" title="Cosa è stato verificato e cosa è stato solo segnalato">
+Tutti e sette sono stati osservati nel menu di completamento di `execcli` sulla build `20260703-e2c462a`,
+via SSH, su un singolo nodo Azure Secure Mesh v2 Customer Edge distribuito a tale scopo.
+`Osservato il 28-07-2026.`
+
+Erano stati precedentemente registrati come osservati tramite la [debug API](../../../access/debug-api/) sulla
+build `crt-20260201-0179`, su un tenant differente. Ciò non è stato riprodotto: `crt-20260201-0179`
+non si installa su questa forma di sito — vedere
+[Versioni software e ricostruzioni](../../../lifecycle/). Quindi la build indicata qui è quella su cui
+sono stati misurati, non quella in cui sono stati segnalati per la prima volta, e se questi comandi
+siano raggiungibili tramite la debug API anziché solo sull'appliance **non** è stabilito.
+</Aside>
