@@ -154,7 +154,7 @@ ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@
 
 因此 `ssh host 'some-command'` 无法工作：参数被忽略，交互式提示符照常启动。必须作为终端来驱动，否则无从操作。`scripts/sitecli_ssh_harvest.py` 是参考实现。
 
-<Aside type="caution" title="提示"无此设备或地址"的 panic 意味着认证已成功">
+<Aside type="caution" title="提示‘无此设备或地址’的 panic 意味着认证已成功">
 `vpmu` 在登录**之后**找不到可附加的终端时才会发出此错误。将其理解为崩溃时，看起来是最糟糕的结果，而实际上它是距离成功最近的一步报错。添加 `-tt` 后重新连接。
 </Aside>
 
