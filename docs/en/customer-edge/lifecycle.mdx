@@ -1,6 +1,6 @@
 ---
 title: Software versions and rebuilds
-description: What ce_sw_version and ce_os_version do and do not do on a Customer Edge — why the node upgrades itself whether or not you set them, why leaving them empty does not get you the newest build, and why changing either one is a fleet rebuild you plan rather than an edit Terraform can apply.
+description: What ce_sw_version and ce_os_version do and do not do on a Customer Edge — why leaving them empty gets you the newest build rather than none, why Terraform cannot change a version but the API can, and why a version pair that fails to install is a disk limit rather than an unsupported build.
 sidebar:
   order: 50
   label: Versions and rebuilds
@@ -9,8 +9,9 @@ sidebar:
 import { Aside } from "@astrojs/starlight/components";
 
 Two Terraform variables set a Customer Edge's software: `ce_os_version` for the operating
-system and `ce_sw_version` for the F5 Distributed Cloud build. Both behave in ways that are
-the opposite of the obvious reading, and the cost of getting it wrong is a fleet rebuild.
+system and `ce_sw_version` for the F5 Distributed Cloud build. Both behave in ways that are the
+opposite of the obvious reading — an empty field gets you the newest build rather than none,
+and a version that installs on one node can fail on an identical one with a smaller disk.
 
 ## What the version fields do, in two phases
 
@@ -26,11 +27,24 @@ empty means the server chooses rather than that the node stays put. The same hol
 
 Do not assume the direction of that change is upwards. `Observed 2026-07-28`, the image
 shipped a build stamped `20260703-e2c462a` — newer than this fleet's `crt-20250613-3382` and
-newer than the `crt-20260201-0179` the tenant was advertising. **Naming an older build than
-the image carries asks the node to go backwards, and that can fail** — see the failure below.
+newer than the `crt-20260201-0179` the tenant was advertising. Naming an older build than the
+image carries asks the node to move backwards, and that is routine: this fleet was created
+that way and is running.
 
-**After that, nothing upgrades on its own.** F5 Distributed Cloud advertises a newer build and
-waits. An empty field is therefore not "track latest": the node stays where it first landed.
+**Leaving a version field empty is the riskiest choice, not the neutral one.** At create the
+server does not leave an empty field alone — it fills it with the **newest advertised**
+version and installs that. A site created with both fields unset came back pinned to
+`crt-20260201-0179` and OS `9.2026.14`, the two versions the tenant was advertising, and the
+install then failed. `Observed 2026-07-29`.
+
+There are two consequences. Empty means "give me the newest", so an unpinned deployment is the
+one most likely to meet the disk limit described below. And you cannot isolate one field by
+leaving the other empty, because the server fills it — set both, deliberately, or accept the
+newest of each.
+
+**After first boot, nothing upgrades on its own.** F5 Distributed Cloud advertises a newer
+build and waits. That is where "the node stays where it landed" holds — after the create, not
+during it.
 
 Both phases are visible on the site object. `Observed 2026-07-28`, this fleet:
 
@@ -42,20 +56,67 @@ operating_system_status.available_version    9.2026.14
 while the nodes run `crt-20250613-3382` and OS `9.2024.6`. A newer build is on offer and has
 not been taken — the steady state, not a stalled upgrade.
 
-## Changing a version needs a rebuild, and Terraform will not do it for you
+## Terraform cannot change a version. The API can
 
-`ce_os_version` and `ce_sw_version` are both **create-time only**, and the failure mode is
-worse than a rejected apply. In order:
+These are two separate facts, and conflating them produces the wrong plan.
 
-1. You change the value and apply. Terraform proposes an in-place update.
-2. The API **rejects** it — `[BAD_REQUEST] Invalid request parameters`.
-3. That rejected request still clears the field on the server, and the provider's read does
-   not report it. Terraform's state now disagrees with the live object.
-4. Every subsequent plan proposes **the same failing change**, indefinitely.
+**Terraform cannot.** `ce_os_version` and `ce_sw_version` are effectively create-time only.
+Change either and apply, and the API rejects the update with
+`[BAD_REQUEST] Invalid request parameters`. `Observed 2026-07-29` on disposable sites, in all
+three directions — pinning **forward** to a newer build, pinning **backward** to an older one,
+and **un-pinning** by clearing both fields. Forward is not a special case.
 
-So Terraform does not fall back to replacing the site. It gets stuck, and it stays stuck
-until you replace the site and its CE virtual machine deliberately. Moving a fleet to a
-different version is a **rebuild you plan**, not an edit you apply.
+**The API can.** F5 Distributed Cloud exposes a dedicated upgrade action per site, which
+starts the change in place — no rebuild, and no Terraform involvement:
+
+```bash
+# software build
+curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/json' \
+  --data '{"version": "<software-version>"}' \
+  "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_sw"
+
+# operating system
+curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/json' \
+  --data '{"version": "<os-version>"}' \
+  "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_os"
+```
+
+`Observed 2026-07-29`: the software call returned `200`, the site moved to `UPGRADING` with
+`deployment_state.phase` `UPGRADE_IN_PROGRESS`, and the site object's requested version changed
+to the one posted. Omitting the field returns `400` with `version empty in the request`, which
+is how the field name was confirmed.
+
+**Budget hours, not minutes, and do not panic at a failure.** On a default-disk node the
+upgrade to `crt-20260201-0179` ran for roughly an hour, reported `UPGRADE_FAILED` with
+`result` `Failed` part-way through, and then **completed successfully** on the new build. The
+platform retries.
+
+That has a direct consequence for anyone watching an upgrade, or scripting one: a `Failed`
+result is a state to wait through, not a verdict. Treating the first one as final reports a
+failure for an upgrade that is going to succeed.
+
+Note the group in that path: these live under **`config`**, not `operate`. The same paths under
+`operate` return `404 API Group could not be determined`, which is a routing message and not a
+statement that no upgrade exists — a distinction that cost this project a wrong conclusion.
+
+<Aside type="caution" title="Upgrading through the API puts Terraform out of step">
+The pinned variables still say what they always said, so the live site now runs a version the
+configuration does not name. Terraform will not reconcile it — it cannot, since the update is
+rejected — so treat an API upgrade as a deliberate step out of Terraform's control, and update
+the pins to match at the next rebuild.
+</Aside>
+
+<Aside type="note" title="Two earlier claims on this page, withdrawn">
+This page previously said that moving a CE to a different version means recreating the site,
+and that a rejected update "still clears the field on the server" leaving Terraform proposing a
+failing change forever. Neither survived testing: the API upgrade above starts a version change in
+place, without recreating anything, and after each of the three rejected updates the site's spec
+was **unchanged** and the site stayed `ONLINE`. The divergence described in provider issue `xcsh#1387` was observed on a
+site that had already auto-upgraded past its pin, so it may need that divergent starting state;
+it was not reproduced on a site whose spec matched its pin.
+</Aside>
+
+If you do rebuild rather than upgrade, every consequence of replacing a CE applies.
 
 <Aside type="danger" title="Every consequence of replacing a CE applies">
 New SSH host keys, reassigned internal addresses, a fresh registration, and the loss of
@@ -64,14 +125,6 @@ configured that way survives — but it runs *only* on first boot, so anything a
 node by hand is gone.
 
 Read [SSH](./access/ssh/) on the host-key and address consequences before scheduling this.
-</Aside>
-
-<Aside type="note" title="Reported, not reproduced here">
-The rejection and the state divergence are recorded in this repository's own
-`terraform/modules/xc-site` comments — verified there in both directions, pinning and
-unpinning, on all three sites — and against provider issue `xcsh#1387`. This page has not
-re-tested it, because the test leaves the deployment proposing a failing change on every
-plan.
 </Aside>
 
 ## A pinned build can fail to install, and the site is then stuck
@@ -89,24 +142,59 @@ message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed
                   required replicas: 1, current replicas: 0
 ```
 
-`Observed 2026-07-28.` The **operating system** pin installed normally in the same run
-(`9.2024.6` to `9.2026.14`, `UPGRADE_COMPLETED`); only the software install failed. The site
-never reached `ONLINE` and `last_installed_version` stayed empty, so nothing rolled back to a
-working build — there was no earlier successful install to roll back to.
+`Observed 2026-07-28`, and reproduced twice on 2026-07-29. The **operating system** pin
+installed normally in the same run (`9.2024.6` to `9.2026.14`, `UPGRADE_COMPLETED`); only the
+software install failed. The site never reached `ONLINE` and `last_installed_version` stayed
+empty, so nothing rolled back to a working build — there was no earlier successful install to
+roll back to.
 
-**What to take from this.** A version that runs elsewhere is not evidence it installs on your
-site's shape. The same build was `ONLINE` on an Azure Customer Edge that was not Secure Mesh
-v2, and on a Secure Mesh v2 site on VMware; the combination that failed was Azure *and*
-Secure Mesh v2. Test a version change on a disposable site before applying it to a fleet,
-because a fleet that fails this way is stuck in `PROVISIONING` with recreation as the only
-exit.
+**A failure at create is not like a failure during an upgrade.** The two behave differently and
+the difference matters when you are deciding whether to intervene:
 
-<Aside type="caution" title="Why this page does not tell you the cause">
-The requested build was **older** than the one the marketplace image shipped, so the node was
-asked to move backwards. That is a plausible explanation for the failure and it is **not**
-established: the two version strings (`20260703-e2c462a` and `crt-20260201-0179`) are not
-known to share a numbering scheme, and no capture from a fleet node was available to compare.
-The failure and the version ordering are observations; the link between them is not.
+| | at create | during an API upgrade |
+| --- | --- | --- |
+| does it retry into success? | no — held `Failed` for over 20 minutes, twice | yes — recovered and completed |
+| where does the node end up? | `PROVISIONING`, nothing installed | `ONLINE` on a working build |
+| is it safe to leave? | no, it is stuck | yes, it recovers or keeps the old build |
+
+So a create-time failure needs a rebuild with a bigger disk, while an upgrade reporting `Failed`
+should be left alone for a while before you conclude anything.
+
+**The cause is the disk, not the version.** A matrix of software × OS × disk size, one
+disposable single-node Azure Secure Mesh v2 site per combination and all from the same
+marketplace image, isolates it. `Observed 2026-07-29`:
+
+| software | OS `9.2024.6` (what the image ships) | OS `9.2026.14` |
+| --- | --- | --- |
+| `crt-20250613-3382` | installs | installs |
+| `crt-20260201-0179` | installs | **fails**, on the default disk only |
+
+Neither version fails on its own. Only the pair does, and only on the image's default disk —
+the same pair installs on **40 GB**, **48 GB** and **64 GB**. So the newer build is not
+unsupported here, and neither is the newer operating system; together they need more disk than
+a default node has.
+
+`terraform/modules/ce-node` sets no `disk_size_gb`, so every Customer Edge gets the image
+default. **To run the newer pair, enlarge the disk.** 40 GB is the smallest size tested that
+works; the exact boundary lies between the image default and 40 GB and was not narrowed
+further.
+
+Test a version change on a disposable site before applying it to a fleet regardless: a fleet
+that fails this way is stuck in `PROVISIONING` with recreation as the only exit.
+
+<Aside type="caution" title="Do not size the disk from F5's pre-upgrade figure">
+F5's documented pre-upgrade check wants 20 GB plus 15% of capacity free. That check gates
+**Console UI** upgrades and explicitly does not apply to API-initiated ones, so it does not
+describe this failure. Applied here it predicts a 48 GB disk would fail; 48 GB installs
+cleanly. Size from the measured outcomes above, not from that formula.
+</Aside>
+
+<Aside type="note" title="An explanation this page previously offered, now withdrawn">
+An earlier version of this page suggested the install failed because the requested build was
+older than the image's — that the node was asked to move backwards. That is wrong. This
+fleet was created from the same image with a pin **thirteen months** older and installed
+normally, and `crt-20260201-0179` installs too when the OS pin is left at the image's own
+version. Direction of travel is not the variable.
 </Aside>
 
 ## Which build the documentation describes
@@ -117,13 +205,12 @@ runs. Commands that exist only on newer builds are recorded in
 [commands on newer builds](./commands/on-box/newer-builds/), so nothing there reads as
 runnable here. See also [on-box commands](./commands/on-box/).
 
-<Aside type="caution" title="Do not plan a rebuild in order to reach newer commands">
-A newer build is on offer, and whether it installs cleanly on this topology is unsettled —
-there is a report of it failing on single-node Azure Secure Mesh v2 sites, and a
-counter-observation of a Customer Edge running it. Neither can be confirmed from what remains
-in the tenant.
+<Aside type="note" title="Reaching a newer build is settled, and it is not a rebuild">
+This was previously recorded here as unsettled, with a report of the newer build failing on
+single-node Azure Secure Mesh v2 sites against a counter-observation of one running it. Both
+are now explained: the newer build installs on that topology, and the failure was the disk
+limit above, not the build.
 
-Since a version change is a fleet rebuild, that uncertainty is the operative fact: treat
-reaching those commands as unproven, not as a scheduled upgrade. The evidence and the
-experiment that would settle it are recorded in `sitecli/README.md`.
+So there are two routes and neither requires a rebuild for its own sake — create a node with a
+large enough disk, or upgrade an existing one through the API. `Observed 2026-07-29`.
 </Aside>
