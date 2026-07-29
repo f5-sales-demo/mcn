@@ -1,0 +1,130 @@
+Current ulimit for open files:
+1024
+
+Open FDs for etcd process:
+75
+
+Open connections count (via ss):
+67
+
+List open connections with lsof (if available):
+COMMAND  PID        USER   FD      TYPE             DEVICE SIZE/OFF     NODE NAME
+etcd    1928 etcd-member  cwd       DIR                8,2      253 58407916 /
+etcd    1928 etcd-member  rtd       DIR                8,2      253 58407916 /
+etcd    1928 etcd-member  txt       REG                8,2 38599880   572772 /var/opt/bin/etcd
+etcd    1928 etcd-member  mem-W     REG                8,2 16801792 34215070 /var/lib/etcd/member/snap/db
+etcd    1928 etcd-member  mem       REG                8,2  2549360 52803074 /usr/lib64/libc.so.6
+etcd    1928 etcd-member  mem       REG                8,2    70520 56912400 /usr/lib64/libresolv.so.2
+etcd    1928 etcd-member  mem       REG                8,2   938792 54504007 /usr/lib64/ld-linux-x86-64.so.2
+etcd    1928 etcd-member    0r      CHR                1,3      0t0        4 /dev/null
+etcd    1928 etcd-member    1u     unix 0xffff892ac0fb0500      0t0    31273 type=STREAM (CONNECTED)
+etcd    1928 etcd-member    2u     unix 0xffff892ac0fb0500      0t0    31273 type=STREAM (CONNECTED)
+etcd    1928 etcd-member    3u     IPv6              19211      0t0      TCP *:23801 (LISTEN)
+etcd    1928 etcd-member    4u  a_inode               0,15        0     2078 [eventpoll:3,5,6,11,13,14,15,17,18,19,29,36,42,44,45,46,47,48,50,52,55,56,57,62,63,65,66,67,68,69,73,74...]
+etcd    1928 etcd-member    5u  a_inode               0,15        0     2078 [eventfd:19]
+etcd    1928 etcd-member    6u     IPv6               1005      0t0      TCP *:23791 (LISTEN)
+etcd    1928 etcd-member    7uW     REG                8,2 16801792 34215070 /var/lib/etcd/member/snap/db
+etcd    1928 etcd-member    8u      REG                8,2 64000000 50887796 /var/lib/etcd/member/wal/0000000000000000-0000000000000000.wal
+etcd    1928 etcd-member    9r      DIR                8,2       64 50887794 /var/lib/etcd/member/wal
+etcd    1928 etcd-member   10w      REG                8,2 64000000 50887804 /var/lib/etcd/member/wal/0.tmp
+etcd    1928 etcd-member   11u     IPv6              34289      0t0      TCP ce0179-exp-01:23791->ce0179-exp-01:49464 (ESTABLISHED)
+
+Etcd data directory disk usage:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2        29G   25G  3.5G  88% /var
+
+Etcd data directory location and usage:
+total 4.0K
+drwxr-xr-x   3 etcd-member etcd-member   20 Jul 29 01:27 .
+drwxr-xr-x. 45 root        root        4.0K Jul 29 01:41 ..
+drwx------   4 etcd-member etcd-member   29 Jul 29 01:27 member
+
+Disk space for etcd:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2        29G   25G  3.5G  88% /var
+
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=sync, iodepth=1
+fio-3.35
+Starting 1 process
+etcd-test: Laying out IO file (1 file / 250MiB)
+Jobs: 1 (f=1)
+Jobs: 1 (f=1)
+Jobs: 1 (f=1): [w(1)][20.0%][w=720KiB/s][w=180 IOPS][eta 00m:12s]
+Jobs: 1 (f=1): [w(1)][26.7%][w=724KiB/s][w=181 IOPS][eta 00m:11s]
+Jobs: 1 (f=1): [w(1)][33.3%][w=732KiB/s][w=183 IOPS][eta 00m:10s]
+Jobs: 1 (f=1): [w(1)][40.0%][w=744KiB/s][w=186 IOPS][eta 00m:09s]
+Jobs: 1 (f=1): [w(1)][46.7%][w=740KiB/s][w=185 IOPS][eta 00m:08s]
+Jobs: 1 (f=1): [w(1)][53.3%][w=716KiB/s][w=179 IOPS][eta 00m:07s]
+Jobs: 1 (f=1): [w(1)][60.0%][w=720KiB/s][w=180 IOPS][eta 00m:06s]
+Jobs: 1 (f=1): [w(1)][66.7%][w=728KiB/s][w=182 IOPS][eta 00m:05s]
+Jobs: 1 (f=1): [w(1)][73.3%][w=772KiB/s][w=193 IOPS][eta 00m:04s]
+Jobs: 1 (f=1): [w(1)][80.0%][w=752KiB/s][w=188 IOPS][eta 00m:03s]
+Jobs: 1 (f=1): [w(1)][86.7%][w=752KiB/s][w=188 IOPS][eta 00m:02s]
+Jobs: 1 (f=1): [w(1)][93.3%][w=728KiB/s][w=182 IOPS][eta 00m:01s]
+Jobs: 1 (f=1): [w(1)][100.0%][w=728KiB/s][w=182 IOPS][eta 00m:00s]
+
+etcd-test: (groupid=0, jobs=1): err= 0: pid=60246: Wed Jul 29 02:46:28 2026
+  write: IOPS=180, BW=722KiB/s (739kB/s)(10.6MiB/15002msec); 0 zone resets
+    clat (usec): min=8, max=270, avg=21.24, stdev=11.09
+     lat (usec): min=8, max=270, avg=21.68, stdev=11.14
+    clat percentiles (usec):
+     |  1.00th=[   12],  5.00th=[   16], 10.00th=[   18], 20.00th=[   19],
+     | 30.00th=[   19], 40.00th=[   20], 50.00th=[   20], 60.00th=[   20],
+     | 70.00th=[   21], 80.00th=[   22], 90.00th=[   24], 95.00th=[   40],
+     | 99.00th=[   47], 99.50th=[   60], 99.90th=[  212], 99.95th=[  212],
+     | 99.99th=[  269]
+   bw (  KiB/s): min=  320, max=  792, per=100.00%, avg=723.03, stdev=80.72, samples=29
+   iops        : min=   80, max=  198, avg=180.76, stdev=20.18, samples=29
+  lat (usec)   : 10=0.33%, 20=64.34%, 50=34.59%, 100=0.41%, 250=0.30%
+  lat (usec)   : 500=0.04%
+  fsync/fdatasync/sync_file_range:
+    sync (msec): min=4, max=206, avg= 5.51, stdev= 4.38
+    sync percentiles (msec):
+     |  1.00th=[    5],  5.00th=[    5], 10.00th=[    5], 20.00th=[    5],
+     | 30.00th=[    5], 40.00th=[    5], 50.00th=[    6], 60.00th=[    6],
+     | 70.00th=[    6], 80.00th=[    6], 90.00th=[    6], 95.00th=[    8],
+     | 99.00th=[   17], 99.50th=[   18], 99.90th=[   23], 99.95th=[   57],
+     | 99.99th=[  207]
+  cpu          : usr=0.17%, sys=1.41%, ctx=8134, majf=0, minf=10
+  IO depths    : 1=200.0%, 2=0.0%, 4=0.0%, 8=0.0%, 16=0.0%, 32=0.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     issued rwts: total=0,2706,0,0 short=2706,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=1
+
+Run status group 0 (all jobs):
+  WRITE: bw=722KiB/s (739kB/s), 722KiB/s-722KiB/s (739kB/s-739kB/s), io=10.6MiB (11.1MB), run=15002-15002msec
+
+Disk stats (read/write):
+  sda: ios=0/5758, merge=0/5, ticks=0/23665, in_queue=30845, util=94.00%
+
+NOTE: Pay attention to the 99th percentile latency (clat percentiles)
+      Healthy etcd disks should have p99 < 10ms
+
+Systemctl status etcd-member:
+● etcd-member.service - etcd server for kubernetes
+     Loaded: loaded (/etc/systemd/system/etcd-member.service; enabled; preset: disabled)
+     Active: active (running) since Wed 2026-07-29 01:27:40 UTC; 1h 18min ago
+       Docs: https://github.com/coreos/etcd
+   Main PID: 1927 (etcd-member-wra)
+      Tasks: 17 (limit: 204894)
+     Memory: 121.7M (peak: 133.5M)
+        CPU: 1min 9.639s
+     CGroup: /system.slice/etcd-member.service
+             ├─ 1927 /bin/bash /opt/bin/etcd-member-wrapper.sh
+             ├─ 1928 /opt/bin/etcd
+             └─60311 sleep 10
+
+Jul 29 02:32:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:32:45.049479Z","caller":"mvcc/index.go:194","msg":"compact tree index","revision":8048}
+Jul 29 02:32:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:32:45.074183Z","caller":"mvcc/kvstore_compaction.go:70","msg":"finished scheduled compaction","compact-revision":8048,"took":"23.934135ms","hash":1757010509,"current-db-size-bytes":11337728,"current-db-size":"11 MB","current-db-size-in-use-bytes":4833280,"current-db-size-in-use":"4.8 MB"}
+Jul 29 02:32:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:32:45.074238Z","caller":"mvcc/hash.go:157","msg":"storing new hash","hash":1757010509,"revision":8048,"compact-revision":7750}
+Jul 29 02:37:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:37:45.063095Z","caller":"mvcc/index.go:194","msg":"compact tree index","revision":8465}
+Jul 29 02:37:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:37:45.133419Z","caller":"mvcc/kvstore_compaction.go:70","msg":"finished scheduled compaction","compact-revision":8465,"took":"69.493344ms","hash":942406775,"current-db-size-bytes":11337728,"current-db-size":"11 MB","current-db-size-in-use-bytes":4464640,"current-db-size-in-use":"4.5 MB"}
+Jul 29 02:37:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:37:45.133480Z","caller":"mvcc/hash.go:157","msg":"storing new hash","hash":942406775,"revision":8465,"compact-revision":8048}
+Jul 29 02:42:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:42:45.076782Z","caller":"mvcc/index.go:194","msg":"compact tree index","revision":8769}
+Jul 29 02:42:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:42:45.106096Z","caller":"mvcc/kvstore_compaction.go:70","msg":"finished scheduled compaction","compact-revision":8769,"took":"28.595158ms","hash":696184126,"current-db-size-bytes":11337728,"current-db-size":"11 MB","current-db-size-in-use-bytes":4640768,"current-db-size-in-use":"4.6 MB"}
+Jul 29 02:42:45 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:42:45.106156Z","caller":"mvcc/hash.go:157","msg":"storing new hash","hash":696184126,"revision":8769,"compact-revision":8465}
+Jul 29 02:46:13 ce0179-exp-01 etcd-member-wrapper.sh[1928]: {"level":"info","ts":"2026-07-29T02:46:13.681521Z","caller":"traceutil/trace.go:172","msg":"trace[669642079] transaction","detail":"{read_only:false; response_revision:9395; number_of_response:1; }","duration":"126.62976ms","start":"2026-07-29T02:46:13.554875Z","end":"2026-07-29T02:46:13.681505Z","steps":["trace[669642079] 'process raft request'  (duration: 126.508857ms)"],"step_count":1}

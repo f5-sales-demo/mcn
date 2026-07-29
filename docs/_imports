@@ -1,7 +1,9 @@
 # Captured Customer Edge command output, staged into docs/_data/ at build time
 # by the docs-control deploy workflow, for remark-code-import in the command pages.
 # Produced by scripts/capture-sitecli.sh; never hand-edited. See sitecli/README.md.
+sitecli/captures/serial-console-boot.txt
 sitecli/captures/sitecli-chronyc-sources.txt
+sitecli/captures/sitecli-collect-database-stats.txt
 sitecli/captures/sitecli-crictl-images.txt
 sitecli/captures/sitecli-crictl-inspect.txt
 sitecli/captures/sitecli-crictl-logs.txt
@@ -18,6 +20,11 @@ sitecli/captures/sitecli-docker-ps-a.txt
 sitecli/captures/sitecli-docker-ps.txt
 sitecli/captures/sitecli-dropstats-non-zero.txt
 sitecli/captures/sitecli-dropstats.txt
+sitecli/captures/sitecli-envoy-clusters.txt
+sitecli/captures/sitecli-envoy-config-dump.txt
+sitecli/captures/sitecli-envoy-hc-config-dump.txt
+sitecli/captures/sitecli-envoy-listeners.txt
+sitecli/captures/sitecli-etcdctl-cluster-member-status.txt
 sitecli/captures/sitecli-flow-l-match.txt
 sitecli/captures/sitecli-flow-l.txt
 sitecli/captures/sitecli-health.txt
@@ -25,21 +32,19 @@ sitecli/captures/sitecli-ip-link-show.txt
 sitecli/captures/sitecli-ip.txt
 sitecli/captures/sitecli-ipsec-status.txt
 sitecli/captures/sitecli-ipsec-statusall.txt
+sitecli/captures/sitecli-iptables-lv.txt
+sitecli/captures/sitecli-kubelet-get-params.txt
+sitecli/captures/sitecli-marker-exists-NetworkManager.txt
+sitecli/captures/sitecli-marker-exists-crio.txt
+sitecli/captures/sitecli-marker-exists-kubelet.txt
 sitecli/captures/sitecli-netstat.txt
 sitecli/captures/sitecli-nh.txt
 sitecli/captures/sitecli-rt.txt
 sitecli/captures/sitecli-show-ip-bgp-neighbors-advertised-route.txt
 sitecli/captures/sitecli-show-ip-bgp-summary.txt
 sitecli/captures/sitecli-show-ip-bgp.txt
-sitecli/captures/sitecli-vif.txt
-sitecli/captures/serial-console-boot.txt
-sitecli/captures/sitecli-envoy-clusters.txt
-sitecli/captures/sitecli-envoy-config-dump.txt
-sitecli/captures/sitecli-envoy-hc-config-dump.txt
-sitecli/captures/sitecli-envoy-listeners.txt
-sitecli/captures/sitecli-etcdctl-cluster-member-status.txt
-sitecli/captures/sitecli-kubelet-get-params.txt
 sitecli/captures/sitecli-systemctl-status-vpm.txt
 sitecli/captures/sitecli-vegactl-configuration-list.txt
 sitecli/captures/sitecli-vegactl-introspect-list-tracebuffers.txt
 sitecli/captures/sitecli-vegactl-introspect-show-election.txt
+sitecli/captures/sitecli-vif.txt

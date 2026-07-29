@@ -19,6 +19,7 @@ be wrong.
   - The prompt is redrawn inside the same stream and is not a menu row.
 """
 
+import json
 import logging
 import os
 import signal
@@ -180,6 +181,95 @@ def test_an_unknown_command_is_refused():
     # The whole point: a command nobody has classified yet cannot be run.
     assert not h.may_execute("some-command-from-a-future-build")
     assert not h.may_execute("")
+
+
+def test_newer_build_read_only_commands_are_allowed():
+    # Seven commands exist on 20260703-e2c462a and not on crt-20250613-3382
+    # (issue #710). Four of them only read state, so they may be captured for the
+    # documentation.
+    for name in (
+        "iptables-lv",
+        "marker-exists-NetworkManager",
+        "marker-exists-crio",
+        "marker-exists-kubelet",
+    ):
+        assert h.may_execute(name), name
+
+
+def test_newer_build_mutating_commands_stay_refused():
+    # Three of the seven change the node. Enumeration records them; they are
+    # documented by name and never run.
+    #
+    # `collect-database-stats` is here because its name is a lie: it runs a 15
+    # second fio random-write benchmark against the etcd filesystem, laying out a
+    # 250 MiB file. It was allow-listed on the strength of its name and its own
+    # description ("collect database statistics"), run once on a disposable node,
+    # and only the committed capture revealed the writes. The name-based tripwire
+    # below cannot catch this, which is why the capture-scanning test exists.
+    for name in (
+        "collect-database-stats",
+        "systemctl-restart-NetworkManager",
+        "systemctl-start-crio-prune",
+    ):
+        assert not h.may_execute(name), name
+
+
+def test_no_allow_listed_command_has_a_capture_showing_writes():
+    # Evidence beats naming. A command's name and the appliance's own one-line
+    # description can both be innocuous while the command writes to disk, so this
+    # scans what the commands actually PRINTED and refuses to let any of them stay
+    # on the read-only allow-list.
+    #
+    # This is the check that would have caught `collect-database-stats`.
+    write_markers = (
+        "randwrite",
+        "rw=write",
+        "fio-",
+        "Laying out IO file",
+        "disk performance test",
+    )
+    root = Path(__file__).resolve().parent.parent
+    captures = sorted((root / "sitecli" / "captures").glob("sitecli-*.txt"))
+    assert captures, "expected committed captures to scan"
+
+    offenders = []
+    for path in captures:
+        name = path.name.removeprefix("sitecli-").removesuffix(".txt")
+        if not h.may_execute(name):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        hits = [m for m in write_markers if m in text]
+        if hits:
+            offenders.append(f"{name} (capture shows {', '.join(hits)})")
+
+    assert not offenders, (
+        "allow-listed commands whose own output proves they write: "
+        + "; ".join(offenders)
+    )
+
+
+def test_classification_mutating_list_agrees_with_the_allow_list():
+    # The documentation data and the harness must not disagree about which
+    # commands are safe to run. Reading the JSON rather than restating its
+    # contents is the point: adding a name to `_mutating` and to READ_ONLY at the
+    # same time fails here instead of quietly permitting execution.
+    root = Path(__file__).resolve().parent.parent
+    data = json.loads(
+        (root / "sitecli" / "command-classification.json").read_text(encoding="utf-8")
+    )
+    bucket = data["not_on_this_build"]["newer_build"]
+    mutating = bucket["_mutating"]
+
+    assert mutating, "expected a non-empty _mutating list to test against"
+    for name in mutating:
+        assert name in bucket["commands"], f"{name} is not in the bucket it annotates"
+        assert not h.may_execute(name), f"{name} is mutating but on the allow-list"
+
+    # And the converse: every non-mutating command in the bucket IS runnable, so
+    # the two files cannot drift into disagreeing about the safe subset either.
+    for name in bucket["commands"]:
+        if name not in mutating:
+            assert h.may_execute(name), f"{name} is read-only but not on the allow-list"
 
 
 def test_guard_raises_rather_than_returning_quietly():

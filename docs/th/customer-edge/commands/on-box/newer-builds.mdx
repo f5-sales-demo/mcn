@@ -1,0 +1,151 @@
+---
+title: คำสั่งบนบิลด์ที่ใหม่กว่า
+description: >-
+  คำสั่ง Site CLI จำนวนเจ็ดรายการที่มีอยู่บนบิลด์ Customer Edge
+  ที่ใหม่กว่าและไม่มีบนบิลด์ที่ฟลีตนี้ใช้งาน — สิ่งที่แต่ละคำสั่งทำ
+  ผลลัพธ์ที่ห้าคำสั่งในจำนวนนั้นสร้างขึ้น
+  และคำสั่งหนึ่งที่ชื่อบอกว่าเก็บสถิติในขณะที่จริงๆ
+  แล้วรันการทดสอบการเขียนดิสก์ด้วย etcd
+sidebar:
+  order: 90
+  label: บิลด์ที่ใหม่กว่า
+i18n:
+  sourceHash: 821e86812dd3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+พื้นที่คำสั่ง Site CLI เพิ่มขึ้นระหว่างบิลด์ คำสั่ง `execcli` จำนวนเจ็ดรายการมีอยู่บนบิลด์ที่ใหม่กว่าบิลด์ที่ฟลีตนี้ใช้งาน ดังนั้นผู้ดำเนินการที่อ่านส่วนที่เหลือของส่วนนี้จะไม่พบคำสั่งเหล่านั้น — และผู้ที่อ่านเอกสารใหม่กว่าของ F5 อาจคาดหวังให้มี
+
+พื้นที่นี้เป็น superset ไม่ใช่การจัดเรียงใหม่: คำสั่ง `execcli` **89** รายการบนบิลด์ที่ใหม่กว่าเทียบกับ **82** รายการบนฟลีตนี้ โดยมีเจ็ดรายการที่เพิ่มเข้ามาและไม่มีรายการใดถูกลบออก
+
+<Aside type="caution" title="คุณไม่สามารถรันคำสั่งเหล่านี้บนฟลีตนี้ได้">
+คำสั่งเหล่านี้ถูกวัดบนบิลด์ `20260703-e2c462a` ซึ่งเป็นสิ่งที่ Azure marketplace image จัดส่งมา ฟลีตนี้รัน `crt-20250613-3382` ซึ่งทั้งเจ็ดรายการไม่มีอยู่ — `execcli` รายงานว่าเป็นคำสั่งที่ไม่รู้จัก ทุกอย่างด้านล่างอธิบายบิลด์ที่ใหม่กว่า
+</Aside>
+
+## สิ่งที่แต่ละคำสั่งทำ
+
+คำอธิบายมาจากอุปกรณ์เองผ่านเมนูการเติมข้อความอัตโนมัติ
+
+| คำสั่ง | คำอธิบายของอุปกรณ์ |
+| --- | --- |
+| `collect-database-stats` | collect database statistics |
+| `iptables-lv` | show iptables -L -v -n |
+| `marker-exists-crio` | check if crio restart marker exists |
+| `marker-exists-kubelet` | check if kubelet restart marker exists |
+| `marker-exists-NetworkManager` | check if NetworkManager restart marker exists |
+| `systemctl-restart-NetworkManager` | restart NetworkManager service |
+| `systemctl-start-crio-prune` | start crio image prune service |
+
+เมื่ออ่านเป็นชุด คำสั่งส่วนใหญ่อธิบายเวิร์กโฟลว์เดียวแทนที่จะเป็นเครื่องมือเจ็ดรายการที่ไม่เกี่ยวข้องกัน: สามคำสั่งถามว่าบริการถูกตั้งค่าสถานะเพื่อรีสตาร์ทหรือไม่ และสองคำสั่งดำเนินการรีสตาร์ทหรือทำการ prune การตรวจสอบ marker เป็นครึ่งที่ปลอดภัยของคู่ที่อีกครึ่งหนึ่งเป็นการรบกวนระบบ
+
+**สี่ในเจ็ดคำสั่งอ่านข้อมูลเท่านั้น สามคำสั่งเปลี่ยนแปลงโหนด** — และหนึ่งในสามคำสั่งนั้นไม่ใช่คำสั่งที่คุณจะเดา ซึ่งเป็นหัวข้อของส่วนของตัวเองด้านล่าง
+
+## `marker-exists-crio`
+
+รายงานว่าไฟล์ restart marker มีอยู่สำหรับ `crio` หรือไม่
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+ทั้งสามคำสั่งตอบว่า `missing` หมายความว่าไม่มีการรีสตาร์ทที่รอดำเนินการสำหรับบริการนั้น
+
+<Aside type="note" title="อ่านผลลัพธ์นี้เป็นรูปแบบ ไม่ใช่เป็น baseline ที่ดี">
+`สังเกตเมื่อ 2026-07-28.` โหนดที่ถ่ายภาพเหล่านี้ไม่เคยถึงสถานะ `ONLINE` — อยู่ที่ `PROVISIONING` หลังจากการติดตั้งซอฟต์แวร์ล้มเหลว ซึ่งเป็นเหตุผลที่มันยังมีอยู่ `missing` คือสิ่งที่คำสั่งพิมพ์เมื่อไม่มี marker และนั่นคือส่วนที่มีประโยชน์ **ยังไม่ได้รับการยืนยัน** ว่าโหนดที่ดีจะตอบสนองในลักษณะเดียวกัน และไม่มีอะไรที่นี่บอกว่าโหนดที่มีการรีสตาร์ทที่รอดำเนินการจะพิมพ์อะไร
+</Aside>
+
+## `iptables-lv`
+
+รัน `iptables -L -v -n` และส่งคืนผลลัพธ์โดยไม่เปลี่ยนแปลง ดังนั้นจึงเป็นมุมมองของตาราง filter ของโหนดที่นับแพ็กเก็ตและไบต์ แทนที่จะเป็น F5 abstraction
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+ส่วนใหญ่ของสิ่งที่พิมพ์ออกมาเป็นของ Kubernetes: chain `KUBE-` คือกฎ service, nodeport และ firewall ของ kube-proxy และ `DOCKER-USER` เป็นของ container runtime บรรทัดแรกควรให้ความสนใจแทนที่จะข้ามไป —
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+— เพราะมันบอกว่ามุมมองนี้ **ไม่สมบูรณ์** กฎในตาราง legacy ไม่แสดงที่นี่ และ Site CLI ไม่มีคำสั่งที่อ่านตาราง legacy เหล่านั้น
+
+## `collect-database-stats` เขียนไปยังโหนด แม้จะมีชื่อนั้น
+
+คำสั่งนี้เป็นกับดัก และกับดักคือชื่อ "collect database statistics" และคำอธิบายของอุปกรณ์เองอ่านดูเหมือนเป็นการสังเกตการณ์ คำสั่งเริ่มต้นในลักษณะนั้น — ขีดจำกัด open-file จำนวน descriptor และ connection ที่ `etcd` ถือครอง รายการ `lsof` และ `df` สำหรับ filesystem ของ `etcd` — จากนั้นมันรัน **`fio` random-write benchmark เป็นเวลาสิบห้าวินาที**:
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+มันจัดวางไฟล์ขนาด **250 MiB** และเขียน 10.6 MiB ของ random I/O ในการรันด้านล่าง บน filesystem ที่มีพื้นที่ว่าง 3.5 GiB มันตรวจสอบล่วงหน้าว่าสามารถรันได้อย่างปลอดภัยหรือไม่ ดังนั้นจึงไม่ใช่การดำเนินการที่ไม่รอบคอบ — แต่ **ไม่ใช่** การอ่านข้อมูล
+
+<Aside type="danger" title="ถือว่าคำสั่งนี้เป็นคำสั่งที่รบกวนระบบบนโหนดที่ใช้งานจริง">
+การทดสอบ random-write benchmark กับ filesystem ที่ `etcd` เขียน journal ของตัวเองจะแข่งขันกับ `etcd` สำหรับทรัพยากรที่ `etcd` มีความไวมากที่สุด ผลลัพธ์เองชี้ให้เห็นเรื่องนี้ — "Healthy etcd disks should have p99 < 10ms" — ซึ่งเป็นข้อความเกี่ยวกับโหนดที่อยู่ภายใต้การทดสอบ ไม่ใช่โหนดที่ให้บริการทราฟฟิก รันคำสั่งนี้เมื่อฝ่ายสนับสนุน F5 ขอ บนโหนดที่คุณยินดีให้มีการรบกวน latency
+</Aside>
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+การอ่านผลลัพธ์: `ulimit` ของ open-file เทียบกับจำนวน descriptor คือคู่ที่วิศวกรฝ่ายสนับสนุนขอเมื่อ `etcd` ถูกสงสัยว่าใช้ขีดจำกัดของมันหมด และ percentile ของ `clat` คือจุดประสงค์ของ benchmark `util=94.00%` ในบรรทัด disk-stats คือความยุ่งของอุปกรณ์ **ระหว่างการทดสอบ** — ไม่ใช่ตัวเลขความเต็มของ filesystem และทั้งสองสิ่งนี้สับสนได้ง่าย
+
+<Aside type="note" title="หน้านี้มีผลลัพธ์นั้นได้อย่างไร">
+คำสั่งนี้ถูกปฏิบัติผิดพลาดว่าเป็นแบบอ่านอย่างเดียวและรันครั้งหนึ่ง บนโหนดที่ใช้ทิ้งได้ที่ภาพเหล่านี้มาจาก — ชื่อและคำอธิบายของมันไม่มีสัญญาณของ benchmark เลย และการเขียนข้อมูลปรากฏชัดในผลลัพธ์ของมันเองเท่านั้น ขณะนี้ harness ปฏิเสธคำสั่งนี้ และการทดสอบจะสแกน captures ที่ commit แล้วเพื่อหา write markers และล้มเหลวหากคำสั่งดังกล่าวอยู่ใน read-only allow-list เพราะชื่อไม่สามารถพิสูจน์ได้ว่าคำสั่งอ่านข้อมูลเท่านั้น
+</Aside>
+
+## สองคำสั่งที่ไม่เคยรัน
+
+`systemctl-restart-NetworkManager` และ `systemctl-start-crio-prune` ถูกบันทึกตามชื่อและไม่มีผลลัพธ์ที่ถ่ายภาพไว้
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+การรีสตาร์ท `NetworkManager` จะขัดจังหวะการเชื่อมต่อเครือข่ายของโหนด และบริการ prune จะลบ container image ทั้งสองคำสั่งเปลี่ยนแปลงโหนด ดังนั้นจึงไม่มีการรันใดๆ — แม้แต่บนโหนดที่ใช้ทิ้งได้
+
+<Aside type="caution" title="ไม่มีคำสั่งที่เปลี่ยนแปลงระบบสามรายการอยู่ใน read-only allow-list">
+`scripts/sitecli_ssh_harvest.py` ปฏิเสธที่จะรันทั้งสองคำสั่งนี้และ `collect-database-stats`: มีเพียงชื่อที่อยู่ใน read-only allow-list ที่ระบุไว้อย่างชัดเจนเท่านั้นที่อาจรันได้ และทุกอย่างอื่นถูกระบุไว้และไม่เคยรัน การทดสอบยืนยันว่าทั้งสามรายการยังคงอยู่นอก list นั้น ดังนั้นการปฏิเสธจึงไม่สามารถยกเลิกได้โดยไม่ได้ตั้งใจ
+</Aside>
+
+<Aside type="note" title="สิ่งที่ได้รับการยืนยัน และสิ่งที่รายงานเท่านั้น">
+ทั้งเจ็ดรายการถูกพบในเมนูการเติมข้อความอัตโนมัติของ `execcli` บนบิลด์ `20260703-e2c462a` ผ่าน SSH บน Azure Secure Mesh v2 Customer Edge แบบโหนดเดียวที่ deploy เพื่อวัตถุประสงค์นี้
+`สังเกตเมื่อ 2026-07-28.`
+
+ก่อนหน้านี้ถูกบันทึกว่าพบผ่าน [debug API](../../../access/debug-api/) บนบิลด์ `crt-20260201-0179` บน tenant อื่น สิ่งนั้นไม่ได้รับการยืนยันซ้ำ: `crt-20260201-0179` ไม่ติดตั้งบน site shape นี้ — ดู
+[เวอร์ชันซอฟต์แวร์และการ rebuild](../../../lifecycle/) ดังนั้นบิลด์ที่ระบุที่นี่คือบิลด์ที่วัดคำสั่งเหล่านี้ ไม่ใช่บิลด์ที่รายงานครั้งแรก และไม่ได้รับการยืนยันว่าคำสั่งเหล่านี้สามารถเข้าถึงได้ผ่าน debug API แทนที่จะเป็นเฉพาะบนเครื่องหรือไม่
+</Aside>

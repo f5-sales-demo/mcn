@@ -223,11 +223,24 @@ looks like the worst possible outcome, and it is in fact the last error before s
 `-tt` and connect again.
 </Aside>
 
-<Aside type="caution" title="Replacing a CE changes its host key">
-The replacement node presents a different host key at the same address, so the next
-connection warns `REMOTE HOST IDENTIFICATION HAS CHANGED` and refuses. Clear the old entry
-for that address and reconnect. Since granting SSH replaces the VMs at all, expect this on
-the very first connection after adopting it.
+<Aside type="caution" title="A CE's host key changes for two different reasons">
+The next connection warns `REMOTE HOST IDENTIFICATION HAS CHANGED` and refuses. Clear the old
+entry for that address and reconnect. Two things trigger it:
+
+- **Replacing the node.** The replacement presents a different key at the same address. Since
+  granting SSH replaces the VMs at all, expect this on the very first connection after
+  adopting it.
+- **An in-place operating-system upgrade**, with no replacement at all. `Observed 2026-07-28`:
+  a node whose `ce_os_version` upgrade completed presented a new host key at the same address,
+  on the same virtual machine.
+
+`StrictHostKeyChecking=accept-new` does not help with either. It accepts keys for hosts it has
+never seen; a *changed* key is exactly what it refuses. Only removing the stale entry clears
+it.
+
+Addresses can also move. Recreating a deployment reassigns them from the same subnet, so a
+CE and a jump host can end up swapping addresses — after which a stale entry is not merely
+outdated but attached to the wrong machine.
 </Aside>
 
 ## The banner is a free health check
