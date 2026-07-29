@@ -1,0 +1,146 @@
+---
+title: 较新版本中的命令
+description: >-
+  存在于较新客户边缘版本而非当前机群所运行版本的七个 Site CLI 命令——每个命令的功能、其中五个命令的输出，以及一个命令名称表明其收集统计信息但实际对
+  etcd 执行磁盘写入基准测试的情况。
+sidebar:
+  order: 90
+  label: 较新版本
+i18n:
+  sourceHash: 821e86812dd3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Site CLI 的命令集在不同版本之间持续增长。七个 `execcli` 命令存在于比当前机群所运行版本更新的版本中，因此阅读本节其余内容的操作人员将无法找到这些命令——而阅读 F5 自身较新文档的人员可能会期望看到它们。
+
+命令集是超集关系，而非重新排列：较新版本中有 **89** 个 `execcli` 命令，当前机群有 **82** 个，新增了这七个命令，未删除任何内容。
+
+<Aside type="caution" title="您无法在当前机群上运行这些命令">
+这些命令在版本 `20260703-e2c462a` 上测量，该版本是 Azure Marketplace 镜像所附带的版本。当前机群运行的是 `crt-20250613-3382`，其中这七个命令均不存在——`execcli` 会报告未知命令。以下所有内容均描述较新版本。
+</Aside>
+
+## 每个命令的功能
+
+以下描述来自设备自身的补全菜单。
+
+| 命令 | 设备描述 |
+| --- | --- |
+| `collect-database-stats` | 收集数据库统计信息 |
+| `iptables-lv` | 显示 iptables -L -v -n |
+| `marker-exists-crio` | 检查 crio 重启标记是否存在 |
+| `marker-exists-kubelet` | 检查 kubelet 重启标记是否存在 |
+| `marker-exists-NetworkManager` | 检查 NetworkManager 重启标记是否存在 |
+| `systemctl-restart-NetworkManager` | 重启 NetworkManager 服务 |
+| `systemctl-start-crio-prune` | 启动 crio 镜像清理服务 |
+
+从整体来看，其中大多数命令描述的是一个工作流，而非七个互不相关的工具：三个命令询问某个服务是否已被标记为待重启，另外两个执行重启或清理操作。标记检查是某个命令对的安全一半，而另一半具有破坏性。
+
+**七个命令中有四个只读。三个会更改节点**——其中一个并非您所预期的那个，该命令将在下方单独说明。
+
+## `marker-exists-crio`
+
+报告 `crio` 的重启标记文件是否存在。
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+三个命令均返回 `missing`，表示该服务没有待处理的重启请求。
+
+<Aside type="note" title="将此输出视为一种形态，而非健康基线">
+`观测于 2026-07-28。` 采集这些数据的节点从未达到 `ONLINE` 状态——由于软件安装失败，该节点处于 `PROVISIONING` 状态，这也是它存在的原因。`missing` 是命令在没有标记时打印的内容，这才是有用的信息。**尚未确认**健康节点是否也会给出相同的答复，也没有任何信息说明待重启节点会打印什么。
+</Aside>
+
+## `iptables-lv`
+
+运行 `iptables -L -v -n` 并原样返回结果，因此这是节点过滤表的数据包和字节计数视图，而非 F5 的抽象封装。
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+输出的大部分内容属于 Kubernetes：`KUBE-` 链是 kube-proxy 的服务、NodePort 和防火墙规则，`DOCKER-USER` 属于容器运行时。第一行值得注意而非跳过——
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+——因为它表明此视图是**不完整的**。旧版表中的规则不会在此处显示，而 Site CLI 也没有提供读取旧版表的命令。
+
+## `collect-database-stats` 尽管名称如此，却会向节点写入数据
+
+这个命令是一个陷阱，而陷阱就在于其名称。"收集数据库统计信息"以及设备自身的描述，读起来都像是观察性操作。命令开始部分确实如此——打开文件限制、`etcd` 持有的描述符和连接数、`lsof` 列表，以及 `etcd` 文件系统的 `df`——但随后它会运行一个**持续十五秒的 `fio` 随机写入基准测试**：
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+它会分配一个 **250 MiB** 的文件，在下方的运行中写入了 10.6 MiB 的随机 I/O，当时文件系统剩余 3.5 GiB 可用空间。命令确实会预先检查是否可以安全运行，因此并非不计后果——但它**绝非**只读操作。
+
+<Aside type="danger" title="在生产节点上将此命令视为破坏性操作">
+针对 `etcd` 写入其日志的文件系统运行随机写入基准测试，会与 `etcd` 争夺其最敏感的资源。输出本身也指出了这一点——"健康的 etcd 磁盘 p99 应低于 10ms"——这是针对测试中的节点而言的，而非正在服务流量的节点。请在 F5 支持团队要求时运行此命令，且仅在您愿意承受延迟抖动的节点上运行。
+</Aside>
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+解读输出：打开文件的 `ulimit` 与描述符数量的对比，是支持工程师在怀疑 `etcd` 耗尽限制时所需的数据对；`clat` 百分位数是基准测试的核心指标。磁盘统计行中的 `util=94.00%` 表示的是**测试期间**设备的繁忙程度——这不是文件系统占用率，两者容易混淆。
+
+<Aside type="note" title="此页面如何获得该输出">
+此命令被误当作只读命令运行了一次，运行在这些采集数据所用的临时节点上——其名称和描述毫无基准测试的迹象，写入操作只在命令自身的输出中才变得可见。测试框架现在已拒绝运行此命令，并且测试会扫描已提交的采集数据中的写入标记，若此类命令出现在只读允许列表中则测试失败，因为仅凭名称无法确认命令只执行读操作。
+</Aside>
+
+## 两个从未运行的命令
+
+`systemctl-restart-NetworkManager` 和 `systemctl-start-crio-prune` 仅按名称记录，没有采集到的输出。
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+重启 `NetworkManager` 会中断节点的网络，而清理服务会删除容器镜像。两者均会更改节点，因此均未运行——即使在临时节点上也未执行。
+
+<Aside type="caution" title="三个变更性命令均不在只读允许列表中">
+`scripts/sitecli_ssh_harvest.py` 拒绝执行这两个命令以及 `collect-database-stats`：只有明确在其只读允许列表中的命令名称才可运行，其余所有命令均已枚举且永不执行。测试断言这三个命令始终不在该列表中，因此拒绝执行的行为不会被意外撤销。
+</Aside>
+
+<Aside type="note" title="已验证的内容与仅报告的内容">
+所有七个命令均在版本 `20260703-e2c462a` 的 `execcli` 补全菜单中观测到，通过 SSH 在为此目的部署的单节点 Azure Secure Mesh v2 客户边缘上完成。`观测于 2026-07-28。`
+
+这些命令此前曾记录为通过 [debug API](../../../access/debug-api/) 在版本 `crt-20260201-0179` 上、不同租户中观测到。该情况未能复现：`crt-20260201-0179` 无法安装在此站点形态上——请参阅[软件版本与重建](../../../lifecycle/)。因此此处所命名的版本是实际测量时所用的版本，而非最初报告的版本；这些命令是否可通过 debug API 而非仅通过节点本地访问，**尚未确认**。
+</Aside>

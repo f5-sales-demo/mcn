@@ -1,25 +1,25 @@
 ---
 title: SSH
 description: >-
-  操作員透過 SSH 連線至客戶邊緣管理帳號，其登入 Shell 為 Site CLI。說明看起來可啟用此功能的 API 欄位為何不起作用、為何 sshd
-  僅在內部位址上回應、Site CLI 所需的終端機機制，以及在執行中的部署上啟用此功能的代價。
+  操作者透過 SSH 連線至客戶邊緣管理帳號，其登入 Shell 為 Site CLI。說明為何看似可啟用此功能的 API 欄位實際上毫無作用、為何 sshd
+  僅在內部位址上回應、Site CLI 所需的終端機機制，以及在執行中的部署上啟用此功能所帶來的影響。
 sidebar:
   order: 25
   label: SSH
 i18n:
-  sourceHash: 98f7cdca022e
+  sourceHash: 744a2d3c3c3c
   translator: machine
 ---
 
 import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-擷取自本部署中某一 CE，時間為 2026-07-28。`sitecli/capture-manifest.json`
-記錄所使用的節點，而 `scripts/capture-sitecli.sh --check` 可針對線上 CE 重新驗證命令介面。
+擷取自本部署其中一個 CE，時間為 2026-07-28。`sitecli/capture-manifest.json`
+記錄了所在節點，`scripts/capture-sitecli.sh --check` 可對照線上 CE 重新驗證命令介面。
 
-SSH 可連接至設備的 `admin` 帳號，其登入 Shell 為 Site CLI
-（`/opt/bin/vpmu`）。這是通往**完整機上命令介面**的唯一途徑——
-[除錯 API](../debug-api/) 僅公開 34 個命令，而設備本身提供更多完全未出現在該 API 上的命令。
+SSH 可連線至應用裝置的 `admin` 帳號，其登入 Shell 為 Site CLI
+（`/opt/bin/vpmu`）。這是存取**完整機上命令介面**的唯一途徑——
+[debug API](../debug-api/) 提供 34 個命令，而應用裝置本身還提供許多該 API 完全未收錄的命令。
 
 ```bash
 cd terraform
@@ -27,15 +27,14 @@ SLI=$(terraform output -json ce_sli_private_ips | jq -r '.eastus01')
 ssh -tt -i ~/.ssh/id_ed25519 -J azureuser@<operator-vm> "admin@$SLI"
 ```
 
-該命令列的每個部分都不可或缺，接下來三個小節將說明每個部分各自防止何種失敗。
+該命令列的每個部分都不可或缺，接下來三節將分別說明各部分所預防的失敗情況。
 
-連線後不會出現 Shell 提示字元：`admin` 的登入 Shell **就是** Site CLI，因此您會直接進入其 `>>>` 提示字元。在此以 `execcli <name>` 執行機上命令——請參閱
-[機上命令](../../commands/on-box/)。
+連線後不會出現 Shell 提示字元：`admin` 的登入 Shell **就是** Site CLI，因此您將直接進入其 `>>>` 提示字元。在此處以 `execcli <name>` 執行機上命令——詳見[機上命令](../../commands/on-box/)。
 
-<Aside type="danger" title="請查詢內部位址——切勿沿用前次工作階段的位址">
-Azure 在每次重建時都會重新指派內部子網路，且不按節點順序。在最近一次重建後，`f5-xc-ce-vm-01`、`-02` 與 `-03` 分別持有 `10.0.3.7`、`10.0.3.5` 與 `10.0.3.4`；之前的建置中順序完全不同，而測試用戶端的 NIC 位於同一子網路中，且曾持有某個 CE 先前所使用的位址。因此，連線至記憶中的位址可能會連到錯誤的節點、非 CE 的 VM，或完全連不上——最後一種情況與「SSH 未啟用」的表現完全相同。
+<Aside type="danger" title="請查詢內部位址——切勿沿用上次工作階段的位址">
+Azure 在每次重建時都會重新指派內部子網路，且不按節點順序排列。最近一次重建後，`f5-xc-ce-vm-01`、`-02` 和 `-03` 分別持有 `10.0.3.7`、`10.0.3.5` 和 `10.0.3.4`；先前的建置中順序完全不同，而測試用戶端的 NIC 位於同一子網路中，且持有過去曾由某個 CE 使用的位址。因此，連線至記憶中的位址可能會連到錯誤的節點、非 CE 的虛擬機器，或完全無法連線——而最後一種情況與「SSH 未啟用」的表現完全相同。
 
-`terraform output -json ce_sli_private_ips` 提供對應關係。若手邊沒有狀態，NIC 名稱是穩定的，即使位址並不穩定：
+`terraform output -json ce_sli_private_ips` 是對應關係的來源。若手邊沒有狀態，NIC 名稱是穩定的，即便位址並非如此：
 
 ```bash
 az network nic show -g "$(terraform output -raw resource_group_name)" \
@@ -45,41 +44,39 @@ az network nic show -g "$(terraform output -raw resource_group_name)" \
 
 </Aside>
 
-<Aside type="caution" title="僅限引導程序階段——現有的 CE 無法在不重建的情況下取得 SSH">
-cloud-init 的 `write_files` 僅在**首次開機時執行一次**。之後節點上會存在 `/etc/cloud/cloud-init.disabled` 標記檔案，cloud-init 便不再執行。
+<Aside type="caution" title="僅限啟動時配置——現有 CE 無法在不重建的情況下獲得 SSH">
+cloud-init `write_files` **僅在首次開機時執行一次**。之後節點上會存在一個 `/etc/cloud/cloud-init.disabled` 標記檔案，cloud-init 便不再執行。
 
-因此，無法在不重建的情況下為執行中的 CE 啟用 SSH。`custom_data` 在 Azure 中為替換式，這意味著在現有部署上採用此功能**會替換所有 CE VM**。為已啟動的節點授予操作員 SSH 是一次重建，而非組態變更——下一個警告說明了此重建過去的代價，以及為何現在已不再如此。
+因此，在執行中的 CE 上沒有就地啟用的途徑。Azure 中的 `custom_data` 只能以替換方式更新，這意味著在現有部署上採用此配置將**替換所有 CE 虛擬機器**。為已運行的節點授予操作者 SSH 權限是一次重建，而非配置變更——下一個警告說明了此重建過去的代價，以及現在為何不再如此。
 </Aside>
 
-<Aside type="caution" title="替換 CE VM 過去曾永久卡住登錄流程——此問題已修復，這也是 site 物件與 VM 耦合的原因">
-在規劃重建之前值得了解，因為失敗的形態解釋了您在計畫中會看到的耦合關係。
+<Aside type="caution" title="替換 CE 虛擬機器過去曾導致註冊永久卡住——此問題已修復，這也是站台物件與虛擬機器耦合的原因">
+在規劃重建之前值得了解，因為失敗的形態解釋了您在計畫中將看到的耦合關係。
 
-過去，被刪除節點的登錄會保留控制平面的唯一索引 `(tenant, cluster_name, hostname)`，導致替換節點的登錄因 `UniqueSecondaryIndexViolationError` 而被拒絕並持續重試。單獨刪除登錄並不足夠：殘留的 `StatusObject` 會對工作負載請求回傳 `500`，而此時每個節點已將 `registration-obj.yml` 持久化，將其鎖定至您刪除的登錄，因此它會在 `404` 上循環而無法自我恢復。復原需要完整執行兩次重建。在這整個過程中，`terraform plan` 回報**「無變更」**，因為從 Terraform 的角度來看，期望狀態已達成。
+過去的情況是，被銷毀節點的註冊會保留控制平面唯一的 `(tenant, cluster_name, hostname)` 索引，導致替換節點的註冊被拒絕並出現 `UniqueSecondaryIndexViolationError`，且持續重試。單純刪除註冊本身並不夠：殘留的 `StatusObject` 隨後會對工作負載請求返回 `500`，而此時每個節點都已持久化一個 `registration-obj.yml`，將其固定至您已刪除的註冊，因此它在沒有自我恢復機制的情況下不斷以 `404` 循環。恢復需要兩次完整重建。在此期間，`terraform plan` 始終報告**「無變更」**，因為從 Terraform 的角度來看，期望的狀態已達成。
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) 已由
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 關閉。`modules/xc-site` 現在在 `replace_triggered_by` 中命名 CE VM 執行個體，因此替換 VM 會同時替換 site 物件，而刪除 site 也會一併刪除其登錄——索引鍵在替換節點開機前即已釋放。機群此後已從頭重建，三個 site 均無需人工介入即上線至 `ONLINE` 狀態。
+[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) 已由 [PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 關閉。`modules/xc-site` 現在在 `replace_triggered_by` 中指定 CE 虛擬機器實例，因此替換虛擬機器會同時替換站台物件，而刪除站台時其註冊也會一併移除——索引鍵在替換節點開機之前就已釋放。此後機群已從頭重建，三個站台均無需人工介入即上線 `ONLINE`。
 
-此耦合關係是可觀測的，而非假設的。每個 site 均與 VM *執行個體* ID 綁定，而對應的登錄回報的值與 `infra.instance_id` 相同：
+耦合關係是可觀察的，而非假設的。每個站台都綁定至一個虛擬機器*實例* id，對應的註冊報告與 `infra.instance_id` 相同的值：
 
 ```bash
 cd terraform && terraform output -json ce_bound_instance_ids
 ```
 
-兩者不一致表示 site 仍綁定至已不存在的節點，而這正是已重建的 CE 永遠無法完成登錄的狀態。讀取登錄的另一半仍需要直接 API 呼叫——provider issue
-[1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376) 是將其納入資料來源所需解決的問題。
+兩者不一致表示站台仍綁定至已不存在的節點，這正是重建後的 CE 永遠無法完成註冊的狀態。讀取註冊的另一半仍需直接 API 呼叫——提供者 issue [1376](https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1376) 是將其納入資料來源的追蹤項目。
 </Aside>
 
-## 為何 cloud-init 寫入金鑰，而非透過 API
+## 為何由 cloud-init 寫入金鑰，而非透過 API
 
-site 物件上的 `admin_user_credentials.ssh_key` 外觀上看起來正是用於此用途的欄位。它可被接受、通過讀回驗證，但實際上未設定任何組態。`vpm` 擁有節點的本機使用者管理，並拒絕修改此帳號——從節點自身的日誌來看，在單次開機過程中出現了三次：
+站台物件上的 `admin_user_credentials.ssh_key` 看起來正是用於此目的的欄位。它可被接受，讀回後也仍存在，但它不配置任何東西。`vpm` 擁有節點的本地使用者，並拒絕處理這個帳號——從節點自身的日誌中，在單次開機過程中出現了三次：
 
 ```text
 vpm  users.go:165: Won't do any change for user admin (internal skip)
 ```
 
-一切後果皆源自這一行。`/var/home/admin/.ssh` 在 site 達到 `ONLINE` 之前或之後均不存在。`admin` 的 shadow 最後變更日期停留在映像建置日期，而 `vesbkp` 與 `vesopcon` 則顯示當前日期，因為 `vpm` 設定了這兩者並跳過了 `admin`。而且 `vpm` 在任何時間點都未記錄任何關於 `ssh_key` 或 `authorized_keys` 的日誌。
+一切後續問題都源於這一行。`/var/home/admin/.ssh` 在站台達到 `ONLINE` 前後均不存在。`admin` 的 shadow 最後變更日期停留在映像建立日期，而 `vesbkp` 和 `vesopcon` 則顯示當前日期，因為 `vpm` 設置了這兩者並跳過了 `admin`。且 `vpm` 在任何時候都未記錄關於 `ssh_key` 或 `authorized_keys` 的任何內容。
 
-因此，該檔案必須在 `vpm` 之外寫入。`admin` 的 uid 為 2202，已內建於節點映像中，因此在 cloud-init 執行前即已存在，且 `owner: admin:admin` 在寫入時即可解析——無需 `runcmd`，也無需事後修正擁有權：
+因此，必須在 `vpm` 之外寫入此檔案。`admin` 的 uid 為 2202，已內建於節點映像中，因此在 cloud-init 執行之前它就已存在，且 `owner: admin:admin` 在寫入時即可解析——無需 `runcmd`，無需事後修正擁有權：
 
 ```yaml
 - path: /var/home/admin/.ssh/authorized_keys
@@ -89,19 +86,19 @@ vpm  users.go:165: Won't do any change for user admin (internal skip)
     ${ssh_public_key}
 ```
 
-`sshd` 始終是允許連線的。`sshd -T` 回報 `pubkeyauthentication yes`，且 `admin` 出現在節點上兩個 `sshd_config` 檔案的 `AllowUsers` 中。從來不需要啟用任何東西——只是缺少一個檔案。
+`sshd` 一直都願意配合。`sshd -T` 報告 `pubkeyauthentication yes`，且 `admin` 出現在節點上兩個 `sshd_config` 檔案的 `AllowUsers` 中。從來不需要啟用任何東西——只是缺少一個檔案。
 
 <Aside type="danger" title="請勿重新加入 admin_user_credentials，也請勿編輯 sshd_config">
-`admin_user_credentials` 曾被納入 `terraform/modules/xc-site`，並在收集此證據後還原（#660、PR #663）。這不是一個有待填補的缺口。
+`admin_user_credentials` 曾被引入 `terraform/modules/xc-site`，在收集到這些證據後已被還原（#660、PR #663）。這不是一個待填補的缺口。
 
-`sshd_config` 在登錄時會被替換，因此對其所做的編輯會在最不方便的時機被捨棄。
+`sshd_config` 在註冊過程中會被替換，因此對其的編輯將在最不方便的時刻被丟棄。
 </Aside>
 
-## 為何它僅在單一位址上回應
+## 為何它只在一個位址上回應
 
-`sshd` 綁定至 `0.0.0.0:22`，但主機網路堆疊中只有**內部（SLI）**位址是 `sshd` 會回應的方式。eth0 被重新命名為 `a-i-eth0` 且不攜帶任何主機 IP——Argo 資料平面擁有該介面，原本應承載的管理/SLO 位址改為出現在 `vhost0` 上。其他兩個 NIC 則以各自的名稱保留在主機堆疊上。
+`sshd` 綁定 `0.0.0.0:22`，但只有**內部（SLI）**位址是以 `sshd` 會回應的方式存在於主機網路堆疊中。eth0 被重新命名為 `a-i-eth0`，且完全不攜帶主機 IP——Argo 資料平面擁有該介面，而原本應在其上的管理/SLO 位址改由 `vhost0` 承載。其他兩個 NIC 則以各自的名稱保留在主機堆疊中。
 
-從 VNet 內部的 VM 對某一 CE 進行探測的結果：
+從 VNet 內的虛擬機器對一個 CE 進行探測：
 
 ```text
 management/SLO address    timed out
@@ -110,10 +107,10 @@ internal/SLI address      OPEN     SSH-2.0-OpenSSH_8.7
 an unused address         timed out    (control)
 ```
 
-因此，對您已知節點位址的探測，其回傳結果與已關閉的安全群組完全相同。並非遭到封鎖；只是該位址上沒有監聽器。
+因此，對您所知的節點位址進行探測，其返回結果與封閉的安全群組完全相同。沒有任何東西阻擋它；只是那個位址上沒有監聽器。
 
-<Aside type="caution" title="請勿透過讀取 guest 介面名稱來判斷所在的子網路">
-`eth1` 與 `eth2` 中哪個承載內部位址**在同一部署的不同節點間有所不同**。從三個 CE 讀取的即時資料：
+<Aside type="caution" title="請勿透過讀取訪客介面名稱來判斷所在子網路">
+`eth1` 和 `eth2` 中哪一個攜帶內部位址，**在同一部署的不同節點之間並不一致**。從三個 CE 實際讀取的結果：
 
 ```text
 f5-xc-ce-vm-01    eth1 -> external      eth2 -> internal/SLI
@@ -121,14 +118,13 @@ f5-xc-ce-vm-02    eth2 -> external      eth1 -> internal/SLI
 f5-xc-ce-vm-03    eth1 -> external      eth2 -> internal/SLI
 ```
 
-每個節點上唯一固定的只有兩件事：`a-i-eth0` 沒有位址，而 `vhost0` 承載管理/SLO 位址。對於其他任何事項，請根據
-[`ip addr`](../../commands/network/ip/) 輸出中的位址進行比對，而非依賴介面名稱。
+每個節點上唯一穩定的只有兩點：`a-i-eth0` 沒有位址，`vhost0` 攜帶管理/SLO 位址。其他任何情況，請依照 [`ip addr`](../../commands/network/ip/) 輸出中的位址進行比對，而非依賴介面名稱。
 </Aside>
 
-CE 的公共位址在連接埠 22 上也沒有監聽器，這就是為什麼上述命令要透過 `-J` 跳轉：一個位於 VNet 內部、與 SLI 位址同一子網路的操作員 VM。本部署為此目的建置了一個——`terraform output -raw client_vm_name` 可取得其名稱。
+CE 的公開位址在連接埠 22 上也沒有監聽器，這就是上述命令透過 `-J` 連線的原因：一個位於 VNet 內部、與 SLI 位址同子網路的操作者虛擬機器。本部署為此專門建置了一個——`terraform output -raw client_vm_name` 可查看其名稱。
 
-<Aside type="caution" title="-J 不會將您的選項傳遞給跳轉段">
-命令列上給定的選項適用於最終跳轉。因此，在 `-J` 旁邊加上 `-o UserKnownHostsFile=/dev/null`，仍會針對*跳轉*主機查詢並寫入您真實的 `known_hosts`——如果您試圖讓已重建的機群不留在其中，這會讓您大感意外。當此點重要時，請明確指定第一段跳轉：
+<Aside type="caution" title="-J 不會將您的選項傳遞至跳板連線段">
+命令列上給定的選項僅套用至最終跳轉。因此，將 `-o UserKnownHostsFile=/dev/null` 與 `-J` 一起使用，仍然會對*跳板*主機查閱並寫入您真實的 `known_hosts`，這在您試圖防止重建後的機群被記錄進去時會令人意外。在有需要時，請明確拼出第一個跳轉：
 
 ```bash
 ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@<operator-vm>" \
@@ -137,37 +133,43 @@ ssh -tt -o ProxyCommand="ssh -W %h:%p -o UserKnownHostsFile=/dev/null azureuser@
 
 </Aside>
 
-<Aside type="caution" title="兩種會產生自信但錯誤答案的量測錯誤">
-探測 eth0、外部介面或公共位址的連接埠 22，無論節點的 SSH 狀態為何，結果都會是關閉，因此毫無參考價值。只有 SLI 位址才會回應。
+<Aside type="caution" title="兩種會產生自信但錯誤答案的測量錯誤">
+探測 eth0、外部介面或公開位址的連接埠 22，無論節點的 SSH 狀態如何都會報告關閉，因此無法提供任何資訊。只有 SLI 位址會回應。
 
-而從企業工作站進行探測可能會將一個實際上已關閉的連接埠回報為**開啟**：Netskope 會在常用連接埠上自行完成 TCP 三向交握。從工作站探測 CE 公共位址時，連接埠 80 和 443 顯示為開啟，但從 VNet 內部探測時則為關閉。請從 VNet 內部的 VM 進行探測。
+從企業工作站進行探測，可能會將實際上已關閉的連接埠報告為**開放**：Netskope 會在常見連接埠上自行完成 TCP 握手。從工作站探測 CE 公開位址時，連接埠 80 和 443 顯示為開放，而從 VNet 內部探測則顯示為關閉。請從 VNet 內的虛擬機器進行探測。
 </Aside>
 
-## Site CLI 需要終端機與換行字元
+## Site CLI 需要終端機以及歸位字元（Carriage Return）
 
-`admin` 的登入 Shell 並非一般 Shell。它是一個 `go-prompt` 應用程式，會將終端機置於原始模式並讀取按鍵，而非讀取整行輸入。這帶來四個後果，每一個的失敗方式看起來都像不同的問題：
+`admin` 的登入 Shell 不是一般的 Shell。它是一個 `go-prompt` 應用程式，會將終端機切換至原始模式並讀取按鍵而非整行輸入。這帶來四個後果，每一個的失敗方式看起來都像是不同的問題：
 
-| 機制 | 缺少時發生的情況 |
+| 機制 | 缺少時的情況 |
 | --- | --- |
-| 配置終端機（`ssh -tt`） | `go-prompt.NewStandardInputParser` 拋出 `panic: no such device or address`，看起來像設備崩潰 |
-| 傳送換行字元（carriage return）而非換行字元（line feed）作為 Enter | 該行永遠不會被提交，工作階段在輸入結束時關閉且未輸出任何內容 |
-| 保持標準輸入開啟 | 命令完成渲染前連線就結束，因此正常運作的命令看起來沒有任何輸出 |
-| **分開**傳送命令文字與 Enter 位元組 | 換行字元作為字面字元進入緩衝區，CLI 回應 `unknown command`，看起來像命令不存在 |
+| 配置終端機（`ssh -tt`） | `go-prompt.NewStandardInputParser` 觸發 `panic: no such device or address`，看起來像是應用裝置崩潰 |
+| 按下 Enter 時傳送歸位字元而非換行字元 | 該行永遠不會被提交，工作階段在輸入結束時關閉且未印出任何內容 |
+| 保持標準輸入開啟 | 命令完成渲染之前連線已結束，因此正常運作的命令看起來沒有任何輸出 |
+| 分別傳送命令文字與 Enter 位元組 | 換行字元作為字面字元落入緩衝區，CLI 回應 `unknown command`，看起來像是命令不存在 |
 
-因此，`ssh host 'some-command'` 無法使用：該引數會被忽略，互動式提示字元照常啟動。請以終端機方式驅動它，否則完全無法使用。
-`scripts/sitecli_ssh_harvest.py` 是參考實作。
+因此，`ssh host 'some-command'` 無法使用：參數會被忽略，互動式提示字元照常啟動。必須以終端機方式驅動，否則完全無法使用。`scripts/sitecli_ssh_harvest.py` 是參考實作。
 
 <Aside type="caution" title="顯示「no such device or address」的 panic 表示驗證已成功">
-`vpmu` 在登入**之後**、找不到可附加的終端機時才會發出此訊息。看起來像崩潰，感覺是最糟糕的結果，但實際上是成功前的最後一個錯誤。加上 `-tt` 後重新連線。
+`vpmu` 在登入**之後**，當它找不到可附加的終端機時才會發出此訊息。將其解讀為崩潰看起來是最糟糕的結果，但實際上這是成功之前的最後一個錯誤。加上 `-tt` 重新連線即可。
 </Aside>
 
-<Aside type="caution" title="替換 CE 會更換其主機金鑰">
-替換後的節點在相同位址上呈現不同的主機金鑰，因此下次連線時會警告 `REMOTE HOST IDENTIFICATION HAS CHANGED` 並拒絕連線。請清除該位址的舊有項目後重新連線。由於授予 SSH 會替換所有 VM，請預期在採用此功能後的第一次連線時就會遇到此情況。
+<Aside type="caution" title="CE 的主機金鑰因兩種不同原因而變更">
+下次連線會警告 `REMOTE HOST IDENTIFICATION HAS CHANGED` 並拒絕連線。請清除該位址的舊條目並重新連線。有兩種情況會觸發此問題：
+
+- **替換節點。** 替換後的節點在相同位址上呈現不同的金鑰。由於授予 SSH 會替換虛擬機器，因此在首次採用後的第一次連線時就可預期此情況。
+- **就地作業系統升級**，完全不替換節點。`觀察於 2026-07-28`：一個完成 `ce_os_version` 升級的節點，在相同虛擬機器的相同位址上呈現了新的主機金鑰。
+
+`StrictHostKeyChecking=accept-new` 對兩種情況都無效。它接受從未見過的主機的金鑰；而*已變更*的金鑰正是它所拒絕的。只有移除過時的條目才能解決問題。
+
+位址也可能移動。重建部署會從同一子網路重新指派位址，因此 CE 和跳板主機可能互換位址——此後過時的條目不僅是過期的，而且已附加至錯誤的機器上。
 </Aside>
 
-## Banner 是免費的健康狀態檢查
+## 登入橫幅是一次免費的健康檢查
 
-在您輸入任何內容之前，登入 banner 已經回答了您原本需要花費多個命令才能取得的幾個問題。以下來自 `f5-xc-ce-vm-01`，ASCII 藝術字與公共 IP 已省略：
+在您輸入任何內容之前，登入橫幅已經回答了幾個您原本需要花費命令才能查明的問題。來自 `f5-xc-ce-vm-01`，ASCII 藝術字與公開 IP 已省略：
 
 ```text
 UNAUTHORIZED ACCESS TO THIS DEVICE IS PROHIBITED
@@ -187,53 +189,51 @@ SLO IP: 10.0.1.4/26
 WELCOME IN SITE CLI
 ```
 
-`Registration Status` 可區分仍在啟動中的節點（`PROVISIONING`）與已完成的節點（`PROVISIONED`）。`Software` 是決定哪些命令存在的建置字串。`DNS` 與 `NTP` 涵蓋最先導致登錄失敗的兩個相依項目，因此從未上線的節點通常已在此處告知原因——在需要
-[`chronyc-sources`](../../commands/network/chronyc-sources/) 或
-[`dig`](../../commands/network/dig/) 之前。
+`Registration Status` 可區分仍在啟動中的節點（`PROVISIONING`）和已完成的節點（`PROVISIONED`）。`Software` 是決定哪些命令存在的建置字串。`DNS` 和 `NTP` 涵蓋了最先導致註冊失敗的兩個相依項目，因此從未上線的節點通常在這裡就已告知原因——在需要 [`chronyc-sources`](../../commands/network/chronyc-sources/) 或 [`dig`](../../commands/network/dig/) 之前。
 
 ## 提供金鑰對
 
 <Steps>
 
-1. 若您尚未擁有金鑰對，請產生一個。使用 Ed25519 而非 RSA：更短，且設備的 `sshd` 可接受。
+1. 如果您尚未擁有金鑰對，請產生一個。使用 Ed25519 而非 RSA：更短，且被應用裝置 `sshd` 所接受。
 
    ```bash
    ssh-keygen -t ed25519 -C "ce-operator" -f ~/.ssh/id_ed25519
    ```
 
-2. 將部署指向**公鑰**的那半部。根模組讀取一次該檔案，並將字串傳遞至每個節點：
+2. 將**公**鑰指向部署。根模組讀取檔案一次，並將字串傳遞至每個節點：
 
    ```hcl
    # terraform/terraform.tfvars
    ssh_public_key_path = "~/.ssh/id_ed25519.pub"
    ```
 
-   `ssh_public_key` 則接受內嵌的金鑰內容，這是計畫測試所使用的方式。私鑰永遠不會離開您的工作站。
+   `ssh_public_key` 改為直接接受內容字串，這是計畫測試所使用的方式。私鑰永遠不會離開您的工作站。
 
-3. 套用。在此之前，請先閱讀本頁頂端的警告——在現有部署上，這會替換所有 CE VM。
+3. 套用。在套用之前請先閱讀本頁頂部的警告——在現有部署上，這將替換 CE 虛擬機器。
 
 </Steps>
 
-<Aside type="note" title="VM 本身的 admin_ssh_key 是不同的東西">
-`modules/ce-node` 中的 `azurerm_linux_virtual_machine.admin_ssh_key` 授權的是 Azure VM 管理員，而非設備的 `admin` 帳號。它不授予 Site CLI 存取權，且已設定此項目並不能作為 CE SSH 已設定的證明。
+<Aside type="note" title="虛擬機器本身的 admin_ssh_key 是不同的東西">
+`modules/ce-node` 中的 `azurerm_linux_virtual_machine.admin_ssh_key` 授權的是 Azure 虛擬機器管理員，而非應用裝置的 `admin` 帳號。它不授予任何 Site CLI 存取權限，且設定了它也不代表 CE SSH 已配置完成。
 </Aside>
 
 ## 這不是什麼
 
-以下每項均經過測試，並在仍認為此途徑不可能時被排除。每項都足夠合理，可能耗費一整天的時間。
+以下每項都曾在此途徑仍被認為不可能時進行過測試並排除。每一項都有足夠的可信度讓人花費一天時間。
 
-| 非原因 | 如何被排除 |
+| 非原因 | 排除方式 |
 | --- | --- |
-| 憑證僅在建立時適用 | `sshd` 在首次開機約 90 秒後啟動，此時 site 物件尚不存在。`admin_user_credentials` 也存在於 `ReplaceSpecType` 中，並可就地套用。 |
-| `block_all_services` | 管理位址上連接埠 22 的關閉狀況，無論服務是否被封鎖均相同。 |
-| 金鑰末尾有多餘的換行字元 | 兩種方式均已測試，無任何變化。cloud-init 仍會將其去除，因為字面區塊否則會渲染出第二個空行。 |
-| 釘選的舊版 CE 軟體 | 已在三個建置版本上重現，包括執行 OpenSSH 9.9 的版本。 |
-| 缺少 `admin_password` | 在從頭建立的 CE 上，同時設定 `admin_password` 與 `ssh_key` 並無任何改變。 |
+| 憑證僅在建立時套用 | `sshd` 在首次開機約 90 秒後啟動，此時站台物件尚不存在。`admin_user_credentials` 也存在於 `ReplaceSpecType` 中，並就地套用。 |
+| `block_all_services` | 無論服務是否被封鎖，管理位址上連接埠 22 的關閉情況完全相同。 |
+| 金鑰末尾的換行字元 | 兩種方式均已測試，無變化。cloud-init 仍會將其去除，因為否則字面區塊會渲染出第二個空行。 |
+| 已固定的舊版 CE 軟體 | 已在三個建置上重現，包括一個執行 OpenSSH 9.9 的建置。 |
+| 缺少 `admin_password` | 在從頭建立的 CE 上同時設定 `admin_password` 和 `ssh_key` 並無任何改變。 |
 
-<Aside type="caution" title="兩個看起來像判別因素但實際上不是的 API 欄位">
-`gc_spec.admin_ssh_key` 在 `f5-sales-demo` 的**所有 58 個 site** 中均為空或不存在——包括有設定 `admin_user_credentials.ssh_key` 的兩個 site。在正常與異常的 site 之間比較此欄位毫無意義，因為即使對已設定憑證的 site，其讀取值也是空的。
+<Aside type="caution" title="兩個看起來像鑑別因子但實際上不是的 API 欄位">
+`gc_spec.admin_ssh_key` 在 `f5-sales-demo` 的**全部 58 個站台**上均為空或不存在——包括確實設定了 `admin_user_credentials.ssh_key` 的兩個站台。比較有效與無效站台之間的此欄位毫無意義，因為即使*已*配置憑證的站台，讀取結果也是空的。
 
-`registrations_by_site` 完全省略該欄位並對其回傳 `None`，讀起來像「未設定」，而非「未回報」。
+`registrations_by_site` 完全省略此欄位並為其返回 `None`，讀起來像是「未配置」而非「未回報」。
 </Aside>
 
 ## 其他途徑
@@ -241,23 +241,23 @@ WELCOME IN SITE CLI
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="可腳本化，無需 VNet 內部存取，是取得可重現證據的正確選擇。涵蓋 34 個命令，且需要 site 處於 <code>ONLINE</code> 狀態。"
+    description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Covers 34 commands and needs the site <code>ONLINE</code>."
     href="../debug-api/"
   />
   <LinkCard
     title="Site Console"
-    description="透過 Azure Bastion 通道進行的 F5 節點故障排除 UI。無需金鑰、無需跳轉主機，且在 site 登錄前即可回應。"
+    description="F5's node troubleshooting UI over an Azure Bastion tunnel. No key, no jump host, and it answers before the site registers."
     href="../site-console/"
   />
   <LinkCard
-    title="序列主控台"
-    description="適用於從未登錄、或沒有正常網路路徑的節點。需要終端機，或 WebSocket 工具程式。"
+    title="Serial console"
+    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
     href="../serial-console/"
   />
 </CardGrid>
 
-<Aside type="caution" title="新建立的 site 在 debug API 回應前約需半小時">
-在新 site 回報 `ONLINE` 後約 25 至 30 分鐘內，`vpm/debug` 端點會回傳一個顯示「The requested URL was rejected」的 BIG-IP `503` 頁面。這看起來像 Web 應用程式防火牆封鎖或已撤銷的權杖，但兩者皆非：site 尚未準備好進行中繼。請等待並重試，而非更改任何設定。
+<Aside type="caution" title="新建立的站台在 debug API 回應之前需要約半小時">
+在新站台報告 `ONLINE` 後約 25 至 30 分鐘內，`vpm/debug` 端點會返回 BIG-IP 的 `503` 頁面，內容為 `The requested URL was rejected`。這看起來像是 Web 應用程式防火牆封鎖或已撤銷的 token，但兩者都不是：站台尚未準備好進行中繼。請等待後重試，而非變更任何設定。
 
-SSH 沒有這種暖機期。它在 `sshd` 啟動後即可回應，這就是為何在節點仍在登錄時，SSH 是可用途徑的原因。
+SSH 沒有此類暖機等待。只要 `sshd` 啟動就會回應，這就是為什麼在節點仍在註冊過程中時，SSH 是可用的途徑。
 </Aside>

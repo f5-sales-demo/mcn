@@ -1,44 +1,40 @@
 ---
-title: Commandes sur le boîtier
+title: Commandes embarquées
 description: >-
-  L'ensemble de commandes propre au Site CLI — 6 commandes de niveau supérieur
-  et 82 sous-commandes execcli — et son chevauchement avec le catalogue distinct
-  de 34 commandes de l'API de débogage, sans que l'un contienne l'autre.
-  Explique la commande execcli masquée qui les exécute, les commandes
-  entièrement documentées et celles qui sont uniquement listées, ainsi que la
-  méthode de mesure.
+  Le jeu de commandes propre à la CLI du site — 6 commandes de premier niveau et
+  82 sous-commandes execcli — et la manière dont il recoupe le catalogue
+  distinct de 34 commandes de l'API debug, sans que l'un ne contienne l'autre.
+  Explique la commande cachée execcli qui les exécute, quelles commandes sont
+  entièrement documentées et lesquelles sont seulement listées, ainsi que la
+  méthode de mesure utilisée.
 sidebar:
   order: 40
-  label: Sur le boîtier
+  label: Embarquées
 i18n:
-  sourceHash: da52a578a40b
+  sourceHash: f3baec8d1963
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Deux ensembles de commandes distincts permettent d'atteindre un Customer Edge, et aucun ne contient l'autre.
+Deux jeux de commandes distincts atteignent un Customer Edge, et aucun ne contient l'autre.
 
-- **Sur le boîtier**, le Site CLI dispose de **6 commandes de niveau supérieur** et de **82 sous-commandes `execcli`**.
-- **Via le réseau**, l'[API de débogage](../../access/debug-api/) possède son propre catalogue de **34** commandes.
+- **Sur l'équipement**, la CLI du site dispose de **6 commandes de premier niveau** et de **82 sous-commandes `execcli`**.
+- **Par le réseau**, l'[API debug](../../access/debug-api/) possède son propre catalogue de **34**.
 
-La majeure partie de la surface accessible sur le boîtier n'a pas d'équivalent API : l'intégralité du plan de contrôle Vega, les wrappers Envoy, la capture de paquets, l'ensemble des paramètres kubelet, les fichiers `edit-*` et la paire d'accès root auxiliaire ne sont accessibles que depuis le boîtier.
+La majeure partie de la surface embarquée n'a pas d'équivalent API : l'intégralité du plan de contrôle Vega, les wrappers Envoy, la capture de paquets, le jeu de paramètres kubelet, les fichiers `edit-*` et la paire d'accès root auxiliaire ne sont accessibles que depuis l'équipement.
 
 Y accéder nécessite [SSH](../../access/ssh/) ou la
 [console série](../../access/serial-console/), ainsi qu'un élément non documenté nulle part :
 
-<Aside type="tip" title="execcli est une commande masquée">
-`execcli` n'apparaît pas dans le menu interactif du Site CLI. Elle prend un nom de commande comme
-argument, et taper `execcli ` suivi de **Tab** liste les 82 commandes avec la description d'une ligne
-propre à l'appliance pour chacune. Ce menu de complétion constitue le catalogue de référence pour un
-build, et c'est ce que `sitecli/exec-catalog.json` enregistre.
+<Aside type="tip" title="execcli est une commande cachée">
+`execcli` n'apparaît pas dans le menu interactif de la CLI du site. Elle prend un nom de commande comme argument, et saisir `execcli ` suivi de **Tab** liste les 82 commandes avec la description d'une ligne propre à l'appliance pour chacune. Ce menu de complétion constitue le catalogue de référence pour un build, et c'est ce que `sitecli/exec-catalog.json` enregistre.
 </Aside>
 
-## Méthode de mesure et chevauchement des ensembles
+## Comment cela a été mesuré, et comment les jeux se recoupent
 
-L'ensemble ci-dessous n'est pas retranscrit depuis un document fournisseur. Il a été relevé sur des nœuds en production avec
-`scripts/sitecli_ssh_harvest.py` et validé dans `sitecli/exec-catalog.json` avec sa provenance. Trois relevés, dans trois états d'enregistrement :
+Le jeu ci-dessous n'a pas été transcrit depuis un document fournisseur. Il a été lu sur des nœuds actifs avec `scripts/sitecli_ssh_harvest.py` et engagé dans `sitecli/exec-catalog.json` avec sa provenance. Trois exécutions, dans trois états d'enregistrement :
 
 | Mesuré à | Niveau supérieur | `execcli` |
 | --- | --- | --- |
@@ -46,54 +42,42 @@ L'ensemble ci-dessous n'est pas retranscrit depuis un document fournisseur. Il a
 | `site_state: PROVISIONED` | 6 | 82 |
 | `site_state: ONLINE` | 6 | 82 |
 
-Les trois ont retourné des **ensembles identiques** — les mêmes noms, pas seulement les mêmes totaux, et le dernier correspondait à un déploiement différent avec des noms de site et de ressources différents. La surface de commandes ne change donc pas avec l'état d'enregistrement, et une commande absente l'est véritablement plutôt que simplement pas encore proposée.
+Les trois ont retourné des **jeux identiques** — les mêmes noms, et pas seulement les mêmes totaux, et la dernière exécution concernait un déploiement différent avec des noms de site et de ressources différents. La surface de commandes ne change donc pas avec l'état d'enregistrement, et une commande absente est genuinement absente plutôt que simplement pas encore proposée.
 
-Par rapport aux 34 commandes de l'API de débogage, cela donne deux chiffres qu'il convient de distinguer :
+Par rapport aux 34 commandes de l'API debug, cela donne deux chiffres qu'il convient de distinguer :
 
 - **51** sous-commandes `execcli` n'ont pas d'équivalent API.
-- **55** est le même chiffre compté sur l'ensemble de la surface accessible sur le boîtier, car il inclut également
-  les quatre commandes `configure*`, qui se trouvent au niveau supérieur plutôt que sous `execcli`.
+- **55** est le même chiffre calculé sur l'ensemble de la surface embarquée, car il inclut également les quatre commandes `configure*`, qui se trouvent au premier niveau plutôt que sous `execcli`.
 
-Les deux sont corrects ; un lecteur qui recalcule l'un et trouve l'autre n'a pas commis d'erreur.
-Chaque chiffre présenté ici est issu de `sitecli/catalog.json` et `sitecli/exec-catalog.json`.
+Les deux sont corrects ; un lecteur qui recalcule l'un et trouve l'autre n'a pas fait d'erreur. Chaque chiffre ici dérive de `sitecli/catalog.json` et `sitecli/exec-catalog.json`.
 
 <Aside type="caution" title="Cinq commandes qui n'existent pas">
-`factory-reset`, `upgrade`, `reboot`, `show` et `clear` **ne sont pas** présentes dans ce build. Ce sont
-le genre de commandes qu'un Site CLI pourrait plausiblement avoir, elles ont été conservées dans la
-classification de ce dépôt pendant un certain temps sur cette hypothèse, et aucune énumération ne les a trouvées. Le niveau supérieur
-comporte exactement six entrées : `configure`, `configure-generic-hardware`, `configure-network`,
-`configure-http-proxy`, `diagnosis` et `health`.
+`factory-reset`, `upgrade`, `reboot`, `show` et `clear` **ne sont pas** présentes sur ce build. Ce sont le genre de commandes qu'une CLI de site pourrait plausiblement avoir, elles ont figuré dans la classification de ce dépôt pendant un moment sur cette hypothèse, et aucune énumération ne les a trouvées. Le premier niveau contient exactement six entrées : `configure`, `configure-generic-hardware`, `configure-network`, `configure-http-proxy`, `diagnosis` et `health`.
 </Aside>
 
 <Aside type="caution" title="Trois commandes API ne sont pas des sous-commandes execcli">
-Rechercher ces commandes sous `execcli` ne donne rien, ce qui s'interprète comme « la commande est manquante » :
+Les rechercher sous `execcli` ne donne rien, ce qui se lit comme « la commande est manquante » :
 
-- **`health`** et **`diagnosis`** sont des commandes Site CLI **de niveau supérieur**. Saisissez-les directement à l'invite `>>>`
-  sans préfixe `execcli`.
-- **`dig`** est accessible via l'API de débogage et **n'apparaît dans aucun** menu sur le boîtier ; elle est donc
-  absente de la liste de passthrough ci-dessous. Elle est uniquement accessible via l'API.
+- **`health`** et **`diagnosis`** sont des commandes **de premier niveau** de la CLI du site. Saisissez-les directement à l'invite `>>>`, sans préfixe `execcli`.
+- **`dig`** est accessible via l'API debug et n'apparaît dans **aucun** menu embarqué ; elle est donc absente de la liste passthrough ci-dessous. Elle est exclusivement API.
 
 </Aside>
 
-## Ce qui est documenté et ce qui est seulement listé
+## Ce qui est documenté, et ce qui est seulement listé
 
-Un Customer Edge exécute Linux et un certain nombre de démons tiers. Documenter leurs commandes
-reviendrait à dupliquer leurs propres références et à laisser entendre que F5 en est propriétaire ; la règle est donc : **documenter
-les logiciels F5, et pour tout le reste documenter uniquement ce qui est spécifique à un CE.**
+Un Customer Edge exécute Linux et un certain nombre de démons tiers. Documenter leurs commandes reviendrait à dupliquer leurs propres références et laisserait entendre que F5 en est propriétaire. La règle est donc : **documenter les logiciels F5, et pour tout le reste ne documenter que ce qui est spécifique à un CE.**
 
-Trois niveaux, car la distinction « à nous » et « à eux » n'est pas tranchée. Cette distinction est enregistrée dans
-`sitecli/command-classification.json`.
+Trois niveaux, car la distinction « à nous » et « à eux » n'est pas nette. Cette distinction est enregistrée dans `sitecli/command-classification.json`.
 
 | Niveau | Traitement |
 | --- | --- |
-| **Logiciels F5** | Documentation complète — objectif, syntaxe, arguments, sortie capturée, points d'attention. Argo, Vega, `vpm`, `vifdump`, `configure*`, l'ensemble `edit-*`, les paramètres kubelet, l'accès root. |
-| **Interprétation spécifique au CE** | Un outil tiers dont la sortie a une signification particulière sur un CE. La lecture spécifique au CE est documentée et la sémantique propre à l'outil est laissée en amont. |
-| **Passthrough** | Linux standard ou tiers sans rien de spécifique au CE à mentionner. Listé comme disponible, avec un pointeur vers l'amont. Aucune description. |
+| **Logiciel F5** | Documentation complète — objectif, syntaxe, arguments, sortie capturée, ce qu'il faut observer. Argo, Vega, `vpm`, `vifdump`, `configure*`, le jeu `edit-*`, paramètres kubelet, accès root. |
+| **Interprétation spécifique au CE** | Un outil tiers dont la sortie a une signification particulière sur un CE. La lecture propre au CE est documentée et la sémantique de l'outil lui-même est laissée en amont. |
+| **Passthrough** | Linux ordinaire ou tiers sans rien de spécifique au CE à dire. Listé comme disponible, avec un pointeur vers l'amont. Aucune prose. |
 
-Cette distinction détermine si une page existe ou non, et c'est ce qui évite à cette
-documentation de se dégrader en une copie appauvrie des pages de manuel.
+Cette distinction détermine si une page existe ou non, et c'est ce qui empêche cette documentation de dépérir en une copie dégradée des pages de manuel.
 
-## Logiciels F5
+## Logiciel F5
 
 <CardGrid>
   <LinkCard
@@ -140,11 +124,9 @@ documentation de se dégrader en une copie appauvrie des pages de manuel.
 
 ## Passthrough
 
-Disponible sur le boîtier et **non documenté ici** — il s'agit du système d'exploitation et des
-démons tiers, et non des logiciels F5 ; leurs propres références sont plus fiables que tout ce que
-cette page pourrait restituer.
+Disponibles sur l'équipement et **non documentées ici** — il s'agit du système d'exploitation et des démons tiers, et non du logiciel F5 ; leurs propres références sont meilleures que tout ce que cette page pourrait reformuler.
 
-| Commandes | Amont |
+| Commandes | En amont |
 | --- | --- |
 | `ping`, `netstat`, `lsof`, `ip`, `ip-link-show`, `nmcli`, `tracepath` | iproute2, NetworkManager |
 | `top`, `check-mem`, `sysctl`, `load-sysctl-conf`, `journalctl`, `files`, `rpm-ostree`, `chronyc-sources` | coreutils, procps, systemd, rpm-ostree, chrony |
@@ -152,15 +134,12 @@ cette page pourrait restituer.
 | `systemctl-status-crio`, `systemctl-status-docker`, `systemctl-status-kubelet`, `systemctl-status-iscsid`, `systemctl-status-multipathd` | systemd |
 | `systemctl-restart-crio`, `systemctl-restart-docker`, `systemctl-restart-kubelet`, `systemctl-restart-iscsid`, `systemctl-restart-multipathd` | systemd — chacune de ces commandes interrompt les charges de travail sur le nœud |
 
-Deux d'entre elles méritent d'être connues même si elles ne font l'objet d'aucune page. `files` effectue des opérations sur les fichiers et n'écrira que sous `/tmp`. Et chaque `systemctl-restart-*` est
-perturbatrice par définition — redémarrer `crio` ou `kubelet` interrompt les charges de travail sur ce nœud.
+Deux d'entre elles méritent d'être connues même si elles ne font pas l'objet d'une page. `files` effectue des opérations sur les fichiers et n'écrira que sous `/tmp`. Et chaque `systemctl-restart-*` est par définition perturbatrice — redémarrer `crio` ou `kubelet` interrompt les charges de travail sur ce nœud.
 
-<Aside type="note" title="Sept commandes présentes dans les builds plus récents mais absentes de celui-ci">
+<Aside type="note" title="Sept commandes existent sur les builds plus récents et pas sur celui-ci">
 `collect-database-stats`, `iptables-lv`, les trois commandes `marker-exists-*`,
-`systemctl-restart-NetworkManager` et `systemctl-start-crio-prune` ont été observées via
-l'API de débogage sur le build `crt-20260201-0179`. Elles sont enregistrées sous
-`not_on_this_build.newer_build_debug_api` dans la classification afin que rien ici ne soit
-confondu avec quelque chose que vous pouvez exécuter sur `crt-20250613-3382`.
+`systemctl-restart-NetworkManager` et `systemctl-start-crio-prune` sont absentes ici et présentes sur le build `20260703-e2c462a`, ce qui donne 89 commandes `execcli` sur ce build contre 82 ici.
+[Les commandes sur les builds plus récents](../newer-builds/) les documente. Elles sont enregistrées sous `not_on_this_build.newer_build` dans la classification afin que rien ici ne soit confondu avec quelque chose que vous pouvez exécuter sur `crt-20250613-3382`.
 
-`collect-debug-info` est un cas à part : elle n'apparaît dans aucun menu ni aucun catalogue. Le texte d'accueil du Site CLI indique que le CLI « permet de… collecter des informations de débogage pour le support », le nom a donc très probablement été dérivé de ce texte plutôt qu'observé. Elle est marquée non vérifiée et délibérément non sondée — exécuter spéculativement une commande inconnue sur un nœud en production, c'est ainsi qu'une capture de paquets `vifdump` a été démarrée sur un CE qui était encore en cours d'enregistrement.
+`collect-debug-info` est un cas à part : elle n'apparaît dans aucun menu ni aucun catalogue. Le texte d'accueil de la CLI du site indique que la CLI « permet de… collecter des informations de débogage pour le support », le nom a donc très probablement été déduit de cette prose plutôt qu'observé. Elle est marquée comme non vérifiée et délibérément non sondée — exécuter spéculativement une commande inconnue sur un nœud actif, c'est ainsi qu'une capture de paquets `vifdump` a été démarrée sur un CE qui était encore en cours d'enregistrement.
 </Aside>
