@@ -53,6 +53,36 @@ time whatever the terminal size, so exhausting an 82-command menu takes about 10
 and a silent run is indistinguishable from a stalled one. Teardown is bounded — SIGTERM, wait,
 SIGKILL, wait — and `tests/test-sitecli-harvest.sh` fails if an unbounded wait is reintroduced.
 
+### One catalog per build
+
+The command surface grows between builds, so `exec-catalog*.json` is a family rather than a
+single file: `exec-catalog.json` is this fleet's build, and a second file carries any build
+measured elsewhere. Each records its build in `_provenance.build`.
+`scripts/check-sitecli-docs.sh` globs all of them, so a page may document a command this fleet
+cannot run — the gate decides only whether a documented name was ever observed, and the page
+is responsible for saying which build it describes.
+
+### Never add to the allow-list on the strength of a name
+
+`READ_ONLY` in the harness is an allow-list because a deny-list only stops what somebody
+thought to list. That reasoning has now failed twice, in the same way.
+
+The first time was `vifdump`, probed bare and starting a packet capture on a registering node.
+The second was `collect-database-stats`, whose name and whose own appliance description
+("collect database statistics") both read as observational — and which runs a fifteen-second
+`fio` random-write benchmark, laying out a 250 MiB file. It was allow-listed, run, and only its
+captured output showed the writes.
+
+So the name-based tripwire (`test_allow_list_contains_no_mutating_verb`, which rejects
+`restart`, `prune`, `-set` and similar) is necessary and **not sufficient** —
+`collect-database-stats` contains no such verb. The check that catches this class scans
+evidence instead: `test_no_allow_listed_command_has_a_capture_showing_writes` reads every
+committed capture and fails if a command whose output contains `randwrite`, `fio-`,
+`Laying out IO file` or `disk performance test` is on the allow-list.
+
+Before adding a command, read a capture of it from a disposable node, or leave it off. A
+description is not evidence.
+
 ## Three routing rules
 
 The catalog entry for each command is `[category, tier, exampleArg?, scope?]`, and
