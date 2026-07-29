@@ -1,0 +1,202 @@
+---
+title: Befehle in neueren Builds
+description: >-
+  Sieben Site-CLI-Befehle, die in einem neueren Customer-Edge-Build existieren,
+  aber nicht in dem, den diese Flotte ausführt – was jeder davon tut, die
+  Ausgabe von fünf davon, und der eine, dessen Name darauf hindeutet, dass er
+  Statistiken sammelt, während er tatsächlich einen Disk-Write-Benchmark gegen
+  etcd ausführt.
+sidebar:
+  order: 90
+  label: Neuere Builds
+i18n:
+  sourceHash: 821e86812dd3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Die Befehlsoberfläche der Site-CLI wächst zwischen Builds. Sieben `execcli`-Befehle existieren
+in einem neueren Build als dem, den diese Flotte ausführt. Ein Operator, der den Rest dieses
+Abschnitts liest, wird sie daher nicht finden – und jemand, der F5s eigene neuere Dokumentation
+liest, könnte sie erwarten.
+
+Die Oberfläche ist eine Obermenge, keine Umordnung: **89** `execcli`-Befehle im neueren Build
+gegenüber **82** in dem dieser Flotte, wobei diese sieben hinzugefügt und nichts entfernt wurde.
+
+<Aside type="caution" title="Diese können auf dieser Flotte nicht ausgeführt werden">
+Diese wurden auf Build `20260703-e2c462a` gemessen, der mit dem Azure-Marktplatz-Image
+ausgeliefert wird. Diese Flotte führt `crt-20250613-3382` aus, wo alle sieben fehlen –
+`execcli` meldet einen unbekannten Befehl. Alles Folgende beschreibt den neueren Build.
+</Aside>
+
+## Was jeder davon tut
+
+Die Beschreibungen stammen vom Gerät selbst, aus dem Vervollständigungsmenü.
+
+| Befehl | Beschreibung des Geräts |
+| --- | --- |
+| `collect-database-stats` | Datenbankstatistiken erfassen |
+| `iptables-lv` | iptables -L -v -n anzeigen |
+| `marker-exists-crio` | prüfen, ob crio-Neustart-Marker existiert |
+| `marker-exists-kubelet` | prüfen, ob kubelet-Neustart-Marker existiert |
+| `marker-exists-NetworkManager` | prüfen, ob NetworkManager-Neustart-Marker existiert |
+| `systemctl-restart-NetworkManager` | NetworkManager-Dienst neu starten |
+| `systemctl-start-crio-prune` | crio-Image-Prune-Dienst starten |
+
+Als Menge betrachtet beschreiben die meisten eher einen Arbeitsablauf als sieben unzusammenhängende
+Werkzeuge: Drei Befehle fragen, ob ein Dienst zum Neustart markiert wurde, und zwei führen den
+Neustart oder den Prune-Vorgang durch. Die Marker-Prüfung ist die sichere Hälfte eines Paares,
+dessen andere Hälfte disruptiv ist.
+
+**Vier der sieben lesen nur. Drei verändern den Knoten** – und einer davon ist nicht der, den man
+vermuten würde, was das Thema eines eigenen Abschnitts weiter unten ist.
+
+## `marker-exists-crio`
+
+Meldet, ob eine Neustart-Markerdatei für `crio` vorhanden ist.
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+Alle drei antworteten mit `missing`, was bedeutet, dass für diesen Dienst kein Neustart ausstehend war.
+
+<Aside type="note" title="Diese Ausgabe als Form lesen, nicht als gesunde Baseline">
+`Beobachtet am 2026-07-28.` Der Knoten, auf dem diese Ausgaben erfasst wurden, hat nie den
+Status `ONLINE` erreicht – er befand sich nach einer fehlgeschlagenen Software-Installation
+im Zustand `PROVISIONING`, weshalb er überhaupt existierte. `missing` ist das, was der Befehl
+ausgibt, wenn kein Marker vorhanden ist, und das ist der relevante Teil. Es ist **nicht**
+belegt, dass ein gesunder Knoten genauso antwortet, und nichts hier gibt an, was ein Knoten
+mit einem ausstehenden Neustart ausgibt.
+</Aside>
+
+## `iptables-lv`
+
+Führt `iptables -L -v -n` aus und gibt das Ergebnis unverändert zurück, sodass es eine
+paket- und bytegezählte Ansicht der Filter-Tabellen des Knotens ist, keine F5-Abstraktion.
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+Der größte Teil der Ausgabe gehört zu Kubernetes: Die `KUBE-`-Chains sind kube-proxys Dienst-,
+Nodeport- und Firewall-Regeln, und `DOCKER-USER` gehört zur Container-Laufzeitumgebung. Die
+erste Zeile verdient Aufmerksamkeit, anstatt übersprungen zu werden –
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+– denn sie besagt, dass diese Ansicht **unvollständig** ist. Regeln in den Legacy-Tabellen
+werden hier nicht angezeigt, und die Site-CLI bietet keinen Befehl, der sie liest.
+
+## `collect-database-stats` schreibt auf den Knoten, trotz seines Namens
+
+Dies ist eine Falle, und die Falle ist der Name. „Datenbankstatistiken erfassen" und die eigene
+Beschreibung des Geräts lesen sich beide als beobachtend. Der Befehl beginnt auch so – das
+Open-File-Limit, wie viele Deskriptoren und Verbindungen `etcd` hält, eine `lsof`-Auflistung
+und `df` für das `etcd`-Dateisystem – und führt dann einen **fünfzehnsekündigen `fio`-Random-Write-Benchmark** durch:
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+Es legt eine **250-MiB**-Datei an und schrieb im folgenden Lauf 10,6 MiB zufälliger I/O, auf
+einem Dateisystem mit 3,5 GiB freiem Speicherplatz. Es prüft vorab, ob es sicher ausgeführt
+werden kann, ist also nicht leichtsinnig – aber es ist **kein** Lesevorgang.
+
+<Aside type="danger" title="Diesen Befehl auf einem Live-Knoten als disruptiv behandeln">
+Ein Random-Write-Benchmark gegen das Dateisystem, in das `etcd` sein eigenes Journal schreibt,
+konkurriert mit `etcd` um genau die Ressource, gegenüber der `etcd` am empfindlichsten ist.
+Die Ausgabe selbst deutet darauf hin – „Healthy etcd disks should have p99 < 10ms" – was eine
+Aussage über einen Knoten unter Test ist, nicht über einen Knoten, der Datenverkehr bedient.
+Führen Sie diesen Befehl aus, wenn der F5-Support ihn anfordert, auf einem Knoten, dessen
+Latenz Sie zu beeinträchtigen bereit sind.
+</Aside>
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+Beim Lesen: Das Open-File-`ulimit` gegenüber der Deskriptoranzahl ist das Paar, nach dem ein
+Support-Engineer fragt, wenn der Verdacht besteht, dass `etcd` sein Limit erschöpft, und die
+`clat`-Perzentile sind der Zweck des Benchmarks. Der `util=94.00%` in der Disk-Stats-Zeile
+gibt an, wie ausgelastet das Gerät **während des Tests** war – es ist keine
+Dateisystem-Füllstandsangabe, und die beiden werden leicht verwechselt.
+
+<Aside type="note" title="Wie diese Seite überhaupt zu dieser Ausgabe kam">
+Dieser Befehl wurde versehentlich als nur-lesend behandelt und einmal auf dem Wegwerf-Knoten
+ausgeführt, von dem diese Ausgaben stammen – sein Name und seine Beschreibung gaben keinerlei
+Hinweis auf einen Benchmark, und die Schreibvorgänge wurden erst in seiner eigenen Ausgabe
+sichtbar. Das Harness verweigert ihn jetzt, und ein Test durchsucht erfasste Ausgaben nach
+Schreib-Markern und schlägt fehl, wenn sich ein solcher Befehl auf der Nur-Lesen-Allowlist
+befindet, da ein Name nicht belegen kann, dass ein Befehl nur liest.
+</Aside>
+
+## Die zwei, die nie ausgeführt wurden
+
+`systemctl-restart-NetworkManager` und `systemctl-start-crio-prune` sind namentlich
+dokumentiert und haben keine erfasste Ausgabe.
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+Der Neustart von `NetworkManager` unterbricht das Netzwerk des Knotens, und der Prune-Dienst
+löscht Container-Images. Beide verändern den Knoten, daher wurde keiner ausgeführt – nicht
+einmal auf einem Wegwerf-Knoten.
+
+<Aside type="caution" title="Keiner der drei mutativen Befehle steht auf der Nur-Lesen-Allowlist">
+`scripts/sitecli_ssh_harvest.py` verweigert die Ausführung dieser beiden und von
+`collect-database-stats`: Nur Namen auf seiner expliziten Nur-Lesen-Allowlist dürfen ausgeführt
+werden, und alles andere wird aufgelistet und nie ausgeführt. Tests stellen sicher, dass alle
+drei von dieser Liste fernbleiben, sodass die Verweigerung nicht versehentlich rückgängig gemacht
+werden kann.
+</Aside>
+
+<Aside type="note" title="Was verifiziert wurde und was nur berichtet wurde">
+Alle sieben wurden im `execcli`-Vervollständigungsmenü auf Build `20260703-e2c462a` beobachtet,
+über SSH, auf einem Single-Node Azure Secure Mesh v2 Customer Edge, der zu diesem Zweck
+eingesetzt wurde. `Beobachtet am 2026-07-28.`
+
+Sie wurden zuvor als über die [Debug-API](../../../access/debug-api/) sichtbar auf
+Build `crt-20260201-0179` auf einem anderen Tenant gemeldet. Das wurde nicht reproduziert:
+`crt-20260201-0179` lässt sich nicht auf dieser Site-Form installieren – siehe
+[Softwareversionen und Rebuilds](../../../lifecycle/). Der hier genannte Build ist also der,
+auf dem sie gemessen wurden, nicht der, auf dem sie zuerst gemeldet wurden, und ob diese
+Befehle über die Debug-API anstatt nur lokal auf dem Gerät erreichbar sind, ist **nicht**
+belegt.
+</Aside>

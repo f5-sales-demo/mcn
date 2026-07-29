@@ -1,102 +1,149 @@
 ---
-title: Versions du logiciel et reconstructions
+title: Versions logicielles et reconstructions
 description: >-
   Ce que font et ne font pas ce_sw_version et ce_os_version sur un Customer Edge
   — pourquoi le nœud se met à niveau qu'on les définisse ou non, pourquoi les
-  laisser vides ne donne pas la build la plus récente, et pourquoi modifier l'un
-  ou l'autre déclenche une reconstruction de flotte à planifier et non une
-  modification qu'on applique dans Terraform.
+  laisser vides ne fournit pas la version la plus récente, et pourquoi modifier
+  l'un ou l'autre constitue une reconstruction de flotte à planifier plutôt
+  qu'une modification que Terraform peut appliquer.
 sidebar:
   order: 50
   label: Versions et reconstructions
 i18n:
-  sourceHash: 6c0be3179303
+  sourceHash: 2eafde7cfc7f
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 Deux variables Terraform définissent le logiciel d'un Customer Edge : `ce_os_version` pour le
-système d'exploitation et `ce_sw_version` pour la build F5 Distributed Cloud. Les deux se
-comportent à l'inverse de leur lecture évidente, et le coût d'une erreur est une reconstruction
-de flotte.
+système d'exploitation et `ce_sw_version` pour la version F5 Distributed Cloud. Ces deux
+variables se comportent à l'opposé de ce que leur lecture évidente laisse supposer, et le
+coût d'une erreur est une reconstruction de flotte.
 
 ## Ce que font les champs de version, en deux phases
 
-La séparation des phases est tout le sujet. Confondues, le comportement semble
-contradictoire.
+La séparation des phases est au cœur du sujet. Confondues, les comportements semblent
+se contredire.
 
-**Au premier démarrage, un nœud se met toujours à niveau.** `terraform/modules/ce-node` déploie
-l'image de la place de marché avec `version = "latest"`, et cette image embarque une build
-**plus ancienne** que celle qu'exécute le tenant. Une mise à niveau se produit donc qu'on
-définisse ou non le champ. `ce_sw_version` choisit uniquement la **destination** — le laisser
-vide signifie que le serveur choisit, non qu'il ne se passe rien. Il en va de même pour
-`ce_os_version`.
+**Au premier démarrage, un nœud installe la version désignée par `ce_sw_version`.**
+`terraform/modules/ce-node` déploie l'image Marketplace avec `version = "latest"`, de sorte
+que la version avec laquelle un nœud arrive correspond à ce que cette image embarque au moment
+du déploiement — ce qui évolue dans le temps. `ce_sw_version` choisit la **destination**, non
+pas si quelque chose se produit, et laisser ce champ vide signifie que le serveur choisit
+plutôt que le nœud reste en place. Il en va de même pour `ce_os_version`.
 
-**Après cela, rien ne se met à niveau de lui-même.** F5 Distributed Cloud annonce une build
-plus récente et attend. Un champ vide ne signifie donc pas « suivre la dernière version » : le
-nœud reste là où il a atterri au premier démarrage.
+Ne supposez pas que cette évolution se fait nécessairement vers une version plus récente.
+`Observé le 28-07-2026`, l'image embarquait une version estampillée `20260703-e2c462a` —
+plus récente que `crt-20250613-3382` de cette flotte et plus récente que `crt-20260201-0179`
+que le tenant annonçait. **Nommer une version plus ancienne que celle embarquée par l'image
+demande au nœud de revenir en arrière, ce qui peut échouer** — voir l'échec décrit ci-dessous.
 
-Les deux phases sont visibles sur l'objet site. `Observé le 2026-07-28`, cette flotte :
+**Ensuite, rien ne se met à niveau automatiquement.** F5 Distributed Cloud annonce une
+version plus récente et attend. Un champ vide ne signifie donc pas « suivre la dernière
+version » : le nœud reste là où il a atterri lors de son premier démarrage.
+
+Les deux phases sont visibles sur l'objet site. `Observé le 28-07-2026`, cette flotte :
 
 ```text
 volterra_software_status.available_version   crt-20260201-0179
 operating_system_status.available_version    9.2026.14
 ```
 
-tandis que les nœuds exécutent `crt-20250613-3382` et l'OS `9.2024.6`. Une build plus récente
-est disponible mais n'a pas été adoptée — c'est l'état stable, non une mise à niveau bloquée.
+tandis que les nœuds exécutent `crt-20250613-3382` et le système d'exploitation `9.2024.6`.
+Une version plus récente est proposée et n'a pas été acceptée — c'est l'état stable, non une
+mise à niveau bloquée.
 
-## Modifier une version nécessite une reconstruction, et Terraform ne le fera pas à votre place
+## Modifier une version nécessite une reconstruction, et Terraform ne le fera pas pour vous
 
-`ce_os_version` et `ce_sw_version` sont tous deux **valables uniquement à la création**, et le
-mode d'échec est pire qu'un apply rejeté. Dans l'ordre :
+`ce_os_version` et `ce_sw_version` sont tous deux des paramètres **définis uniquement à la
+création**, et le mode d'échec est pire qu'un apply rejeté. Dans l'ordre :
 
-1. Vous modifiez la valeur et appliquez. Terraform propose une mise à jour sur place.
-2. L'API **la rejette** — `[BAD_REQUEST] Invalid request parameters`.
-3. Cette requête rejetée efface tout de même le champ côté serveur, et la lecture du
-   fournisseur ne le signale pas. L'état Terraform est désormais en désaccord avec l'objet
-   réel.
-4. Chaque plan ultérieur propose **le même changement en échec**, indéfiniment.
+1. Vous modifiez la valeur et appliquez. Terraform propose une mise à jour en place.
+2. L'API **rejette** la requête — `[BAD_REQUEST] Invalid request parameters`.
+3. Cette requête rejetée efface néanmoins le champ sur le serveur, et la lecture du
+   fournisseur ne le rapporte pas. L'état de Terraform diffère alors de l'objet en cours.
+4. Chaque plan suivant propose **le même changement en échec**, indéfiniment.
 
-Terraform ne bascule donc pas vers le remplacement du site. Il reste bloqué, et demeure bloqué
-jusqu'à ce que vous remplaciez délibérément le site et sa machine virtuelle CE. Migrer une
-flotte vers une version différente est une **reconstruction à planifier**, non une modification
-à appliquer.
+Terraform ne bascule donc pas vers le remplacement du site. Il reste bloqué, et le demeure
+jusqu'à ce que vous remplaciez le site et sa machine virtuelle CE délibérément. Faire migrer
+une flotte vers une version différente est une **reconstruction à planifier**, non une
+modification à appliquer.
 
 <Aside type="danger" title="Toutes les conséquences du remplacement d'un CE s'appliquent">
-Nouvelles clés d'hôte SSH, adresses internes réaffectées, une nouvelle inscription, et la perte
-de tout ce qui résidait uniquement sur le nœud. Cloud-init s'exécute à nouveau sur la nouvelle
-VM, donc l'accès SSH configuré de cette façon survit — mais il ne s'exécute *qu'au premier
-démarrage*, donc tout ce qui a été ajouté manuellement à l'ancien nœud est perdu.
+Nouvelles clés d'hôte SSH, adresses internes réattribuées, nouvelle inscription, et perte
+de tout ce qui ne résidait que sur le nœud. Cloud-init s'exécute à nouveau sur la nouvelle
+VM, donc l'accès SSH configuré de cette façon subsiste — mais il s'exécute *uniquement* au
+premier démarrage, de sorte que tout ce qui avait été ajouté manuellement sur l'ancien nœud
+est perdu.
 
-Lisez [SSH](./access/ssh/) sur les conséquences concernant les clés d'hôte et les adresses
+Lisez [SSH](./access/ssh/) concernant les conséquences sur les clés d'hôte et les adresses
 avant de planifier cette opération.
 </Aside>
 
 <Aside type="note" title="Signalé, non reproduit ici">
 Le rejet et la divergence d'état sont consignés dans les commentaires de
-`terraform/modules/xc-site` de ce dépôt — vérifiés dans les deux sens, épinglage et
-désépinglage, sur les trois sites — et par rapport au problème du fournisseur `xcsh#1387`.
-Cette page n'a pas ré-testé cela, car le test laisse le déploiement proposer un changement en
-échec à chaque plan.
+`terraform/modules/xc-site` de ce dépôt — vérifiés dans les deux sens, avec et sans
+épinglage, sur les trois sites — et vis-à-vis du problème fournisseur `xcsh#1387`. Cette
+page ne l'a pas retesté, car le test laisse le déploiement proposer un changement en échec
+à chaque plan.
 </Aside>
 
-## Quelle build la documentation décrit
+## Une version épinglée peut échouer à s'installer, et le site est alors bloqué
 
-Le guide de référence des commandes sur ce site décrit **`crt-20250613-3382`**, la build
-qu'exécute cette flotte. Les commandes observées uniquement sur des builds plus récentes sont
-répertoriées par nom dans `sitecli/command-classification.json` sous `not_on_this_build`, et ne
-sont pas documentées comme exécutables. Voir [commandes embarquées](./commands/on-box/).
+L'acceptation de l'épinglage n'équivaut pas à son installation. Sur un Customer Edge Azure
+Secure Mesh v2 à nœud unique fraîchement créé et épinglé à `crt-20260201-0179`, l'objet site
+a signalé immédiatement la version épinglée — puis l'installation a échoué :
+
+```text
+site_state        PROVISIONING
+phase             UPGRADE_FAILED
+result            Failed
+last_installed    (empty)
+message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed ...
+                  required replicas: 1, current replicas: 0
+```
+
+`Observé le 28-07-2026.` L'épinglage du **système d'exploitation** s'est installé normalement
+lors du même cycle (`9.2024.6` vers `9.2026.14`, `UPGRADE_COMPLETED`) ; seule l'installation
+du logiciel a échoué. Le site n'a jamais atteint l'état `ONLINE` et `last_installed_version`
+est resté vide, de sorte qu'aucun retour arrière vers une version fonctionnelle n'a eu lieu —
+il n'existait pas d'installation précédente réussie vers laquelle revenir.
+
+**Ce qu'il faut en retenir.** Une version qui fonctionne ailleurs ne prouve pas qu'elle
+s'installe sur la topologie de votre site. La même version était à l'état `ONLINE` sur un
+Customer Edge Azure qui n'était pas Secure Mesh v2, et sur un site Secure Mesh v2 sous
+VMware ; la combinaison qui a échoué était Azure *et* Secure Mesh v2. Testez un changement
+de version sur un site jetable avant de l'appliquer à une flotte, car une flotte qui échoue
+de cette façon reste bloquée en `PROVISIONING`, la recréation étant la seule issue.
+
+<Aside type="caution" title="Pourquoi cette page n'indique pas la cause">
+La version demandée était **plus ancienne** que celle embarquée par l'image Marketplace, de
+sorte que le nœud était invité à revenir en arrière. C'est une explication plausible de
+l'échec, mais elle n'est **pas** établie : les deux chaînes de version (`20260703-e2c462a` et
+`crt-20260201-0179`) ne sont pas connues pour partager un schéma de numérotation, et aucune
+capture d'un nœud de la flotte n'était disponible pour comparer. L'échec et l'ordre des
+versions sont des observations ; le lien entre eux ne l'est pas.
+</Aside>
+
+## Quelle version décrit la documentation
+
+La référence des commandes sur ce site décrit **`crt-20250613-3382`**, la version
+qu'exécute cette flotte. Les commandes n'existant que sur des versions plus récentes sont
+répertoriées dans `sitecli/command-classification.json` sous `not_on_this_build` et
+documentées séparément, sous
+[commandes sur les versions plus récentes](./commands/on-box/newer-builds/), de sorte
+qu'aucune d'entre elles n'apparaît comme exécutable ici. Voir également
+[commandes embarquées](./commands/on-box/).
 
 <Aside type="caution" title="Ne planifiez pas une reconstruction pour accéder à des commandes plus récentes">
-Une build plus récente est disponible, et si elle s'installe correctement sur cette topologie
-reste incertain — il existe un rapport d'échec sur des sites Azure Secure Mesh v2 à nœud unique,
-et une contre-observation d'un Customer Edge qui l'exécute. Ni l'un ni l'autre ne peut être
-confirmé à partir de ce qui reste dans le tenant.
+Une version plus récente est proposée, et la question de savoir si elle s'installe
+correctement sur cette topologie est ouverte — il existe un rapport d'échec sur des sites
+Azure Secure Mesh v2 à nœud unique, et une contre-observation d'un Customer Edge l'exécutant.
+Aucune des deux ne peut être confirmée à partir de ce qui subsiste dans le tenant.
 
-Puisqu'un changement de version est une reconstruction de flotte, cette incertitude est le fait
-opérant : considérez l'accès à ces commandes comme non éprouvé, non comme une mise à niveau
-planifiée. Les preuves et l'expérience qui permettraient de trancher sont consignées dans
-`sitecli/README.md`.
+Étant donné qu'un changement de version est une reconstruction de flotte, cette incertitude
+est le fait opérant : considérez l'accès à ces commandes comme non prouvé, non comme une mise
+à niveau planifiée. Les éléments probants et l'expérience qui permettraient de trancher sont
+consignés dans `sitecli/README.md`.
 </Aside>

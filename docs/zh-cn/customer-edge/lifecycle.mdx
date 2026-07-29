@@ -1,65 +1,89 @@
 ---
 title: 软件版本与重建
 description: >-
-  ce_sw_version 和 ce_os_version 在 Customer Edge
-  上的作用与限制——为何节点无论是否设置这些参数都会自动升级，为何留空不会获取最新构建版本，以及为何更改任一参数都是需要提前规划的集群重建操作，而非
-  Terraform 可直接应用的编辑。
+  ce_sw_version 和 ce_os_version
+  在客户边缘节点上的作用与局限——为何节点无论是否设置这两个参数都会自行升级、为何留空不会获取最新构建版本，以及为何更改任一参数都是需要计划的集群重建而非
+  Terraform 可直接应用的编辑操作。
 sidebar:
   order: 50
   label: 版本与重建
 i18n:
-  sourceHash: 6c0be3179303
+  sourceHash: 2eafde7cfc7f
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-两个 Terraform 变量用于设置 Customer Edge 的软件：`ce_os_version` 对应操作系统，`ce_sw_version` 对应 F5 Distributed Cloud 构建版本。两者的实际行为与直觉理解恰好相反，一旦配置错误，代价是整个集群的重建。
+两个 Terraform 变量用于设置客户边缘节点的软件：`ce_os_version` 用于操作系统，`ce_sw_version` 用于 F5 Distributed Cloud 构建版本。两者的行为与字面意思截然相反，一旦设置有误，代价是整个集群的重建。
 
-## 版本字段的作用：分两个阶段理解
+## 版本字段的作用——两个阶段
 
-区分阶段是理解这一问题的关键。若将两个阶段混为一谈，其行为看起来便会自相矛盾。
+将两个阶段分开理解是关键所在。若将其混淆，行为看起来自相矛盾。
 
-**首次启动时，节点始终会执行升级。** `terraform/modules/ce-node` 使用 `version = "latest"` 部署 Marketplace 镜像，而该镜像所附带的构建版本**早于**租户实际运行的版本。因此，无论是否设置该字段，升级都会发生。`ce_sw_version` 仅决定升级的**目标版本**——留空意味着由服务器决定目标版本，而非不执行任何操作。`ce_os_version` 同理。
+**在首次启动时，节点会安装 `ce_sw_version` 所指定的版本。**
+`terraform/modules/ce-node` 使用 `version = "latest"` 部署市场镜像，因此节点初始携带的构建版本取决于该镜像当时的内容——而这会随时间变化。`ce_sw_version` 决定的是**目标版本**，而非是否触发安装动作；留空意味着由服务器决定版本，而非节点保持不变。`ce_os_version` 同理。
 
-**此后，节点不会自动升级。** F5 Distributed Cloud 会通告更新的构建版本并等待用户操作。因此，留空字段并不等同于"跟踪最新版本"：节点将停留在首次落地时的版本。
+不要假设变化方向是向上升级。`观测于 2026-07-28`，镜像携带的构建版本为 `20260703-e2c462a`——新于该集群的 `crt-20250613-3382`，也新于租户所通告的 `crt-20260201-0179`。**指定一个比镜像所携带版本更旧的构建版本，相当于要求节点回退，这可能会失败**——详见下文的失败案例。
 
-两个阶段均可在 Site 对象上观察到。`观测于 2026-07-28`，该集群：
+**此后，节点不会自行升级。** F5 Distributed Cloud 会通告更新的构建版本并等待操作。因此，留空字段并不意味着"跟踪最新版本"：节点会停留在首次启动时所安装的版本。
+
+两个阶段均可在站点对象上观测到。`观测于 2026-07-28`，该集群：
 
 ```text
 volterra_software_status.available_version   crt-20260201-0179
 operating_system_status.available_version    9.2026.14
 ```
 
-而节点运行的版本为 `crt-20250613-3382`，操作系统版本为 `9.2024.6`。更新的构建版本已提供但尚未被采用——这是稳定状态，而非升级卡住的现象。
+而节点运行的是 `crt-20250613-3382`，操作系统版本为 `9.2024.6`。更新的构建版本已提供但尚未被采用——这是稳定状态，而非升级停滞。
 
-## 更改版本需要重建，且 Terraform 不会替你完成
+## 更改版本需要重建，且 Terraform 不会自动处理
 
-`ce_os_version` 和 `ce_sw_version` 均为**仅在创建时生效**的参数，且失败的方式比被拒绝的 apply 更为糟糕。具体过程如下：
+`ce_os_version` 和 `ce_sw_version` 均为**仅创建时有效**的参数，且失败模式比被拒绝的 apply 操作更为严重。具体流程如下：
 
-1. 修改值并执行 apply。Terraform 提议原地更新。
+1. 您更改了值并执行 apply。Terraform 提议进行原地更新。
 2. API **拒绝**该请求——`[BAD_REQUEST] Invalid request parameters`。
-3. 该被拒绝的请求仍会清除服务器上的字段值，而 Provider 的 read 操作不会将此情况反映出来。Terraform 的状态与实际对象由此产生分歧。
-4. 此后每次 plan 都会持续提议**相同的失败变更**，无限循环。
+3. 该被拒绝的请求仍会清除服务器上的字段值，且 provider 的读取操作不会报告此情况。Terraform 的状态与实际对象产生分歧。
+4. 此后每次 plan 都会无限期地提议**同一个失败的变更**。
 
-因此，Terraform 不会回退到替换 Site，而是陷入卡死状态，并持续卡死，直到你主动替换 Site 及其 CE 虚拟机为止。将集群迁移到不同版本是一项**需要提前规划的重建操作**，而非可以直接 apply 的编辑。
+因此，Terraform 不会回退到替换站点，而是陷入僵局并持续停滞，直到您主动替换站点及其 CE 虚拟机为止。将集群迁移到不同版本是一项**需要计划的重建操作**，而非可以直接 apply 的编辑。
 
-<Aside type="danger" title="替换 CE 的所有后果均会发生">
-新的 SSH 主机密钥、重新分配的内部地址、全新的注册流程，以及仅存在于节点上的所有数据将全部丢失。Cloud-init 会在新虚拟机上重新执行，因此以该方式配置的 SSH 访问可以保留——但 cloud-init *仅在首次启动时运行*，因此所有手动添加到旧节点上的内容都将消失。
+<Aside type="danger" title="替换 CE 的所有后果均适用">
+新的 SSH 主机密钥、重新分配的内部地址、全新的注册流程，以及仅存在于节点上的所有数据的丢失。Cloud-init 会在新虚拟机上重新运行，因此以该方式配置的 SSH 访问可以保留——但它*仅在首次启动时运行*，因此手动添加到旧节点的任何内容都将丢失。
 
-在安排此操作之前，请阅读 [SSH](./access/ssh/) 以了解主机密钥和地址变更的影响。
+在安排此操作之前，请阅读 [SSH](./access/ssh/) 了解主机密钥和地址变更的影响。
 </Aside>
 
-<Aside type="note" title="已记录，未在此处复现">
-该拒绝行为与状态分歧已记录在本仓库的 `terraform/modules/xc-site` 注释中——已在三个 Site 上分别对固定版本和取消固定两个方向进行了验证，并对应 Provider Issue `xcsh#1387`。本页面未重新测试此问题，因为测试会导致部署在每次 plan 时持续提议失败的变更。
+<Aside type="note" title="已记录，此处未复现">
+该拒绝行为及状态分歧已记录在本仓库的 `terraform/modules/xc-site` 注释中——已在三个站点上双向验证（固定版本和取消固定），并对应 provider issue `xcsh#1387`。本页面未重新测试，因为测试会导致部署在每次 plan 时都提议一个失败的变更。
+</Aside>
+
+## 已固定的构建版本可能安装失败，站点随即陷入僵局
+
+接受固定版本与成功安装并不等同。在一个新创建的单节点 Azure Secure Mesh v2 客户边缘节点上，固定版本设置为 `crt-20260201-0179` 后，站点对象立即报告了固定版本——但随后安装失败：
+
+```text
+site_state        PROVISIONING
+phase             UPGRADE_FAILED
+result            Failed
+last_installed    (empty)
+message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed ...
+                  required replicas: 1, current replicas: 0
+```
+
+`观测于 2026-07-28。` **操作系统**固定版本在同一次运行中正常安装（从 `9.2024.6` 升级至 `9.2026.14`，状态为 `UPGRADE_COMPLETED`）；仅软件安装失败。该站点始终未能达到 `ONLINE` 状态，且 `last_installed_version` 保持为空，因此没有回滚到可用构建版本——没有之前成功安装的版本可供回滚。
+
+**从中得出的结论。** 某个版本在其他地方运行正常，并不能证明它能在您的站点上成功安装。同一构建版本在非 Secure Mesh v2 的 Azure 客户边缘节点上处于 `ONLINE` 状态，也在 VMware 上的 Secure Mesh v2 站点上正常运行；失败的组合是 Azure *与* Secure Mesh v2 的结合。在将版本变更应用到整个集群之前，请先在临时站点上测试，因为以此方式失败的集群将停留在 `PROVISIONING` 状态，唯一的出路是重建。
+
+<Aside type="caution" title="为何本页面不说明失败原因">
+所请求的构建版本**旧于**市场镜像所携带的版本，因此节点被要求回退。这是对失败的一种合理解释，但**尚未确认**：两个版本字符串（`20260703-e2c462a` 和 `crt-20260201-0179`）不确定是否共用同一编号方案，且无法从集群节点获取数据进行比对。失败情况和版本顺序是观测结果；两者之间的关联尚未建立。
 </Aside>
 
 ## 文档所描述的构建版本
 
-本站命令参考描述的是 **`crt-20250613-3382`**，即该集群当前运行的版本。仅在更新版本中观测到的命令已按名称记录在 `sitecli/command-classification.json` 的 `not_on_this_build` 字段下，不会作为可执行命令进行说明。请参阅[节点内命令](./commands/on-box/)。
+本站命令参考描述的是 **`crt-20250613-3382`**，即该集群当前运行的构建版本。仅存在于更新构建版本上的命令已记录在 `sitecli/command-classification.json` 的 `not_on_this_build` 字段下，并单独整理为[更新构建版本上的命令](./commands/on-box/newer-builds/)，因此不会将其标注为在当前版本可执行。另请参阅[节点上的命令](./commands/on-box/)。
 
-<Aside type="caution" title="请勿为了使用新命令而规划重建">
-目前已有更新的构建版本可用，但其是否能在本拓扑上顺利安装尚无定论——有报告显示其在单节点 Azure Secure Mesh v2 Site 上安装失败，也有观测到 Customer Edge 成功运行该版本的记录。鉴于租户中现有信息有限，两者均无法得到确认。
+<Aside type="caution" title="请勿为了使用更新命令而计划重建">
+目前有更新的构建版本可用，但它是否能在当前拓扑上顺利安装尚无定论——有报告指出它在单节点 Azure Secure Mesh v2 站点上安装失败，同时也有客户边缘节点成功运行该版本的反例。两者均无法从租户现有数据中得到确认。
 
-由于版本变更意味着集群重建，上述不确定性是当前的核心事实：应将使用这些命令视为未经验证的操作，而非已规划的升级。相关证据及可用于验证的实验均记录于 `sitecli/README.md`。
+由于版本变更意味着集群重建，这一不确定性是决策的关键依据：应将使用这些命令视为未经验证的目标，而非计划中的升级。相关证据及可用于验证的实验已记录在 `sitecli/README.md` 中。
 </Aside>

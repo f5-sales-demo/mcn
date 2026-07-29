@@ -1,0 +1,147 @@
+---
+title: 新しいビルドのコマンド
+description: >-
+  このフリートが実行するビルドではなく、より新しい Customer Edge ビルドに存在する7つの Site CLI コマンド —
+  各コマンドの動作、そのうち5つが生成する出力、および名前が統計収集を示しながら実際には etcd に対してディスク書き込みベンチマークを実行するコマンド。
+sidebar:
+  order: 90
+  label: 新しいビルド
+i18n:
+  sourceHash: 821e86812dd3
+  translator: machine
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Site CLI のコマンドサーフェスはビルド間で拡張されます。このフリートが実行するビルドよりも新しいビルドには7つの `execcli` コマンドが存在するため、このセクションの残りを読むオペレーターはそれらを見つけることができず、F5 の新しいドキュメントを参照する方はそれらを期待する場合があります。
+
+このサーフェスは再配置ではなく上位集合です：新しいビルドには **89** の `execcli` コマンドがあり、このフリートの **82** に対して、これら7つが追加されており、削除されたものはありません。
+
+<Aside type="caution" title="このフリートでは実行できません">
+これらはビルド `20260703-e2c462a` で計測されたものであり、Azure マーケットプレイスイメージが出荷するビルドです。このフリートは `crt-20250613-3382` を実行しており、7つのコマンドはすべて存在しません — `execcli` は不明なコマンドとして報告します。以下の説明はすべて新しいビルドに関するものです。
+</Aside>
+
+## 各コマンドの動作
+
+説明はアプライアンス自身のものであり、補完メニューから取得しています。
+
+| コマンド | アプライアンスの説明 |
+| --- | --- |
+| `collect-database-stats` | データベース統計の収集 |
+| `iptables-lv` | iptables -L -v -n の表示 |
+| `marker-exists-crio` | crio 再起動マーカーの存在確認 |
+| `marker-exists-kubelet` | kubelet 再起動マーカーの存在確認 |
+| `marker-exists-NetworkManager` | NetworkManager 再起動マーカーの存在確認 |
+| `systemctl-restart-NetworkManager` | NetworkManager サービスの再起動 |
+| `systemctl-start-crio-prune` | crio イメージプルーンサービスの開始 |
+
+セットとして読むと、それらのほとんどは7つの無関係なツールではなく、1つのワークフローを説明しています：3つのコマンドはサービスが再起動のフラグを立てられているかを確認し、2つは再起動またはプルーンを実行します。マーカーの確認は、もう一方が破壊的なペアの安全な半分です。
+
+**7つのうち4つは読み取りのみです。3つはノードを変更します** — そのうちの1つは予想されるものではなく、以下の独自のセクションの主題です。
+
+## `marker-exists-crio`
+
+`crio` の再起動マーカーファイルが存在するかどうかを報告します。
+
+```bash
+execcli marker-exists-crio
+```
+
+```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```
+
+## `marker-exists-kubelet`
+
+```bash
+execcli marker-exists-kubelet
+```
+
+```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```
+
+## `marker-exists-NetworkManager`
+
+```bash
+execcli marker-exists-NetworkManager
+```
+
+```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```
+
+3つすべてが `missing` と回答しており、そのサービスに対して再起動が保留されていないことを意味します。
+
+<Aside type="note" title="この出力を健全なベースラインとしてではなく、形として読んでください">
+`2026-07-28 に観察。` これらが取得されたノードは `ONLINE` に到達せず — ソフトウェアインストールの失敗後に `PROVISIONING` 状態でした。これがそのノードが存在した理由です。`missing` はマーカーが存在しない場合にコマンドが表示するものであり、それが有用な部分です。健全なノードが同じ回答をするかどうかは**確立されておらず**、再起動が保留されているノードが何を表示するかについても、ここでは何も述べていません。
+</Aside>
+
+## `iptables-lv`
+
+`iptables -L -v -n` を実行してそのまま返すため、F5 の抽象化ではなく、ノードのフィルタテーブルのパケットおよびバイトカウントビューです。
+
+```bash
+execcli iptables-lv
+```
+
+```text file=../../../../_data/sitecli-iptables-lv.txt
+```
+
+表示されるほとんどは Kubernetes のものです：`KUBE-` チェーンは kube-proxy のサービス、nodeport、およびファイアウォールルールであり、`DOCKER-USER` はコンテナランタイムに属します。最初の行はスキップせずに注目する価値があります —
+
+```text
+# Warning: iptables-legacy tables present, use iptables-legacy to see them
+```
+
+— なぜなら、このビューが**不完全**であることを示しているからです。レガシーテーブルのルールはここには表示されず、Site CLI にはそれらを読み取るコマンドがありません。
+
+## `collect-database-stats` は名前に反してノードに書き込みます
+
+これはトラップであり、トラップはその名前にあります。「データベース統計の収集」というアプライアンス自身の説明は、どちらも観察的に読めます。コマンドはその通りに始まります — オープンファイル制限、`etcd` が保持するディスクリプタと接続数、`lsof` リスト、および `etcd` ファイルシステムの `df` — そして**15秒間の `fio` ランダム書き込みベンチマーク**を実行します：
+
+```text
+Checking if fio disk performance test can run safely...
+
+Running fio disk performance test (15 seconds)...
+etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
+etcd-test: Laying out IO file (1 file / 250MiB)
+```
+
+**250 MiB** のファイルをレイアウトし、3.5 GiB の空き容量があったファイルシステムで、以下の実行で 10.6 MiB のランダム I/O を書き込みました。安全に実行できるかどうかを事前チェックするため無謀ではありませんが、**読み取りではありません**。
+
+<Aside type="danger" title="本番ノードでは破壊的なコマンドとして扱ってください">
+`etcd` が自身のジャーナルを書き込むファイルシステムに対するランダム書き込みベンチマークは、`etcd` が最も敏感なリソースをめぐって `etcd` と競合します。出力自体がこれを指摘しています — 「健全な etcd ディスクは p99 < 10ms であるべき」 — これはトラフィックを処理しているノードではなく、テスト中のノードに関する記述です。F5 サポートが求める場合、レイテンシを乱すことを許容できるノードで実行してください。
+</Aside>
+
+```bash
+execcli collect-database-stats
+```
+
+```text file=../../../../_data/sitecli-collect-database-stats.txt
+```
+
+読み方：`etcd` がその制限を使い果たしていると疑われる場合にサポートエンジニアが求めるオープンファイルの `ulimit` とディスクリプタカウントのペア、および `clat` パーセンタイルがベンチマークのポイントです。ディスク統計行の `util=94.00%` は**テスト中に**デバイスがどれだけ使用されていたかを示すもので — ファイルシステムの使用率を示す数値ではなく、この2つは混同しやすいです。
+
+<Aside type="note" title="このページにその出力が存在するに至った経緯">
+このコマンドは誤って読み取り専用として扱われ、これらのキャプチャが取得された使い捨てのノードで一度実行されました — その名前と説明はベンチマークを示唆しておらず、書き込みはその出力の中でのみ可視化されました。ハーネスは現在それを拒否しており、テストはコミットされたキャプチャで書き込みマーカーをスキャンし、そのようなコマンドが読み取り専用の許可リストにある場合は失敗します。なぜなら、名前はコマンドが読み取りのみであることを確立できないからです。
+</Aside>
+
+## 実行されなかった2つのコマンド
+
+`systemctl-restart-NetworkManager` と `systemctl-start-crio-prune` は名前によってドキュメント化されており、キャプチャされた出力はありません。
+
+```bash
+execcli systemctl-restart-NetworkManager
+execcli systemctl-start-crio-prune
+```
+
+`NetworkManager` を再起動するとノードのネットワークが中断され、プルーンサービスはコンテナイメージを削除します。どちらもノードを変更するため、使い捨てのノードでも実行しませんでした。
+
+<Aside type="caution" title="3つの変更コマンドはいずれも読み取り専用許可リストにありません">
+`scripts/sitecli_ssh_harvest.py` はこの2つと `collect-database-stats` の実行を拒否します：明示的な読み取り専用許可リストにある名前のみが実行でき、それ以外はすべて列挙されており、決して実行されません。テストは3つすべてがそのリストから外れていることを表明するため、拒否が誤って取り消されることはありません。
+</Aside>
+
+<Aside type="note" title="検証されたことと、報告されただけのこと">
+7つすべては、その目的のためにデプロイされた単一ノードの Azure Secure Mesh v2 Customer Edge 上で、SSH 経由でビルド `20260703-e2c462a` の `execcli` 補完メニューで観察されました。
+`2026-07-28 に観察。`
+
+これらは以前、別のテナントのビルド `crt-20260201-0179` の [デバッグ API](../../../access/debug-api/) を通じて確認されたと記録されていました。それは再現されませんでした：`crt-20260201-0179` はこのサイト形状にインストールされません — [ソフトウェアバージョンと再ビルド](../../../lifecycle/) を参照してください。したがって、ここで記載されているビルドは最初に報告されたものではなく、計測されたものであり、これらのコマンドがボックス上だけでなくデバッグ API 経由でアクセス可能かどうかは**確立されていません**。
+</Aside>
