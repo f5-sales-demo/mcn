@@ -188,6 +188,15 @@ with `Expected a closing tag`. Backtick it. Related: if `textlint --plugin mdx` 
 page, that is a *true signal* of this and not a plugin defect — the error text invites you to
 report a plugin bug, and doing so wastes your time.
 
+**Quote a phrase inside an `<Aside title="...">` with single quotes, never double.** A second
+`"` ends the attribute, and MDX then reads the rest as an attribute name:
+``Unexpected character `"` (U+0022) in attribute name``. This is mainly a translation hazard — the
+English pages use single quotes, but a translator may render them as typographic or straight
+doubles, and it broke a Pages deploy after the fact (#712). Nothing else catches it: parity
+compares fence and component counts, the `sourceHash` audit only proves freshness, and CI's
+prose linters pass. `tests/test-mdx-attribute-quotes.sh` is the check, and it scans every locale
+because MDX aborts on the first parse error and hides the rest.
+
 **Do not duplicate configuration that has to stay identical across locales.** Fenced code is
 preserved — command names and captured output come through unchanged in all twelve locales,
 verified. Frontmatter and prose are translated, so a `description` or heading carrying a
