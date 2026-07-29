@@ -2,91 +2,144 @@
 title: Versioni software e ricostruzioni
 description: >-
   Cosa fanno e non fanno ce_sw_version e ce_os_version su un Customer Edge —
-  perché il nodo si aggiorna da solo indipendentemente dalla loro impostazione,
-  perché lasciarli vuoti non installa la build più recente, e perché modificarli
-  è una ricostruzione dell'intera flotta da pianificare, non una modifica che
-  Terraform può applicare.
+  perché lasciare i campi vuoti restituisce la build più recente anziché
+  nessuna, perché Terraform non può modificare una versione ma l'API sì, e
+  perché una coppia di versioni che non riesce a installarsi è un limite del
+  disco anziché una build non supportata.
 sidebar:
   order: 50
   label: Versioni e ricostruzioni
 i18n:
-  sourceHash: 2eafde7cfc7f
+  sourceHash: cbd5a0a59cb6
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Due variabili Terraform definiscono il software di un Customer Edge: `ce_os_version` per il sistema
+Due variabili Terraform impostano il software di un Customer Edge: `ce_os_version` per il sistema
 operativo e `ce_sw_version` per la build di F5 Distributed Cloud. Entrambe si comportano in modi
-contrari a quanto una lettura immediata suggerirebbe, e il costo di un errore è la ricostruzione dell'intera flotta.
+opposti a quanto si potrebbe intuire — un campo vuoto restituisce la build più recente anziché nessuna,
+e una versione che si installa su un nodo può fallire su uno identico con un disco più piccolo.
 
-## Cosa fanno i campi di versione, in due fasi
+## Cosa fanno i campi versione, in due fasi
 
-Separare le fasi è il punto centrale. Considerandole insieme, il comportamento sembra
-contraddittorio.
+Separare le fasi è il punto centrale. Se le si confonde, il comportamento sembra contraddittorio.
 
-**Al primo avvio, un nodo installa qualsiasi versione indicata da `ce_sw_version`.**
+**Al primo avvio, un nodo installa qualunque cosa `ce_sw_version` indichi.**
 `terraform/modules/ce-node` distribuisce l'immagine marketplace con `version = "latest"`, quindi
-la build con cui arriva un nodo è quella attualmente presente in quell'immagine — e cambia nel tempo.
-`ce_sw_version` sceglie la **destinazione**, non se qualcosa accada, e lasciarlo vuoto significa che
-sarà il server a scegliere, non che il nodo rimanga dov'è. Lo stesso vale per `ce_os_version`.
+la build con cui arriva un nodo è quella che quell'immagine porta al momento — e cambia nel tempo.
+`ce_sw_version` sceglie la **destinazione**, non se avviene qualcosa, e lasciarlo vuoto significa
+che è il server a scegliere, non che il nodo rimanga fermo. Lo stesso vale per `ce_os_version`.
 
-Non si deve presumere che quella modifica sia un aggiornamento. `Osservato il 28/07/2026`, l'immagine
-includeva una build con timestamp `20260703-e2c462a` — più recente rispetto alla versione `crt-20250613-3382`
-di questa flotta e più recente rispetto alla `crt-20260201-0179` pubblicizzata dal tenant. **Specificare una
-build precedente a quella inclusa nell'immagine chiede al nodo di tornare indietro, e questo può fallire** —
-si veda il fallimento descritto di seguito.
+Non si deve presumere che la direzione di tale cambiamento sia verso l'alto. `Osservato il 2026-07-28`,
+l'immagine portava una build con timbro `20260703-e2c462a` — più recente della `crt-20250613-3382`
+di questo parco macchine e più recente della `crt-20260201-0179` che il tenant stava pubblicizzando.
+Indicare una build più vecchia di quella contenuta nell'immagine chiede al nodo di spostarsi
+all'indietro, e ciò è normale: questo parco macchine è stato creato così e sta funzionando.
 
-**Successivamente, nulla si aggiorna automaticamente.** F5 Distributed Cloud pubblica una build più
-recente e attende. Un campo vuoto non equivale quindi a "segui l'ultima versione": il nodo rimane
-dov'è atterrato al primo avvio.
+**Lasciare un campo versione vuoto è la scelta più rischiosa, non quella neutrale.** Al momento
+della creazione il server non lascia un campo vuoto — lo riempie con la versione **più recente
+pubblicizzata** e installa quella. Un sito creato con entrambi i campi non impostati è tornato
+bloccato su `crt-20260201-0179` e OS `9.2026.14`, le due versioni che il tenant stava pubblicizzando,
+e l'installazione è poi fallita. `Osservato il 2026-07-29`.
 
-Entrambe le fasi sono visibili sull'oggetto site. `Osservato il 28/07/2026`, questa flotta:
+Ne derivano due conseguenze. Vuoto significa "dammi la più recente", quindi una distribuzione non
+bloccata su una versione è quella più probabile di incontrare il limite del disco descritto di seguito.
+E non è possibile isolare un campo lasciando vuoto l'altro, perché il server lo riempie — impostare
+entrambi deliberatamente, oppure accettare la versione più recente di ciascuno.
+
+**Dopo il primo avvio, nulla si aggiorna da solo.** F5 Distributed Cloud pubblica una build più
+recente e attende. È lì che vale "il nodo rimane dove è atterrato" — dopo la creazione, non durante.
+
+Entrambe le fasi sono visibili sull'oggetto site. `Osservato il 2026-07-28`, questo parco macchine:
 
 ```text
 volterra_software_status.available_version   crt-20260201-0179
 operating_system_status.available_version    9.2026.14
 ```
 
-mentre i nodi eseguono `crt-20250613-3382` e il sistema operativo `9.2024.6`. Una build più recente
-è disponibile e non è stata accettata — questa è la condizione stabile, non un aggiornamento bloccato.
+mentre i nodi eseguono `crt-20250613-3382` e OS `9.2024.6`. Una build più recente è disponibile
+e non è stata accettata — lo stato stabile, non un aggiornamento bloccato.
 
-## Modificare una versione richiede una ricostruzione, e Terraform non la eseguirà automaticamente
+## Terraform non può cambiare una versione. L'API sì
 
-`ce_os_version` e `ce_sw_version` sono entrambi **configurabili solo al momento della creazione**, e il
-modo in cui fallisce è peggiore di una semplice applicazione rifiutata. In ordine:
+Questi sono due fatti distinti, e confonderli produce il piano sbagliato.
 
-1. Si modifica il valore e si esegue apply. Terraform propone un aggiornamento in-place.
-2. L'API **rifiuta** la richiesta — `[BAD_REQUEST] Invalid request parameters`.
-3. La richiesta rifiutata svuota comunque il campo sul server, e la lettura del provider non lo riporta.
-   Lo stato di Terraform ora non corrisponde all'oggetto effettivo.
-4. Ogni piano successivo propone **la stessa modifica fallimentare**, all'infinito.
+**Terraform non può.** `ce_os_version` e `ce_sw_version` sono effettivamente validi solo al momento
+della creazione. Modificare uno dei due e applicare l'aggiornamento, e l'API rifiuta l'aggiornamento
+con `[BAD_REQUEST] Invalid request parameters`. `Osservato il 2026-07-29` su siti usa e getta, in
+tutte e tre le direzioni — bloccare **in avanti** verso una build più recente, bloccare **all'indietro**
+verso una build più vecchia, e **sbloccare** cancellando entrambi i campi. Avanzare non è un caso speciale.
 
-Terraform quindi non ricorre alla sostituzione del sito come alternativa. Rimane bloccato, e resta tale
-finché non si sostituisce intenzionalmente il sito e la relativa macchina virtuale CE. Migrare una flotta
-a una versione diversa è una **ricostruzione da pianificare**, non una modifica da applicare.
+**L'API può.** F5 Distributed Cloud espone un'azione di aggiornamento dedicata per sito, che avvia
+la modifica in place — senza ricostruzione e senza il coinvolgimento di Terraform:
+
+```bash
+# build software
+curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/json' \
+  --data '{"version": "<software-version>"}' \
+  "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_sw"
+
+# sistema operativo
+curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/json' \
+  --data '{"version": "<os-version>"}' \
+  "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_os"
+```
+
+`Osservato il 2026-07-29`: la chiamata software ha restituito `200`, il sito è passato a `UPGRADING`
+con `deployment_state.phase` `UPGRADE_IN_PROGRESS`, e la versione richiesta nell'oggetto site è
+cambiata a quella inviata. Omettere il campo restituisce `400` con `version empty in the request`,
+che è il modo in cui è stato confermato il nome del campo.
+
+**Prevedere ore, non minuti, e non allarmarsi per un fallimento.** Su un nodo con disco predefinito
+l'aggiornamento a `crt-20260201-0179` ha richiesto circa un'ora, ha riportato `UPGRADE_FAILED` con
+`result` `Failed` a metà percorso, e poi **si è completato con successo** sulla nuova build. La
+piattaforma riprova.
+
+Ciò ha una conseguenza diretta per chi monitora un aggiornamento o ne scrive l'automazione: un
+risultato `Failed` è uno stato da attendere, non un verdetto. Trattare il primo come definitivo
+significa segnalare un fallimento per un aggiornamento che andrà a buon fine.
+
+Si noti il gruppo in quel percorso: questi endpoint si trovano sotto **`config`**, non `operate`.
+Gli stessi percorsi sotto `operate` restituiscono `404 API Group could not be determined`, che è
+un messaggio di routing e non un'affermazione che non esiste alcun aggiornamento — una distinzione
+che ha portato questo progetto a una conclusione errata.
+
+<Aside type="caution" title="Aggiornare tramite l'API porta Terraform fuori sincronizzazione">
+Le variabili bloccate su una versione indicano ancora quello che hanno sempre indicato, quindi il
+sito live esegue ora una versione che la configurazione non nomina. Terraform non la riconcilierà
+— non può, poiché l'aggiornamento viene rifiutato — quindi trattare un aggiornamento API come un
+passo deliberatamente al di fuori del controllo di Terraform, e aggiornare i blocchi di versione
+per corrispondere alla successiva ricostruzione.
+</Aside>
+
+<Aside type="note" title="Due affermazioni precedenti su questa pagina, ritirate">
+Questa pagina affermava in precedenza che spostare un CE a una versione diversa significa ricreare
+il sito, e che un aggiornamento rifiutato "cancella comunque il campo sul server" lasciando Terraform
+a proporre per sempre una modifica che fallisce. Nessuna delle due ha superato i test: l'aggiornamento
+API sopra descritto avvia una modifica della versione in place, senza ricreare nulla, e dopo ciascuno
+dei tre aggiornamenti rifiutati la specifica del sito era **invariata** e il sito rimaneva `ONLINE`.
+La divergenza descritta nel problema del provider `xcsh#1387` è stata osservata su un sito che si era
+già auto-aggiornato oltre il suo blocco di versione, quindi potrebbe richiedere quello stato
+divergente iniziale; non è stata riprodotta su un sito la cui specifica corrispondeva al suo blocco.
+</Aside>
+
+Se si ricostruisce anziché aggiornare, si applicano tutte le conseguenze della sostituzione di un CE.
 
 <Aside type="danger" title="Si applicano tutte le conseguenze della sostituzione di un CE">
-Nuove chiavi host SSH, indirizzi interni riassegnati, una nuova registrazione e la perdita di tutto
-ciò che esisteva solo sul nodo. Cloud-init viene rieseguito sulla nuova VM, quindi l'accesso SSH
-configurato in quel modo sopravvive — ma viene eseguito *solo* al primo avvio, quindi tutto ciò che
-è stato aggiunto manualmente al vecchio nodo andrà perso.
+Nuove chiavi host SSH, indirizzi interni riassegnati, una nuova registrazione e la perdita di
+tutto ciò che esisteva solo sul nodo. Cloud-init viene eseguito nuovamente sulla nuova VM, quindi
+l'accesso SSH configurato in quel modo sopravvive — ma viene eseguito *solo* al primo avvio, quindi
+tutto ciò che è stato aggiunto manualmente al vecchio nodo è perso.
 
-Leggere [SSH](./access/ssh/) sulle conseguenze relative alle chiavi host e agli indirizzi prima di pianificare questa operazione.
+Leggere [SSH](./access/ssh/) sulle conseguenze per le chiavi host e gli indirizzi prima di pianificare questa operazione.
 </Aside>
 
-<Aside type="note" title="Segnalato, non riprodotto qui">
-Il rifiuto e la divergenza di stato sono documentati nei commenti di `terraform/modules/xc-site`
-di questo repository — verificati in entrambe le direzioni, con e senza pin, su tutti e tre i siti —
-e nella issue del provider `xcsh#1387`. Questa pagina non ha ripetuto il test, poiché l'operazione
-lascia il deployment a proporre una modifica fallimentare a ogni plan.
-</Aside>
+## Una build bloccata su una versione può non riuscire a installarsi, e il sito rimane bloccato
 
-## Una build pinned può non riuscire a installarsi, e il sito rimane bloccato
-
-L'accettazione del pin non equivale all'installazione. Su un Customer Edge Azure Secure Mesh v2 a nodo
-singolo appena creato e vincolato a `crt-20260201-0179`, l'oggetto site ha riportato immediatamente la
-versione pinned — dopodiché l'installazione è fallita:
+Accettare il blocco di versione non equivale a installarla. Su un Customer Edge Azure Secure Mesh v2
+a nodo singolo appena creato, bloccato su `crt-20260201-0179`, l'oggetto site ha riportato la versione
+bloccata immediatamente — e l'installazione è poi fallita:
 
 ```text
 site_state        PROVISIONING
@@ -97,42 +150,80 @@ message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed
                   required replicas: 1, current replicas: 0
 ```
 
-`Osservato il 28/07/2026.` Il pin del **sistema operativo** si è installato normalmente nella stessa
-esecuzione (`9.2024.6` → `9.2026.14`, `UPGRADE_COMPLETED`); solo l'installazione del software è fallita.
-Il sito non ha mai raggiunto lo stato `ONLINE` e `last_installed_version` è rimasto vuoto, quindi nessun
-rollback verso una build funzionante è stato possibile — non esisteva un'installazione precedente riuscita
-a cui tornare.
+`Osservato il 2026-07-28`, e riprodotto due volte il 2026-07-29. Il blocco del **sistema operativo**
+si è installato normalmente nella stessa esecuzione (da `9.2024.6` a `9.2026.14`, `UPGRADE_COMPLETED`);
+solo l'installazione del software è fallita. Il sito non ha mai raggiunto `ONLINE` e
+`last_installed_version` è rimasto vuoto, quindi non è stato eseguito il rollback a una build
+funzionante — non c'era un'installazione riuscita precedente a cui tornare.
 
-**Cosa trarre da questo.** Una versione funzionante altrove non è garanzia che si installi sulla
-propria configurazione di sito. La stessa build era `ONLINE` su un Customer Edge Azure non Secure Mesh v2
-e su un sito Secure Mesh v2 su VMware; la combinazione che ha fallito era Azure *e* Secure Mesh v2.
-Verificare una modifica di versione su un sito usa e getta prima di applicarla a una flotta, poiché
-una flotta che fallisce in questo modo rimane bloccata in `PROVISIONING` e l'unica via d'uscita è la
-ricreazione.
+**Un fallimento al momento della creazione non è come un fallimento durante un aggiornamento.**
+I due si comportano diversamente e la differenza conta quando si decide se intervenire:
 
-<Aside type="caution" title="Perché questa pagina non indica la causa">
-La build richiesta era **precedente** a quella inclusa nell'immagine marketplace, quindi al nodo
-era stato chiesto di tornare indietro. Questa è una spiegazione plausibile del fallimento, ma **non**
-è accertata: le due stringhe di versione (`20260703-e2c462a` e `crt-20260201-0179`) non è noto che
-condividano uno schema di numerazione, e non era disponibile alcuna acquisizione da un nodo della
-flotta per un confronto. Il fallimento e l'ordine delle versioni sono osservazioni; il nesso tra loro non lo è.
+| | al momento della creazione | durante un aggiornamento API |
+| --- | --- | --- |
+| riprova fino al successo? | no — rimasto in stato `Failed` per oltre 20 minuti, due volte | sì — si è ripreso e ha completato |
+| dove finisce il nodo? | `PROVISIONING`, nulla installato | `ONLINE` su una build funzionante |
+| è sicuro lasciarlo? | no, è bloccato | sì, si riprende o mantiene la build precedente |
+
+Quindi un fallimento al momento della creazione richiede una ricostruzione con un disco più grande,
+mentre un aggiornamento che riporta `Failed` dovrebbe essere lasciato in attesa per un po' prima
+di trarre conclusioni.
+
+**La causa è il disco, non la versione.** Una matrice di software × OS × dimensione del disco, un
+sito Azure Secure Mesh v2 a nodo singolo usa e getta per combinazione, tutti dalla stessa immagine
+marketplace, la isola. `Osservato il 2026-07-29`:
+
+| software | OS `9.2024.6` (quello fornito dall'immagine) | OS `9.2026.14` |
+| --- | --- | --- |
+| `crt-20250613-3382` | si installa | si installa |
+| `crt-20260201-0179` | si installa | **fallisce**, solo sul disco predefinito |
+
+Nessuna versione fallisce da sola. Solo la coppia lo fa, e solo sul disco predefinito dell'immagine —
+la stessa coppia si installa su **40 GB**, **48 GB** e **64 GB**. Quindi la build più recente non
+è non supportata qui, né lo è il sistema operativo più recente; insieme richiedono più disco di
+quanto ne abbia un nodo predefinito.
+
+`terraform/modules/ce-node` non imposta `disk_size_gb`, quindi ogni Customer Edge ottiene il
+valore predefinito dell'immagine. **Per eseguire la coppia più recente, ampliare il disco.** 40 GB
+è la dimensione più piccola testata che funziona; il confine esatto si trova tra il valore
+predefinito dell'immagine e 40 GB e non è stato determinato con maggiore precisione.
+
+Testare una modifica di versione su un sito usa e getta prima di applicarla a un parco macchine
+in ogni caso: un parco macchine che fallisce in questo modo rimane bloccato in `PROVISIONING`
+con la ricreazione come unica via d'uscita.
+
+<Aside type="caution" title="Non dimensionare il disco in base alla cifra pre-aggiornamento di F5">
+Il controllo pre-aggiornamento documentato da F5 richiede 20 GB più il 15% di capacità libera.
+Quel controllo è un requisito per gli aggiornamenti tramite **interfaccia utente Console** e
+non si applica esplicitamente a quelli avviati tramite API, quindi non descrive questo fallimento.
+Applicato qui prevede che un disco da 48 GB fallirebbe; 48 GB si installa correttamente.
+Dimensionare in base ai risultati misurati sopra, non in base a quella formula.
+</Aside>
+
+<Aside type="note" title="Una spiegazione precedentemente offerta su questa pagina, ora ritirata">
+Una versione precedente di questa pagina suggeriva che l'installazione fallisse perché la build
+richiesta era più vecchia di quella nell'immagine — ovvero che al nodo venisse chiesto di spostarsi
+all'indietro. Ciò è errato. Questo parco macchine è stato creato dalla stessa immagine con un
+blocco **tredici mesi** più vecchio e si è installato normalmente, e `crt-20260201-0179` si installa
+anche quando il blocco OS viene lasciato alla versione propria dell'immagine. La direzione di
+spostamento non è la variabile determinante.
 </Aside>
 
 ## Quale build descrive la documentazione
 
-Il riferimento ai comandi su questo sito descrive **`crt-20250613-3382`**, la build eseguita da questa
-flotta. I comandi presenti solo nelle build più recenti sono registrati in
+Il riferimento ai comandi su questo sito descrive **`crt-20250613-3382`**, la build che questo
+parco macchine esegue. I comandi che esistono solo su build più recenti sono registrati in
 `sitecli/command-classification.json` sotto `not_on_this_build` e documentati separatamente, come
-[comandi sulle build più recenti](./commands/on-box/newer-builds/), così nulla di ciò che vi si trova
-appare eseguibile qui. Si veda anche [comandi on-box](./commands/on-box/).
+[comandi su build più recenti](./commands/on-box/newer-builds/), quindi nulla lì risulta eseguibile
+qui. Si veda anche [comandi on-box](./commands/on-box/).
 
-<Aside type="caution" title="Non pianificare una ricostruzione per raggiungere comandi più recenti">
-Una build più recente è disponibile, e se si installi correttamente su questa topologia è ancora
-incerto — esiste una segnalazione di fallimento su siti Azure Secure Mesh v2 a nodo singolo e
-un'osservazione contraria di un Customer Edge che la esegue. Nessuna delle due può essere confermata
-da quanto rimane nel tenant.
+<Aside type="note" title="Raggiungere una build più recente è definito, e non richiede una ricostruzione">
+Questo era precedentemente registrato qui come irrisolto, con un rapporto della build più recente
+che falliva su siti Azure Secure Mesh v2 a nodo singolo contro un'osservazione contraria di uno
+che la eseguiva. Entrambi sono ora spiegati: la build più recente si installa su quella topologia,
+e il fallimento era il limite del disco descritto sopra, non la build.
 
-Poiché una modifica di versione è una ricostruzione dell'intera flotta, questa incertezza è il fatto
-determinante: considerare il raggiungimento di quei comandi come non provato, non come un aggiornamento
-pianificato. Le prove e l'esperimento che permetterebbero di stabilirlo sono registrati in `sitecli/README.md`.
+Quindi esistono due percorsi e nessuno richiede una ricostruzione per sé stesso — creare un nodo
+con un disco sufficientemente grande, oppure aggiornarne uno esistente tramite l'API.
+`Osservato il 2026-07-29`.
 </Aside>
