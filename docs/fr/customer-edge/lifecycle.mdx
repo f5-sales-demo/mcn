@@ -2,58 +2,59 @@
 title: Versions logicielles et reconstructions
 description: >-
   Ce que font ce_sw_version et ce_os_version sur un Customer Edge — pourquoi
-  laisser ces champs vides donne la version la plus récente plutôt qu'aucune,
-  pourquoi Terraform ne peut pas modifier une version alors que l'API le peut,
-  et pourquoi une paire de versions dont l'installation échoue relève d'une
-  limite de disque plutôt que d'une version non prise en charge.
+  laisser ces champs vides vous donne la version la plus récente plutôt
+  qu'aucune, pourquoi Terraform ne peut pas modifier une version mais l'API le
+  peut, et pourquoi une paire de versions dont l'installation échoue est une
+  limite de disque plutôt qu'une version non prise en charge.
 sidebar:
   order: 50
   label: Versions et reconstructions
 i18n:
-  sourceHash: cbd5a0a59cb6
+  sourceHash: d61789b8925a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 Deux variables Terraform définissent le logiciel d'un Customer Edge : `ce_os_version` pour le
-système d'exploitation et `ce_sw_version` pour la version F5 Distributed Cloud. Ces deux
-variables se comportent à l'opposé de ce que leur lecture évidente laisse supposer — un champ
-vide donne la version la plus récente plutôt qu'aucune, et une version qui s'installe sur un
-nœud peut échouer sur un nœud identique disposant d'un disque plus petit.
+système d'exploitation et `ce_sw_version` pour la version F5 Distributed Cloud. Ces deux variables
+se comportent d'une façon opposée à ce que leur lecture évidente laisse supposer — un champ vide
+vous donne la version la plus récente plutôt qu'aucune, et une version qui s'installe sur un nœud
+peut échouer sur un nœud identique disposant d'un disque plus petit.
 
 ## Ce que font les champs de version, en deux phases
 
 Distinguer les phases est tout l'enjeu. Confondues, le comportement semble
 contradictoire.
 
-**Au premier démarrage, un nœud installe ce que `ce_sw_version` nomme.**
-`terraform/modules/ce-node` déploie l'image de la Place de marché avec `version = "latest"`, donc
-la version qu'un nœud reçoit à l'arrivée est celle que cette image embarque à ce moment — et
-cela évolue dans le temps. `ce_sw_version` choisit la **destination**, non si quoi que ce soit
-se produit, et le laisser vide signifie que le serveur décide plutôt que le nœud reste en
-l'état. Il en va de même pour `ce_os_version`.
+**Au premier démarrage, un nœud installe ce que `ce_sw_version` désigne.**
+`terraform/modules/ce-node` déploie l'image marketplace avec `version = "latest"`, de sorte
+que la version avec laquelle un nœud arrive est celle que cette image embarque à ce moment-là
+— et cela évolue dans le temps. `ce_sw_version` choisit la **destination**, et non si quoi que
+ce soit se produit ; laisser ce champ vide signifie que le serveur choisit plutôt que le nœud
+reste en l'état. Il en va de même pour `ce_os_version`.
 
-Ne supposez pas que cette évolution se fait vers le haut. `Observé le 2026-07-28`, l'image
-embarquait une version datée `20260703-e2c462a` — plus récente que le `crt-20250613-3382` de
-cette flotte et plus récente que le `crt-20260201-0179` que le tenant annonçait. Nommer une
-version plus ancienne que celle embarquée par l'image demande au nœud de rétrograder, ce qui
-est courant : cette flotte a été créée ainsi et fonctionne normalement.
+Ne supposez pas que cette évolution se fait nécessairement vers une version plus récente.
+`Observé le 2026-07-28`, l'image embarquait une version estampillée `20260703-e2c462a` — plus
+récente que le `crt-20250613-3382` de cette flotte et plus récente que le
+`crt-20260201-0179` que le tenant annonçait. Nommer une version plus ancienne que celle
+embarquée par l'image demande au nœud de revenir en arrière, ce qui est courant : cette flotte
+a été créée ainsi et fonctionne.
 
-**Laisser un champ de version vide est le choix le plus risqué, non le choix neutre.** À la
+**Laisser un champ de version vide est le choix le plus risqué, pas le choix neutre.** À la
 création, le serveur ne laisse pas un champ vide tel quel — il le remplit avec la version
 **la plus récente annoncée** et l'installe. Un site créé avec les deux champs non renseignés
-s'est retrouvé épinglé à `crt-20260201-0179` et OS `9.2026.14`, les deux versions que le
+est revenu épinglé à `crt-20260201-0179` et à l'OS `9.2026.14`, les deux versions que le
 tenant annonçait, puis l'installation a échoué. `Observé le 2026-07-29`.
 
-Il en résulte deux conséquences. Un champ vide signifie « donnez-moi la plus récente », donc
-un déploiement non épinglé est celui qui a le plus de chances de rencontrer la limite de disque
-décrite ci-dessous. Et vous ne pouvez pas isoler un champ en laissant l'autre vide, car le
-serveur le renseigne — définissez les deux délibérément, ou acceptez la plus récente de chaque.
+Cela a deux conséquences. Vide signifie « donnez-moi la plus récente », donc un déploiement
+non épinglé est celui qui a le plus de chances de rencontrer la limite de disque décrite
+ci-dessous. Et vous ne pouvez pas isoler un champ en laissant l'autre vide, car le serveur le
+remplit — renseignez les deux délibérément, ou acceptez la plus récente de chacun.
 
-**Après le premier démarrage, rien ne se met à jour automatiquement.** F5 Distributed Cloud
-annonce une version plus récente et attend. C'est là que « le nœud reste où il s'est posé »
-s'applique — après la création, non pendant.
+**Après le premier démarrage, rien ne se met à niveau automatiquement.** F5 Distributed Cloud
+annonce une version plus récente et attend. C'est là que s'applique « le nœud reste là où il
+a atterri » — après la création, pas pendant celle-ci.
 
 Les deux phases sont visibles sur l'objet site. `Observé le 2026-07-28`, cette flotte :
 
@@ -62,22 +63,23 @@ volterra_software_status.available_version   crt-20260201-0179
 operating_system_status.available_version    9.2026.14
 ```
 
-alors que les nœuds exécutent `crt-20250613-3382` et OS `9.2024.6`. Une version plus récente
-est proposée et n'a pas été acceptée — c'est l'état stable, non une mise à niveau bloquée.
+tandis que les nœuds exécutent `crt-20250613-3382` et l'OS `9.2024.6`. Une version plus
+récente est disponible et n'a pas été adoptée — c'est l'état stable, non une mise à niveau
+bloquée.
 
 ## Terraform ne peut pas modifier une version. L'API le peut
 
-Ce sont deux faits distincts, et les confondre mène à un plan erroné.
+Ce sont deux faits distincts, et les confondre conduit à un plan erroné.
 
-**Terraform ne le peut pas.** `ce_os_version` et `ce_sw_version` sont en pratique uniquement
-valides à la création. Modifiez l'un ou l'autre et appliquez : l'API rejette la mise à jour
-avec `[BAD_REQUEST] Invalid request parameters`. `Observé le 2026-07-29` sur des sites
-jetables, dans les trois directions — épinglage **vers l'avant** vers une version plus récente,
-épinglage **vers l'arrière** vers une version plus ancienne, et **désépinglage** en vidant les
-deux champs. L'avancement n'est pas un cas particulier.
+**Terraform ne peut pas.** `ce_os_version` et `ce_sw_version` sont effectivement des
+paramètres valables uniquement à la création. Modifiez l'un ou l'autre et appliquez, et l'API
+rejette la mise à jour avec `[BAD_REQUEST] Invalid request parameters`. `Observé le 2026-07-29`
+sur des sites jetables, dans les trois directions — épinglage **vers l'avant** vers une version
+plus récente, épinglage **vers l'arrière** vers une version plus ancienne, et **désépinglage**
+en effaçant les deux champs. L'avancement n'est pas un cas particulier.
 
-**L'API le peut.** F5 Distributed Cloud expose une action de mise à niveau dédiée par site,
-qui démarre le changement en place — sans reconstruction et sans intervention de Terraform :
+**L'API le peut.** F5 Distributed Cloud expose une action de mise à niveau dédiée par site, qui
+démarre la modification en place — sans reconstruction et sans intervention de Terraform :
 
 ```bash
 # version logicielle
@@ -91,63 +93,64 @@ curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/j
   "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_os"
 ```
 
-`Observé le 2026-07-29` : l'appel logiciel a retourné `200`, le site est passé à `UPGRADING`
+`Observé le 2026-07-29` : l'appel logiciel a renvoyé `200`, le site est passé à `UPGRADING`
 avec `deployment_state.phase` `UPGRADE_IN_PROGRESS`, et la version demandée dans l'objet site
-a changé pour celle envoyée. Omettre le champ retourne `400` avec `version empty in the
-request`, ce qui a permis de confirmer le nom du champ.
+a été modifiée pour correspondre à celle soumise. Omettre le champ renvoie `400` avec
+`version empty in the request`, ce qui a permis de confirmer le nom du champ.
 
-**Prévoyez des heures, non des minutes, et ne paniquez pas en cas d'échec.** Sur un nœud avec
-le disque par défaut, la mise à niveau vers `crt-20260201-0179` a duré environ une heure, a
-signalé `UPGRADE_FAILED` avec `result` `Failed` en cours de route, puis **s'est terminée avec
-succès** sur la nouvelle version. La Plateforme réessaie.
+**Prévoyez des heures, pas des minutes, et ne paniquez pas en cas d'échec.** Sur un nœud avec
+disque par défaut, la mise à niveau vers `crt-20260201-0179` a duré environ une heure, a
+signalé `UPGRADE_FAILED` avec `result` `Failed` à mi-parcours, puis **s'est terminée
+avec succès** sur la nouvelle version. La plateforme réessaie.
 
-Cela a une conséquence directe pour quiconque surveille une mise à niveau ou en automatise
-une : un résultat `Failed` est un état à traverser, non un verdict. Traiter le premier comme
-définitif signale un échec pour une mise à niveau qui va réussir.
+Cela a une conséquence directe pour quiconque surveille une mise à niveau ou en écrit le
+script : un résultat `Failed` est un état à attendre, pas un verdict. Le traiter comme définitif
+dès le premier signalement indique un échec pour une mise à niveau qui va réussir.
 
-Notez le groupe dans ce chemin : ces ressources se trouvent sous **`config`**, non sous
-`operate`. Les mêmes chemins sous `operate` retournent `404 API Group could not be
-determined`, qui est un message de routage et non une indication qu'aucune mise à niveau
-n'existe — une distinction qui a conduit ce projet à une conclusion erronée.
+Notez le groupe dans ce chemin : ces endpoints se trouvent sous **`config`**, pas `operate`. Les
+mêmes chemins sous `operate` renvoient `404 API Group could not be determined`, qui est un
+message de routage et non l'affirmation qu'il n'existe pas de mise à niveau — une distinction
+qui a conduit ce projet à une conclusion erronée.
 
-<Aside type="caution" title="Mettre à niveau via l'API désynchronise Terraform">
-Les variables épinglées indiquent toujours ce qu'elles ont toujours indiqué, donc le site en
-production exécute désormais une version que la configuration ne nomme pas. Terraform ne va
-pas la réconcilier — il ne le peut pas, puisque la mise à jour est rejetée — donc traitez une
-mise à niveau par API comme une sortie délibérée du contrôle de Terraform, et mettez à jour
+<Aside type="caution" title="Une mise à niveau via l'API désynchronise Terraform">
+Les variables épinglées indiquent toujours ce qu'elles ont toujours indiqué, de sorte que le
+site en production exécute désormais une version que la configuration ne mentionne pas. Terraform
+ne la reconciliera pas — il ne peut pas, puisque la mise à jour est rejetée — donc traitez une
+mise à niveau via l'API comme une étape délibérée hors du contrôle de Terraform, et mettez à jour
 les épingles pour correspondre lors de la prochaine reconstruction.
 </Aside>
 
-<Aside type="note" title="Deux affirmations antérieures sur cette page, retirées">
-Cette page indiquait auparavant que déplacer un CE vers une version différente implique de
+<Aside type="note" title="Deux affirmations antérieures de cette page, retirées">
+Cette page indiquait auparavant que faire passer un CE à une version différente implique de
 recréer le site, et qu'une mise à jour rejetée « efface quand même le champ sur le serveur »,
 laissant Terraform proposer indéfiniment une modification vouée à l'échec. Aucune de ces
-affirmations n'a survécu aux tests : la mise à niveau par API ci-dessus démarre un changement
-de version en place, sans rien recréer, et après chacune des trois mises à jour rejetées la
-spécification du site était **inchangée** et le site restait `ONLINE`. La divergence décrite
-dans le problème fournisseur `xcsh#1387` a été observée sur un site qui s'était déjà
-auto-mis à niveau au-delà de son épingle, ce qui peut nécessiter cet état divergent de départ ;
-elle n'a pas été reproduite sur un site dont la spécification correspondait à son épingle.
+affirmations n'a résisté aux tests : la mise à niveau via l'API ci-dessus démarre un changement
+de version en place, sans rien recréer, et après chacune des trois mises à jour rejetées, la
+spécification du site était **inchangée** et le site restait `ONLINE`. La divergence décrite dans
+le problème de fournisseur `xcsh#1387` a été observée sur un site qui avait déjà effectué une
+mise à niveau automatique au-delà de son épingle, donc elle nécessite peut-être cet état de
+départ divergent ; elle n'a pas été reproduite sur un site dont la spécification correspondait
+à son épingle.
 </Aside>
 
-Si vous reconstruisez plutôt que de mettre à niveau, toutes les conséquences du remplacement
-d'un CE s'appliquent.
+Si vous effectuez une reconstruction plutôt qu'une mise à niveau, toutes les conséquences du
+remplacement d'un CE s'appliquent.
 
 <Aside type="danger" title="Toutes les conséquences du remplacement d'un CE s'appliquent">
-Nouvelles clés d'hôte SSH, adresses internes réaffectées, nouvelle inscription, et perte de
-tout ce qui ne vivait que sur le nœud. Cloud-init s'exécute à nouveau sur la nouvelle VM, donc
-l'accès SSH configuré de cette façon survit — mais il ne s'exécute *qu'au* premier démarrage,
+Nouvelles clés d'hôte SSH, adresses internes réassignées, un nouvel enregistrement, et la perte
+de tout ce qui ne résidait que sur le nœud. Cloud-init s'exécute à nouveau sur la nouvelle VM,
+donc l'accès SSH configuré de cette façon survit — mais il ne s'exécute *qu'au* premier démarrage,
 donc tout ce qui a été ajouté manuellement à l'ancien nœud est perdu.
 
 Lisez [SSH](./access/ssh/) sur les conséquences pour les clés d'hôte et les adresses avant de
 planifier cela.
 </Aside>
 
-## Une version épinglée peut échouer à s'installer, et le site reste alors bloqué
+## Une version épinglée peut échouer à s'installer, et le site est alors bloqué
 
 Accepter l'épingle n'est pas la même chose que l'installer. Sur un Customer Edge Azure Secure
-Mesh v2 à nœud unique fraîchement créé et épinglé à `crt-20260201-0179`, l'objet site
-signalait immédiatement la version épinglée — puis l'installation a échoué :
+Mesh v2 à nœud unique fraîchement créé, épinglé à `crt-20260201-0179`, l'objet site a
+immédiatement signalé la version épinglée — puis l'installation a échoué :
 
 ```text
 site_state        PROVISIONING
@@ -160,27 +163,27 @@ message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed
 
 `Observé le 2026-07-28`, et reproduit deux fois le 2026-07-29. L'épingle du **système
 d'exploitation** s'est installée normalement lors du même déploiement (`9.2024.6` vers
-`9.2026.14`, `UPGRADE_COMPLETED`) ; seule l'installation du logiciel a échoué. Le site
-n'a jamais atteint `ONLINE` et `last_installed_version` est resté vide, donc aucun retour
-arrière vers une version fonctionnelle n'a eu lieu — il n'y avait pas d'installation précédente
-réussie vers laquelle revenir.
+`9.2026.14`, `UPGRADE_COMPLETED`) ; seule l'installation logicielle a échoué. Le site n'a
+jamais atteint `ONLINE` et `last_installed_version` est resté vide, donc rien n'est revenu à une
+version fonctionnelle — il n'y avait pas d'installation réussie antérieure vers laquelle
+effectuer un retour arrière.
 
 **Un échec à la création n'est pas comme un échec lors d'une mise à niveau.** Les deux se
-comportent différemment, et la différence importe lorsque vous décidez d'intervenir :
+comportent différemment et la différence est importante quand vous décidez d'intervenir :
 
-| | à la création | lors d'une mise à niveau par API |
+| | à la création | lors d'une mise à niveau via l'API |
 | --- | --- | --- |
-| réessaie-t-il jusqu'au succès ? | non — maintenu `Failed` pendant plus de 20 minutes, deux fois | oui — a récupéré et terminé |
-| où le nœud se retrouve-t-il ? | `PROVISIONING`, rien d'installé | `ONLINE` sur une version fonctionnelle |
-| est-il sûr de le laisser ? | non, il est bloqué | oui, il récupère ou conserve l'ancienne version |
+| réessaie-t-il jusqu'au succès ? | non — resté `Failed` pendant plus de 20 minutes, deux fois | oui — a récupéré et s'est terminé |
+| où finit le nœud ? | `PROVISIONING`, rien d'installé | `ONLINE` sur une version fonctionnelle |
+| est-il prudent de le laisser ? | non, il est bloqué | oui, il récupère ou conserve l'ancienne version |
 
 Donc un échec à la création nécessite une reconstruction avec un disque plus grand, tandis
-qu'une mise à niveau signalant `Failed` doit être laissée seule un moment avant de conclure
-quoi que ce soit.
+qu'une mise à niveau signalant `Failed` devrait être laissée un moment avant d'en tirer des
+conclusions.
 
-**La cause est le disque, non la version.** Une matrice logiciel × OS × taille de disque, un
-site Azure Secure Mesh v2 à nœud unique jetable par combinaison et tous issus de la même image
-de la Place de marché, permet de l'isoler. `Observé le 2026-07-29` :
+**La cause est le disque, pas la version.** Une matrice logiciel × OS × taille de disque, un
+site Azure Secure Mesh v2 à nœud unique jetable par combinaison, tous issus de la même image
+marketplace, permet de l'isoler. `Observé le 2026-07-29` :
 
 | logiciel | OS `9.2024.6` (ce que l'image embarque) | OS `9.2026.14` |
 | --- | --- | --- |
@@ -188,52 +191,66 @@ de la Place de marché, permet de l'isoler. `Observé le 2026-07-29` :
 | `crt-20260201-0179` | s'installe | **échoue**, sur le disque par défaut uniquement |
 
 Aucune version n'échoue seule. Seule la paire échoue, et uniquement sur le disque par défaut
-de l'image — la même paire s'installe sur **40 Go**, **48 Go** et **64 Go**. La version plus
-récente n'est donc pas non prise en charge ici, pas plus que le système d'exploitation plus
-récent ; ensemble, ils nécessitent plus de disque qu'un nœud par défaut n'en possède.
+de l'image — la même paire s'installe sur **33 Go** et sur toutes les tailles plus grandes
+testées. La version plus récente n'est donc pas non prise en charge ici, pas plus que le
+système d'exploitation plus récent ; ensemble, ils nécessitent légèrement plus de disque qu'un
+nœud par défaut.
 
-`terraform/modules/ce-node` ne définit pas de `disk_size_gb`, donc chaque Customer Edge
-obtient la valeur par défaut de l'image. **Pour exécuter la paire plus récente, agrandissez le
-disque.** 40 Go est la plus petite taille testée qui fonctionne ; la limite exacte se situe
-entre la valeur par défaut de l'image et 40 Go et n'a pas été affinée davantage.
+`terraform/modules/ce-node` ne définit pas `disk_size_gb`, donc chaque Customer Edge obtient
+le disque par défaut de l'image — la seule taille sur laquelle cette paire échoue. **Pour
+l'exécuter, agrandissez le disque.**
 
-Testez un changement de version sur un site jetable avant de l'appliquer à une flotte dans
-tous les cas : une flotte qui échoue de cette façon reste bloquée en `PROVISIONING` avec la
+La marge est la partie surprenante, et c'est pourquoi cela a longtemps ressemblé à un problème
+de version. Le disque par défaut est de **31 Gio** (la commande `health` indique `size_gb: 31`,
+et `/var` fait 29 Go avec 3,5 Go libres sur un nœud en état d'échec). **33 Go s'installe
+proprement.** Donc le disque par défaut est insuffisant d'environ deux gigaoctets, pas d'une
+large marge.
+
+<Aside type="caution" title="Ne définissez pas le minimum mesuré">
+33 Go est la plus petite taille observée comme fonctionnelle — pour cette paire de versions, sur
+cette image, aujourd'hui. Une version avec un contenu légèrement plus volumineux échouerait à
+nouveau à 33 Go sans aucun changement de configuration et sans cause évidente, exactement comme
+le disque par défaut le fait actuellement. Choisissez une marge au-dessus du minimum : les tailles
+vérifiées ici sont 33, 36, 40, 48 et 64 Go, et le coût des plus grandes représente quelques
+gigaoctets de disque géré.
+</Aside>
+
+Testez un changement de version sur un site jetable avant de l'appliquer à une flotte dans tous
+les cas : une flotte qui échoue de cette façon est bloquée en `PROVISIONING` avec la
 reconstruction comme seule issue.
 
-<Aside type="caution" title="Ne dimensionnez pas le disque à partir du chiffre de pré-mise à niveau de F5">
-La vérification pré-mise à niveau documentée par F5 exige 20 Go plus 15 % de capacité libre.
-Cette vérification conditionne les mises à niveau via l'**interface de la Console** et ne
-s'applique explicitement pas à celles initiées par API, donc elle ne décrit pas cet échec.
-Appliquée ici, elle prédit qu'un disque de 48 Go échouerait ; 48 Go s'installe sans problème.
-Dimensionnez à partir des résultats mesurés ci-dessus, non à partir de cette formule.
+<Aside type="caution" title="Ne dimensionnez pas le disque à partir du chiffre F5 pré-mise à niveau">
+La vérification pré-mise à niveau documentée par F5 requiert 20 Go plus 15 % de capacité libre.
+Cette vérification conditionne les mises à niveau via l'**interface Console** et ne s'applique
+explicitement pas à celles initiées via l'API, donc elle ne décrit pas cet échec. Appliquée ici,
+elle prédit qu'un disque de 48 Go échouerait ; 48 Go s'installe proprement. Dimensionnez à partir
+des résultats mesurés ci-dessus, pas à partir de cette formule.
 </Aside>
 
-<Aside type="note" title="Une explication que cette page proposait auparavant, maintenant retirée">
+<Aside type="note" title="Une explication précédemment proposée sur cette page, désormais retirée">
 Une version antérieure de cette page suggérait que l'installation échouait parce que la version
-demandée était plus ancienne que celle de l'image — que le nœud était invité à rétrograder.
-C'est incorrect. Cette flotte a été créée à partir de la même image avec une épingle **treize
-mois** plus ancienne et s'est installée normalement, et `crt-20260201-0179` s'installe
-également lorsque l'épingle OS est laissée à la version propre de l'image. La direction du
-changement n'est pas la variable.
+demandée était plus ancienne que celle de l'image — que le nœud était invité à revenir en arrière.
+C'est incorrect. Cette flotte a été créée à partir de la même image avec une épingle **treize mois**
+plus ancienne et s'est installée normalement, et `crt-20260201-0179` s'installe également lorsque
+l'épingle OS est laissée à la version propre à l'image. Le sens du changement n'est pas la variable.
 </Aside>
 
-## Quelle version décrit la documentation
+## Quelle version la documentation décrit
 
-La référence des commandes sur ce site décrit **`crt-20250613-3382`**, la version qu'exécute
-cette flotte. Les commandes qui n'existent que sur des versions plus récentes sont répertoriées
+La référence des commandes sur ce site décrit **`crt-20250613-3382`**, la version que cette
+flotte exécute. Les commandes qui n'existent que sur des versions plus récentes sont enregistrées
 dans `sitecli/command-classification.json` sous `not_on_this_build` et documentées séparément,
-en tant que [commandes sur les versions plus récentes](./commands/on-box/newer-builds/), afin
-qu'aucune d'entre elles ne soit présentée comme exécutable ici. Voir aussi
+dans [commandes sur les versions plus récentes](./commands/on-box/newer-builds/), de sorte que
+rien de ce qui s'y trouve n'apparaît comme exécutable ici. Voir également
 [commandes embarquées](./commands/on-box/).
 
-<Aside type="note" title="L'accès à une version plus récente est établi, et ce n'est pas une reconstruction">
-Cela était auparavant enregistré ici comme non résolu, avec un rapport d'échec de la version
-plus récente sur des sites Azure Secure Mesh v2 à nœud unique contre une contre-observation
-d'un site l'exécutant. Les deux sont maintenant expliqués : la version plus récente s'installe
-sur cette topologie, et l'échec était la limite de disque ci-dessus, non la version.
+<Aside type="note" title="Atteindre une version plus récente est résolu, et ce n'est pas une reconstruction">
+Cela était précédemment consigné ici comme non résolu, avec un rapport d'échec de la version plus
+récente sur des sites Azure Secure Mesh v2 à nœud unique, en contradiction avec l'observation d'un
+site l'exécutant. Les deux sont maintenant expliqués : la version plus récente s'installe sur cette
+topologie, et l'échec était dû à la limite de disque ci-dessus, pas à la version.
 
-Il existe donc deux voies et aucune ne nécessite une reconstruction en elle-même — créez un
-nœud avec un disque suffisamment grand, ou mettez à niveau un nœud existant via l'API.
-`Observé le 2026-07-29`.
+Il existe donc deux voies et aucune ne nécessite une reconstruction pour elle-même — créez un nœud
+avec un disque suffisamment grand, ou mettez à niveau un nœud existant via l'API. `Observé le
+2026-07-29`.
 </Aside>

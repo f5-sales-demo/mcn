@@ -1,8 +1,8 @@
 ---
 title: Versiones de software y reconstrucciones
 description: >-
-  Qué hacen y no hacen ce_sw_version y ce_os_version en un Customer Edge — por
-  qué dejarlos vacíos obtiene la compilación más reciente en lugar de ninguna,
+  Qué hacen y qué no hacen ce_sw_version y ce_os_version en un Customer Edge —
+  por qué dejarlos vacíos da la compilación más reciente en lugar de ninguna,
   por qué Terraform no puede cambiar una versión pero la API sí puede, y por qué
   un par de versiones que falla al instalarse es un límite de disco y no una
   compilación no compatible.
@@ -10,74 +10,72 @@ sidebar:
   order: 50
   label: Versiones y reconstrucciones
 i18n:
-  sourceHash: cbd5a0a59cb6
+  sourceHash: d61789b8925a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-Dos variables de Terraform establecen el software de un Customer Edge: `ce_os_version` para el
-sistema operativo y `ce_sw_version` para la compilación de F5 Distributed Cloud. Ambas se
-comportan de manera opuesta a la lectura obvia — un campo vacío obtiene la compilación más
-reciente en lugar de ninguna, y una versión que se instala en un nodo puede fallar en uno
-idéntico con un disco más pequeño.
+Dos variables de Terraform configuran el software de un Customer Edge: `ce_os_version` para el
+sistema operativo y `ce_sw_version` para la compilación de F5 Distributed Cloud. Ambas se comportan
+de manera opuesta a la lectura obvia: un campo vacío da la compilación más reciente en lugar de
+ninguna, y una versión que se instala en un nodo puede fallar en uno idéntico con un disco más pequeño.
 
 ## Qué hacen los campos de versión, en dos fases
 
-Separar las fases es el tema central. Combinadas, el comportamiento parece
-autocontradictorio.
+Separar las fases es el tema central. Confundidas, el comportamiento parece contradictorio.
 
 **En el primer arranque, un nodo instala lo que `ce_sw_version` indique.**
 `terraform/modules/ce-node` despliega la imagen del marketplace con `version = "latest"`, por lo
-que la compilación con la que llega un nodo es la que esa imagen distribuye en ese momento —
-y eso cambia con el tiempo. `ce_sw_version` elige el **destino**, no si ocurre algo, y
-dejarlo vacío significa que el servidor elige en lugar de que el nodo permanezca donde está.
-Lo mismo aplica para `ce_os_version`.
+que la compilación con la que llega un nodo es la que esa imagen incluye actualmente — y eso cambia
+con el tiempo. `ce_sw_version` elige el **destino**, no si ocurre algo, y dejarlo vacío significa
+que el servidor elige en lugar de que el nodo permanezca donde está. Lo mismo aplica para
+`ce_os_version`.
 
-No asuma que la dirección de ese cambio es hacia arriba. `Observado el 2026-07-28`, la imagen
-incluía una compilación marcada `20260703-e2c462a` — más reciente que la `crt-20250613-3382`
-de esta flota y más reciente que la `crt-20260201-0179` que el tenant estaba anunciando.
-Nombrar una compilación más antigua que la que trae la imagen le pide al nodo que retroceda,
-y eso es habitual: esta flota fue creada de esa manera y está funcionando.
+No asuma que la dirección de ese cambio es hacia adelante. `Observado el 28-07-2026`, la imagen
+incluía una compilación marcada como `20260703-e2c462a` — más reciente que la `crt-20250613-3382`
+de esta flota y más reciente que la `crt-20260201-0179` que el tenant estaba anunciando. Nombrar
+una compilación más antigua que la que trae la imagen le pide al nodo que retroceda, y eso es
+habitual: esta flota fue creada así y está en funcionamiento.
 
-**Dejar un campo de versión vacío es la elección más arriesgada, no la neutra.** Al crear,
-el servidor no deja un campo vacío como está — lo rellena con la versión **más reciente
-anunciada** y la instala. Un sitio creado con ambos campos sin establecer regresó anclado a
+**Dejar un campo de versión vacío es la elección más arriesgada, no la neutral.** Al crear,
+el servidor no deja un campo vacío sin modificar — lo rellena con la versión **más reciente
+anunciada** y la instala. Un sitio creado con ambos campos sin definir quedó fijado a
 `crt-20260201-0179` y OS `9.2026.14`, las dos versiones que el tenant estaba anunciando, y la
-instalación falló. `Observado el 2026-07-29`.
+instalación falló a continuación. `Observado el 29-07-2026`.
 
-Hay dos consecuencias. Vacío significa "dame la más reciente", por lo que un despliegue sin
-anclar es el que más probablemente encuentre el límite de disco descrito a continuación. Y no
-puede aislar un campo dejando el otro vacío, porque el servidor lo rellena — establezca
-ambos, deliberadamente, o acepte el más reciente de cada uno.
+Esto tiene dos consecuencias. Vacío significa "dame la más reciente", por lo que un despliegue
+sin fijar es el que con mayor probabilidad alcanzará el límite de disco descrito más adelante. Y
+no se puede aislar un campo dejando el otro vacío, porque el servidor lo rellena — configure ambos
+deliberadamente, o acepte la versión más reciente de cada uno.
 
-**Tras el primer arranque, nada se actualiza por sí solo.** F5 Distributed Cloud anuncia una
-compilación más reciente y espera. Ahí es donde aplica "el nodo permanece donde aterrizó" —
-después de la creación, no durante ella.
+**Después del primer arranque, nada se actualiza por sí solo.** F5 Distributed Cloud anuncia
+una compilación más reciente y espera. Ahí es donde aplica "el nodo se queda donde llegó" — después
+de la creación, no durante ella.
 
-Ambas fases son visibles en el objeto del sitio. `Observado el 2026-07-28`, esta flota:
+Ambas fases son visibles en el objeto del sitio. `Observado el 28-07-2026`, esta flota:
 
 ```text
 volterra_software_status.available_version   crt-20260201-0179
 operating_system_status.available_version    9.2026.14
 ```
 
-mientras los nodos ejecutan `crt-20250613-3382` y OS `9.2024.6`. Una compilación más reciente
-está disponible y no se ha tomado — el estado estable, no una actualización detenida.
+mientras los nodos ejecutan `crt-20250613-3382` y OS `9.2024.6`. Hay una compilación más reciente
+disponible que no ha sido adoptada — el estado estable, no una actualización detenida.
 
 ## Terraform no puede cambiar una versión. La API sí puede
 
-Son dos hechos separados, y combinarlos produce el plan incorrecto.
+Estos son dos hechos distintos, y confundirlos produce un plan incorrecto.
 
-**Terraform no puede.** `ce_os_version` y `ce_sw_version` son efectivamente solo para el
-momento de creación. Cambie cualquiera de ellos y aplique, y la API rechaza la actualización
-con `[BAD_REQUEST] Invalid request parameters`. `Observado el 2026-07-29` en sitios
-desechables, en las tres direcciones — anclando **hacia adelante** a una compilación más
-reciente, anclando **hacia atrás** a una más antigua, y **desanclando** al limpiar ambos
-campos. Hacia adelante no es un caso especial.
+**Terraform no puede.** `ce_os_version` y `ce_sw_version` son efectivamente solo para el momento
+de creación. Cambie cualquiera de ellos y aplique, y la API rechaza la actualización con
+`[BAD_REQUEST] Invalid request parameters`. `Observado el 29-07-2026` en sitios desechables, en
+las tres direcciones — fijando **hacia adelante** a una compilación más reciente, fijando **hacia
+atrás** a una más antigua, y **desfiando** al borrar ambos campos. Hacia adelante no es un caso
+especial.
 
-**La API sí puede.** F5 Distributed Cloud expone una acción de actualización dedicada por
-sitio, que inicia el cambio en su lugar — sin reconstrucción y sin participación de Terraform:
+**La API sí puede.** F5 Distributed Cloud expone una acción de actualización dedicada por sitio,
+que inicia el cambio en el lugar — sin reconstrucción y sin intervención de Terraform:
 
 ```bash
 # compilación de software
@@ -91,62 +89,61 @@ curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/j
   "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_os"
 ```
 
-`Observado el 2026-07-29`: la llamada de software devolvió `200`, el sitio pasó a `UPGRADING`
-con `deployment_state.phase` `UPGRADE_IN_PROGRESS`, y la versión solicitada en el objeto del
-sitio cambió a la publicada. Omitir el campo devuelve `400` con `version empty in the request`,
-que es como se confirmó el nombre del campo.
+`Observado el 29-07-2026`: la llamada de software devolvió `200`, el sitio pasó a `UPGRADING` con
+`deployment_state.phase` `UPGRADE_IN_PROGRESS`, y la versión solicitada en el objeto del sitio
+cambió a la publicada. Omitir el campo devuelve `400` con `version empty in the request`, que es
+como se confirmó el nombre del campo.
 
 **Presupueste horas, no minutos, y no entre en pánico ante un fallo.** En un nodo con disco
-predeterminado, la actualización a `crt-20260201-0179` tardó aproximadamente una hora,
-reportó `UPGRADE_FAILED` con `result` `Failed` a mitad del proceso, y luego **completó
-exitosamente** con la nueva compilación. La plataforma reintenta.
+predeterminado, la actualización a `crt-20260201-0179` tardó aproximadamente una hora, informó
+`UPGRADE_FAILED` con `result` `Failed` a mitad del proceso, y luego **se completó correctamente**
+con la nueva compilación. La plataforma reintenta.
 
-Eso tiene una consecuencia directa para quienes supervisan una actualización o la automatizan
-mediante scripts: un resultado `Failed` es un estado que hay que esperar, no un veredicto.
-Tratarlo como definitivo reporta un fallo para una actualización que va a tener éxito.
+Esto tiene una consecuencia directa para quien observe una actualización o la automatice: un
+resultado `Failed` es un estado por el que hay que esperar, no un veredicto. Tratar el primero
+como definitivo reporta un fallo en una actualización que va a tener éxito.
 
-Observe el grupo en esa ruta: estos viven bajo **`config`**, no `operate`. Las mismas rutas
-bajo `operate` devuelven `404 API Group could not be determined`, que es un mensaje de
-enrutamiento y no una afirmación de que no existe actualización — una distinción que le costó
-a este proyecto una conclusión equivocada.
+Observe el grupo en esa ruta: estas viven bajo **`config`**, no bajo `operate`. Las mismas rutas
+bajo `operate` devuelven `404 API Group could not be determined`, que es un mensaje de enrutamiento
+y no una declaración de que no existe ninguna actualización — una distinción que le costó a este
+proyecto una conclusión errónea.
 
 <Aside type="caution" title="Actualizar a través de la API desincroniza Terraform">
-Las variables ancladas siguen diciendo lo que siempre dijeron, por lo que el sitio activo
-ahora ejecuta una versión que la configuración no nombra. Terraform no la reconciliará —
-no puede, ya que la actualización es rechazada — por lo que trate una actualización por API
-como un paso deliberado fuera del control de Terraform, y actualice los anclajes para que
-coincidan en la próxima reconstrucción.
+Las variables fijadas siguen diciendo lo que siempre dijeron, por lo que el sitio en producción
+ahora ejecuta una versión que la configuración no nombra. Terraform no lo reconciliará — no puede,
+ya que la actualización es rechazada — así que trate una actualización por API como un paso
+deliberado fuera del control de Terraform, y actualice los valores fijados para que coincidan en la
+próxima reconstrucción.
 </Aside>
 
 <Aside type="note" title="Dos afirmaciones anteriores en esta página, retiradas">
-Esta página decía anteriormente que mover un CE a una versión diferente significa recrear el
-sitio, y que una actualización rechazada "aun así borra el campo en el servidor" dejando a
-Terraform proponiendo un cambio fallido para siempre. Ninguna sobrevivió a las pruebas: la
-actualización por API anterior inicia un cambio de versión en su lugar, sin recrear nada, y
-después de cada una de las tres actualizaciones rechazadas el spec del sitio estaba
-**sin cambios** y el sitio permaneció `ONLINE`. La divergencia descrita en el issue del
-proveedor `xcsh#1387` se observó en un sitio que ya se había auto-actualizado más allá de su
-anclaje, por lo que puede necesitar ese estado inicial divergente; no se reprodujo en un sitio
-cuyo spec coincidía con su anclaje.
+Esta página decía anteriormente que mover un CE a una versión diferente implica recrear el sitio,
+y que una actualización rechazada "aun así borra el campo en el servidor" dejando a Terraform
+proponiendo un cambio fallido indefinidamente. Ninguna sobrevivió a las pruebas: la actualización
+por API anterior inicia un cambio de versión en el lugar, sin recrear nada, y después de cada uno
+de los tres rechazos de actualización la especificación del sitio quedó **sin cambios** y el sitio
+permaneció `ONLINE`. La divergencia descrita en el problema del proveedor `xcsh#1387` se observó en
+un sitio que ya se había auto-actualizado más allá de su fijación, por lo que puede requerir ese
+estado inicial divergente; no se reprodujo en un sitio cuya especificación coincidía con su fijación.
 </Aside>
 
-Si reconstruye en lugar de actualizar, se aplican todas las consecuencias de reemplazar un CE.
+Si opta por reconstruir en lugar de actualizar, aplican todas las consecuencias de reemplazar un CE.
 
-<Aside type="danger" title="Se aplican todas las consecuencias de reemplazar un CE">
-Nuevas claves de host SSH, direcciones internas reasignadas, un registro nuevo, y la pérdida
-de todo lo que vivía solo en el nodo. Cloud-init se ejecuta de nuevo en la nueva VM, por lo
-que el acceso SSH configurado de esa manera sobrevive — pero se ejecuta *solo* en el primer
-arranque, por lo que cualquier cosa añadida manualmente al nodo antiguo desaparece.
+<Aside type="danger" title="Aplican todas las consecuencias de reemplazar un CE">
+Nuevas claves de host SSH, direcciones internas reasignadas, un registro nuevo, y la pérdida de
+todo lo que existía únicamente en el nodo. Cloud-init se ejecuta de nuevo en la nueva VM, por lo
+que el acceso SSH configurado de ese modo sobrevive — pero se ejecuta *solo* en el primer arranque,
+así que cualquier cosa añadida manualmente al nodo antiguo desaparece.
 
-Lea [SSH](./access/ssh/) sobre las consecuencias de clave de host y dirección antes de
+Lea [SSH](./access/ssh/) sobre las consecuencias en las claves de host y las direcciones antes de
 programar esto.
 </Aside>
 
-## Una compilación anclada puede fallar al instalarse, y el sitio queda bloqueado
+## Una compilación fijada puede fallar al instalarse, y el sitio queda bloqueado
 
-Aceptar el anclaje no es lo mismo que instalarlo. En un Customer Edge Azure Secure Mesh v2
-de un solo nodo recién creado anclado a `crt-20260201-0179`, el objeto del sitio reportó la
-versión anclada inmediatamente — y la instalación falló:
+Aceptar la fijación no es lo mismo que instalarla. En un Customer Edge de un solo nodo Azure
+Secure Mesh v2 recién creado fijado a `crt-20260201-0179`, el objeto del sitio informó la versión
+fijada inmediatamente — y la instalación falló a continuación:
 
 ```text
 site_state        PROVISIONING
@@ -157,82 +154,91 @@ message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed
                   required replicas: 1, current replicas: 0
 ```
 
-`Observado el 2026-07-28`, y reproducido dos veces el 2026-07-29. El anclaje del **sistema
+`Observado el 28-07-2026`, y reproducido dos veces el 29-07-2026. La fijación del **sistema
 operativo** se instaló normalmente en la misma ejecución (`9.2024.6` a `9.2026.14`,
-`UPGRADE_COMPLETED`); solo falló la instalación del software. El sitio nunca alcanzó `ONLINE`
-y `last_installed_version` permaneció vacío, por lo que nada revirtió a una compilación
+`UPGRADE_COMPLETED`); solo falló la instalación del software. El sitio nunca alcanzó `ONLINE` y
+`last_installed_version` permaneció vacío, por lo que no hubo reversión a una compilación
 funcional — no había una instalación exitosa anterior a la que revertir.
 
-**Un fallo en la creación no es como un fallo durante una actualización.** Los dos se
-comportan de manera diferente y la diferencia importa cuando está decidiendo si intervenir:
+**Un fallo en la creación no es como un fallo durante una actualización.** Los dos se comportan
+de manera diferente y la diferencia importa cuando se decide si intervenir:
 
 | | en la creación | durante una actualización por API |
 | --- | --- | --- |
-| ¿reintenta hasta tener éxito? | no — se mantuvo en `Failed` por más de 20 minutos, dos veces | sí — se recuperó y completó |
-| ¿dónde termina el nodo? | `PROVISIONING`, nada instalado | `ONLINE` con una compilación funcional |
-| ¿es seguro dejarlo? | no, está bloqueado | sí, se recupera o mantiene la compilación anterior |
+| ¿reintenta hasta tener éxito? | no — mantuvo `Failed` durante más de 20 minutos, dos veces | sí — se recuperó y completó |
+| ¿dónde termina el nodo? | `PROVISIONING`, sin nada instalado | `ONLINE` con una compilación funcional |
+| ¿es seguro dejarlo así? | no, está bloqueado | sí, se recupera o conserva la compilación anterior |
 
-Por lo tanto, un fallo en el momento de creación necesita una reconstrucción con un disco más
-grande, mientras que una actualización que reporta `Failed` debe dejarse sola un tiempo antes
-de sacar conclusiones.
+Por lo tanto, un fallo en la creación requiere una reconstrucción con un disco más grande, mientras
+que una actualización que reporta `Failed` debe dejarse sola un tiempo antes de sacar conclusiones.
 
-**La causa es el disco, no la versión.** Una matriz de software × OS × tamaño de disco, un
-sitio Azure Secure Mesh v2 de un solo nodo desechable por combinación, todos desde la misma
-imagen del marketplace, lo aísla. `Observado el 2026-07-29`:
+**La causa es el disco, no la versión.** Una matriz de software × OS × tamaño de disco, con un
+sitio desechable de un solo nodo Azure Secure Mesh v2 por combinación y todos desde la misma imagen
+del marketplace, lo aísla. `Observado el 29-07-2026`:
 
 | software | OS `9.2024.6` (lo que incluye la imagen) | OS `9.2026.14` |
 | --- | --- | --- |
 | `crt-20250613-3382` | se instala | se instala |
-| `crt-20260201-0179` | se instala | **falla**, solo en el disco predeterminado |
+| `crt-20260201-0179` | se instala | **falla**, solo con el disco predeterminado |
 
-Ninguna versión falla por sí sola. Solo el par lo hace, y solo en el disco predeterminado de
-la imagen — el mismo par se instala en **40 GB**, **48 GB** y **64 GB**. Por lo tanto, la
-compilación más reciente no es incompatible aquí, y tampoco lo es el sistema operativo más
-reciente; juntos necesitan más disco del que tiene un nodo predeterminado.
+Ninguna versión falla por sí sola. Solo falla el par, y solo con el disco predeterminado de la
+imagen — el mismo par se instala en **33 GB** y en todos los tamaños mayores probados. Así que la
+compilación más reciente no es incompatible aquí, ni tampoco el sistema operativo más reciente;
+juntos necesitan ligeramente más disco del que tiene un nodo predeterminado.
 
-`terraform/modules/ce-node` no establece `disk_size_gb`, por lo que cada Customer Edge
-obtiene el disco predeterminado de la imagen. **Para ejecutar el par más reciente, amplíe el
-disco.** 40 GB es el tamaño más pequeño probado que funciona; el límite exacto se encuentra
-entre el predeterminado de la imagen y 40 GB y no se determinó con mayor precisión.
+`terraform/modules/ce-node` no establece ningún `disk_size_gb`, por lo que todos los Customer Edge
+obtienen el disco predeterminado de la imagen — el único tamaño en el que este par falla. **Para
+ejecutarlo, amplíe el disco.**
 
-Pruebe un cambio de versión en un sitio desechable antes de aplicarlo a una flota sin importar
-qué: una flota que falla de esta manera queda bloqueada en `PROVISIONING` con la recreación
-como única salida.
+El margen es la parte sorprendente, y es por eso que esto pareció un problema de versión durante
+tanto tiempo. El valor predeterminado es **31 GiB** (el comando `health` reporta `size_gb: 31`, y
+`/var` tiene 29 G con 3,5 G libres en un nodo en estado de fallo). **33 GB se instala
+correctamente.** Así que al predeterminado le faltan aproximadamente dos gigabytes, no un margen
+amplio.
 
-<Aside type="caution" title="No dimensione el disco a partir de la cifra previa a la actualización de F5">
-La verificación previa a la actualización documentada de F5 requiere 20 GB más el 15% de
-capacidad libre. Esa verificación controla las actualizaciones de la **Interfaz de Consola** y
-explícitamente no se aplica a las iniciadas por API, por lo que no describe este fallo.
-Aplicada aquí predice que un disco de 48 GB fallaría; 48 GB se instala sin problemas. Utilice
-los resultados medidos anteriores, no esa fórmula.
+<Aside type="caution" title="No establezca el mínimo medido">
+33 GB es el tamaño más pequeño observado que funciona — para este par de versiones, en esta imagen,
+hoy. Una compilación con una carga útil ligeramente mayor volvería a fallar en 33 GB sin ningún
+cambio de configuración y sin causa obvia, exactamente como lo hace ahora el predeterminado. Elija
+un margen sobre el mínimo: los tamaños verificados aquí son 33, 36, 40, 48 y 64 GB, y el coste de
+los más grandes es unos pocos gigabytes de disco administrado.
 </Aside>
 
-<Aside type="note" title="Una explicación que esta página ofrecía anteriormente, ahora retirada">
-Una versión anterior de esta página sugería que la instalación falló porque la compilación
-solicitada era más antigua que la de la imagen — que se le pedía al nodo que retrocediera.
-Eso es incorrecto. Esta flota fue creada desde la misma imagen con un anclaje **trece meses**
-más antiguo y se instaló normalmente, y `crt-20260201-0179` también se instala cuando el
-anclaje del OS se deja en la versión propia de la imagen. La dirección del cambio no es la
-variable.
+Pruebe un cambio de versión en un sitio desechable antes de aplicarlo a una flota en cualquier caso:
+una flota que falla de esta manera queda bloqueada en `PROVISIONING` con la recreación como única
+salida.
+
+<Aside type="caution" title="No dimensione el disco a partir de la cifra previa a la actualización de F5">
+La comprobación previa a la actualización documentada por F5 requiere 20 GB más el 15 % de la
+capacidad libre. Esa comprobación controla las actualizaciones desde la **interfaz de Consola** y
+explícitamente no aplica a las iniciadas por API, por lo que no describe este fallo. Aplicada aquí,
+predice que un disco de 48 GB fallaría; 48 GB se instala correctamente. Dimensione a partir de los
+resultados medidos anteriores, no de esa fórmula.
+</Aside>
+
+<Aside type="note" title="Una explicación ofrecida anteriormente en esta página, ahora retirada">
+Una versión anterior de esta página sugería que la instalación fallaba porque la compilación
+solicitada era más antigua que la de la imagen — que se le pedía al nodo que retrocediera. Eso es
+incorrecto. Esta flota fue creada desde la misma imagen con una fijación **trece meses** más antigua
+y se instaló normalmente, y `crt-20260201-0179` también se instala cuando la fijación del OS se
+deja en la versión propia de la imagen. La dirección del cambio no es la variable.
 </Aside>
 
 ## Qué compilación describe la documentación
 
 La referencia de comandos en este sitio describe **`crt-20250613-3382`**, la compilación que
-ejecuta esta flota. Los comandos que existen solo en compilaciones más recientes están
-registrados en `sitecli/command-classification.json` bajo `not_on_this_build` y documentados
-por separado, como [comandos en compilaciones más recientes](./commands/on-box/newer-builds/),
-por lo que nada allí se presenta como ejecutable aquí. Consulte también
-[comandos en el nodo](./commands/on-box/).
+ejecuta esta flota. Los comandos que solo existen en compilaciones más recientes están registrados
+en `sitecli/command-classification.json` bajo `not_on_this_build` y documentados por separado, en
+[comandos en compilaciones más recientes](./commands/on-box/newer-builds/), de modo que nada de
+allí se lea como ejecutable aquí. Véase también [comandos en el dispositivo](./commands/on-box/).
 
-<Aside type="note" title="Alcanzar una compilación más reciente está resuelto, y no requiere reconstrucción">
-Esto estaba registrado anteriormente aquí como no resuelto, con un informe de la compilación
-más reciente fallando en sitios Azure Secure Mesh v2 de un solo nodo frente a una
-contraobservación de uno ejecutándola. Ambos están ahora explicados: la compilación más
-reciente se instala en esa topología, y el fallo fue el límite de disco anterior, no la
-compilación.
+<Aside type="note" title="Llegar a una compilación más reciente está resuelto, y no requiere una reconstrucción">
+Esto estaba registrado anteriormente aquí como sin resolver, con un informe de la compilación más
+reciente fallando en sitios de un solo nodo Azure Secure Mesh v2 frente a una contra-observación de
+uno ejecutándola. Ambos están ahora explicados: la compilación más reciente se instala en esa
+topología, y el fallo fue el límite de disco anterior, no la compilación.
 
-Por lo tanto, hay dos rutas y ninguna requiere una reconstrucción por sí misma — cree un nodo
-con un disco suficientemente grande, o actualice uno existente a través de la API.
-`Observado el 2026-07-29`.
+Por lo tanto, hay dos rutas y ninguna requiere una reconstrucción por sí misma — cree un nodo con
+un disco suficientemente grande, o actualice uno existente a través de la API. `Observado el
+29-07-2026`.
 </Aside>
