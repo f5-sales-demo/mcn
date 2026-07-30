@@ -101,6 +101,10 @@ resource "azurerm_linux_virtual_machine" "this" {
     name                 = "${var.hostname}-osdisk"
     caching              = "ReadWrite"
     storage_account_type = "StandardSSD_LRS"
+
+    # Explicit, because the image default is the one size measured to fail the
+    # advertised version pair (#714). See variables.tf for the measurements.
+    disk_size_gb = var.os_disk_size_gb
   }
 
   source_image_reference {
