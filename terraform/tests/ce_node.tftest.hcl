@@ -167,3 +167,60 @@ run "vm_instance_id_is_the_instance_id_not_the_arm_resource_id" {
     error_message = "vm_instance_id must expose virtual_machine_id (regenerated per instance), not the name-derived ARM resource id."
   }
 }
+
+# The CE OS disk must be sized explicitly, and large enough that the versions F5
+# advertises can actually install.
+#
+# Measured 2026-07-29 (issue #714), one disposable single-node Azure Secure Mesh v2
+# site per size, all from marketplace image 0.9.2, installing the pair the tenant
+# advertises (crt-20260201-0179 + OS 9.2026.14):
+#
+#     31 GiB (the image default, i.e. no disk_size_gb)  FAIL — voucher DaemonSet
+#                                                       0/1, site stuck
+#                                                       PROVISIONING, nothing
+#                                                       installed
+#     33 GB                                             PASS
+#     36 / 40 / 48 / 64 GB                              PASS
+#
+# So an unset disk_size_gb is not a neutral default: it is the one size on which the
+# advertised pair fails. It matters even while the fleet pins an older build,
+# because leaving the version variables EMPTY makes the server choose the newest
+# advertised pair — so an unpinned deployment lands exactly on the failing case.
+#
+# The floor asserted here is deliberately above the measured 33 GB minimum. 33 works
+# for this pair on this image today; a build with a marginally larger payload would
+# fail there with no configuration change and no obvious cause, which is precisely
+# the position the 31 GiB default is in now.
+run "ce_os_disk_is_sized_for_the_advertised_versions" {
+  command = plan
+
+  module {
+    source = "./modules/ce-node"
+  }
+
+  variables {
+    hostname            = "f5-xc-ce-vm-01"
+    resource_group_name = "rg-mcn-ce-ha-testdeployer"
+    location            = "eastus"
+    zone                = "1"
+    vm_size             = "Standard_D8_v4"
+    mgmt_subnet_id      = "/subscriptions/x/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/hub-vnet/subnets/snet-hub-management"
+    external_subnet_id  = "/subscriptions/x/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/hub-vnet/subnets/snet-hub-external"
+    internal_subnet_id  = "/subscriptions/x/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/hub-vnet/subnets/snet-hub-internal"
+    mgmt_private_ip     = "10.0.1.4"
+    admin_username      = "azureuser"
+    ssh_public_key      = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
+    custom_data         = "IyNjbG91ZC1jb25maWcK"
+    tags                = {}
+  }
+
+  assert {
+    condition     = azurerm_linux_virtual_machine.this.os_disk[0].disk_size_gb > 0
+    error_message = "The CE OS disk size must be set explicitly. Left unset the VM inherits the marketplace image default of 31 GiB, which is the one size measured to fail the version pair F5 advertises (#714). Note the check is > 0, not != null: an unset attribute renders as 0 in a mocked plan, so a null check would pass on exactly the case it exists to catch."
+  }
+
+  assert {
+    condition     = azurerm_linux_virtual_machine.this.os_disk[0].disk_size_gb >= 40
+    error_message = "The CE OS disk must be at least 40 GB. 33 GB is the smallest size measured to work, so this floor is deliberate headroom: a build with a slightly larger payload would fail at the minimum with no configuration change (#714)."
+  }
+}
