@@ -112,31 +112,48 @@ resource "xcsh_securemesh_site_v2" "this" {
     geo_proximity {}
   }
 
-  # CE software/OS version. Re-validated live 2026-07-28, and three things previously
-  # believed about this block are wrong:
+  # CE software/OS version. Measured by the matrix in issue #714 (2026-07-29), which
+  # disproved three things this comment previously asserted. What holds:
   #
-  # 1. PINNING DOES NOT AVOID AN UPGRADE. The marketplace image is always `latest`
-  #    (see modules/ce-node), it ships an older XC build, and the node upgrades on
-  #    first boot either way — `volterra_software_status.deployment_state.phase` reads
-  #    UPGRADE_COMPLETED with `last_installed_version` equal to the pin. The pin
-  #    chooses the DESTINATION of that upgrade, nothing more.
+  # 1. THE NODE ALWAYS INSTALLS SOMETHING ON FIRST BOOT. modules/ce-node deploys the
+  #    marketplace image at `latest`, so the build a node arrives with is whatever that
+  #    image currently ships. The pin chooses the DESTINATION, not whether an install
+  #    happens.
   #
-  # 2. EMPTY VARS DO NOT MEAN "LATEST". They emit the default_* marker arms, which the
-  #    API interprets as "no preference" — and XC then advertises
-  #    `available_version` and waits rather than upgrading. A tenant site left
-  #    unpinned sat on a build nine months older than the version it advertised as
-  #    available. Unpinned means "whatever the node came up with", not "newest".
+  #    Corrected: the image does NOT necessarily ship something older. Image 0.9.2
+  #    ships a build stamped 20260703-e2c462a — newer than this fleet's pin and newer
+  #    than the version the tenant advertises. A backwards pin is routine: this fleet
+  #    was created from that image with a pin thirteen months older and is running.
   #
-  # 3. software_settings IS EFFECTIVELY CREATE-ONLY. Any PUT touching it is rejected
-  #    with `[BAD_REQUEST] Invalid request parameters` — verified in BOTH directions,
-  #    un-pinning and pinning forward, on all three sites. Worse, the first rejected
-  #    request still cleared the field server-side while the provider's Read does not
-  #    surface it, so Terraform's state disagrees with the live object and re-proposes
-  #    the same failing change forever (xcsh#1387).
+  # 2. AN EMPTY VAR MEANS "GIVE ME THE NEWEST", NOT "LEAVE IT ALONE". The default_*
+  #    marker arms below are filled in by the server at CREATE with the newest
+  #    ADVERTISED version, and it installs that. A site created with both vars empty
+  #    came back pinned to crt-20260201-0179 / 9.2026.14 and the install then failed.
   #
-  # CONSEQUENCE FOR OPERATORS: moving a CE to a different version means RECREATING the
-  # site and its CE VM with the new value, not editing it. That is a fleet rebuild.
-  # Choose the version deliberately at deploy time.
+  #    So empty is the RISKIEST setting, not the neutral one, and it makes the outcome
+  #    depend on the date rather than on this configuration. Pin both deliberately.
+  #    ("Advertises and waits" is real, but it applies AFTER first boot, not during it.)
+  #
+  # 3. software_settings IS CREATE-ONLY — for Terraform. Any PUT touching it is
+  #    rejected with `[BAD_REQUEST] Invalid request parameters`, verified in all three
+  #    directions: pinning forward, pinning backward, and un-pinning.
+  #
+  #    Corrected: a version change is NOT a rebuild. The platform performs it in place
+  #    via POST /api/config/namespaces/{ns}/sites/{name}/upgrade_sw (and upgrade_os)
+  #    with {"version": "..."} — verified end to end, the site reached ONLINE with
+  #    last_installed_version equal to the requested build. The provider cannot do this
+  #    yet (xcsh#1390), so an API upgrade leaves these vars disagreeing with the live
+  #    object and Terraform unable to reconcile.
+  #
+  #    Also corrected: the claim that a rejected PUT "still cleared the field
+  #    server-side" was NOT reproduced — after each of the three rejections the spec was
+  #    unchanged and the site stayed ONLINE. The divergence in xcsh#1387 was seen on a
+  #    site that had already auto-upgraded past its pin, so it may need that starting
+  #    state; that case was not tested and is not claimed either way.
+  #
+  # CONSEQUENCE FOR OPERATORS: pin both versions explicitly, and size the CE disk for
+  # them — the image default fails the advertised pair (see modules/ce-node). To move a
+  # running site, use the upgrade API rather than editing these values.
   software_settings {
     os {
       dynamic "default_os_version" {
