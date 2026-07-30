@@ -170,14 +170,25 @@ marketplace image, isolates it. `Observed 2026-07-29`:
 | `crt-20260201-0179` | installs | **fails**, on the default disk only |
 
 Neither version fails on its own. Only the pair does, and only on the image's default disk —
-the same pair installs on **40 GB**, **48 GB** and **64 GB**. So the newer build is not
-unsupported here, and neither is the newer operating system; together they need more disk than
-a default node has.
+the same pair installs on **33 GB** and every larger size tested. So the newer build is not
+unsupported here, and neither is the newer operating system; together they need slightly more
+disk than a default node has.
 
 `terraform/modules/ce-node` sets no `disk_size_gb`, so every Customer Edge gets the image
-default. **To run the newer pair, enlarge the disk.** 40 GB is the smallest size tested that
-works; the exact boundary lies between the image default and 40 GB and was not narrowed
-further.
+default — the one size on which this pair fails. **To run it, enlarge the disk.**
+
+The margin is the surprising part, and it is why this looked like a version problem for so long.
+The default is **31 GiB** (the `health` command reports `size_gb: 31`, and `/var` is 29 G with
+3.5 G free on a node in the failing state). **33 GB installs cleanly.** So the default is short
+by roughly two gigabytes, not by a wide margin.
+
+<Aside type="caution" title="Do not set the measured minimum">
+33 GB is the smallest size observed to work — for this version pair, on this image, today. A
+build with a slightly larger payload would fail again at 33 GB with no configuration change and
+no obvious cause, exactly as the default does now. Choose headroom over the floor: the sizes
+verified here are 33, 36, 40, 48 and 64 GB, and the cost of the larger ones is a few gigabytes of
+managed disk.
+</Aside>
 
 Test a version change on a disposable site before applying it to a fleet regardless: a fleet
 that fails this way is stuck in `PROVISIONING` with recreation as the only exit.

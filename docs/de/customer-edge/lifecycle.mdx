@@ -1,86 +1,84 @@
 ---
-title: Softwareversionen und Neuaufbau
+title: Softwareversionen und Neuaufbauten
 description: >-
-  Was ce_sw_version und ce_os_version an einem Customer Edge bewirken und was
-  nicht — warum ein leeres Feld den neuesten Build liefert statt keinen, warum
-  Terraform keine Version ändern kann, die API jedoch schon, und warum ein
-  Versionspaar, das nicht installiert werden kann, ein Datenträgerlimit ist und
-  kein nicht unterstützter Build.
+  Was ce_sw_version und ce_os_version auf einem Customer Edge bewirken und was
+  nicht — warum ein leeres Feld die neueste Version liefert statt keiner, warum
+  Terraform eine Version nicht ändern kann, die API jedoch schon, und warum ein
+  Versionspaar, das nicht installiert werden kann, ein Speicherplatzproblem ist
+  und kein nicht unterstütztes Build.
 sidebar:
   order: 50
-  label: Versionen und Neuaufbau
+  label: Versionen und Neuaufbauten
 i18n:
-  sourceHash: cbd5a0a59cb6
+  sourceHash: d61789b8925a
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 Zwei Terraform-Variablen legen die Software eines Customer Edge fest: `ce_os_version` für das
-Betriebssystem und `ce_sw_version` für den F5 Distributed Cloud Build. Beide verhalten sich
-auf eine Weise, die dem naheliegenden Verständnis widerspricht — ein leeres Feld liefert den
-neuesten Build und nicht keinen, und eine Version, die auf einem Knoten installiert wird, kann
-auf einem identischen Knoten mit kleinerem Datenträger fehlschlagen.
+Betriebssystem und `ce_sw_version` für den F5 Distributed Cloud-Build. Beide verhalten sich
+entgegen der naheliegenden Lesart — ein leeres Feld liefert den neuesten Build statt keinen,
+und eine Version, die auf einem Knoten installiert wird, kann auf einem identischen mit kleinerem
+Datenträger fehlschlagen.
 
-## Was die Versionsfelder bewirken, in zwei Phasen
+## Was die Versionsfelder bewirken – in zwei Phasen
 
-Die Trennung der Phasen ist der eigentliche Kern des Themas. Werden sie vermischt, erscheint
-das Verhalten als widersprüchlich.
+Die Trennung der Phasen ist der eigentliche Kern des Themas. Werden sie vermischt, wirkt das
+Verhalten widersprüchlich.
 
 **Beim ersten Start installiert ein Knoten das, was `ce_sw_version` benennt.**
-`terraform/modules/ce-node` stellt das Marketplace-Image mit `version = "latest"` bereit,
-sodass der Build, mit dem ein Knoten ankommt, derjenige ist, den das Image aktuell enthält —
-und dieser ändert sich mit der Zeit. `ce_sw_version` wählt das **Ziel**, nicht ob überhaupt
-etwas passiert, und ein leeres Feld bedeutet, dass der Server wählt, nicht dass der Knoten
-verbleibt, wo er ist. Dasselbe gilt für `ce_os_version`.
+`terraform/modules/ce-node` stellt das Marketplace-Image mit `version = "latest"` bereit, daher
+entspricht der Build, mit dem ein Knoten ausgeliefert wird, dem aktuellen Stand dieses Images —
+und dieser ändert sich im Laufe der Zeit. `ce_sw_version` bestimmt das **Ziel**, nicht ob
+überhaupt etwas geschieht; ein leeres Feld bedeutet, dass der Server die Wahl trifft, nicht dass
+der Knoten unverändert bleibt. Dasselbe gilt für `ce_os_version`.
 
-Gehen Sie nicht davon aus, dass diese Änderung aufwärts gerichtet ist. `Beobachtet 2026-07-28`
-enthielt das Image einen Build mit dem Stempel `20260703-e2c462a` — neuer als das
-`crt-20250613-3382` dieser Flotte und neuer als das `crt-20260201-0179`, das der Tenant
-ankündigte. Wird ein älterer Build als der im Image enthaltene angegeben, wird der Knoten
-aufgefordert, sich rückwärts zu bewegen, und das ist gängige Praxis: Diese Flotte wurde so
-erstellt und läuft so.
+Nehmen Sie nicht an, dass diese Änderung immer in Richtung einer neueren Version geht.
+`Beobachtet am 2026-07-28` lieferte das Image einen Build mit dem Stempel `20260703-e2c462a` —
+neuer als das `crt-20250613-3382` dieser Flotte und neuer als das `crt-20260201-0179`, das der
+Tenant ankündigte. Die Angabe eines älteren Builds als der im Image enthaltene veranlasst den
+Knoten, sich rückwärts zu bewegen, was durchaus üblich ist: Diese Flotte wurde so erstellt und
+läuft entsprechend.
 
-**Ein Versionsfeld leer zu lassen ist die riskanteste Wahl, nicht die neutrale.** Beim
-Erstellen lässt der Server ein leeres Feld nicht unberührt — er füllt es mit der **neuesten
-angekündigten** Version und installiert diese. Eine Site, die mit beiden leeren Feldern erstellt
-wurde, kam mit der Pinnadresse `crt-20260201-0179` und OS `9.2026.14` zurück — den beiden
-Versionen, die der Tenant ankündigte — und die Installation schlug anschließend fehl.
-`Beobachtet 2026-07-29`.
+**Ein leeres Versionsfeld ist die riskanteste Wahl, nicht die neutrale.** Beim Erstellen lässt
+der Server ein leeres Feld nicht unberührt — er füllt es mit der **neuesten angekündigten**
+Version und installiert diese. Eine Site, die mit beiden leeren Feldern erstellt wurde, kehrte mit
+der Fixierung auf `crt-20260201-0179` und OS `9.2026.14` zurück, den zwei Versionen, die der
+Tenant ankündigte, woraufhin die Installation fehlschlug. `Beobachtet am 2026-07-29`.
 
-Daraus ergeben sich zwei Konsequenzen. Ein leeres Feld bedeutet „gib mir das Neueste", daher
-ist eine nicht fixierte Bereitstellung diejenige, die am ehesten auf das unten beschriebene
-Datenträgerlimit trifft. Und Sie können ein Feld nicht isolieren, indem Sie das andere leer
-lassen, weil der Server es füllt — setzen Sie beide bewusst, oder akzeptieren Sie jeweils das
-Neueste.
+Dies hat zwei Konsequenzen. Leer bedeutet „gib mir das Neueste", daher ist eine nicht fixierte
+Bereitstellung am ehesten vom unten beschriebenen Speicherplatzproblem betroffen. Und Sie können
+ein Feld nicht isoliert leer lassen, während das andere gesetzt ist, da der Server es auffüllt —
+setzen Sie beide absichtlich, oder akzeptieren Sie jeweils die neueste Version.
 
-**Nach dem ersten Start wird nichts automatisch aktualisiert.** F5 Distributed Cloud kündigt
-einen neueren Build an und wartet. Das ist der Punkt, an dem „der Knoten bleibt, wo er
-gelandet ist" gilt — nach dem Erstellen, nicht während des Erstellens.
+**Nach dem ersten Start aktualisiert sich nichts von selbst.** F5 Distributed Cloud kündigt einen
+neueren Build an und wartet. Dort gilt „der Knoten bleibt, wo er gelandet ist" — nach dem
+Erstellen, nicht während dessen.
 
-Beide Phasen sind am Site-Objekt sichtbar. `Beobachtet 2026-07-28` für diese Flotte:
+Beide Phasen sind am Site-Objekt sichtbar. `Beobachtet am 2026-07-28` zeigte diese Flotte:
 
 ```text
 volterra_software_status.available_version   crt-20260201-0179
 operating_system_status.available_version    9.2026.14
 ```
 
-während die Knoten `crt-20250613-3382` und OS `9.2024.6` ausführen. Ein neuerer Build wird
-angeboten und wurde nicht übernommen — der stabile Zustand, kein stockendes Upgrade.
+während die Knoten `crt-20250613-3382` und OS `9.2024.6` ausführten. Ein neuerer Build wurde
+angeboten und nicht übernommen — der Normalzustand, kein ins Stocken geratenes Upgrade.
 
-## Terraform kann keine Version ändern. Die API schon
+## Terraform kann eine Version nicht ändern. Die API schon
 
-Dies sind zwei separate Fakten, und ihre Vermischung führt zur falschen Planung.
+Das sind zwei getrennte Fakten; werden sie vermischt, entsteht ein falscher Plan.
 
-**Terraform kann es nicht.** `ce_os_version` und `ce_sw_version` sind faktisch nur beim
-Erstellen wirksam. Ändern Sie eines davon und führen Sie apply aus, lehnt die API die
-Aktualisierung mit `[BAD_REQUEST] Invalid request parameters` ab. `Beobachtet 2026-07-29` auf
-einmalig verwendeten Sites, in allen drei Richtungen — Fixierung **vorwärts** auf einen
-neueren Build, Fixierung **rückwärts** auf einen älteren und **Aufheben der Fixierung** durch
-Löschen beider Felder. Vorwärts ist kein Sonderfall.
+**Terraform kann es nicht.** `ce_os_version` und `ce_sw_version` sind praktisch nur zum
+Erstellungszeitpunkt wirksam. Ändern Sie eines der Felder und führen Sie Apply aus, lehnt die API
+die Aktualisierung mit `[BAD_REQUEST] Invalid request parameters` ab. `Beobachtet am 2026-07-29`
+auf temporären Sites, in allen drei Richtungen — Fixierung **vorwärts** auf einen neueren Build,
+Fixierung **rückwärts** auf einen älteren und **Aufheben der Fixierung** durch Leeren beider
+Felder. Vorwärts ist kein Sonderfall.
 
-**Die API kann es.** F5 Distributed Cloud stellt eine dedizierte Upgrade-Aktion pro Site
-bereit, die die Änderung direkt startet — kein Neuaufbau und keine Terraform-Beteiligung:
+**Die API kann es.** F5 Distributed Cloud stellt eine dedizierte Upgrade-Aktion pro Site bereit,
+die die Änderung direkt vor Ort startet — ohne Neuaufbau und ohne Terraform-Beteiligung:
 
 ```bash
 # Software-Build
@@ -94,67 +92,65 @@ curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/j
   "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_os"
 ```
 
-`Beobachtet 2026-07-29`: Der Software-Aufruf gab `200` zurück, die Site wechselte in den
-Zustand `UPGRADING` mit `deployment_state.phase` `UPGRADE_IN_PROGRESS`, und die angeforderte
-Version im Site-Objekt änderte sich auf die übermittelte. Das Weglassen des Felds gibt `400`
-mit `version empty in the request` zurück, womit der Feldname bestätigt wurde.
+`Beobachtet am 2026-07-29`: Der Software-Aufruf gab `200` zurück, die Site wechselte zu
+`UPGRADING` mit `deployment_state.phase` `UPGRADE_IN_PROGRESS`, und die angeforderte Version im
+Site-Objekt änderte sich auf die übermittelte. Das Weglassen des Feldes gibt `400` mit
+`version empty in the request` zurück, wodurch der Feldname bestätigt wurde.
 
-**Planen Sie Stunden, nicht Minuten ein, und verfallen Sie bei einem Fehler nicht in Panik.**
-Auf einem Knoten mit Standard-Datenträger lief das Upgrade auf `crt-20260201-0179` etwa eine
-Stunde lang, meldete zwischendurch `UPGRADE_FAILED` mit `result` `Failed`, und wurde dann
-**erfolgreich abgeschlossen** mit dem neuen Build. Die Plattform wiederholt den Versuch.
+**Planen Sie Stunden ein, nicht Minuten, und geraten Sie bei einem Fehler nicht in Panik.** Auf
+einem Knoten mit Standarddatenträger lief das Upgrade auf `crt-20260201-0179` etwa eine Stunde,
+meldete zwischenzeitlich `UPGRADE_FAILED` mit `result` `Failed` und **schloss dann erfolgreich**
+mit dem neuen Build ab. Die Plattform wiederholt den Vorgang.
 
-Das hat eine direkte Konsequenz für alle, die ein Upgrade beobachten oder per Skript
-steuern: Ein `Failed`-Ergebnis ist ein Zustand, den man abwarten muss, kein Urteil. Wer
-den ersten als endgültig behandelt, meldet einen Fehler für ein Upgrade, das erfolgreich sein
+Das hat eine direkte Konsequenz für alle, die ein Upgrade beobachten oder per Skript steuern:
+Ein `Failed`-Ergebnis ist ein Zustand, den man abwarten muss, kein endgültiges Urteil. Wer das
+erste als endgültig behandelt, meldet einen Fehler für ein Upgrade, das noch erfolgreich sein
 wird.
 
-Beachten Sie die Gruppe in diesem Pfad: Diese liegen unter **`config`**, nicht `operate`.
-Dieselben Pfade unter `operate` geben `404 API Group could not be determined` zurück, was
-eine Routing-Meldung ist und keine Aussage darüber, dass kein Upgrade existiert — eine
-Unterscheidung, die diesem Projekt einen falschen Schluss eingebracht hat.
+Beachten Sie die Gruppe in diesem Pfad: Diese Endpunkte liegen unter **`config`**, nicht unter
+`operate`. Dieselben Pfade unter `operate` geben `404 API Group could not be determined` zurück,
+was eine Routing-Meldung ist und keine Aussage darüber, dass kein Upgrade existiert — eine
+Unterscheidung, die diesem Projekt zu einem falschen Schluss verholfen hat.
 
-<Aside type="caution" title="Ein Upgrade über die API bringt Terraform aus dem Takt">
-Die fixierten Variablen sagen noch immer das, was sie immer gesagt haben, sodass die Live-Site
-nun eine Version ausführt, die die Konfiguration nicht benennt. Terraform wird dies nicht
-abgleichen — das geht nicht, da die Aktualisierung abgelehnt wird — behandeln Sie daher ein
-API-Upgrade als bewussten Schritt außerhalb der Terraform-Kontrolle, und aktualisieren Sie
+<Aside type="caution" title="Ein API-Upgrade bringt Terraform aus dem Gleichschritt">
+Die fixierten Variablen sagen weiterhin das, was sie immer gesagt haben, sodass die laufende
+Site nun eine Version ausführt, die die Konfiguration nicht benennt. Terraform wird das nicht
+abgleichen — es kann nicht, da die Aktualisierung abgelehnt wird —, also behandeln Sie ein
+API-Upgrade als einen bewussten Schritt außerhalb der Terraform-Kontrolle und aktualisieren Sie
 die Fixierungen beim nächsten Neuaufbau entsprechend.
 </Aside>
 
 <Aside type="note" title="Zwei frühere Aussagen auf dieser Seite, zurückgezogen">
-Diese Seite behauptete zuvor, dass das Verschieben eines CE auf eine andere Version die
-Neuerstellung der Site erfordert, und dass eine abgelehnte Aktualisierung „das Feld trotzdem
-auf dem Server löscht", sodass Terraform dauerhaft eine fehlschlagende Änderung vorschlägt.
-Keine dieser Aussagen hat die Tests bestanden: Das oben beschriebene API-Upgrade startet eine
-Versionsänderung direkt, ohne irgendetwas neu zu erstellen, und nach jeder der drei
-abgelehnten Aktualisierungen war die Spezifikation der Site **unverändert** und die Site blieb
-`ONLINE`. Die in Provider-Issue `xcsh#1387` beschriebene Abweichung wurde auf einer Site
-beobachtet, die bereits über ihre Fixierung hinaus automatisch aktualisiert hatte, sodass
-möglicherweise dieser abweichende Ausgangszustand erforderlich ist; sie konnte auf einer Site,
-deren Spezifikation mit ihrer Fixierung übereinstimmte, nicht reproduziert werden.
+Diese Seite besagte zuvor, dass das Verschieben eines CE auf eine andere Version die Neuerstellung
+der Site erfordert, und dass eine abgelehnte Aktualisierung „das Feld auf dem Server trotzdem
+leert" und Terraform dadurch dauerhaft eine fehlschlagende Änderung vorschlägt. Keine der beiden
+Aussagen hielt Tests stand: Das oben beschriebene API-Upgrade startet eine Versionsänderung direkt
+vor Ort, ohne etwas neu zu erstellen, und nach jeder der drei abgelehnten Aktualisierungen war das
+Spec der Site **unverändert** und die Site blieb `ONLINE`. Die in Provider-Issue `xcsh#1387`
+beschriebene Abweichung wurde auf einer Site beobachtet, die bereits über ihre Fixierung hinaus
+automatisch aktualisiert worden war; möglicherweise ist dieser abweichende Ausgangszustand
+erforderlich; sie konnte auf einer Site, deren Spec mit ihrer Fixierung übereinstimmte, nicht
+reproduziert werden.
 </Aside>
 
-Wenn Sie dennoch neu aufbauen statt zu aktualisieren, gelten alle Konsequenzen des Ersetzens
-eines CE.
+Wenn Sie statt eines Upgrades einen Neuaufbau durchführen, gelten alle Konsequenzen des
+Ersetzens eines CE.
 
 <Aside type="danger" title="Alle Konsequenzen des Ersetzens eines CE gelten">
-Neue SSH-Host-Schlüssel, neu zugewiesene interne Adressen, eine neue Registrierung und der
-Verlust von allem, was nur auf dem Knoten vorhanden war. Cloud-init wird auf der neuen VM
-erneut ausgeführt, sodass der so konfigurierte SSH-Zugang erhalten bleibt — aber es wird
-*nur* beim ersten Start ausgeführt, sodass alles, was manuell zum alten Knoten hinzugefügt
-wurde, verloren ist.
+Neue SSH-Host-Keys, neu zugewiesene interne Adressen, eine neue Registrierung und der Verlust
+von allem, was nur auf dem Knoten gespeichert war. Cloud-init läuft auf der neuen VM erneut, sodass
+auf diesem Weg konfigurierter SSH-Zugang erhalten bleibt — er läuft jedoch *nur* beim ersten Start,
+sodass alles, was manuell zum alten Knoten hinzugefügt wurde, verloren ist.
 
-Lesen Sie [SSH](./access/ssh/) zu den Konsequenzen für Host-Schlüssel und Adressen, bevor Sie
-dies einplanen.
+Lesen Sie [SSH](./access/ssh/) zu den Konsequenzen für Host-Keys und Adressen, bevor Sie dies
+einplanen.
 </Aside>
 
-## Ein fixierter Build kann nicht installiert werden, und die Site steckt dann fest
+## Ein fixierter Build kann nicht installiert werden, und die Site bleibt dann stecken
 
-Die Fixierung zu akzeptieren ist nicht dasselbe wie sie zu installieren. Bei einem frisch
-erstellten Einknoten-Azure-Secure-Mesh-v2-Customer-Edge, der auf `crt-20260201-0179` fixiert
-ist, meldete das Site-Objekt die fixierte Version sofort — und die Installation schlug
-anschließend fehl:
+Die Fixierung zu akzeptieren ist nicht dasselbe wie sie zu installieren. Auf einem frisch
+erstellten Einzelknoten-Azure Secure Mesh v2 Customer Edge, fixiert auf `crt-20260201-0179`,
+meldete das Site-Objekt die fixierte Version sofort — und die Installation schlug dann fehl:
 
 ```text
 site_state        PROVISIONING
@@ -165,82 +161,94 @@ message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed
                   required replicas: 1, current replicas: 0
 ```
 
-`Beobachtet 2026-07-28`, und zweimal reproduziert am 2026-07-29. Die **Betriebssystem**-Fixierung
-wurde im selben Durchlauf normal installiert (`9.2024.6` auf `9.2026.14`, `UPGRADE_COMPLETED`);
-nur die Software-Installation schlug fehl. Die Site erreichte nie `ONLINE`, und
-`last_installed_version` blieb leer, sodass kein Rollback auf einen funktionierenden Build
-erfolgte — es gab keine frühere erfolgreiche Installation, auf die zurückgegriffen werden
-konnte.
+`Beobachtet am 2026-07-28` und zweimal am 2026-07-29 reproduziert. Die **Betriebssystem**-Fixierung
+installierte im selben Durchlauf normal (`9.2024.6` auf `9.2026.14`, `UPGRADE_COMPLETED`); nur die
+Software-Installation schlug fehl. Die Site erreichte nie `ONLINE` und `last_installed_version`
+blieb leer, sodass kein Rollback auf einen funktionierenden Build erfolgte — es gab keine frühere
+erfolgreiche Installation, auf die zurückgegriffen werden konnte.
 
-**Ein Fehler beim Erstellen ist nicht wie ein Fehler während eines Upgrades.** Die beiden
-verhalten sich unterschiedlich, und der Unterschied ist wichtig, wenn Sie entscheiden, ob Sie
-eingreifen sollen:
+**Ein Fehler beim Erstellen unterscheidet sich von einem Fehler während eines Upgrades.** Die
+beiden verhalten sich unterschiedlich, und der Unterschied ist entscheidend, wenn Sie entscheiden,
+ob Sie eingreifen sollen:
 
 | | beim Erstellen | während eines API-Upgrades |
 | --- | --- | --- |
-| Wiederholt es sich bis zum Erfolg? | nein — über 20 Minuten bei `Failed` gehalten, zweimal | ja — erholte sich und schloss ab |
-| Wo landet der Knoten? | `PROVISIONING`, nichts installiert | `ONLINE` mit einem funktionierenden Build |
-| Ist es sicher, es zu lassen? | nein, es steckt fest | ja, es erholt sich oder behält den alten Build |
+| Werden Fehler bis zum Erfolg wiederholt? | Nein — über 20 Minuten auf `Failed` gehalten, zweimal | Ja — Wiederherstellung und Abschluss |
+| Wo landet der Knoten? | `PROVISIONING`, nichts installiert | `ONLINE` auf einem funktionierenden Build |
+| Ist es sicher, ihn zu lassen? | Nein, er ist stecken | Ja, er erholt sich oder behält den alten Build |
 
-Ein Fehler beim Erstellen erfordert daher einen Neuaufbau mit einem größeren Datenträger,
-während ein Upgrade, das `Failed` meldet, eine Weile abgewartet werden sollte, bevor Sie
-irgendwelche Schlüsse ziehen.
+Ein Fehler beim Erstellen erfordert daher einen Neuaufbau mit einem größeren Datenträger, während
+ein Upgrade, das `Failed` meldet, eine Weile beobachtet werden sollte, bevor man zu einem Schluss
+kommt.
 
 **Die Ursache ist der Datenträger, nicht die Version.** Eine Matrix aus Software × OS ×
-Datenträgergröße — je eine einmalig verwendete Einknoten-Azure-Secure-Mesh-v2-Site pro
-Kombination, alle aus demselben Marketplace-Image — grenzt es ein. `Beobachtet 2026-07-29`:
+Datenträgergröße, eine temporäre Einzelknoten-Azure Secure Mesh v2 Site pro Kombination, alle
+aus demselben Marketplace-Image, isoliert dies. `Beobachtet am 2026-07-29`:
 
 | Software | OS `9.2024.6` (was das Image liefert) | OS `9.2026.14` |
 | --- | --- | --- |
-| `crt-20250613-3382` | wird installiert | wird installiert |
-| `crt-20260201-0179` | wird installiert | **schlägt fehl**, nur auf dem Standard-Datenträger |
+| `crt-20250613-3382` | installiert | installiert |
+| `crt-20260201-0179` | installiert | **schlägt fehl**, nur auf dem Standard-Datenträger |
 
-Keine Version schlägt allein fehl. Nur das Paar schlägt fehl, und nur auf dem Standard-Datenträger
-des Images — dasselbe Paar wird auf **40 GB**, **48 GB** und **64 GB** installiert. Der
-neuere Build wird also hier nicht unterstützt, und dasselbe gilt für das neuere Betriebssystem;
-zusammen benötigen sie mehr Datenträgerspeicher, als ein Standardknoten hat.
+Keine Version schlägt für sich allein fehl. Nur das Paar schlägt fehl, und nur auf dem
+Standard-Datenträger des Images — dasselbe Paar installiert auf **33 GB** und jeder größeren
+getesteten Größe. Der neuere Build wird hier also nicht nicht unterstützt, und das neuere
+Betriebssystem auch nicht; zusammen benötigen sie etwas mehr Speicherplatz, als ein
+Standard-Knoten hat.
 
 `terraform/modules/ce-node` setzt keine `disk_size_gb`, sodass jeder Customer Edge den
-Standard des Images erhält. **Um das neuere Paar auszuführen, vergrößern Sie den Datenträger.**
-40 GB ist die kleinste getestete Größe, die funktioniert; die genaue Grenze liegt zwischen dem
-Image-Standard und 40 GB und wurde nicht weiter eingegrenzt.
+Image-Standard erhält — die einzige Größe, bei der dieses Paar fehlschlägt. **Um es auszuführen,
+vergrößern Sie den Datenträger.**
 
-Testen Sie eine Versionsänderung unabhängig davon auf einer einmalig verwendeten Site, bevor
-Sie sie auf eine Flotte anwenden: Eine Flotte, die auf diese Weise fehlschlägt, steckt in
-`PROVISIONING` fest, und der Neuaufbau ist der einzige Ausweg.
+Der Spielraum ist der überraschende Teil, und deshalb sah das so lange wie ein Versionsproblem aus.
+Der Standard beträgt **31 GiB** (der `health`-Befehl meldet `size_gb: 31`, und `/var` ist 29 G mit
+3,5 G frei auf einem Knoten im Fehlerzustand). **33 GB installiert problemlos.** Der Standard ist
+also um rund zwei Gigabyte zu klein, nicht um eine große Marge.
 
-<Aside type="caution" title="Verwenden Sie nicht F5s Vorab-Upgrade-Angabe für die Datenträgergröße">
-F5s dokumentierte Vorab-Upgrade-Prüfung erfordert 20 GB plus 15 % freie Kapazität. Diese
-Prüfung gilt für Upgrades über die **Konsolen-Benutzeroberfläche** und gilt ausdrücklich nicht
-für API-initiierte, beschreibt diesen Fehler also nicht. Angewendet hier würde sie
-vorhersagen, dass ein 48-GB-Datenträger fehlschlägt; 48 GB wird sauber installiert. Richten
-Sie sich nach den gemessenen Ergebnissen oben, nicht nach dieser Formel.
+<Aside type="caution" title="Setzen Sie nicht das gemessene Minimum">
+33 GB ist die kleinste beobachtete funktionierende Größe — für dieses Versionspaar, auf diesem
+Image, heute. Ein Build mit etwas größerem Payload würde bei 33 GB wieder fehlschlagen, ohne
+Konfigurationsänderung und ohne offensichtliche Ursache, genau wie der Standard es jetzt tut.
+Wählen Sie einen Puffer über dem Mindestwert: Die hier verifizierten Größen sind 33, 36, 40, 48
+und 64 GB, und die Kosten der größeren sind einige Gigabyte verwalteter Datenträger.
 </Aside>
 
-<Aside type="note" title="Eine frühere Erklärung auf dieser Seite, zurückgezogen">
-Eine frühere Version dieser Seite schlug vor, dass die Installation fehlschlug, weil der
-angeforderte Build älter als der des Images war — dass der Knoten aufgefordert wurde, sich
-rückwärts zu bewegen. Das ist falsch. Diese Flotte wurde aus demselben Image mit einer
-Fixierung erstellt, die **dreizehn Monate** älter ist, und wurde normal installiert, und
-`crt-20260201-0179` wird ebenfalls installiert, wenn die OS-Fixierung bei der eigenen Version
-des Images belassen wird. Die Richtung der Änderung ist nicht die Variable.
+Testen Sie eine Versionsänderung auf einer temporären Site, bevor Sie sie auf eine Flotte
+anwenden: Eine Flotte, die auf diese Weise fehlschlägt, bleibt in `PROVISIONING` stecken, und
+eine Neuerstellung ist der einzige Ausweg.
+
+<Aside type="caution" title="Richten Sie den Datenträger nicht nach F5s Vorab-Upgrade-Angabe aus">
+F5s dokumentierte Vorab-Upgrade-Prüfung fordert 20 GB plus 15 % freie Kapazität. Diese Prüfung
+gilt für **Konsolen-UI**-Upgrades und ist ausdrücklich nicht auf API-initiierte anwendbar, sie
+beschreibt diesen Fehler also nicht. Angewendet hier würde sie vorhersagen, dass ein 48-GB-Datenträger
+fehlschlägt; 48 GB installiert problemlos. Richten Sie die Größe an den gemessenen Ergebnissen oben
+aus, nicht an dieser Formel.
+</Aside>
+
+<Aside type="note" title="Eine Erklärung, die diese Seite zuvor anbot, nun zurückgezogen">
+Eine frühere Version dieser Seite legte nahe, dass die Installation fehlschlug, weil der
+angeforderte Build älter als der des Images war — dass der Knoten aufgefordert wurde, sich rückwärts
+zu bewegen. Das ist falsch. Diese Flotte wurde aus demselben Image mit einer Fixierung erstellt, die
+**dreizehn Monate** älter ist, und installierte normal, und `crt-20260201-0179` installiert ebenfalls,
+wenn die OS-Fixierung bei der eigenen Version des Images belassen wird. Die Richtung des Wechsels ist
+nicht die entscheidende Variable.
 </Aside>
 
 ## Welchen Build die Dokumentation beschreibt
 
-Die Befehlsreferenz auf dieser Site beschreibt **`crt-20250613-3382`**, den Build, den diese
-Flotte ausführt. Befehle, die nur auf neueren Builds vorhanden sind, sind in
-`sitecli/command-classification.json` unter `not_on_this_build` erfasst und separat
-dokumentiert, als [Befehle auf neueren Builds](./commands/on-box/newer-builds/), sodass dort
-nichts als hier ausführbar erscheint. Siehe auch [On-Box-Befehle](./commands/on-box/).
+Die Befehlsreferenz auf dieser Site beschreibt **`crt-20250613-3382`**, den Build, den diese Flotte
+ausführt. Befehle, die nur auf neueren Builds vorhanden sind, werden in
+`sitecli/command-classification.json` unter `not_on_this_build` erfasst und separat dokumentiert, als
+[Befehle auf neueren Builds](./commands/on-box/newer-builds/), sodass dort nichts als hier ausführbar
+erscheint. Siehe auch [On-Box-Befehle](./commands/on-box/).
 
-<Aside type="note" title="Das Erreichen eines neueren Builds ist geklärt, und es ist kein Neuaufbau">
+<Aside type="note" title="Den Weg zu einem neueren Build ist geklärt, und er erfordert keinen Neuaufbau">
 Dies war hier zuvor als ungeklärt vermerkt, mit einem Bericht über den neueren Build, der auf
-Einknoten-Azure-Secure-Mesh-v2-Sites fehlschlug, entgegen einer Gegenbeobachtung, dass einer
-ihn ausführt. Beides ist nun erklärt: Der neuere Build wird auf dieser Topologie installiert,
-und der Fehler war das oben beschriebene Datenträgerlimit, nicht der Build.
+Einzelknoten-Azure Secure Mesh v2 Sites fehlschlug, und einer Gegenbeobachtung von einer laufenden
+Site. Beides ist nun erklärt: Der neuere Build installiert auf dieser Topologie, und der Fehler war das
+oben beschriebene Speicherplatzproblem, nicht der Build selbst.
 
-Es gibt also zwei Wege, und keiner erfordert für sich allein einen Neuaufbau — erstellen Sie
-einen Knoten mit einem ausreichend großen Datenträger, oder aktualisieren Sie einen
-bestehenden über die API. `Beobachtet 2026-07-29`.
+Es gibt also zwei Wege, und keiner erfordert einen Neuaufbau um seiner selbst willen — erstellen Sie
+einen Knoten mit einem ausreichend großen Datenträger, oder upgraden Sie einen vorhandenen über die API.
+`Beobachtet am 2026-07-29`.
 </Aside>
