@@ -19,7 +19,7 @@ Columns:
 > at the bottom of this file. Nothing here is evidence about an arm that has no row.
 
 | Branch / leaf | Structural | Validated | Applied | Idempotent | Import-clean | Notes |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | azure.not_managed.node_list[].interface_list[] | ✅ | ⬜ | ✅ | ✅ | ✅ | iter-1 (live N=3) |
 | interface_list.mtu (max 16384) | ✅ | ✅ | ✅ | ✅ | ✅ | S1: validator `AtMost(16384)` (reject 20000); base probe live-applied+idempotent; the leaf does not drift and the whole-object import re-plans 0-change (S7) |
 | interface_list.priority (0-255) | ✅ | ✅ | ✅ | ✅ | ✅ | S1: validator `Between(0, 255)` (reject 256); on the base eth0 interface, live-applied+idempotent; whole-object import re-plans 0-change (S7) |
@@ -312,7 +312,7 @@ TF_CLI_CONFIG_FILE=/tmp/tfrc terraform providers schema -json > /tmp/schema.json
 ### Headline
 
 | Measure | Count |
-|---|---|
+| --- | --- |
 | Arms in the `xcsh_securemesh_site_v2` schema at v3.81.1 (415 attributes + 582 blocks) | 997 |
 | Out of scope: the 10 non-`azure` site-provider subtrees, 68 arms each | 680 |
 | Out of scope: the Terraform `timeouts` meta-block | 5 |
@@ -333,7 +333,7 @@ Not covered, and why. "Still open" means exactly that: no arm below has been qui
 to "excluded" to make the table look finished.
 
 | # | Family | Arms | Class | Reason / evidence |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | A | `id` | 1 | ➖ n/a | Computed Terraform identifier, not an API arm. |
 | B | `annotations`, `description`, `disable` | 3 | ⚠️ partial | `description` **is** applied live by the production module (`terraform/modules/xc-site/main.tf`), just not by this probe, and has no validator anywhere. `annotations`/`disable` are **still open**: S8 saw the server materialize `metadata.annotations: {}` unprompted, so a literal `{}` is an untested drift source. |
 | C | `tunnel_type`, `tunnel_dead_timeout` | 2 | ⬜ still open | Both `Optional + Computed`; S8 saw the server materialize them (`SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL` / `0`) on a probe declaring neither. Computed absorbs the default — which is exactly why 8 slices missed them: undeclared, they cannot drift. Never *set* from config, so no round-trip evidence. |
@@ -358,7 +358,7 @@ above is a candidate slice, not a defect — but the table is no longer silent a
 All 155 open arms are tracked, so closing epic terraform-provider-xcsh#1207 does not drop them:
 
 | Tracking issue | Families | Arms |
-|---|---|---|
+| --- | --- | --- |
 | mcn #646 | J, L, M, N — `local_vrf` oneofs + the six `SiteStaticRoutesListType` subtrees | 96 |
 | mcn #647 | K, O, P, Q — SLI `network_option`, `ipv6_auto_config.router`, `cluster_static_ip`, bond remainder | 33 |
 | mcn #648 | B, C, D, E, F, H, I — `advanced_delivery`/`log_anonymization` oneofs, `tunnel_*`, `annotations`/`disable`, `custom_proxy` remainder, ref `tenant` | 26 |
