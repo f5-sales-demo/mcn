@@ -29,7 +29,7 @@ VRF별 vRouter 라우트 테이블입니다.
 <Aside type="danger" title="VRF id는 BGP가 보고하는 것과 다릅니다">
 `show-ip-bgp-summary`는 `vrf-id 3`을 출력합니다. 이는 FRR의 번호 체계이며 vRouter 테이블 id와는 다른 네임스페이스입니다. 이 값을 여기에 전달하면 노드가 손상된 것처럼 보이는 방식으로 실패합니다:
 
-```
+```text
 vRouter(Response):  [No such file or directory (2)]
 ```
 
