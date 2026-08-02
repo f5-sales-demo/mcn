@@ -51,7 +51,7 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 引导诊断在**引导时**捕获串行日志。为一台已经在运行的虚拟机开启它，并不会为已经发生过的那次引导生成日志，
 因此 `az vm boot-diagnostics get-boot-log` 会返回：
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -138,7 +138,7 @@ az rest --method post \
 `az serial-console connect` 会将终端置于原始模式，因此它无法在流水线或任何没有 TTY 的环境中运行。
 它会在联系 Azure 之前于客户端侧失败：
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -156,7 +156,7 @@ ERROR: (19, 'Operation not supported by device')
 网关发出的第一帧是一个质询，而不是输出，客户端需要用 bearer 令牌来应答。
 即使正确完成了这一步，套接字往往仍会立即关闭：
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

@@ -56,7 +56,7 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 並不會為已經發生的那次開機產生記錄，因此
 `az vm boot-diagnostics get-boot-log` 會回應：
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -146,7 +146,7 @@ az rest --method post \
 `az serial-console connect` 會把終端機切換為 raw 模式，因此無法在管線
 或任何沒有 TTY 的環境中執行。它會在聯絡 Azure 之前於用戶端就失敗：
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -164,7 +164,7 @@ ERROR: (19, 'Operation not supported by device')
 閘道的第一個訊框是一個挑戰，而不是輸出，用戶端會以 bearer token 回應。
 即使正確完成這一步，socket 仍經常立即關閉：
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

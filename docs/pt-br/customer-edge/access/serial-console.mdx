@@ -62,7 +62,7 @@ O diagnóstico de inicialização captura o log serial **na inicialização**. A
 uma VM que já está em execução não produz um log da inicialização que já ocorreu, então
 `az vm boot-diagnostics get-boot-log` responde:
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -162,7 +162,7 @@ depuração não pode:
 a partir de um pipeline ou de qualquer contexto sem um TTY. Ele falha no lado do cliente,
 antes de contatar o Azure:
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -180,7 +180,7 @@ de um nó que falhou ao se registrar sem alguém sentado diante de um terminal.
 O primeiro frame do gateway é um desafio, não saída, e o cliente o responde com um token
 bearer. Mesmo quando isso é feito corretamente, o socket frequentemente fecha imediatamente:
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

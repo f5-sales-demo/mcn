@@ -60,7 +60,7 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 يعمل بالفعل لا يُنتج سجلًا للإقلاع الذي حدث سابقًا، لذا يجيب
 `az vm boot-diagnostics get-boot-log`:
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -157,7 +157,7 @@ az rest --method post \
 يضع `az serial-console connect` الطرفية في الوضع الخام، لذا لا يمكن تشغيله من
 خط أنابيب أو من أي سياق بلا TTY. ويفشل من جهة العميل، قبل الاتصال بـ Azure:
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -175,7 +175,7 @@ ERROR: (19, 'Operation not supported by device')
 الإطار الأول من البوابة هو تحدٍّ، وليس مخرجًا، ويجيب عليه العميل برمز حامل. وحتى
 عندما يُنجز ذلك بشكل صحيح، غالبًا ما يُغلق المقبس فورًا:
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 
