@@ -28,7 +28,7 @@ VRFごとのvRouterルートテーブルです。
 <Aside type="danger" title="VRF idはBGPが報告するものとは異なります">
 `show-ip-bgp-summary`は`vrf-id 3`を出力しますが、これはFRRの採番であり、vRouterのテーブルidとは異なる名前空間です。ここにそのidを渡すと、ノードが壊れているかのように見えるエラーが発生します：
 
-```
+```text
 vRouter(Response):  [No such file or directory (2)]
 ```
 

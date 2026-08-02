@@ -61,7 +61,7 @@ Boot diagnostics จะเก็บบันทึกอนุกรม **ขณ
 กำลังทำงานอยู่แล้วจะไม่สร้างบันทึกของการบูตที่เกิดขึ้นไปแล้ว ดังนั้น
 `az vm boot-diagnostics get-boot-log` จะตอบว่า:
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -157,7 +157,7 @@ debug API ไม่สามารถตอบได้:
 `az serial-console connect` จะตั้งเทอร์มินัลเป็นโหมด raw ดังนั้นจึงไม่สามารถทำงานจาก
 ไปป์ไลน์หรือบริบทใด ๆ ที่ไม่มี TTY มันจะล้มเหลวที่ฝั่งไคลเอนต์ ก่อนติดต่อ Azure:
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -175,7 +175,7 @@ traceback นั้นเป็นเรื่องการจัดการ�
 เฟรมแรกของเกตเวย์เป็นการท้าทาย (challenge) ไม่ใช่ผลลัพธ์ และไคลเอนต์ตอบด้วย
 bearer token แม้ทำถูกต้องแล้ว ซ็อกเก็ตก็มักปิดตัวลงทันที:
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

@@ -54,7 +54,7 @@ Boot diagnostics captures the serial log **at boot**. Turning it on for a VM tha
 is already running does not produce a log for the boot that already happened, so
 `az vm boot-diagnostics get-boot-log` answers:
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -150,7 +150,7 @@ debug API cannot:
 `az serial-console connect` puts the terminal into raw mode, so it cannot run from a
 pipeline or any context without a TTY. It fails client-side, before contacting Azure:
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -168,7 +168,7 @@ a node that failed to register without a human sitting at a terminal.
 The gateway's first frame is a challenge, not output, and the client answers it with a
 bearer token. Even when that is done correctly the socket often closes immediately:
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 
