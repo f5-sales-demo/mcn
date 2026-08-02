@@ -61,7 +61,7 @@ Les diagnostics de démarrage capturent le journal série **au démarrage**. Les
 déjà en cours d'exécution ne produit pas de journal pour le démarrage déjà survenu, donc
 `az vm boot-diagnostics get-boot-log` répond :
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -157,7 +157,7 @@ l'API de débogage ne peut pas traiter :
 `az serial-console connect` place le terminal en mode brut, il ne peut donc pas s'exécuter depuis un
 pipeline ou tout contexte dépourvu de TTY. Il échoue côté client, avant de contacter Azure :
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -175,7 +175,7 @@ un nœud n'ayant pas réussi à s'enregistrer, sans humain assis devant un termi
 La première trame de la passerelle est un challenge, pas une sortie, et le client y répond avec un
 jeton porteur. Même lorsque cela est fait correctement, le socket se ferme souvent immédiatement :
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

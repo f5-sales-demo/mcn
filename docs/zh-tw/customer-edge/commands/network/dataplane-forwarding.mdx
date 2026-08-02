@@ -28,7 +28,7 @@ vRouter 路由表，依 VRF 區分。
 <Aside type="danger" title="VRF id 並非 BGP 所回報的那個">
 `show-ip-bgp-summary` 顯示的是 `vrf-id 3`。那是 FRR 的編號，與 vRouter 的表格 id 屬於不同的命名空間。將其傳入此處會以一種讀起來像節點損壞的方式失敗：
 
-```
+```text
 vRouter(Response):  [No such file or directory (2)]
 ```
 

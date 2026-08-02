@@ -60,7 +60,7 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 करने से उस बूट का लॉग नहीं बनता जो पहले ही हो चुका है, इसलिए
 `az vm boot-diagnostics get-boot-log` यह उत्तर देता है:
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -154,7 +154,7 @@ debug API नहीं दे सकता:
 `az serial-console connect` टर्मिनल को raw मोड में डाल देता है, इसलिए यह किसी पाइपलाइन या
 TTY-रहित संदर्भ से नहीं चल सकता। यह Azure से संपर्क करने से पहले, क्लाइंट-साइड पर विफल होता है:
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -172,7 +172,7 @@ ERROR: (19, 'Operation not supported by device')
 गेटवे का पहला फ़्रेम एक चैलेंज होता है, आउटपुट नहीं, और क्लाइंट उसका उत्तर एक bearer टोकन से
 देता है। यह सही ढंग से करने पर भी सॉकेट अक्सर तुरंत बंद हो जाता है:
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

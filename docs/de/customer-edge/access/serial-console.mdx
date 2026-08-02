@@ -64,7 +64,7 @@ Die Boot-Diagnose erfasst das serielle Log **beim Boot**. Sie für eine VM einzu
 bereits läuft, erzeugt kein Log für den Bootvorgang, der bereits stattgefunden hat, daher
 antwortet `az vm boot-diagnostics get-boot-log`:
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -165,7 +165,7 @@ Debug-API nicht beantworten kann:
 einer Pipeline oder einem Kontext ohne TTY laufen. Es scheitert clientseitig, noch bevor
 Azure kontaktiert wird:
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -184,7 +184,7 @@ Der erste Frame des Gateways ist eine Challenge, keine Ausgabe, und der Client a
 darauf mit einem Bearer-Token. Selbst wenn das korrekt gemacht wird, schließt sich der
 Socket häufig sofort:
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

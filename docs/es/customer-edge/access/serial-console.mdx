@@ -62,7 +62,7 @@ Los diagnósticos de arranque capturan el registro serie **en el arranque**. Act
 que ya está en ejecución no produce un registro del arranque que ya ocurrió, por lo que
 `az vm boot-diagnostics get-boot-log` responde:
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -160,7 +160,7 @@ que la API de depuración no puede:
 `az serial-console connect` pone el terminal en modo raw, por lo que no puede ejecutarse desde un
 pipeline ni desde ningún contexto sin TTY. Falla en el lado del cliente, antes de contactar con Azure:
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -178,7 +178,7 @@ un nodo que no logró registrarse sin que una persona esté sentada ante un term
 El primer frame de la puerta de enlace es un desafío, no salida, y el cliente lo responde con un
 token de portador. Incluso cuando eso se hace correctamente, el socket a menudo se cierra de inmediato:
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 

@@ -60,7 +60,7 @@ az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
 すでに発生済みのブートに対するログは生成されないため、
 `az vm boot-diagnostics get-boot-log` はこう応答します。
 
-```
+```text
 <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
 ```
 
@@ -156,7 +156,7 @@ az rest --method post \
 `az serial-console connect` はターミナルを raw モードにするため、パイプラインや TTY のない
 コンテキストからは実行できません。Azure に接続する前に、クライアント側で失敗します。
 
-```
+```text
 ERROR: (19, 'Operation not supported by device')
   File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
     GV.serial_console_instance.launch_console()
@@ -174,7 +174,7 @@ ERROR: (19, 'Operation not supported by device')
 ゲートウェイの最初のフレームは出力ではなくチャレンジであり、クライアントはベアラートークンで
 応答します。それを正しく行っても、ソケットはしばしば即座にクローズします。
 
-```
+```text
 [close] code=1011 reason=Connection not trusted
 ```
 
