@@ -93,7 +93,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 Un site qui **n'existe pas** a une seconde explication avant « il ne s'est jamais enregistré » :
 vous pointez vers le mauvais tenant. Ce déploiement réside dans `f5-sales-demo`
-(`https://f5-sales-demo.console.ves.volterra.io`), fixé par `var.expected_xc_tenant` —
+(`https://<XC_TENANT>.console.ves.volterra.io`), fixé par `var.expected_xc_tenant` —
 `cd terraform && terraform output -raw xc_tenant` vous le confirme sans rien modifier. Une
 identité générée pour un autre tenant renvoie un simple `401`, ce qui ressemble à un jeton expiré.
 </Aside>
