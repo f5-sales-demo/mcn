@@ -91,7 +91,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 Un sito che **non esiste** ha una seconda spiegazione prima di «non si è mai registrato»:
 si sta puntando al tenant sbagliato. Questa distribuzione risiede in `f5-sales-demo`
-(`https://f5-sales-demo.console.ves.volterra.io`), fissata da `var.expected_xc_tenant` —
+(`https://<XC_TENANT>.console.ves.volterra.io`), fissata da `var.expected_xc_tenant` —
 `cd terraform && terraform output -raw xc_tenant` lo conferma senza modificare nulla. Una
 credenziale emessa per un altro tenant restituisce un semplice `401`, che appare come un token scaduto.
 </Aside>
