@@ -89,7 +89,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 **존재하지 않는** 사이트에는 "등록된 적이 없다"보다 먼저 검토할 두 번째 설명이 있습니다.
 잘못된 테넌트를 가리키고 있는 경우입니다. 이 배포는 `f5-sales-demo`
-(`https://f5-sales-demo.console.ves.volterra.io`)에 있으며, `var.expected_xc_tenant`로 고정됩니다 —
+(`https://<XC_TENANT>.console.ves.volterra.io`)에 있으며, `var.expected_xc_tenant`로 고정됩니다 —
 `cd terraform && terraform output -raw xc_tenant`를 실행하면 아무것도 변경하지 않고 확인할 수 있습니다.
 다른 테넌트용으로 발급된 자격 증명은 만료된 토큰처럼 보이는 단순한 `401`을 반환합니다.
 </Aside>

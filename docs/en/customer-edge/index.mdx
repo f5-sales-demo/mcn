@@ -84,9 +84,9 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 `ONLINE` means the debug API will work. Anything else means Site Console or serial console.
 
 A site that **does not exist** has a second explanation before "it never registered": you
-are pointed at the wrong tenant. This deployment lives in `f5-sales-demo`
-(`https://f5-sales-demo.console.ves.volterra.io`), pinned by `var.expected_xc_tenant` —
-`cd terraform && terraform output -raw xc_tenant` says so without touching anything. A
+are pointed at the wrong tenant. The tenant this deployment belongs to is pinned by
+`var.expected_xc_tenant`, and `cd terraform && terraform output -raw xc_tenant` reports it
+without touching anything; its console is `https://<XC_TENANT>.console.ves.volterra.io`. A
 credential minted for another tenant returns a bare `401`, which reads as an expired token.
 </Aside>
 

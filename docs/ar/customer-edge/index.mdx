@@ -88,7 +88,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 الموقع الذي **لا وجود له** لديه تفسير ثانٍ يسبق «أنه لم يُسجَّل قط»: وهو أنك
 موجَّه إلى المستأجر الخاطئ. يعيش هذا النشر في `f5-sales-demo`
-(`https://f5-sales-demo.console.ves.volterra.io`)، وهو مثبَّت بواسطة `var.expected_xc_tenant` —
+(`https://<XC_TENANT>.console.ves.volterra.io`)، وهو مثبَّت بواسطة `var.expected_xc_tenant` —
 والأمر `cd terraform && terraform output -raw xc_tenant` يوضّح ذلك دون المساس بأي شيء. أما
 بيانات الاعتماد المُصدرة لمستأجر آخر فتعيد `401` مجردًا، وهو ما يُقرأ كرمز منتهي الصلاحية.
 </Aside>

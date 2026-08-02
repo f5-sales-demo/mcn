@@ -101,9 +101,13 @@ something to assemble by hand.
 
    ```text
    mcn-ce-ha-bastion
-   rg-mcn-ce-ha-rmordasiewicz
+   rg-mcn-ce-ha-<deployer>
    /subscriptions/…/providers/Microsoft.Compute/virtualMachines/f5-xc-ce-vm-01
    ```
+
+   The resource group name ends in the deployer, resolved by
+   `local.deployer`, so yours will differ. It is elided here for the same reason
+   the subscription is.
 
    <Aside type="caution" title="The map is keyed by site, not by VM name">
    `ce_vm_ids` keys are `eastus01`, `eastus02`, `eastus03` — **not** the VM names. A
