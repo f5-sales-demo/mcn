@@ -83,7 +83,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 对于**不存在**的站点，在"它从未注册"之前还有另一种解释：
 你指向了错误的租户。本部署位于 `f5-sales-demo`
-（`https://f5-sales-demo.console.ves.volterra.io`），由 `var.expected_xc_tenant` 固定 ——
+（`https://<XC_TENANT>.console.ves.volterra.io`），由 `var.expected_xc_tenant` 固定 ——
 `cd terraform && terraform output -raw xc_tenant` 可以在不改动任何东西的情况下告诉你答案。
 为其他租户签发的凭据会返回一个裸的 `401`，看起来像是令牌过期。
 </Aside>

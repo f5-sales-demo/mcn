@@ -87,7 +87,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 サイトが**存在しない**場合、「一度も登録されていない」より前に検討すべき説明がもう 1 つあります。
 誤ったテナントを指している可能性です。本デプロイメントは `f5-sales-demo`
-(`https://f5-sales-demo.console.ves.volterra.io`) に存在し、`var.expected_xc_tenant` で固定されています。
+(`https://<XC_TENANT>.console.ves.volterra.io`) に存在し、`var.expected_xc_tenant` で固定されています。
 `cd terraform && terraform output -raw xc_tenant` を実行すれば、何も変更せずに確認できます。
 別のテナント向けに発行された資格情報は素の `401` を返すため、トークンの期限切れのように見えます。
 </Aside>

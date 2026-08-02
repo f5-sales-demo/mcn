@@ -94,7 +94,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 
 Für eine Site, die **nicht existiert**, gibt es eine zweite Erklärung noch vor „sie hat sich nie
 registriert“: Sie sind auf den falschen Mandanten ausgerichtet. Diese Bereitstellung liegt in
-`f5-sales-demo` (`https://f5-sales-demo.console.ves.volterra.io`), festgelegt durch
+`f5-sales-demo` (`https://<XC_TENANT>.console.ves.volterra.io`), festgelegt durch
 `var.expected_xc_tenant` — `cd terraform && terraform output -raw xc_tenant` sagt es Ihnen,
 ohne etwas anzufassen. Eine für einen anderen Mandanten ausgestellte Anmeldeinformation gibt ein
 nacktes `401` zurück, was wie ein abgelaufenes Token aussieht.
