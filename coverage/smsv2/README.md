@@ -55,7 +55,7 @@ disk. `.gitignore` is managed by docs-control, so the rule cannot be fixed from 
 ## Variables
 
 | Variable | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `probe_name` | `cov-probe-01` | Throwaway site name (override per run). |
 | `mtu` | `1500` | eth0 interface MTU. Validator `AtMost(16384)`. |
 | `priority` | `10` | eth0 interface priority. Validator `Between(0, 255)`. |
