@@ -315,10 +315,10 @@ else
 fi
 
 # --- PII that must go under BOTH profiles --------------------------------------
-assert_removed "email address" 'contact r.mordasiewicz@f5.com for access' 'r.mordasiewicz@f5.com'
-assert_removed "macOS home directory" 'cache /Users/rmordasiewicz/.cache/thing' 'rmordasiewicz'
-assert_removed "Linux home directory" 'export DATA=/home/rmordasiewicz/data' 'rmordasiewicz'
-assert_preserved "home path keeps its shape" 'cache /Users/rmordasiewicz/.cache' '/Users/'
+assert_removed "email address" 'contact dana@example.com for access' 'dana@example.com'
+assert_removed "macOS home directory" 'cache /Users/you/.cache/thing' 'you'
+assert_removed "Linux home directory" 'export DATA=/home/you/data' 'you'
+assert_preserved "home path keeps its shape" 'cache /Users/you/.cache' '/Users/'
 
 # --- whitespace normalisation --------------------------------------------------
 # The repository .editorconfig requires LF endings, no trailing whitespace and a

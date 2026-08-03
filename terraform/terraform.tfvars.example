@@ -16,7 +16,7 @@ origin_ip = "203.0.113.10"
 lb_domain = "mcn-ce-ha.example.com"
 
 # --- Azure ---
-subscription_id = "00000000-0000-0000-0000-000000000000"
+subscription_id = "<AZURE_SUBSCRIPTION_ID>"
 location        = "eastus"
 # resource_group_name: defaults to rg-<component>-<deployer>, where the deployer is
 # resolved from Azure AD. Set it only to adopt a group that already exists.
@@ -98,9 +98,9 @@ ce_os_version = "9.2024.6"
 ce_sw_version = "crt-20250613-3382"
 
 # --- F5 XC data-plane ---
-# A PRE-EXISTING namespace: it is read, never created or destroyed. It must exist
+# This pre-existing namespace is read, never created or destroyed. It must exist
 # in expected_xc_tenant before the first apply.
-xc_app_namespace = "multi-cloud-networking"
+xc_app_namespace = "demo-app"
 origin_port      = 80
 vip              = "10.250.0.10"
 

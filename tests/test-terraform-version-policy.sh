@@ -61,7 +61,9 @@ echo "4. the fresh-clone example pins the measured CE fallback"
 for assignment in \
   'ce_os_version = "9.2024.6"' \
   'ce_sw_version = "crt-20250613-3382"' \
-  'lb_domain = "mcn-ce-ha.example.com"'; do
+  'lb_domain = "mcn-ce-ha.example.com"' \
+  'subscription_id = "<AZURE_SUBSCRIPTION_ID>"' \
+  'xc_app_namespace = "demo-app"'; do
   if grep -Fqx "$assignment" "$EXAMPLE"; then
     ok "example contains ${assignment}"
   else
