@@ -57,10 +57,10 @@ else
   bad "local lockfile is not ignored"
 fi
 
-echo "4. the fresh-clone example pins the measured CE fallback"
+echo "4. the fresh-clone example follows the latest CE policy"
 for assignment in \
-  'ce_os_version = "9.2024.6"' \
-  'ce_sw_version = "crt-20250613-3382"' \
+  'ce_os_version = ""' \
+  'ce_sw_version = ""' \
   'lb_domain = "mcn-ce-ha.example.com"' \
   'subscription_id = "<AZURE_SUBSCRIPTION_ID>"' \
   'xc_app_namespace = "demo-app"'; do
@@ -70,6 +70,12 @@ for assignment in \
     bad "example is missing ${assignment}"
   fi
 done
+
+if grep -Eq 'ce_(os|sw)_version[[:space:]]*=[[:space:]]*"[^"]+"' "$EXAMPLE"; then
+  bad "example pins a CE version instead of resolving the advertised latest pair"
+else
+  ok "example leaves both CE versions unpinned"
+fi
 
 if grep -Fq 'f5-sales-demo.' "$EXAMPLE"; then
   bad "example publishes a deployment-specific domain"

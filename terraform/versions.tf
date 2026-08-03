@@ -44,5 +44,10 @@ terraform {
       source  = "hashicorp/external"
       version = "~> 2.3"
     }
+    # Generates one Site Console admin password per CE. No version constraint:
+    # this deployment deliberately resolves the latest provider on every init.
+    random = {
+      source = "hashicorp/random"
+    }
   }
 }

@@ -1,6 +1,6 @@
 ---
 title: Software versions and rebuilds
-description: What ce_sw_version and ce_os_version do and do not do on a Customer Edge — why leaving them empty gets you the newest build rather than none, why Terraform cannot change a version but the API can, and why a version pair that fails to install is a disk limit rather than an unsupported build.
+description: How ce_sw_version and ce_os_version select the latest Customer Edge software at creation, why Terraform cannot change an installed version, and why the deployment gives the operating-system disk explicit headroom.
 sidebar:
   order: 50
   label: Versions and rebuilds
@@ -8,53 +8,47 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
-Two Terraform variables set a Customer Edge's software: `ce_os_version` for the operating
-system and `ce_sw_version` for the F5 Distributed Cloud build. Both behave in ways that are the
-opposite of the obvious reading — an empty field gets you the newest build rather than none,
-and a version that installs on one node can fail on an identical one with a smaller disk.
+Two Terraform variables select a Customer Edge's software: `ce_os_version` for the operating
+system and `ce_sw_version` for the F5 Distributed Cloud build. Empty values deliberately select
+the newest versions that the service advertises. That is this deployment's normal policy; a
+concrete value is only for reproducing an older build.
+
+Verified 2026-08-03 in a from-zero rebuild: with both values empty, all three 64 GB nodes
+selected software `crt-20260201-0179` and operating system `9.2026.14`, reached `ONLINE`, and
+left a clean Terraform plan.
 
 ## What the version fields do, in two phases
 
 Separating the phases is the whole subject. Conflated, the behaviour reads as
 self-contradictory.
 
-**On first boot, a node installs whatever `ce_sw_version` names.**
+**On first boot, a node installs the selected destination.**
 `terraform/modules/ce-node` deploys the marketplace image with `version = "latest"`, so the
 build a node arrives with is whatever that image currently ships — and that moves over time.
 `ce_sw_version` chooses the **destination**, not whether anything happens, and leaving it
-empty means the server chooses rather than that the node stays put. The same holds for
-`ce_os_version`.
+empty means the server selects its newest advertised build. The same holds for
+`ce_os_version`. You cannot leave one side unchanged by leaving it empty: the server selects a
+destination for both fields.
 
-Do not assume the direction of that change is upwards. `Observed 2026-07-28`, the image
-shipped a build stamped `20260703-e2c462a` — newer than this fleet's `crt-20250613-3382` and
-newer than the `crt-20260201-0179` the tenant was advertising. Naming an older build than the
-image carries asks the node to move backwards, and that is routine: this fleet was created
-that way and is running.
-
-**Leaving a version field empty is the riskiest choice, not the neutral one.** At create the
-server does not leave an empty field alone — it fills it with the **newest advertised**
-version and installs that. A site created with both fields unset came back pinned to
-`crt-20260201-0179` and OS `9.2026.14`, the two versions the tenant was advertising, and the
-install then failed. `Observed 2026-07-29`.
-
-There are two consequences. Empty means "give me the newest", so an unpinned deployment is the
-one most likely to meet the disk limit described below. And you cannot isolate one field by
-leaving the other empty, because the server fills it — set both, deliberately, or accept the
-newest of each.
+**Latest requires capacity headroom.** On 2026-07-29, the advertised pair failed on the
+marketplace image's 31 GiB disk and installed on every tested size from 33 GB through 64 GB.
+The deployment therefore sets an explicit 64 GB default and rejects values below 40 GB. With
+that prerequisite enforced, leaving the version values empty is both intentional and verified.
 
 **After first boot, nothing upgrades on its own.** F5 Distributed Cloud advertises a newer
 build and waits. That is where "the node stays where it landed" holds — after the create, not
 during it.
 
-Both phases are visible on the site object. `Observed 2026-07-28`, this fleet:
+Both phases are visible on the site object. During the clean rebuild on 2026-08-03, each site
+selected:
 
 ```text
 volterra_software_status.available_version   crt-20260201-0179
 operating_system_status.available_version    9.2026.14
 ```
 
-while the nodes run `crt-20250613-3382` and OS `9.2024.6`. A newer build is on offer and has
-not been taken — the steady state, not a stalled upgrade.
+After installation, `last_installed_version` matched those selected values on all three sites.
+The site does not move again merely because a later version becomes available.
 
 ## Terraform cannot change a version. The API can
 
@@ -99,11 +93,10 @@ Note the group in that path: these live under **`config`**, not `operate`. The s
 `operate` return `404 API Group could not be determined`, which is a routing message and not a
 statement that no upgrade exists — a distinction that cost this project a wrong conclusion.
 
-<Aside type="caution" title="Upgrading through the API puts Terraform out of step">
-The pinned variables still say what they always said, so the live site now runs a version the
-configuration does not name. Terraform will not reconcile it — it cannot, since the update is
-rejected — so treat an API upgrade as a deliberate step out of Terraform's control, and update
-the pins to match at the next rebuild.
+<Aside type="caution" title="An API upgrade is outside Terraform's control">
+Terraform does not drive the upgrade actions or reconcile their result. Treat an API upgrade as
+a deliberate operational change, then verify the installed version independently. A subsequent
+from-zero deployment with empty version values selects whatever is newest at that later time.
 </Aside>
 
 <Aside type="note" title="Two earlier claims on this page, withdrawn">
@@ -127,7 +120,7 @@ node by hand is gone.
 Read [SSH](./access/ssh/) on the host-key and address consequences before scheduling this.
 </Aside>
 
-## A pinned build can fail to install, and the site is then stuck
+## An undersized disk can make installation fail
 
 Accepting the pin is not the same as installing it. On a freshly created single-node Azure
 Secure Mesh v2 Customer Edge pinned to `crt-20260201-0179`, the site object reported the
@@ -142,7 +135,7 @@ message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed
                   required replicas: 1, current replicas: 0
 ```
 
-`Observed 2026-07-28`, and reproduced twice on 2026-07-29. The **operating system** pin
+Observed 2026-07-28, and reproduced twice on 2026-07-29. The **operating system** selection
 installed normally in the same run (`9.2024.6` to `9.2026.14`, `UPGRADE_COMPLETED`); only the
 software install failed. The site never reached `ONLINE` and `last_installed_version` stayed
 empty, so nothing rolled back to a working build — there was no earlier successful install to
@@ -160,7 +153,7 @@ the difference matters when you are deciding whether to intervene:
 So a create-time failure needs a rebuild with a bigger disk, while an upgrade reporting `Failed`
 should be left alone for a while before you conclude anything.
 
-**The cause is the disk, not the version.** A matrix of software × OS × disk size, one
+**The cause was the disk, not the version.** A matrix of software × OS × disk size, one
 disposable single-node Azure Secure Mesh v2 site per combination and all from the same
 marketplace image, isolates it. `Observed 2026-07-29`:
 
@@ -174,8 +167,9 @@ the same pair installs on **33 GB** and every larger size tested. So the newer b
 unsupported here, and neither is the newer operating system; together they need slightly more
 disk than a default node has.
 
-`terraform/modules/ce-node` sets no `disk_size_gb`, so every Customer Edge gets the image
-default — the one size on which this pair fails. **To run it, enlarge the disk.**
+`terraform/modules/ce-node` now sets `disk_size_gb` explicitly. The variable defaults to
+64 GB and rejects values below 40 GB, so a normal deployment cannot fall back to the failing
+image default.
 
 The margin is the surprising part, and it is why this looked like a version problem for so long.
 The default is **31 GiB** (the `health` command reports `size_gb: 31`, and `/var` is 29 G with
@@ -190,8 +184,8 @@ verified here are 33, 36, 40, 48 and 64 GB, and the cost of the larger ones is a
 managed disk.
 </Aside>
 
-Test a version change on a disposable site before applying it to a fleet regardless: a fleet
-that fails this way is stuck in `PROVISIONING` with recreation as the only exit.
+Test a future version change on a disposable site when possible: a fleet that fails this way
+is stuck in `PROVISIONING` with recreation as the only exit.
 
 <Aside type="caution" title="Do not size the disk from F5's pre-upgrade figure">
 F5's documented pre-upgrade check wants 20 GB plus 15% of capacity free. That check gates
@@ -210,18 +204,15 @@ version. Direction of travel is not the variable.
 
 ## Which build the documentation describes
 
-The command reference on this site describes **`crt-20250613-3382`**, the build this fleet
-runs. Commands that exist only on newer builds are recorded in
-`sitecli/command-classification.json` under `not_on_this_build` and documented separately, as
-[commands on newer builds](./commands/on-box/newer-builds/), so nothing there reads as
-runnable here. See also [on-box commands](./commands/on-box/).
+The command reference describes the current deployment's software build,
+`crt-20260201-0179`. On 2026-08-03, that build exposed 43 debug API commands and 89 on-box
+`execcli` commands. The catalogs record the build and capture timestamp so a later surface
+change is detected rather than silently described as current. See
+[the command reference](./commands/) and [on-box commands](./commands/on-box/).
 
-<Aside type="note" title="Reaching a newer build is settled, and it is not a rebuild">
-This was previously recorded here as unsettled, with a report of the newer build failing on
-single-node Azure Secure Mesh v2 sites against a counter-observation of one running it. Both
-are now explained: the newer build installs on that topology, and the failure was the disk
-limit above, not the build.
-
-So there are two routes and neither requires a rebuild for its own sake — create a node with a
-large enough disk, or upgrade an existing one through the API. `Observed 2026-07-29`.
+<Aside type="note" title="Latest was verified from zero">
+The previous deployment used an older software and operating-system pair. The 2026-08-03
+rebuild left both version variables empty, selected the advertised pair, brought all three
+sites `ONLINE`, and finished with a clean Terraform plan. The earlier installation failures
+were reproduced only on the undersized marketplace disk described above.
 </Aside>

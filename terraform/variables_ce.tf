@@ -63,13 +63,13 @@ variable "registration_token" {
 }
 
 variable "ce_os_version" {
-  description = "CE OS version, set at CREATE time (e.g. 9.2026.14). EMPTY IS NOT NEUTRAL: at create the server fills an empty field with the newest ADVERTISED version and installs it, so an empty value makes the result depend on the date rather than on this configuration — pin it deliberately (#714). Terraform cannot change it afterwards: the update is rejected 400 in every direction, including un-pinning. The platform CAN change it in place via POST /api/config/namespaces/{ns}/sites/{name}/upgrade_os, so a version change is not a rebuild — but the provider cannot drive that yet (xcsh#1390), and using it leaves this value disagreeing with the live site."
+  description = "CE OS version, set at create time. Empty deliberately selects the newest version advertised by F5 Distributed Cloud; the clean 2026-08-03 rebuild verified that policy on the 64 GB CE disk default. A concrete value is for reproducing an older build. Terraform cannot change this field afterwards: updates are rejected in every direction, including un-pinning. The platform can change it in place through the site upgrade_os action, but the provider cannot drive that action yet (xcsh#1390)."
   type        = string
   default     = ""
 }
 
 variable "ce_sw_version" {
-  description = "CE F5XC software version, set at CREATE time (e.g. crt-20260201-0179). The node installs this on first boot; it chooses the destination, not whether an install happens. Do not assume the image ships something older — image 0.9.2 ships a NEWER build than this fleet pins, and a backwards pin is routine (#714). EMPTY IS NOT NEUTRAL: the server fills an empty field with the newest ADVERTISED version and installs it, which on the image default disk is the combination measured to FAIL — pin it deliberately, and see modules/ce-node for the disk. Terraform cannot change it afterwards (update rejected 400 in every direction), but the platform can in place via POST /api/config/namespaces/{ns}/sites/{name}/upgrade_sw (xcsh#1390)."
+  description = "CE F5 Distributed Cloud software version, set at create time. Empty deliberately selects the newest advertised build; the clean 2026-08-03 rebuild verified that policy on the 64 GB CE disk default. A concrete value is for reproducing an older build. The node always installs a destination build on first boot. Terraform cannot change this field afterwards, but the platform can change it in place through the site upgrade_sw action (xcsh#1390)."
   type        = string
   default     = ""
 }

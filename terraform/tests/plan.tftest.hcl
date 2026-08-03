@@ -113,6 +113,14 @@ run "root_plans_end_to_end" {
     )
     error_message = "Every CE node must contribute exactly one site-to-instance binding, keyed by that node."
   }
+
+  assert {
+    condition = (
+      length(random_password.site_console_admin) == length(output.ce_nodes) &&
+      alltrue([for k in keys(output.ce_nodes) : contains(keys(random_password.site_console_admin), k)])
+    )
+    error_message = "Every CE node must receive its own generated Site Console admin password."
+  }
 }
 
 # Azure refuses an AzureBastionSubnet smaller than /26, and it refuses it at APPLY

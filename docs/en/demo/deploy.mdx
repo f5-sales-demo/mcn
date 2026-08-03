@@ -73,9 +73,11 @@ terraform output -raw xc_tenant       # what the deployment targets
 terraform output -raw xc_env_tenant   # what your shell claims — diagnostic only
 ```
 
+Illustrative output for a correctly matched configuration:
+
 ```text
-f5-sales-demo
-f5-sales-demo
+example-corp
+example-corp
 ```
 
 <Aside type="danger" title="This guardrail exists because the demo silently re-homed itself into the wrong tenant">
@@ -100,7 +102,7 @@ above before you mint another token.
 1. **Initialise.** The backend config is not committed; supply your own.
 
    ```bash
-   terraform init -backend-config=backend.hcl
+   terraform init -upgrade -backend-config=backend.hcl
    ```
 
 2. **First apply.** This builds Azure, the CE sites and the registration token, and boots
@@ -171,7 +173,7 @@ Anyone adopting this elsewhere should read the
 [SSH page](../../customer-edge/access/ssh/) first.
 </Aside>
 
-## Tear it down
+## Clean up
 
 ```bash
 terraform destroy

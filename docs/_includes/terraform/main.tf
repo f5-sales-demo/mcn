@@ -129,6 +129,58 @@ module "ce_node" {
   tags = local.tags
 }
 
+# Generate a distinct Site Console admin password for every CE. Binding the
+# password lifecycle to the VM instance rotates it automatically whenever that
+# node is rebuilt, while keeping the value only in the encrypted remote state
+# and sensitive Terraform output.
+resource "random_password" "site_console_admin" {
+  for_each = module.ce_topology.ce_nodes
+
+  length           = 32
+  min_lower        = 1
+  min_numeric      = 1
+  min_special      = 1
+  min_upper        = 1
+  override_special = "!#%*+-=?@^_~"
+
+  keepers = {
+    ce_vm_instance_id = module.ce_node[each.key].vm_instance_id
+  }
+}
+
+# Site Console Basic Auth delegates password verification to VPM on the CE host.
+# The XC site's admin_user_credentials field is accepted by the API but VPM
+# deliberately skips the built-in admin user, so it does not rotate this
+# credential. Apply the generated value on the node as root instead.
+#
+# The Custom Script extension receives only an encrypted protected setting. Its
+# inline script keeps the password out of command arguments and produces no
+# output. The password resource is keyed by Azure's per-instance VM id, so a VM
+# replacement generates a new value and updates this extension even though the
+# name-derived ARM resource id stays the same.
+resource "azurerm_virtual_machine_extension" "site_console_password" {
+  for_each = module.ce_topology.ce_nodes
+
+  name                       = "site-console-admin-password"
+  virtual_machine_id         = module.ce_node[each.key].vm_id
+  publisher                  = "Microsoft.Azure.Extensions"
+  type                       = "CustomScript"
+  type_handler_version       = "2.1"
+  auto_upgrade_minor_version = true
+
+  protected_settings = jsonencode({
+    script = base64encode(<<-SCRIPT
+      #!/usr/bin/env bash
+      set -euo pipefail
+      password_b64='${base64encode(random_password.site_console_admin[each.key].result)}'
+      password=$(printf '%s' "$password_b64" | base64 --decode)
+      printf 'admin:%s\n' "$password" | chpasswd
+      unset password password_b64
+    SCRIPT
+    )
+  })
+}
+
 # One XC SMSv2 site + bgp object per node. The MAC is wired from the mgmt NIC so
 # a NIC recreate updates the site binding automatically.
 module "xc_site" {

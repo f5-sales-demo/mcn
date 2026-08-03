@@ -36,6 +36,7 @@ JSON
 
   cat >"${root}/sitecli/capture-manifest.json" <<'JSON'
 {
+  "captured_at": "2026-08-03T12:00:00Z",
   "defaults": { "site": "ar-bgp-eastus01", "node": "f5-xc-ce-vm-01", "max_lines": 60 },
   "commands": { "netstat": { "args": [] } }
 }
@@ -58,6 +59,8 @@ MDX
 title: netstat
 description: Socket and connection state on the node.
 ---
+
+Captured 2026-08-03 from one CE of this deployment.
 
 ## `netstat`
 
@@ -107,6 +110,29 @@ assert_reject() {
 # --- the consistent baseline ---------------------------------------------------
 t=$(new_tree baseline)
 assert_pass "internally consistent tree" "$t"
+
+# --- every rendered capture needs a genuine machine-readable date --------------
+t=$(new_tree missing-capture-date)
+jq 'del(.captured_at)' "${t}/sitecli/capture-manifest.json" >"${t}/tmp" &&
+  mv "${t}/tmp" "${t}/sitecli/capture-manifest.json"
+assert_reject "capture manifest with no evidence timestamp" "$t"
+
+t=$(new_tree malformed-capture-date)
+jq '.captured_at = "sometime recently"' "${t}/sitecli/capture-manifest.json" >"${t}/tmp" &&
+  mv "${t}/tmp" "${t}/sitecli/capture-manifest.json"
+assert_reject "capture manifest with a non-RFC3339 timestamp" "$t"
+
+t=$(new_tree undated-capture-page)
+sed -i.bak '/^Captured 2026-08-03 from one CE/d' \
+  "${t}/docs/en/customer-edge/commands/network/netstat.mdx"
+rm -f "${t}/docs/en/customer-edge/commands/network/netstat.mdx.bak"
+assert_reject "page rendering a capture without its generated evidence date" "$t"
+
+t=$(new_tree stale-capture-date)
+sed -i.bak 's/Captured 2026-08-03/Captured 2026-07-28/' \
+  "${t}/docs/en/customer-edge/commands/network/netstat.mdx"
+rm -f "${t}/docs/en/customer-edge/commands/network/netstat.mdx.bak"
+assert_reject "page rendering a capture with a stale evidence date" "$t"
 
 # --- a command on the CE that nobody documented --------------------------------
 t=$(new_tree undocumented)
@@ -171,8 +197,15 @@ title: Vega
 description: Control plane introspection.
 ---
 
+Captured 2026-07-28 from a historical on-box harvest.
+
 ## `vegactl-introspect-show-election`
+
+```text file=../../../../_data/sitecli-vegactl-introspect-show-election.txt
+```
 MDX
+printf 'role: Master\n' >"${t}/sitecli/captures/sitecli-vegactl-introspect-show-election.txt"
+printf 'sitecli/captures/sitecli-vegactl-introspect-show-election.txt\n' >>"${t}/docs/_imports"
 assert_pass "page documenting an on-box-only command" "$t"
 
 # --- a page documenting a name in neither catalog is still a violation ----------

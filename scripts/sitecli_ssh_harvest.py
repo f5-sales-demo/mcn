@@ -58,11 +58,13 @@ import os
 import pty
 import re
 import select
+import shlex
 import struct
 import subprocess
 import sys
 import termios
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # --- pure parsing ------------------------------------------------------------
@@ -77,6 +79,15 @@ ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b[=>DM]")
 COLUMNS = re.compile(r"\s{2,}")
 
 PROMPT = ">>> "
+UTC = timezone(timedelta())
+
+
+def capture_timestamp(observed: datetime | None = None) -> str:
+    """Return a second-precision UTC RFC3339 evidence timestamp."""
+    value = observed or datetime.now(UTC)
+    return (
+        value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
 
 
 def strip_ansi(text: str) -> str:
@@ -145,6 +156,10 @@ class MenuAccumulator:
                 self.commands[name] = description
                 added += 1
         return added
+
+    def count(self) -> int:
+        """Return the number of distinct commands accumulated so far."""
+        return len(self.commands)
 
 
 # --- safety ------------------------------------------------------------------
@@ -326,13 +341,18 @@ class PtyProcess:
             os.close(self.fd)
 
 
-def ssh_argv(node: str, jump: str, key: str, user: str = "admin") -> list[str]:
+def ssh_argv(
+    node: str,
+    jump: str,
+    key: str,
+    user: str = "admin",
+    known_hosts: str = "",
+) -> list[str]:
     """Build the ssh command line for one CE.
 
-    Note that -o options are NOT inherited by the ProxyJump leg: ssh builds an
-    implicit `ProxyCommand ssh -W ... <jump>` that uses your own defaults. So a
-    jump host whose key is unknown, or has changed, fails the whole connection
-    with a message that points at the CE.
+    A ProxyJump leg does not inherit the target's options, so build the
+    ProxyCommand explicitly and apply the same batch, timeout, key, and trust
+    settings to both legs.
     """
     argv = [
         "ssh",
@@ -346,8 +366,26 @@ def ssh_argv(node: str, jump: str, key: str, user: str = "admin") -> list[str]:
         "-i",
         key,
     ]
+    if known_hosts:
+        argv += ["-o", f"UserKnownHostsFile={known_hosts}"]
     if jump:
-        argv += ["-o", f"ProxyJump={jump}"]
+        proxy = [
+            "ssh",
+            "-W",
+            "%h:%p",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-o",
+            "ConnectTimeout=10",
+            "-i",
+            key,
+        ]
+        if known_hosts:
+            proxy += ["-o", f"UserKnownHostsFile={known_hosts}"]
+        proxy.append(jump)
+        argv += ["-o", f"ProxyCommand={shlex.join(proxy)}"]
     argv.append(f"{user}@{node}")
     return argv
 
@@ -355,9 +393,16 @@ def ssh_argv(node: str, jump: str, key: str, user: str = "admin") -> list[str]:
 class SiteCliSession:
     """A pty-backed SSH session to the Site CLI."""
 
-    def __init__(self, node: str, jump: str, key: str, user: str = "admin") -> None:
+    def __init__(
+        self,
+        node: str,
+        jump: str,
+        key: str,
+        user: str = "admin",
+        known_hosts: str = "",
+    ) -> None:
         """Open a pty and start an SSH session to the node's Site CLI."""
-        self.pty = PtyProcess(ssh_argv(node, jump, key, user))
+        self.pty = PtyProcess(ssh_argv(node, jump, key, user, known_hosts))
         self.fd = self.pty.fd
         self.proc = self.pty.proc
 
@@ -426,7 +471,7 @@ class SiteCliSession:
         self.send("\t")
         acc = MenuAccumulator()
         acc.absorb(self.read_until_idle(idle=3.0, hard=20))
-        print(f"[{label}] first page: {len(acc.commands)} commands")
+        print(f"[{label}] first page: {acc.count()} commands")
         barren = 0
         for index in range(max_scrolls):
             self.send("\x1b[B")
@@ -437,15 +482,15 @@ class SiteCliSession:
                 if barren >= patience:
                     print(
                         f"[{label}] exhausted after {index + 1} scrolls: "
-                        f"{len(acc.commands)} commands"
+                        f"{acc.count()} commands"
                     )
                     break
             if (index + 1) % 25 == 0:
-                print(f"[{label}] {index + 1} scrolls, {len(acc.commands)} commands")
+                print(f"[{label}] {index + 1} scrolls, {acc.count()} commands")
         else:
             print(
                 f"[{label}] hit the {max_scrolls}-scroll ceiling with "
-                f"{len(acc.commands)} commands — the menu may be truncated"
+                f"{acc.count()} commands — the menu may be truncated"
             )
         # Abandon the half-typed line rather than submitting it.
         self.send("\x03")
@@ -483,6 +528,11 @@ def main(argv: list[str] | None = None) -> int:
         "--jump", default="", help="jump host inside the VNet, e.g. azureuser@1.2.3.4"
     )
     parser.add_argument("--key", default=str(Path("~/.ssh/id_ed25519").expanduser()))
+    parser.add_argument(
+        "--known-hosts",
+        default="",
+        help="isolated known_hosts file used by both the CE and jump-host SSH legs",
+    )
     parser.add_argument("--site", default="", help="recorded as provenance only")
     parser.add_argument("--build", default="", help="recorded as provenance only")
     parser.add_argument(
@@ -494,7 +544,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="sitecli/exec-catalog.json")
     args = parser.parse_args(argv)
 
-    session = SiteCliSession(args.node, args.jump, args.key)
+    session = SiteCliSession(
+        args.node, args.jump, args.key, known_hosts=args.known_hosts
+    )
     try:
         session.wait_for_prompt()
         top_level = session.scroll_menu("", label="top-level")
@@ -509,6 +561,7 @@ def main(argv: list[str] | None = None) -> int:
             "build": args.build,
             "site_state": args.site_state,
             "source": "Site CLI completion menu over SSH",
+            "captured_at": capture_timestamp(),
         },
         "top_level": dict(sorted(top_level.items())),
         "execcli": dict(sorted(exec_commands.items())),

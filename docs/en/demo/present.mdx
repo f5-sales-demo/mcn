@@ -32,13 +32,14 @@ az network nic show-effective-route-table \
   -o json
 ```
 
-Observed 2026-07-28:
+Observed 2026-08-03. The addresses are shown as placeholders because published pages do not
+carry live deployment values:
 
 ```json
 [
   {
-    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-    "prefix": "10.250.0.10/32",
+    "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+    "prefix": "<VIP>/32",
     "state": "Active"
   }
 ]
@@ -98,8 +99,9 @@ Tracked in [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). It need
 when nobody else is using the environment, since it changes live advertisement state.
 </Aside>
 
-- **Traffic distribution across the next hops has not been measured.** 1,470 requests to the
-  VIP are accounted for on the [verify page](../verify/), which establishes that the path
+- **Traffic distribution across the next hops has not been measured.** The from-zero UAT sent
+  160 requests to the VIP, and earlier testing sent 1,470 more. The
+  [verify page](../verify/) establishes that the path
   works and how it behaves over time. None of that shows how requests were spread across the
   next hops, and this topology gives no per-node HTTP listener to attribute them with. If
   asked "is it even?", the honest answer is that it has not been measured here.

@@ -1,90 +1,91 @@
 ---
-title: Commands on newer builds
-description: Seven Site CLI commands that exist on a newer Customer Edge build and not on the one this fleet runs — what each does, the output five of them produce, and the one whose name says it collects statistics while it actually runs a disk write benchmark against etcd.
+title: Maintenance commands on the current build
+description: Nine maintenance commands exposed by the current Customer Edge debug API, including the privileged restart operations and a database command that performs a disk write benchmark.
 sidebar:
   order: 90
-  label: Newer builds
+  label: Current maintenance commands
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-The Site CLI command surface grows between builds. Seven `execcli` commands exist on a
-newer build than the one this fleet runs, so an operator reading the rest of this section
-will not find them — and someone reading F5's own newer documentation may expect them.
+The from-zero rebuild selected `crt-20260201-0179`. On 2026-08-03, that build exposed
+43 commands through the debug application programming interface (API) and 89 through the
+on-box `execcli` menu. The older fleet exposed 34 and 82 respectively.
 
-The surface is a superset, not a rearrangement: **89** `execcli` commands on the newer
-build against **82** on this fleet's, with these seven added and nothing removed.
+Nine commands were added to the debug API. Seven of those were also the seven-command
+difference in the on-box menu; `systemctl-restart-crio` and
+`systemctl-restart-kubelet` already existed on-box and are newly reachable through the
+debug API.
 
-<Aside type="caution" title="You cannot run these on this fleet">
-These were measured on build `20260703-e2c462a`, which is what the Azure marketplace image
-ships. This fleet runs `crt-20250613-3382`, where all seven are absent — `execcli` reports
-an unknown command. Everything below describes the newer build.
+<Aside type="caution" title="Catalog presence is not permission to run a command">
+The capture harness refuses every command that the live catalog classifies as `Exec`. It
+also requires an explicit manifest entry before running a newly discovered `ExecUser`
+command. A tier and a harmless-looking name do not prove that a command only reads.
 </Aside>
 
-## What each one does
+## Safety classification
 
-The descriptions are the appliance's own, from the completion menu.
-
-| Command | The appliance's description |
-| --- | --- |
-| `collect-database-stats` | collect database statistics |
-| `iptables-lv` | show iptables -L -v -n |
-| `marker-exists-crio` | check if crio restart marker exists |
-| `marker-exists-kubelet` | check if kubelet restart marker exists |
-| `marker-exists-NetworkManager` | check if NetworkManager restart marker exists |
-| `systemctl-restart-NetworkManager` | restart NetworkManager service |
-| `systemctl-start-crio-prune` | start crio image prune service |
-
-Read as a set, most of them describe one workflow rather than seven unrelated tools: three
-commands ask whether a service has been flagged for restart, and two carry out the restart or
-the prune. The marker check is the safe half of a pair whose other half is disruptive.
-
-**Four of the seven only read. Three change the node** — and one of those three is not the
-one you would guess, which is the subject of its own section below.
+| Command | Debug API tier | Capture policy |
+| --- | --- | --- |
+| `collect-database-stats` | `ExecUser` | Skip: performs writes |
+| `iptables-lv` | `ExecUser` | Capture: read-only |
+| `marker-exists-NetworkManager` | `Exec` | Never execute through the API |
+| `marker-exists-crio` | `Exec` | Never execute through the API |
+| `marker-exists-kubelet` | `Exec` | Never execute through the API |
+| `systemctl-restart-NetworkManager` | `Exec` | Never execute |
+| `systemctl-restart-crio` | `Exec` | Never execute |
+| `systemctl-restart-kubelet` | `Exec` | Never execute |
+| `systemctl-start-crio-prune` | `Exec` | Never execute |
 
 ## `marker-exists-crio`
 
-Reports whether a restart marker file exists for `crio`.
+Checks whether the CRI-O restart marker exists. The current API classifies it as privileged:
 
-```bash
-execcli marker-exists-crio
+```json
+{"category":"System Troubleshooting","tier":"Exec"}
 ```
 
-```text file=../../../../_data/sitecli-marker-exists-crio.txt
+```text
+Capture policy: never execute through the API
 ```
 
 ## `marker-exists-kubelet`
 
-```bash
-execcli marker-exists-kubelet
+Checks whether the kubelet restart marker exists. The current API classifies it as privileged:
+
+```json
+{"category":"System Troubleshooting","tier":"Exec"}
 ```
 
-```text file=../../../../_data/sitecli-marker-exists-kubelet.txt
+```text
+Capture policy: never execute through the API
 ```
 
 ## `marker-exists-NetworkManager`
 
-```bash
-execcli marker-exists-NetworkManager
+Checks whether the NetworkManager restart marker exists. The current API classifies it as
+privileged:
+
+```json
+{"category":"System Troubleshooting","tier":"Exec"}
 ```
 
-```text file=../../../../_data/sitecli-marker-exists-NetworkManager.txt
+```text
+Capture policy: never execute through the API
 ```
 
-All three answered `missing`, meaning no restart was pending for that service.
-
-<Aside type="note" title="Read this output as a shape, not as a healthy baseline">
-`Observed 2026-07-28.` The node these were captured on never reached `ONLINE` — it was
-`PROVISIONING` after a failed software install, which is why it existed at all. `missing`
-is what the command prints when no marker is present, and that is the useful part. It is
-**not** established that a healthy node answers the same way, and nothing here says what a
-node with a pending restart prints.
+<Aside type="note" title="The stale marker captures were removed">
+The repository previously carried `missing` captures for all three commands from a
+disposable older build. They were removed when the live catalog classified the commands as
+`Exec`; retaining them would contradict the enforced rule that privileged API commands are
+never captured.
 </Aside>
 
 ## `iptables-lv`
 
-Runs `iptables -L -v -n` and returns it unchanged, so it is a packet-and-byte counted view
-of the node's filter tables rather than an F5 abstraction.
+Runs `iptables -L -v -n` and returns the packet-and-byte-counted filter tables.
+
+Captured 2026-08-03 from one CE of this deployment.
 
 ```bash
 execcli iptables-lv
@@ -93,44 +94,34 @@ execcli iptables-lv
 ```text file=../../../../_data/sitecli-iptables-lv.txt
 ```
 
-Most of what it prints is Kubernetes': the `KUBE-` chains are kube-proxy's service, nodeport
-and firewall rules, and `DOCKER-USER` belongs to the container runtime. The first line is
-worth noticing rather than skipping —
+The warning about legacy tables is load-bearing:
 
 ```text
 # Warning: iptables-legacy tables present, use iptables-legacy to see them
 ```
 
-— because it says this view is **incomplete**. Rules in the legacy tables are not shown
-here, and the Site CLI offers no command that reads them.
+Rules in the legacy tables are not shown here, and the Site CLI offers no command that reads
+them.
 
-## `collect-database-stats` writes to the node, despite its name
+## `collect-database-stats` writes to the node
 
-This one is a trap, and the trap is the name. "collect database statistics" and the
-appliance's own description both read as observational. The command begins that way — the
-open-file limit, how many descriptors and connections `etcd` holds, an `lsof` listing, and
-`df` for the `etcd` filesystem — and then it runs a **fifteen-second `fio` random-write
-benchmark**:
+This command begins with file-descriptor, connection, and filesystem statistics, then runs a
+15-second `fio` random-write benchmark against the filesystem used by `etcd`:
 
 ```text
-Checking if fio disk performance test can run safely...
-
 Running fio disk performance test (15 seconds)...
 etcd-test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B ...
 etcd-test: Laying out IO file (1 file / 250MiB)
 ```
 
-It lays out a **250 MiB** file and wrote 10.6 MiB of random I/O in the run below, on a
-filesystem that had 3.5 GiB free. It does pre-check whether it can run safely, so it is not
-reckless — but it is **not** a read.
-
-<Aside type="danger" title="Treat this as a disruptive command on a live node">
-A random-write benchmark against the filesystem `etcd` writes its own journal to competes
-with `etcd` for exactly the resource `etcd` is most sensitive to. The output itself points at
-this — "Healthy etcd disks should have p99 < 10ms" — which is a statement about a node under
-test, not a node serving traffic. Run it when F5 support asks for it, on a node whose latency
-you are willing to disturb.
+<Aside type="danger" title="The command writes despite its name">
+The captured output includes `rw=randwrite` and lays out a 250 MiB file. Run it only when F5
+support requests a disk test and the node can tolerate competing input/output (I/O). The
+capture harness records an explicit skip reason and never executes it.
 </Aside>
+
+Captured 2026-07-28 on a disposable CE. The current fleet was not used to repeat a write
+benchmark whose behavior was already established by its own output.
 
 ```bash
 execcli collect-database-stats
@@ -139,48 +130,55 @@ execcli collect-database-stats
 ```text file=../../../../_data/sitecli-collect-database-stats.txt
 ```
 
-Reading it: the open-file `ulimit` against the descriptor count is the pair a support engineer
-asks for when `etcd` is suspected of exhausting its limit, and the `clat` percentiles are the
-point of the benchmark. The `util=94.00%` in the disk-stats line is how busy the device was
-**during the test** — it is not a filesystem-fullness figure, and the two are easy to confuse.
-
-<Aside type="note" title="How this page came to have that output at all">
-This command was mistakenly treated as read-only and run once, on the disposable node these
-captures came from — its name and description gave no hint of a benchmark, and the writes only
-became visible in its own output. The harness now refuses it, and a test scans committed
-captures for write markers and fails if such a command is on the read-only allow-list, because
-a name cannot establish that a command only reads.
+<Aside type="note" title="The evidence changed the capture policy">
+This command was initially treated as read-only because its name and appliance description
+say that it collects statistics. Its captured output revealed the writes. A test now scans
+committed evidence for write markers and fails if such a command appears on the read-only
+allow-list.
 </Aside>
 
-## The two that were never run
+## `systemctl-restart-NetworkManager`
 
-`systemctl-restart-NetworkManager` and `systemctl-start-crio-prune` are documented by name and
-have no captured output.
+The catalog exposes these four exact command names:
 
-```bash
-execcli systemctl-restart-NetworkManager
-execcli systemctl-start-crio-prune
+```text
+systemctl-restart-NetworkManager
+systemctl-restart-crio
+systemctl-restart-kubelet
+systemctl-start-crio-prune
 ```
 
-Restarting `NetworkManager` interrupts the node's networking, and the prune service deletes
-container images. Both change the node, so neither was run — not even on a disposable one.
+The current on-box catalog describes this as `restart NetworkManager service`. The debug API
+classifies it as privileged `Exec`. Restarting it interrupts node networking, so the capture
+harness never executes it.
 
-<Aside type="caution" title="None of the three mutating commands is on the read-only allow-list">
-`scripts/sitecli_ssh_harvest.py` refuses to execute these two and `collect-database-stats`:
-only names on its explicit read-only allow-list may run, and everything else is enumerated
-and never executed. Tests assert that all three stay off that list, so the refusal cannot be
-undone by accident.
+## `systemctl-restart-crio`
+
+The current on-box catalog describes this as `restart crio service`. The debug API classifies
+it as privileged `Exec`. Restarting the container runtime interrupts workloads, so the
+capture harness never executes it.
+
+## `systemctl-restart-kubelet`
+
+The current on-box catalog describes this as `restart kubelet service`. The debug API
+classifies it as privileged `Exec`. Restarting kubelet interrupts workload supervision, so
+the capture harness never executes it.
+
+## `systemctl-start-crio-prune`
+
+The current on-box catalog describes this as `start crio image prune service`. The debug API
+classifies it as privileged `Exec`. A prune changes container-image storage, so the capture
+harness never executes it.
+
+<Aside type="caution" title="Mutating commands stay off the allow-list">
+`scripts/sitecli_ssh_harvest.py` enumerates these commands and refuses to execute them. Tests
+assert that restart, prune, write-benchmark, packet-capture, and other mutating commands stay
+off the allow-list.
 </Aside>
 
-<Aside type="note" title="What was verified, and what was only reported">
-All seven were observed in the `execcli` completion menu on build `20260703-e2c462a`, over
-SSH, on a single-node Azure Secure Mesh v2 Customer Edge deployed for the purpose.
-`Observed 2026-07-28.`
-
-They were previously recorded as seen through the [debug API](../../../access/debug-api/) on
-build `crt-20260201-0179`, on a different tenant. That was not reproduced: `crt-20260201-0179`
-does not install on this site shape — see
-[Software versions and rebuilds](../../../lifecycle/). So the build named here is the one they
-were measured on, not the one first reported, and whether these commands are reachable over
-the debug API rather than only on-box is **not** established.
+<Aside type="note" title="What was verified">
+The debug API catalog and on-box completion menu were both refreshed on 2026-08-03 against
+software build `crt-20260201-0179`. The API exposed 43 commands and the on-box menu exposed
+89 `execcli` commands. The capture run captured 34, skipped nine, and failed none. The on-box
+node reported `PROVISIONED` when its catalog was captured.
 </Aside>

@@ -1,8 +1,12 @@
 {
-  "build": "crt-20250613-3382",
+  "build": "crt-20260201-0179",
   "commands": {
     "chronyc-sources": {
       "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
+    "collect-database-stats": {
+      "category": "System Troubleshooting",
       "tier": "ExecUser"
     },
     "crictl-images": {
@@ -115,10 +119,26 @@
       "category": "Network Troubleshooting",
       "tier": "ExecUser"
     },
+    "iptables-lv": {
+      "category": "Network Troubleshooting",
+      "tier": "ExecUser"
+    },
     "journalctl": {
       "category": "System Troubleshooting",
       "example": " -u vpm -n 200",
       "tier": "ExecUser"
+    },
+    "marker-exists-NetworkManager": {
+      "category": "System Troubleshooting",
+      "tier": "Exec"
+    },
+    "marker-exists-crio": {
+      "category": "System Troubleshooting",
+      "tier": "Exec"
+    },
+    "marker-exists-kubelet": {
+      "category": "System Troubleshooting",
+      "tier": "Exec"
     },
     "netstat": {
       "category": "Network Troubleshooting",
@@ -149,6 +169,22 @@
     "show-ip-bgp-summary": {
       "category": "Network Troubleshooting",
       "tier": "ExecUser"
+    },
+    "systemctl-restart-NetworkManager": {
+      "category": "System Troubleshooting",
+      "tier": "Exec"
+    },
+    "systemctl-restart-crio": {
+      "category": "System Troubleshooting",
+      "tier": "Exec"
+    },
+    "systemctl-restart-kubelet": {
+      "category": "System Troubleshooting",
+      "tier": "Exec"
+    },
+    "systemctl-start-crio-prune": {
+      "category": "System Troubleshooting",
+      "tier": "Exec"
     },
     "vif": {
       "category": "Network Troubleshooting",

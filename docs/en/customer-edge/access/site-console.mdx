@@ -9,9 +9,9 @@ sidebar:
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
-records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
-surface against a live CE.
+The transport and certificate examples on this page were captured 2026-07-28. Observed 2026-08-03
+after the deployment was destroyed and rebuilt from zero: the generated credential posture
+described below held on all three nodes.
 
 Every Customer Edge serves F5's Site Console on `https://<sli-ip>:65500`. On this
 deployment it is usually the route to try first.
@@ -30,8 +30,9 @@ anything else on the network.
 Every command and every output on this page was run against `f5-xc-ce-vm-01` in this
 deployment and is reproduced verbatim, including the failures.
 
-**Authentication is verified**: the appliance's `admin` credential returns `200` through the
-tunnel. What is *not* exercised is the console itself — nothing below describes what you can
+**Authentication is verified**: on 2026-08-03, each generated per-node `admin` credential
+returned `200` through its tunnel, and the factory credential was rejected on all three
+nodes. What is *not* exercised is the console itself — nothing below describes what you can
 see or do once you are inside.
 
 **Azure RBAC is not verified.** Every run was as the subscription owner, so the Reader
@@ -216,9 +217,9 @@ notAfter=Oct 25 04:51:31 2025 GMT
 ```
 
 Subject equals issuer, so it is self-signed. The name is `site-local.volterra.io` while
-you are connecting to `localhost`, so it will not match. And on the build this deployment
-runs, **the certificate expired on 25 October 2025** — the appliance ships it, and nothing
-in this repository renews it.
+you are connecting to `localhost`, so it will not match. In the 2026-07-28 capture above,
+the certificate had also expired on 25 October 2025. The appliance supplied that
+certificate; this repository did not.
 
 Expect a blunt browser warning, and expect it every time. The subject line above is the
 useful part: it is how you confirm you reached the appliance rather than something else
@@ -228,15 +229,15 @@ listening on local port 65500.
 
 Sign in as `admin`. **This documentation does not publish the password, and should not.**
 
-<Aside type="danger" title="On this deployment that password is still F5's factory default">
-This is a measured fact, not a suspicion: the factory-default credential authenticates and
-returns `200` on all three CEs today. F5 publishes that default and requires that it be
-changed, and it has not been.
+<Aside type="note" title="Terraform rotates this credential during deployment">
+Terraform generates a distinct 32-character password for every CE and applies it to the
+host's built-in `admin` account with an Azure Custom Script extension. The password reaches
+Azure only through the extension's encrypted `protected_settings`; it is not a normal
+setting, command argument, or published value.
 
-The practical consequence is that on this deployment "holds Reader on the Bastion" is
-equivalent to full appliance console access, for anyone who knows a value that is in F5's
-public documentation. Change it, and treat changing it as part of deploying a node rather
-than as later hardening.
+Verified 2026-08-03 after a from-zero rebuild: all three extensions reported `Succeeded`,
+all three generated credentials returned `200`, and the factory credential returned a
+non-`200` response on all three nodes.
 </Aside>
 
 Two reasons not publishing it matters more here than it might look:
@@ -247,16 +248,19 @@ Two reasons not publishing it matters more here than it might look:
   wrong in the most misleading way — the reader concludes their access is broken rather
   than that the page is stale.
 
-Once it has been rotated, get it from wherever your team keeps operational secrets.
+Read the active node's value only when you need it with
+`terraform -chdir=terraform output -json site_console_admin_passwords`; select the site key
+locally and do not record the result.
 
-<Aside type="caution" title="Setting the password from Terraform is not verified">
+The output is sensitive and Terraform redacts it from the ordinary output listing. It still
+exists in Terraform state, so protect the state backend as a secret store and do not paste
+the value into logs or documentation.
+
+<Aside type="caution" title="The site object's password field does not rotate this account">
 `admin_user_credentials.admin_password` on the site object looks like the declarative way
-to set this. It has **not** been confirmed to reach the Site Console on this build, so do
-not assume it does.
-
-Do not read the [SSH page](../ssh/) as evidence either way. Its finding that
-`admin_password` "changed nothing" was measured against SSH authentication, which `vpm`
-skips for the `admin` user entirely. That says nothing about the console.
+to set this credential. Testing showed that `vpm` deliberately skips the built-in `admin`
+user, so the field does not rotate the host account. That is why this deployment uses the
+per-VM Azure extension instead.
 </Aside>
 
 ## Why the tunnel must target the resource id
@@ -289,7 +293,7 @@ id.
 | `terraform output -raw bastion_name` is `null` or empty | Bastion is not deployed | Set `enable_bastion = true` and apply |
 | Tunnel starts but the resource id is empty | `jq` filter used the VM name instead of the site key | Key on `eastus01`/`02`/`03` |
 | `401 Unauthorized`, realm `Volterra Site Console` | Not a fault — unauthenticated request | Supply the `admin` credential |
-| Browser refuses the certificate | Self-signed, name mismatch, and expired since Oct 2025 | Expected; confirm the subject is `CN=site-local.volterra.io` and proceed |
+| Browser refuses the certificate | Self-signed and name-mismatched; the 2026-07-28 capture was also expired | Confirm the subject is `CN=site-local.volterra.io`, inspect the dates, and apply your certificate policy |
 
 <Aside type="note" title="Authorization failures were not reproduced">
 Insufficient RBAC is the other obvious way this fails, but reproducing it would mean
@@ -303,7 +307,7 @@ all three of the VM, its NIC, and the Bastion host.
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="Scripted and repeatable, needs no VNet access. 34 commands, and the site must be <code>ONLINE</code>."
+    description="Scripted and repeatable, needs no VNet access. A 43-command catalog, and the site must be <code>ONLINE</code>."
     href="../debug-api/"
   />
   <LinkCard

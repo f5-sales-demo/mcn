@@ -13,7 +13,7 @@ are connecting from, and by what you need to reach — rather than by preference
 
 | Route | Needs node `ONLINE` | Needs network reachability | Limits | Covers |
 | --- | --- | --- | --- | --- |
-| [Debug API](./debug-api/) | **yes** | yes | about 25–30 minutes of warm-up on a new site | 34 commands |
+| [Debug API](./debug-api/) | **yes** | yes | about 25–30 minutes of warm-up on a new site | 43-command catalog |
 | [Site Console](./site-console/) | no | via Azure Bastion, no jump host needed | Bastion must be Standard SKU with tunneling, and is not deployed by default | F5's node troubleshooting UI |
 | [SSH](./ssh/) | no | from inside the VNet, to the internal address only | key must be present from first boot | The full on-box Site CLI |
 | [Serial console](./serial-console/) | no | no | one session per VM; 2,048-character paste cap | The full on-box Site CLI |
@@ -30,7 +30,7 @@ Bastion, which this deployment makes opt-in (`enable_bastion`, default `false`) 
 Standard-SKU host bills whether or not anyone opens a tunnel.
 
 SSH is the one to reach for when the debug API is not enough, because the appliance offers
-substantially more commands than the 34 that API exposes. It has two costs. The key is
+substantially more commands than the 43 that API exposes. It has two costs. The key is
 written by cloud-init and so must be present at **first boot**, which means enabling it on
 running nodes replaces every CE VM — a fleet rebuild rather than a configuration change. And
 `sshd` answers on the node's internal address only, so it needs a host inside the VNet;

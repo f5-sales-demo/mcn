@@ -75,6 +75,12 @@ output "ce_vm_ids" {
   value       = { for k, m in module.ce_node : k => m.vm_id }
 }
 
+output "site_console_admin_passwords" {
+  description = "Generated per-CE passwords for the node-local Site Console admin user. Retrieve only for an active tunnel and keep them out of logs and published documentation."
+  value       = { for k, password in random_password.site_console_admin : k => password.result }
+  sensitive   = true
+}
+
 output "bastion_name" {
   description = "Azure Bastion host name, or null when enable_bastion is false. Feed it to `az network bastion tunnel --name`."
   value       = module.azure_hub.bastion_name

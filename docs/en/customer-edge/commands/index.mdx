@@ -8,9 +8,10 @@ sidebar:
 
 import { Aside, Badge } from "@astrojs/starlight/components";
 
-Captured from a live node running software build `crt-20250613-3382`, which exposes
-**34 commands**. Each page below shows real output from that node rather than
-transcribed examples.
+Captured 2026-08-03 from a live node running software build `crt-20260201-0179`, which
+exposes **43 commands**. The 34 read-only commands permitted by the capture policy have
+current output; the other nine are explicitly skipped because they mutate state, read a
+privileged marker, or perform disk writes.
 
 The `Tier` column is not advisory. It selects the endpoint a command must be sent
 to, and sending a command to the wrong one returns `command not supported` — which
@@ -59,10 +60,9 @@ reads as though the command does not exist. See
 completeness, has no captured output, and is never executed by the capture harness.
 </Aside>
 
-## Available on newer builds only
+## Maintenance commands on this build
 
-A current build (`crt-20260201-0179`) exposes **43** commands — a strict superset,
-with no removals and no changed metadata. The nine this tenant does not have:
+Nine commands need treatment beyond their catalog name and tier:
 
 | Command | Category | Tier |
 | --- | --- | --- |
@@ -76,13 +76,16 @@ with no removals and no changed metadata. The nine this tenant does not have:
 | `systemctl-restart-kubelet` | System | `Exec` |
 | `systemctl-start-crio-prune` | System | `Exec` |
 
-They are listed by name and tier only, from catalog discovery against a node on that
-build. There is no captured output for them here, because this tenant cannot run
-them. Note that four of the nine restart services under a live data plane.
+These commands are present on the current deployment. `iptables-lv` is captured as
+read-only. `collect-database-stats` is skipped because prior evidence shows that it runs a
+random-write benchmark. The seven `Exec` commands are never executed by the capture harness;
+four restart or prune services under a live data plane and three read privileged markers.
+
+See [current maintenance commands](./on-box/newer-builds/) for the command-by-command safety
+classification and the dated evidence.
 
 <Aside type="note" title="Detecting the surface moving">
-Because the surface grows with the software build, the catalog records the build it
-came from, and `scripts/capture-sitecli.sh --check` reports a build change
-separately from added or removed commands. When these nodes are upgraded, that check
-is what tells you these nine arrived.
+Because the surface changes with the software build, the catalog records the build it
+came from, and `scripts/capture-sitecli.sh --check` reports a build change separately from
+added or removed commands.
 </Aside>
