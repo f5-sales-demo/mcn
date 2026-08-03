@@ -1,4 +1,5 @@
 {
+  "captured_at": "2026-08-03T16:30:06Z",
   "_comment": [
     "Runnable arguments for scripts/capture-sitecli.sh.",
     "",
@@ -40,6 +41,9 @@
   },
   "commands": {
     "chronyc-sources": { "args": [] },
+    "collect-database-stats": {
+      "skip": "Runs a 15-second fio random-write benchmark against the etcd filesystem; enumeration only, never execute on the live fleet."
+    },
     "crictl-images": { "args": [] },
     "crictl-inspect": { "args_from": "first-crio-container" },
     "crictl-logs": { "args_from": "first-crio-container" },
@@ -69,6 +73,7 @@
     "ip-link-show": { "args": [] },
     "ipsec-status": { "args": [] },
     "ipsec-statusall": { "args": [] },
+    "iptables-lv": { "args": [] },
     "journalctl": { "args": ["-u", "vpm", "-n", "200"], "max_lines": 40 },
     "netstat": { "args": [] },
     "nh": { "args": ["--list"] },

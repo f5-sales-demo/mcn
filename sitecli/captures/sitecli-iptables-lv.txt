@@ -1,10 +1,9 @@
-# Warning: iptables-legacy tables present, use iptables-legacy to see them
-Chain INPUT (policy ACCEPT 5870K packets, 13G bytes)
+Chain INPUT (policy ACCEPT 2582K packets, 7365M bytes)
  pkts bytes target     prot opt in     out     source               destination
-24582 2319K KUBE-PROXY-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes load balancer firewall */
-5863K   13G KUBE-NODEPORTS  all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* kubernetes health check service ports */
-24583 2319K KUBE-EXTERNAL-SERVICES  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes externally-visible service portals */
-5870K   13G KUBE-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0
+53804 4167K KUBE-PROXY-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes load balancer firewall */
+2389K 5628M KUBE-NODEPORTS  all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* kubernetes health check service ports */
+53804 4167K KUBE-EXTERNAL-SERVICES  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes externally-visible service portals */
+2582K 7365M KUBE-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0
 
 Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
  pkts bytes target     prot opt in     out     source               destination
@@ -15,11 +14,11 @@ Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
     0     0 DOCKER-USER  all  --  *      *       0.0.0.0/0            0.0.0.0/0
     0     0 DOCKER-FORWARD  all  --  *      *       0.0.0.0/0            0.0.0.0/0
 
-Chain OUTPUT (policy ACCEPT 1258K packets, 473M bytes)
+Chain OUTPUT (policy ACCEPT 1964K packets, 1248M bytes)
  pkts bytes target     prot opt in     out     source               destination
-26457 2465K KUBE-PROXY-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes load balancer firewall */
-26457 2465K KUBE-SERVICES  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
-1258K  473M KUBE-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0
+54822 5298K KUBE-PROXY-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes load balancer firewall */
+54822 5298K KUBE-SERVICES  all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
+1964K 1248M KUBE-FIREWALL  all  --  *      *       0.0.0.0/0            0.0.0.0/0
 
 Chain DOCKER (1 references)
  pkts bytes target     prot opt in     out     source               destination
@@ -49,17 +48,6 @@ Chain DOCKER-USER (1 references)
 
 Chain KUBE-EXTERNAL-SERVICES (2 references)
  pkts bytes target     prot opt in     out     source               destination
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/phobos1-nodeport:non-metrics-scrape-port has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30911 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/phobos1-nodeport:bgp-tls has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30378 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/ver:rest-tls has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30905 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/ganges-nodeport:rest-tls has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30376 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* monitoring/prometheus:webui has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:32222 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/hellas-nodeport:grpc-tls has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30379 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/hellas-nodeport:rest-tls has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30377 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/ganges-nodeport:grpc-tls has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30374 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/piku-nodeport:introspect has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30902 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/ver:grpc-tls has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30955 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            /* ves-system/ver:wingman-for-ext-svcs has no endpoints */ ADDRTYPE match dst-type LOCAL tcp dpt:30956 reject-with icmp-port-unreachable
 
 Chain KUBE-FIREWALL (2 references)
  pkts bytes target     prot opt in     out     source               destination
@@ -71,69 +59,4 @@ Chain KUBE-FORWARD (1 references)
     0     0 ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* kubernetes forwarding rules */ mark match 0x4000/0x4000
     0     0 ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* kubernetes forwarding conntrack rule */ ctstate RELATED,ESTABLISHED
 
-Chain KUBE-KUBELET-CANARY (0 references)
- pkts bytes target     prot opt in     out     source               destination
-
-Chain KUBE-NODEPORTS (1 references)
- pkts bytes target     prot opt in     out     source               destination
-
-Chain KUBE-PROXY-CANARY (0 references)
- pkts bytes target     prot opt in     out     source               destination
-
-Chain KUBE-PROXY-FIREWALL (3 references)
- pkts bytes target     prot opt in     out     source               destination
-
-Chain KUBE-SERVICES (2 references)
- pkts bytes target     prot opt in     out     source               destination
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.16       /* ves-system/obelix:rest has no endpoints */ tcp dpt:18091 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.16       /* ves-system/obelix:rest-tls has no endpoints */ tcp dpt:18093 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.31       /* ves-system/phobos1-nodeport:non-metrics-scrape-port has no endpoints */ tcp dpt:65377 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.31       /* ves-system/phobos1-nodeport:bgp-tls has no endpoints */ tcp dpt:65378 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.39       /* ves-system/opera:grpc-tls has no endpoints */ tcp dpt:65041 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.18       /* ves-system/ver:rest-tls has no endpoints */ tcp dpt:9005 reject-with icmp-port-unreachable
-    0     0 REJECT     udp  --  *      *       0.0.0.0/0            100.127.192.15       /* ves-system/dnsmasq:dhcp has no endpoints */ udp dpt:1067 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.75       /* ves-system/ganges-nodeport:rest-tls has no endpoints */ tcp dpt:65118 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.16       /* ves-system/obelix:grpc-tls has no endpoints */ tcp dpt:18094 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.28       /* ves-system/phobos1:rest has no endpoints */ tcp dpt:65375 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.39       /* ves-system/opera:tls-rest has no endpoints */ tcp dpt:9007 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.50       /* monitoring/prometheus:webui has no endpoints */ tcp dpt:9090 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.57       /* ves-system/hellas-nodeport:grpc-tls has no endpoints */ tcp dpt:65511 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.52       /* monitoring/pushgateway:metrics has no endpoints */ tcp dpt:65220 reject-with icmp-port-unreachable
-    0     0 REJECT     udp  --  *      *       0.0.0.0/0            100.127.192.56       /* monitoring/prometheus-statsd:statsd-udp has no endpoints */ udp dpt:65341 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.56       /* monitoring/prometheus-statsd:statsd-tcp has no endpoints */ tcp dpt:65341 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.40       /* webhook/voucher:rest-tls has no endpoints */ tcp dpt:8443 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.222.186      /* monitoring/vector-agent:stdlib has no endpoints */ tcp dpt:65020 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.16       /* ves-system/obelix:grpc has no endpoints */ tcp dpt:18092 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.26       /* ves-system/gubernator:grpc-tls has no endpoints */ tcp dpt:65112 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.28       /* ves-system/phobos1:grpc has no endpoints */ tcp dpt:65374 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.60       /* ves-system/aspen:grpc-tls has no endpoints */ tcp dpt:65141 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.40       /* webhook/voucher:grpc-tls has no endpoints */ tcp dpt:8444 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.28       /* ves-system/phobos1:vtrp has no endpoints */ tcp dpt:65376 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.41       /* ves-system/piku:grpc-tls has no endpoints */ tcp dpt:65083 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.43       /* ves-system/komodo:rest-tls has no endpoints */ tcp dpt:65413 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.45       /* kube-system/kube-state-metrics:telemetry has no endpoints */ tcp dpt:65032 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.55       /* ves-system/hellas:tls-rest has no endpoints */ tcp dpt:65513 reject-with icmp-port-unreachable
-    0     0 REJECT     udp  --  *      *       0.0.0.0/0            100.127.192.54       /* ves-system/ganges:ipfix has no endpoints */ udp dpt:65119 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.16       /* ves-system/obelix:als-grpc has no endpoints */ tcp dpt:18095 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.26       /* ves-system/gubernator:rest has no endpoints */ tcp dpt:65111 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.61       /* ves-system/asaf:rest-tls has no endpoints */ tcp dpt:65243 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.61       /* ves-system/asaf:grpc-tls has no endpoints */ tcp dpt:65241 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.57       /* ves-system/hellas-nodeport:rest-tls has no endpoints */ tcp dpt:65513 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.45       /* kube-system/kube-state-metrics:http-metrics has no endpoints */ tcp dpt:65031 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.76       /* ves-system/clank:grpc-tls has no endpoints */ tcp dpt:9552 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.16       /* ves-system/obelix:rest-fasthttp-tls has no endpoints */ tcp dpt:18096 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.28       /* ves-system/phobos1:bgp-tls has no endpoints */ tcp dpt:65378 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.41       /* ves-system/piku:rest-tls has no endpoints */ tcp dpt:65084 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.75       /* ves-system/ganges-nodeport:grpc-tls has no endpoints */ tcp dpt:65116 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.76       /* ves-system/clank:rest-tls has no endpoints */ tcp dpt:9052 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.55       /* ves-system/hellas:grpc-tls has no endpoints */ tcp dpt:65511 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.54       /* ves-system/ganges:grpc-tls has no endpoints */ tcp dpt:65116 reject-with icmp-port-unreachable
-  112  6720 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.40       /* webhook/voucher:apihook has no endpoints */ tcp dpt:443 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.26       /* ves-system/gubernator:pprof has no endpoints */ tcp dpt:65114 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.42       /* ves-system/piku-nodeport:introspect has no endpoints */ tcp dpt:65084 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.43       /* ves-system/komodo:grpc-tls has no endpoints */ tcp dpt:65414 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.26       /* ves-system/gubernator:grpc has no endpoints */ tcp dpt:65110 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.60       /* ves-system/aspen:rest-tls has no endpoints */ tcp dpt:65143 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.18       /* ves-system/ver:grpc-tls has no endpoints */ tcp dpt:9505 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.18       /* ves-system/ver:wingman-for-ext-svcs has no endpoints */ tcp dpt:8071 reject-with icmp-port-unreachable
-    0     0 REJECT     tcp  --  *      *       0.0.0.0/0            100.127.192.54       /* ves-system/ganges:rest-tls has no endpoints */ tcp dpt:65118 reject-with icmp-port-unreachable
+... [capture trimmed: first 60 of 79 lines]

@@ -3,50 +3,50 @@
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
 2: a-i-eth0: <BROADCAST,MULTICAST,ALLMULTI,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
-    link/ether 38:33:c5:e0:e9:4d brd ff:ff:ff:ff:ff:ff
+    link/ether 60:45:bd:eb:3f:f2 brd ff:ff:ff:ff:ff:ff
 3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
-    link/ether 38:33:c5:e0:ef:f2 brd ff:ff:ff:ff:ff:ff
-    inet 10.0.2.6/26 brd 10.0.2.63 scope global noprefixroute eth1
+    link/ether 60:45:bd:eb:38:ea brd ff:ff:ff:ff:ff:ff
+    inet 10.0.2.4/26 brd 10.0.2.63 scope global noprefixroute eth1
        valid_lft forever preferred_lft forever
 4: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
-    link/ether 38:33:c5:e0:ee:b4 brd ff:ff:ff:ff:ff:ff
-    inet 10.0.3.7/26 brd 10.0.3.63 scope global noprefixroute eth2
+    link/ether 60:45:bd:eb:3d:f3 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.3.4/26 brd 10.0.3.63 scope global noprefixroute eth2
+       valid_lft forever preferred_lft forever
+    inet6 fe80::55af:2cd4:23a1:7e06/64 scope link noprefixroute
        valid_lft forever preferred_lft forever
 5: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
-    link/ether 02:42:1d:c2:87:42 brd ff:ff:ff:ff:ff:ff
+    link/ether 62:61:2b:33:cd:42 brd ff:ff:ff:ff:ff:ff
     inet 100.64.255.1/29 brd 100.64.255.7 scope global docker0
        valid_lft forever preferred_lft forever
-34: tap_eth0: <BROADCAST,MULTICAST,ALLMULTI,UP,LOWER_UP> mtu 1500 qdisc multiq state UNKNOWN group default qlen 1000
-    link/ether 38:33:c5:e0:e9:4d brd ff:ff:ff:ff:ff:ff
-35: vhost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
-    link/ether 38:33:c5:e0:e9:4d brd ff:ff:ff:ff:ff:ff
+10: tap_eth0: <BROADCAST,MULTICAST,ALLMULTI,UP,LOWER_UP> mtu 1500 qdisc multiq state UNKNOWN group default qlen 1000
+    link/ether 60:45:bd:eb:3f:f2 brd ff:ff:ff:ff:ff:ff
+11: vhost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 60:45:bd:eb:3f:f2 brd ff:ff:ff:ff:ff:ff
     inet 10.0.1.4/26 brd 10.0.1.63 scope global noprefixroute vhost0
        valid_lft forever preferred_lft forever
-37: vethfrr0@if36: <BROADCAST,MULTICAST,PROMISC,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+13: vethfrr0@if12: <BROADCAST,MULTICAST,PROMISC,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
     link/ether 02:01:02:03:04:05 brd ff:ff:ff:ff:ff:ff link-netns frrns
-39: argo-envoy-0@if38: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1520 qdisc noqueue state UP group default qlen 1000
+15: argo-envoy-0@if14: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1520 qdisc noqueue state UP group default qlen 1000
     link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netns envoy-ns
-41: host-envoy-0@if40: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
-    link/ether 72:b3:5f:81:31:d4 brd ff:ff:ff:ff:ff:ff link-netns envoy-ns
+17: host-envoy-0@if16: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether ee:95:ea:b5:8c:2a brd ff:ff:ff:ff:ff:ff link-netns envoy-ns
     inet 169.254.100.1/30 scope global host-envoy-0
        valid_lft forever preferred_lft forever
-42: xc-br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
-    link/ether 36:b8:24:39:f2:0f brd ff:ff:ff:ff:ff:ff
-43: argo-end@xc-br0-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
-    link/ether ce:f8:7f:3b:06:f0 brd ff:ff:ff:ff:ff:ff
-44: xc-br0-end@argo-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master xc-br0 state UP group default qlen 1000
-    link/ether 36:b8:24:39:f2:0f brd ff:ff:ff:ff:ff:ff
-46: linkquality0@if45: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 590 qdisc noqueue state UP group default
+18: xc-br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:db:2f:e1:15:2c brd ff:ff:ff:ff:ff:ff
+19: argo-end@xc-br0-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 76:e0:23:f6:48:8b brd ff:ff:ff:ff:ff:ff
+20: xc-br0-end@argo-end: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master xc-br0 state UP group default qlen 1000
+    link/ether aa:db:2f:e1:15:2c brd ff:ff:ff:ff:ff:ff
+22: linkquality0@if21: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 590 qdisc noqueue state UP group default
     link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netns ns-link-quality
-48: vethbfd0@if47: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+24: vethbfd0@if23: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
     link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netns bfdns
-50: vethpmtud0@if49: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
-    link/ether 00:00:5e:00:01:00 brd ff:ff:ff:ff:ff:ff link-netnsid 4
-51: keepalived-tap: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel state DOWN group default qlen 1000
-    link/ether 3e:a1:7f:22:74:c9 brd ff:ff:ff:ff:ff:ff
+25: keepalived-tap: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel state DOWN group default qlen 1000
+    link/ether 32:1d:e4:ae:46:0e brd ff:ff:ff:ff:ff:ff
     inet 169.254.10.13/30 brd 169.254.10.15 scope global keepalived-tap
        valid_lft forever preferred_lft forever
-53: vethdnsmasq0@if52: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
-    link/ether 02:01:02:03:04:07 brd ff:ff:ff:ff:ff:ff link-netnsid 5
+27: vethdnsmasq0@if26: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 02:01:02:03:04:07 brd ff:ff:ff:ff:ff:ff link-netnsid 4
     inet 169.254.254.103/32 brd 169.254.255.255 scope global vethdnsmasq0
        valid_lft forever preferred_lft forever

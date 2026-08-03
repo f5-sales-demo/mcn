@@ -48,6 +48,7 @@ SITECLI_NS="system"
 SITE=""
 NODE=""
 MODE="capture"
+CAPTURE_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -255,6 +256,30 @@ if [ "$MODE" = "check" ]; then
   exit "$status"
 fi
 
+# Execution is default-denied. Discovery can reveal a command added by a newer
+# appliance build, and its name/tier alone cannot establish that it is safe:
+# collect-database-stats was labelled ExecUser yet performed a disk write
+# benchmark. Require an explicit manifest entry (arguments or a skip reason)
+# before any newly discovered runnable command reaches the execute endpoint.
+if [ "$MODE" = "capture" ]; then
+  unclassified=$(
+    printf '%s' "$NEW_CATALOG" | jq -r --slurpfile manifest "$MANIFEST" '
+      .commands | to_entries[]
+      | select(.value.tier != "Exec")
+      | . as $entry
+      | select(($manifest[0].commands | has($entry.key)) | not)
+      | $entry.key
+    '
+  )
+  if [ -n "$unclassified" ]; then
+    note "refusing to execute newly discovered commands absent from capture-manifest.json:"
+    while IFS= read -r command_name; do
+      [ -n "$command_name" ] && note "  - ${command_name}"
+    done <<<"$unclassified"
+    die "classify each command with args/args_from or an explicit skip reason, then capture again"
+  fi
+fi
+
 # --- write the catalog -------------------------------------------------------
 mkdir -p "$OUT_DIR"
 printf '%s\n' "$NEW_CATALOG" >"$CATALOG"
@@ -382,3 +407,21 @@ done < <(jq -r '.commands | to_entries[] | [.key, .value.tier, (.value.scope // 
 note ""
 note "captured ${captured}, skipped ${skipped}, failed ${failed}"
 [ "$failed" -eq 0 ] || exit 1
+
+# Stamp the evidence only after every runnable command succeeded. Keep the
+# manifest's hand-reviewed layout intact: rewriting the whole JSON document
+# would turn one generated timestamp into an unrelated formatting diff.
+manifest_tmp=$(mktemp "${MANIFEST}.tmp.XXXXXX")
+if ! awk -v stamp="$CAPTURE_STARTED_AT" '
+  /^[[:space:]]*"captured_at":[[:space:]]/ {
+    sub(/:.*/, ": \"" stamp "\",")
+    found++
+  }
+  { print }
+  END { if (found != 1) exit 1 }
+' "$MANIFEST" >"$manifest_tmp"; then
+  rm -f "$manifest_tmp"
+  die "capture-manifest.json must contain exactly one top-level captured_at field"
+fi
+mv "$manifest_tmp" "$MANIFEST"
+note "evidence timestamp: ${CAPTURE_STARTED_AT} -> ${MANIFEST#"${REPO_ROOT}/"}"

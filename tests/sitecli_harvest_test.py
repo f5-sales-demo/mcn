@@ -19,6 +19,7 @@ be wrong.
   - The prompt is redrawn inside the same stream and is not a menu row.
 """
 
+import importlib.util
 import json
 import logging
 import os
@@ -26,13 +27,22 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-
-import sitecli_ssh_harvest as h
+HARVEST_PATH = (
+    Path(__file__).resolve().parent.parent / "scripts" / "sitecli_ssh_harvest.py"
+)
+HARVEST_SPEC = importlib.util.spec_from_file_location(
+    "sitecli_ssh_harvest", HARVEST_PATH
+)
+if HARVEST_SPEC is None or HARVEST_SPEC.loader is None:
+    raise ImportError(HARVEST_PATH)
+h = importlib.util.module_from_spec(HARVEST_SPEC)
+HARVEST_SPEC.loader.exec_module(h)
 
 ESC = "\x1b"
+UTC = timezone(timedelta())
 DOWN = f"{ESC}[1B"
 NAME_SELECTED = f"{ESC}[1;30;106m"
 NAME_PLAIN = f"{ESC}[0;97;46m"
@@ -48,6 +58,12 @@ def row(name, desc, selected=False):
         f"{DOWN}{name_colour} {name:<38} {desc_colour} {desc:<110} "
         f"{ESC}[0;39;100m {ESC}[0;39;49m"
     )
+
+
+def test_capture_timestamp_is_utc_rfc3339():
+    """Format capture provenance as second-precision UTC RFC3339."""
+    observed = datetime(2026, 8, 3, 16, 30, 6, tzinfo=UTC)
+    assert h.capture_timestamp(observed) == "2026-08-03T16:30:06Z"
 
 
 FIRST_PAGE = (
@@ -87,6 +103,7 @@ def refuses(name):
 
 
 def test_extracts_every_row_on_a_page():
+    """Extract every command row from one rendered completion page."""
     assert [n for n, _ in h.parse_menu(FIRST_PAGE)] == [
         "nh",
         "dropstats",
@@ -98,27 +115,32 @@ def test_extracts_every_row_on_a_page():
 
 
 def test_reads_the_selected_row_too():
+    """Treat the differently coloured selected row as a command."""
     # The selected row carries different colour codes. It is a real command.
     assert ("nh", "invoke argo nh command") in h.parse_menu(FIRST_PAGE)
 
 
 def test_keeps_descriptions_intact():
+    """Keep the complete description after the padded name column."""
     rows = dict(h.parse_menu(FIRST_PAGE))
     assert rows["vifdump-d"] == "Capture dropped packets on specified vif id or all vif"
 
 
 def test_ignores_the_prompt_redraw():
+    """Exclude the interactive prompt redraw from parsed command names."""
     names = [n for n, _ in h.parse_menu(FIRST_PAGE)]
     assert "execcli" not in names
     assert ">>>" not in names
 
 
 def test_a_description_containing_spaces_is_not_split_further():
+    """Preserve ordinary spaces inside an appliance description."""
     rows = dict(h.parse_menu(row("files", "perform file operations on node")))
     assert rows["files"] == "perform file operations on node"
 
 
 def test_empty_input_yields_nothing():
+    """Return no commands for an empty terminal capture."""
     assert not h.parse_menu("")
 
 
@@ -126,13 +148,15 @@ def test_empty_input_yields_nothing():
 
 
 def test_overlapping_pages_deduplicate():
+    """Deduplicate rows repeated across adjacent scrolling pages."""
     acc = h.MenuAccumulator()
     assert acc.absorb(FIRST_PAGE) == 6
     assert acc.absorb(SECOND_PAGE) == 1
-    assert len(acc.commands) == 7
+    assert acc.count() == 7
 
 
 def test_order_is_first_seen():
+    """Retain the appliance's first-seen command order."""
     acc = h.MenuAccumulator()
     acc.absorb(FIRST_PAGE)
     acc.absorb(SECOND_PAGE)
@@ -142,6 +166,7 @@ def test_order_is_first_seen():
 
 
 def test_a_repeated_page_adds_nothing():
+    """Report zero additions when a page is absorbed twice."""
     acc = h.MenuAccumulator()
     acc.absorb(FIRST_PAGE)
     assert acc.absorb(FIRST_PAGE) == 0
@@ -155,16 +180,19 @@ def test_a_repeated_page_adds_nothing():
 
 
 def test_a_known_read_only_command_is_allowed():
+    """Allow commands explicitly classified as read-only."""
     assert h.may_execute("crictl-ps")
     assert h.may_execute("show-ip-bgp-summary")
 
 
 def test_packet_capture_is_refused():
+    """Refuse packet-capture commands that write files or change state."""
     for name in ("vifdump", "vifdump-d", "vifdump-stop", "vifdump-file-rm"):
         assert not h.may_execute(name), name
 
 
 def test_mutating_commands_are_refused():
+    """Refuse representative commands that mutate a live node."""
     for name in (
         "docker-prune",
         "systemctl-restart-vpm",
@@ -178,15 +206,17 @@ def test_mutating_commands_are_refused():
 
 
 def test_an_unknown_command_is_refused():
+    """Default-deny commands absent from the explicit allow-list."""
     # The whole point: a command nobody has classified yet cannot be run.
     assert not h.may_execute("some-command-from-a-future-build")
     assert not h.may_execute("")
 
 
-def test_newer_build_read_only_commands_are_allowed():
-    # Seven commands exist on 20260703-e2c462a and not on crt-20250613-3382
-    # (issue #710). Four of them only read state, so they may be captured for the
-    # documentation.
+def test_current_build_read_only_commands_are_allowed():
+    """Allow the current build's verified observational commands."""
+    # These commands are on the rebuilt fleet. Four only read state, so the SSH
+    # harness may capture them even though the debug API classifies the marker
+    # checks in its privileged Exec tier.
     for name in (
         "iptables-lv",
         "marker-exists-NetworkManager",
@@ -196,8 +226,9 @@ def test_newer_build_read_only_commands_are_allowed():
         assert h.may_execute(name), name
 
 
-def test_newer_build_mutating_commands_stay_refused():
-    # Three of the seven change the node. Enumeration records them; they are
+def test_current_build_mutating_commands_stay_refused():
+    """Keep current maintenance commands with side effects refused."""
+    # Three of the current commands change the node. Enumeration records them; they are
     # documented by name and never run.
     #
     # `collect-database-stats` is here because its name is a lie: it runs a 15
@@ -215,6 +246,7 @@ def test_newer_build_mutating_commands_stay_refused():
 
 
 def test_no_allow_listed_command_has_a_capture_showing_writes():
+    """Reject an allow-listed command when its evidence shows writes."""
     # Evidence beats naming. A command's name and the appliance's own one-line
     # description can both be innocuous while the command writes to disk, so this
     # scans what the commands actually PRINTED and refuses to let any of them stay
@@ -249,6 +281,7 @@ def test_no_allow_listed_command_has_a_capture_showing_writes():
 
 
 def test_classification_mutating_list_agrees_with_the_allow_list():
+    """Keep documentation safety classes aligned with executable policy."""
     # The documentation data and the harness must not disagree about which
     # commands are safe to run. Reading the JSON rather than restating its
     # contents is the point: adding a name to `_mutating` and to READ_ONLY at the
@@ -257,7 +290,7 @@ def test_classification_mutating_list_agrees_with_the_allow_list():
     data = json.loads(
         (root / "sitecli" / "command-classification.json").read_text(encoding="utf-8")
     )
-    bucket = data["not_on_this_build"]["newer_build"]
+    bucket = data["tiers"]["f5-software"]["node-maintenance"]
     mutating = bucket["_mutating"]
 
     assert mutating, "expected a non-empty _mutating list to test against"
@@ -273,11 +306,13 @@ def test_classification_mutating_list_agrees_with_the_allow_list():
 
 
 def test_guard_raises_rather_than_returning_quietly():
+    """Raise for a refused command and return normally for an allowed one."""
     assert refuses("vifdump")
     assert not refuses("crictl-ps")
 
 
 def test_allow_list_contains_no_mutating_verb():
+    """Trip on obvious mutating verbs added to the read-only allow-list."""
     # A cheap tripwire for future edits to the allow-list.
     forbidden = ("restart", "prune", "edit-", "-set", "add-param", "remove", "reset")
     for name in h.READ_ONLY:
@@ -297,6 +332,7 @@ def test_allow_list_contains_no_mutating_verb():
 
 
 def test_close_returns_promptly_for_a_cooperative_child():
+    """Reap a cooperative pseudo-terminal child without delay."""
     p = h.PtyProcess(["sleep", "60"])
     started = time.monotonic()
     p.close()
@@ -307,6 +343,7 @@ def test_close_returns_promptly_for_a_cooperative_child():
 
 
 def test_close_kills_a_child_that_ignores_sigterm():
+    """Escalate to SIGKILL within a bound when SIGTERM is ignored."""
     # sh -c "trap '' TERM; sleep 60" does NOT work: sh exec's the final command,
     # replacing itself and discarding the trap, so the child dies on SIGTERM and
     # the SIGKILL path is never exercised. Install the handler in the process that
@@ -340,6 +377,7 @@ def test_close_kills_a_child_that_ignores_sigterm():
 
 
 def test_close_is_idempotent():
+    """Allow repeated cleanup of the same pseudo-terminal process."""
     p = h.PtyProcess(["sleep", "60"])
     p.close()
     p.close()  # must not raise on an already-closed pty or a reaped child
@@ -348,17 +386,27 @@ def test_close_is_idempotent():
 # --- ssh argv ---------------------------------------------------------------
 
 
-def test_ssh_argv_omits_proxyjump_when_no_jump_host():
+def test_ssh_argv_omits_proxy_command_when_no_jump_host():
+    """Build a direct SSH command when no jump host is supplied."""
     argv = h.ssh_argv("10.0.3.7", "", "key-path-not-read")
-    assert not any(a.startswith("ProxyJump") for a in argv)
+    assert not any(a.startswith("ProxyCommand") for a in argv)
     assert argv[-1] == "admin@10.0.3.7"
 
 
-def test_ssh_argv_includes_proxyjump_and_user():
+def test_ssh_argv_propagates_trust_options_to_the_jump_leg():
+    """Apply isolated host trust and key settings to both SSH legs."""
     argv = h.ssh_argv(
-        "10.0.3.7", "azureuser@1.2.3.4", "key-path-not-read", user="admin"
+        "10.0.3.7",
+        "azureuser@1.2.3.4",
+        "key-path-not-read",
+        user="admin",
+        known_hosts="isolated-known-hosts",
     )
-    assert "ProxyJump=azureuser@1.2.3.4" in argv
+    proxy = next(a for a in argv if a.startswith("ProxyCommand="))
+    assert "azureuser@1.2.3.4" in proxy
+    assert "UserKnownHostsFile=isolated-known-hosts" in proxy
+    assert "StrictHostKeyChecking=accept-new" in proxy
+    assert "UserKnownHostsFile=isolated-known-hosts" in argv
     assert "BatchMode=yes" in argv
     assert argv[-1] == "admin@10.0.3.7"
 
@@ -380,27 +428,32 @@ MENU_REPAINT = (
 
 
 def test_trim_drops_the_prompt_echo():
+    """Remove the Site CLI prompt and echoed command from evidence."""
     raw = ">>> execcli vegactl-introspect-show-election\nrole: Master\n"
     assert h.trim_command_output(raw) == "role: Master"
 
 
 def test_trim_drops_a_trailing_menu_repaint():
+    """Remove the completion menu repainted after command output."""
     raw = f">>> execcli envoy-listeners\nlistener-1:80\n{MENU_REPAINT}\n"
     assert h.trim_command_output(raw) == "listener-1:80"
 
 
 def test_trim_keeps_interior_content_and_blank_lines():
+    """Preserve output content and meaningful interior blank lines."""
     raw = ">>> execcli x\nfirst\n\nsecond\n>>> \n"
     assert h.trim_command_output(raw) == "first\n\nsecond"
 
 
 def test_trim_keeps_output_that_merely_mentions_the_prompt_string():
+    """Keep real output that contains but does not begin with a prompt."""
     # A line containing >>> but not starting the line is real output.
     raw = ">>> execcli x\nusage: foo >>> bar\n"
     assert h.trim_command_output(raw) == "usage: foo >>> bar"
 
 
 def test_trim_of_empty_or_prompt_only_output_is_empty():
+    """Normalize empty and prompt-only captures to an empty string."""
     assert h.trim_command_output("") == ""
     assert h.trim_command_output(">>> execcli x\n>>> \n") == ""
 

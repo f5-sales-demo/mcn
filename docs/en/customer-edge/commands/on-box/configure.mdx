@@ -10,7 +10,9 @@ import { Aside } from "@astrojs/starlight/components";
 
 Four commands sit at the **top level** of the Site CLI rather than behind
 [`execcli`](../) — they are what the interactive menu offers when you log in, alongside
-[`health`](../../system/health/) and [`diagnosis`](../../system/diagnosis/).
+[`diagnosis`](../../system/diagnosis/) and `update-tx-queue-len-vhost0`.
+
+Captured 2026-08-03 from the completion menu on software build `crt-20260201-0179`.
 
 ```text
 configure                   Initial configuration of the node
@@ -23,10 +25,9 @@ That is the appliance's own menu text, and those six entries are the entire top 
 
 <Aside type="caution" title="Five commands you might expect are not here">
 `factory-reset`, `upgrade`, `reboot`, `show` and `clear` do **not** exist on build
-`crt-20250613-3382`. They were carried in this repository's command classification for a
-while on the assumption that a Site CLI would have them, and two independent enumerations —
-one at `site_state: PROVISIONING`, one at `PROVISIONED` — found neither hide nor hair of
-them. See [the on-box index](../) for how that was measured.
+`crt-20260201-0179`. They were carried in this repository's command classification for a
+while on the assumption that a Site CLI would have them, but the live catalog does not.
+See [the on-box index](../) for how that was measured.
 </Aside>
 
 <Aside type="danger" title="Interactive, and reconfigure a live node">

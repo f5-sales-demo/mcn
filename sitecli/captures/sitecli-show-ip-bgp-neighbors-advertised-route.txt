@@ -1,6 +1,6 @@
 
 bgp neighbor:
-BGP table version is 2, local router ID is 10.0.1.4, vrf id 3
+BGP table version is 3, local router ID is 10.0.1.4, vrf id 3
 Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,
                i internal, r RIB-failure, S Stale, R Removed
 Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self
@@ -13,7 +13,7 @@ Origin codes:  i - IGP, e - EGP, ? - incomplete
 Total number of prefixes 2
 
 bgp neighbor:
-BGP table version is 2, local router ID is 10.0.1.4, vrf id 3
+BGP table version is 3, local router ID is 10.0.1.4, vrf id 3
 Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,
                i internal, r RIB-failure, S Stale, R Removed
 Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self

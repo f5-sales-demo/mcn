@@ -2,56 +2,56 @@ Invalid IF                    0
 Trap No IF                    0
 IF TX Discard                 0
 IF Drop                       0
-IF RX Discard                 3
+IF RX Discard                 11
 Invalid ARP                   12
 
 Flow Unusable                 0
 Flow No Memory                0
 Flow Table Full               0
 Flow NAT no rflow             0
-Flow Action Drop              285
+Flow Action Drop              121
 Flow Action Invalid           0
 Flow Invalid Protocol         0
 Flow Queue Limit Exceeded     0
 New Flow Drops                0
-Flow Unusable (Eviction)      198
+Flow Unusable (Eviction)      229
 Flow Resource Exhaustion      0
 
 Original Packet Trapped       0
 
-Discards                      20
+Discards                      19
 TTL Exceeded                  0
 Mcast Clone Fail              0
-Cloned Original               56
+Cloned Original               217
 
-Invalid NH                    2
+Invalid NH                    0
 Invalid Label                 0
-Invalid Protocol              28
+Invalid Protocol              0
 Rewrite Fail                  0
 Invalid Mcast Source          0
 Packet Loop                   0
 
 Push Fails                    0
 Pull Fails                    0
-Duplicated                    5
+Duplicated                    0
 Head Alloc Fails              0
 PCOW Fails                    0
-Invalid Packets               625
+Invalid Packets               945
 
-Misc                          83
+Misc                          333
 Nowhere to go                 0
 Checksum errors               0
 No Fmd                        0
 Invalid VNID                  0
 Fragment errors               0
-Invalid Source                8
+Invalid Source                6
 Jumbo Mcast Pkt with DF Bit   0
 No L2 Route                   0
 Memory Failures               0
 Fragment Queueing Failures    0
 Policer Drops                 0
 ACL Drops                     0
-Invalid VLAN                  2
+Invalid VLAN                  4
 VLAN fwd intf failed TX       0
 VLAN fwd intf failed enq      0
 Tunnel Level Exceeded         0

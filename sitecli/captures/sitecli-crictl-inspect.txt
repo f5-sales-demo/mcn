@@ -1,62 +1,62 @@
 {
-  "status": {
-    "id": "01abfe4e370e17a2dbe586dfea73a457a7b570b36e02ded9a49faf550db51aba",
-    "metadata": {
-      "attempt": 2,
-      "name": "voucher"
-    },
-    "state": "CONTAINER_RUNNING",
-    "createdAt": "2026-07-28T18:23:34.16698681Z",
-    "startedAt": "2026-07-28T18:23:34.191178669Z",
-    "finishedAt": "0001-01-01T00:00:00Z",
-    "exitCode": 0,
-    "image": {
-      "annotations": {},
-      "image": "gcr.download.volterra.io/volterraio/voucher@sha256:19306dec54069356e803d8e1c7b3247ac42ecdd0fbccd70f57290f48239e3df0"
-    },
-    "imageRef": "gcr.download.volterra.io/volterraio/voucher@sha256:19306dec54069356e803d8e1c7b3247ac42ecdd0fbccd70f57290f48239e3df0",
-    "reason": "",
-    "message": "",
-    "labels": {
-      "io.kubernetes.container.name": "voucher",
-      "io.kubernetes.pod.name": "voucher-m76f4",
-      "io.kubernetes.pod.namespace": "webhook",
-      "io.kubernetes.pod.uid": "<uuid>"
-    },
-    "annotations": {
-      "io.kubernetes.container.hash": "e5954d1b",
-      "io.kubernetes.container.ports": "[{\"hostPort\":8444,\"containerPort\":8444,\"protocol\":\"TCP\"},{\"hostPort\":8443,\"containerPort\":8443,\"protocol\":\"TCP\"}]",
-      "io.kubernetes.container.restartCount": "2",
-      "io.kubernetes.container.terminationMessagePath": "/dev/termination-log",
-      "io.kubernetes.container.terminationMessagePolicy": "File",
-      "io.kubernetes.pod.terminationGracePeriod": "30"
-    },
-    "mounts": [
-      {
-        "containerPath": "/dev/termination-log",
-        "hostPath": "/var/lib/kubelet/pods/<uuid>/containers/voucher/76075f48",
-        "propagation": "PROPAGATION_PRIVATE",
-        "readonly": false,
-        "selinuxRelabel": false
+  "info": {
+    "pid": 41165,
+    "privileged": false,
+    "runtimeSpec": {
+      "annotations": {
+        "checksum/config": "ac59fb53ff0b3e71603a244b00ae076d",
+        "fluentbit.io/parser-etcd-check": "initscript",
+        "fluentbit.io/parser-voucher": "serviceframework",
+        "io.container.manager": "cri-o",
+        "io.kubernetes.container.hash": "7e563e23",
+        "io.kubernetes.container.name": "voucher",
+        "io.kubernetes.container.ports": "[{\"hostPort\":8444,\"containerPort\":8444,\"protocol\":\"TCP\"},{\"hostPort\":8443,\"containerPort\":8443,\"protocol\":\"TCP\"}]",
+        "io.kubernetes.container.restartCount": "2",
+        "io.kubernetes.container.terminationMessagePath": "/dev/termination-log",
+        "io.kubernetes.container.terminationMessagePolicy": "File",
+        "io.kubernetes.cri-o.Annotations": "{\"io.kubernetes.container.hash\":\"7e563e23\",\"io.kubernetes.container.ports\":\"[{\\\"hostPort\\\":8444,\\\"containerPort\\\":8444,\\\"protocol\\\":\\\"TCP\\\"},{\\\"hostPort\\\":8443,\\\"containerPort\\\":8443,\\\"protocol\\\":\\\"TCP\\\"}]\",\"io.kubernetes.container.restartCount\":\"2\",\"io.kubernetes.container.terminationMessagePath\":\"/dev/termination-log\",\"io.kubernetes.container.terminationMessagePolicy\":\"File\",\"io.kubernetes.pod.terminationGracePeriod\":\"30\"}",
+        "io.kubernetes.cri-o.ContainerID": "4a161da36c4e7d5413bcb3efde305fa6600226ec4d870f256c80bcf46dc4678c",
+        "io.kubernetes.cri-o.ContainerType": "container",
+        "io.kubernetes.cri-o.Created": "2026-08-03T15:21:20.909807211Z",
+        "io.kubernetes.cri-o.Image": "efe5d76cc4688f1bfdf2076186ae7d6ab8a6dcde1953096dce58afd899dc7070",
+        "io.kubernetes.cri-o.ImageName": "gcr.download.volterra.io/volterraio/voucher@sha256:cd08ab152c14961d11b4cceca90a75c81b7e1771906bb721894c567673a8a870",
+        "io.kubernetes.cri-o.ImageRef": "efe5d76cc4688f1bfdf2076186ae7d6ab8a6dcde1953096dce58afd899dc7070",
+        "io.kubernetes.cri-o.Labels": "{\"io.kubernetes.container.name\":\"voucher\",\"io.kubernetes.pod.name\":\"voucher-2gps7\",\"io.kubernetes.pod.namespace\":\"webhook\",\"io.kubernetes.pod.uid\":\"<uuid>\"}",
+        "io.kubernetes.cri-o.LogPath": "/var/log/pods/webhook_voucher-2gps7_<uuid>/voucher/2.log",
+        "io.kubernetes.cri-o.Metadata": "{\"name\":\"voucher\",\"attempt\":2}",
+        "io.kubernetes.cri-o.MountPoint": "/var/lib/containers/storage/overlay/cc06651d7c0e6746df4b9abc6c8a467e3796f458aeeca34811b4c1c1c062d6ab/merged",
+        "io.kubernetes.cri-o.Name": "k8s_voucher_voucher-2gps7_webhook_<uuid>_2",
+        "io.kubernetes.cri-o.PlatformRuntimePath": "",
+        "io.kubernetes.cri-o.ResolvPath": "/run/containers/storage/overlay-containers/1c29fd9e1298a857583eb2052395a5e3e7a3436e8a96480e3f19ecc2a4969698/userdata/resolv.conf",
+        "io.kubernetes.cri-o.SandboxID": "1c29fd9e1298a857583eb2052395a5e3e7a3436e8a96480e3f19ecc2a4969698",
+        "io.kubernetes.cri-o.SandboxName": "k8s_voucher-2gps7_webhook_<uuid>_0",
+        "io.kubernetes.cri-o.SeccompProfilePath": "Unconfined",
+        "io.kubernetes.cri-o.Stdin": "false",
+        "io.kubernetes.cri-o.StdinOnce": "false",
+        "io.kubernetes.cri-o.TTY": "false",
+        "io.kubernetes.cri-o.Volumes": "[{\"container_path\":\"/etc/hosts\",\"host_path\":\"/var/lib/kubelet/pods/<uuid>/etc-hosts\",\"readonly\":false,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false},{\"container_path\":\"/dev/termination-log\",\"host_path\":\"/var/lib/kubelet/pods/<uuid>/containers/voucher/d9ddb5ce\",\"readonly\":false,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false},{\"container_path\":\"/volterra/secrets/identity\",\"host_path\":\"/var/lib/voucher/certs\",\"readonly\":true,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false},{\"container_path\":\"/volterra/secrets/signer\",\"host_path\":\"/var/lib/voucher/signer-certs\",\"readonly\":true,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false},{\"container_path\":\"/volterra/secrets/bootstrap\",\"host_path\":\"/var/lib/voucher/wingman-bootstrap-certs\",\"readonly\":true,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false},{\"container_path\":\"/volterra/secrets/etcd\",\"host_path\":\"/var/lib/vpm/data/certs/etcd/current\",\"readonly\":true,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false},{\"container_path\":\"/etc/ves/voucher.yml\",\"host_path\":\"/var/lib/kubelet/pods/<uuid>/volume-subpaths/config/voucher/4\",\"readonly\":true,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false},{\"container_path\":\"/var/run/secrets/kubernetes.io/serviceaccount\",\"host_path\":\"/var/lib/kubelet/pods/<uuid>/volumes/kubernetes.io~projected/kube-api-access-mprhx\",\"readonly\":true,\"recursive_read_only\":false,\"propagation\":0,\"selinux_relabel\":false}]",
+        "io.kubernetes.pod.name": "voucher-2gps7",
+        "io.kubernetes.pod.namespace": "webhook",
+        "io.kubernetes.pod.terminationGracePeriod": "30",
+        "io.kubernetes.pod.uid": "<uuid>",
+        "kubernetes.io/config.seen": "2026-08-03T15:06:30.433380913Z",
+        "kubernetes.io/config.source": "api",
+        "org.systemd.property.After": "['crio.service']",
+        "org.systemd.property.DefaultDependencies": "true",
+        "org.systemd.property.TimeoutStopUSec": "uint64 30000000",
+        "prometheus.ves.io/port": "8443",
+        "prometheus.ves.io/scrape": "true"
       },
-      {
-        "containerPath": "/etc/hosts",
-        "hostPath": "/var/lib/kubelet/pods/<uuid>/etc-hosts",
-        "propagation": "PROPAGATION_PRIVATE",
-        "readonly": false,
-        "selinuxRelabel": false
-      },
-      {
-        "containerPath": "/volterra/secrets/signer",
-        "hostPath": "/var/lib/voucher/signer-certs",
-        "propagation": "PROPAGATION_PRIVATE",
-        "readonly": true,
-        "selinuxRelabel": false
-      },
-      {
-        "containerPath": "/volterra/secrets/etcd",
-        "hostPath": "/var/lib/vpm/data/certs/etcd/current",
-        "propagation": "PROPAGATION_PRIVATE",
-        "readonly": true,
+      "hostname": "f5-xc-ce-vm-01",
+      "linux": {
+        "cgroupsPath": "kubepods-burstable-pod90fadf19_de7b_43d3_be36_2d2b6408a572.slice:crio:4a161da36c4e7d5413bcb3efde305fa6600226ec4d870f256c80bcf46dc4678c",
+        "maskedPaths": [
+          "/proc/acpi",
+          "/proc/asound",
+          "/proc/interrupts",
+          "/proc/kcore",
+          "/proc/keys",
+          "/proc/latency_stats",
+          "/proc/sched_debug",
 
-... [capture trimmed: first 60 of 522 lines]
+... [capture trimmed: first 60 of 616 lines]

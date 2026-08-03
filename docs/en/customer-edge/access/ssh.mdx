@@ -9,13 +9,12 @@ sidebar:
 import { Aside, CardGrid, Steps } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
-records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
-surface against a live CE.
+The on-box examples on this page were captured 2026-07-28. The command catalog was refreshed
+2026-08-03 after the from-zero rebuild and records the current node and software build.
 
 SSH reaches the appliance `admin` account, whose login shell is the Site CLI
 (`/opt/bin/vpmu`). This is the only route to the **full on-box command surface** — the
-[debug API](../debug-api/) exposes 34 commands, and the appliance itself offers many more
+[debug API](../debug-api/) exposes 43 commands, and the appliance itself offers many more
 that are not on that API at all.
 
 ```bash
@@ -334,7 +333,7 @@ as "not configured" rather than "not reported".
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Covers 34 commands and needs the site <code>ONLINE</code>."
+    description="Scripted, needs no access inside the VNet, and the right choice for repeatable evidence. Exposes a 43-command catalog and needs the site <code>ONLINE</code>."
     href="../debug-api/"
   />
   <LinkCard

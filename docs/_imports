@@ -34,9 +34,6 @@ sitecli/captures/sitecli-ipsec-status.txt
 sitecli/captures/sitecli-ipsec-statusall.txt
 sitecli/captures/sitecli-iptables-lv.txt
 sitecli/captures/sitecli-kubelet-get-params.txt
-sitecli/captures/sitecli-marker-exists-NetworkManager.txt
-sitecli/captures/sitecli-marker-exists-crio.txt
-sitecli/captures/sitecli-marker-exists-kubelet.txt
 sitecli/captures/sitecli-netstat.txt
 sitecli/captures/sitecli-nh.txt
 sitecli/captures/sitecli-rt.txt

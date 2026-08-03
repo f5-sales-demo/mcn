@@ -8,9 +8,9 @@ sidebar:
 
 import { Aside, Steps, Badge } from "@astrojs/starlight/components";
 
-Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
-records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
-surface against a live CE.
+Captured 2026-08-03 from one CE of the rebuilt deployment. `sitecli/catalog.json` records
+the node, build, and 43-command surface; `scripts/capture-sitecli.sh --check` re-verifies it
+against a live CE.
 
 The `vpm/debug` API runs Site CLI commands on a registered node and returns their
 output. Everything below was established against a live node; none of it is
@@ -63,7 +63,7 @@ so it is easy to misread as "this command does not exist".
 | `tier` is `ExecUser` | `POST .../vpm/debug/<node>/exec-user` | `command` array | text |
 | `tier` is `Exec` | `POST .../vpm/debug/<node>/exec` | `command` array | text |
 
-### `ExecUser` — the read-only tier <Badge text="31 commands" variant="note" />
+### `ExecUser` — the ordinary tier <Badge text="33 commands" variant="note" />
 
 The common case. Pass the command and its arguments as an array, command name
 first:
@@ -111,14 +111,14 @@ GET .../vpm/debug/global/health
 
 </Aside>
 
-### `Exec` — the privileged tier <Badge text="1 command on this build" variant="danger" />
+### `Exec` — the privileged tier <Badge text="8 commands" variant="danger" />
 
 A separate endpoint, and the tier is enforced rather than advisory: `exec` rejects
 an `ExecUser` command with the same `command not supported` message. Every member
 either changes the node or reads a state marker.
 
-On the build this tenant runs, the tier contains only `ip-link-set`. Newer builds
-add `systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
+On the current build, the tier contains `ip-link-set`,
+`systemctl-restart-NetworkManager`, `systemctl-restart-crio`,
 `systemctl-restart-kubelet`, `systemctl-start-crio-prune` and three
 `marker-exists-*` commands.
 
@@ -145,7 +145,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ```
 
 Some services report an empty node name, so an empty string in that list is an artefact of
-the response rather than a second node. `list-service` is also not in the 34-command catalog:
+the response rather than a second node. `list-service` is also not in the 43-command catalog:
 it is a `global` endpoint the catalog does not advertise, which is why it is documented here
 and not in the [command reference](../../commands/).
 

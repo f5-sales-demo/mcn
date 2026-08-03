@@ -26,7 +26,7 @@ broken node.
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="For a node that is <code>ONLINE</code>. Scriptable, read-only, and covers 34 commands."
+    description="For a node that is <code>ONLINE</code>. Scriptable, with a 43-command catalog and an enforced capture allow-list."
     href="./access/debug-api/"
   />
   <LinkCard
@@ -61,13 +61,13 @@ it answers whether or not the site has registered. It needs Azure Bastion, which
 deployment gates behind `enable_bastion` and which is not deployed by default.
 
 [SSH](./access/ssh/) is the only route that reaches the appliance's full command surface —
-the debug API exposes 34 commands and the node itself offers many more. Two things constrain
+the debug API exposes 43 commands and the node itself offers many more. Two things constrain
 it. `sshd` answers on the node's internal (SLI) address only, so it needs a host inside the
 VNet; and the key is written by cloud-init at first boot, because the `ssh_key` field on the
 site object is inert — `vpm` skips the `admin` user and never applies it. Enabling it on
 running nodes therefore replaces them.
 
-So: if the site is `ONLINE` and 34 commands are enough, use the debug API. For a UI, or for a
+So: if the site is `ONLINE` and the debug catalog is enough, use the debug API. For a UI, or for a
 node that never registered but still has a network path, use Site Console. If you need the
 rest of the command surface and can reach the VNet, use SSH. If the node has no working
 network path at all, serial console is the only way in.
@@ -116,14 +116,8 @@ The [command reference](./commands/) lists all of them with their category, priv
 tier and transport; the [workflows](./workflows/) chain them into the sequences you
 actually use when something is wrong.
 
-The on-box-only parts of the Site CLI — `configure`, `configure-network`,
-`factory-reset`, `upgrade` and roughly sixty further `ExecCLI` commands — are not
-covered, because their output has not been captured from a live node the way every
-page below has.
-
-They are, however, no longer out of reach. `scripts/sitecli_ssh_harvest.py` drives the
-appliance's own completion menu over [SSH](./access/ssh/) and records the description the
-appliance gives for each command, so the surface can be measured rather than guessed at.
-Its execution is default-denied — it enumerates everything and runs only an allow-list —
-because unverified command syntax, and unverified command *effects*, are the defect this
-documentation exists to avoid repeating.
+The on-box reference separately records the six top-level commands and 89 `execcli`
+subcommands exposed by the same build. `scripts/sitecli_ssh_harvest.py` drives the appliance's
+completion menu over [SSH](./access/ssh/) and records the description the appliance gives for
+each command, so the surface is measured rather than guessed at. Its execution is
+default-denied: it enumerates everything and runs only an allow-list.

@@ -1,11 +1,12 @@
 [
     {
-        "Id": "1fbe2f95d908e95968ea576430cc5bf845deeea25581fcf17d23da2c43660cdd",
-        "Created": "2026-07-28T18:08:01.67195334Z",
-        "Path": "/bin/bash",
+        "Id": "f117f7fec5ed440b3eb6f2fed45cb26ea2ec83f93faedc312c33ed74216c3ccb",
+        "Created": "2026-08-03T15:02:21.734985693Z",
+        "Path": "container-entrypoint",
         "Args": [
-            "-c",
-            "source /functions.sh && watch_for_intf"
+            "npm",
+            "run",
+            "start-prod:site-console"
         ],
         "State": {
             "Status": "running",
@@ -14,18 +15,18 @@
             "Restarting": false,
             "OOMKilled": false,
             "Dead": false,
-            "Pid": 11775,
+            "Pid": 2403,
             "ExitCode": 0,
             "Error": "",
-            "StartedAt": "2026-07-28T18:08:07.529571194Z",
+            "StartedAt": "2026-08-03T15:02:22.194718719Z",
             "FinishedAt": "0001-01-01T00:00:00Z"
         },
-        "Image": "sha256:9735bc3ddfd6ae044e58e0511818b53a9a3fea22e0f20ead6cdeda484201a742",
-        "ResolvConfPath": "/var/lib/docker/containers/1fbe2f95d908e95968ea576430cc5bf845deeea25581fcf17d23da2c43660cdd/resolv.conf",
-        "HostnamePath": "/var/lib/docker/containers/1fbe2f95d908e95968ea576430cc5bf845deeea25581fcf17d23da2c43660cdd/hostname",
-        "HostsPath": "/var/lib/docker/containers/1fbe2f95d908e95968ea576430cc5bf845deeea25581fcf17d23da2c43660cdd/hosts",
-        "LogPath": "/var/lib/docker/containers/1fbe2f95d908e95968ea576430cc5bf845deeea25581fcf17d23da2c43660cdd/1fbe2f95d908e95968ea576430cc5bf845deeea25581fcf17d23da2c43660cdd-json.log",
-        "Name": "/argo_watch",
+        "Image": "sha256:654314755ed88bed4ae872f63dc271809b5800817f5a6e91d82f3b6836917b25",
+        "ResolvConfPath": "/var/lib/docker/containers/f117f7fec5ed440b3eb6f2fed45cb26ea2ec83f93faedc312c33ed74216c3ccb/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/f117f7fec5ed440b3eb6f2fed45cb26ea2ec83f93faedc312c33ed74216c3ccb/hostname",
+        "HostsPath": "/var/lib/docker/containers/f117f7fec5ed440b3eb6f2fed45cb26ea2ec83f93faedc312c33ed74216c3ccb/hosts",
+        "LogPath": "/var/lib/docker/containers/f117f7fec5ed440b3eb6f2fed45cb26ea2ec83f93faedc312c33ed74216c3ccb/f117f7fec5ed440b3eb6f2fed45cb26ea2ec83f93faedc312c33ed74216c3ccb-json.log",
+        "Name": "/site-console",
         "RestartCount": 0,
         "Driver": "overlay2",
         "Platform": "linux",
@@ -35,10 +36,8 @@
         "ExecIDs": null,
         "HostConfig": {
             "Binds": [
-                "/dev:/dev",
-                "/etc/systemd/:/etc/systemd/",
-                "/etc/vpm/:/etc/vpm/",
-                "/var/run/:/var/run/:rw"
+                "/var/lib/vpm/data/certs/used/:/usr/src/apps/volterra/site-console/certs/:ro",
+                "/tmp/debuginfo/:/usr/src/apps/volterra/site-console/debug_info:ro"
             ],
             "ContainerIDFile": "",
             "LogConfig": {
@@ -58,5 +57,6 @@
             "VolumesFrom": null,
             "ConsoleSize": [
                 0,
+                0
 
-... [capture trimmed: first 60 of 249 lines]
+... [capture trimmed: first 60 of 261 lines]

@@ -220,42 +220,15 @@ the page or command name — `[curl](…)` once and `[docker](…)` twice. Anyth
 three is worth reading: the count was four when these notes were written, and the fourth was a
 real terminology error in prose.
 
-## Known gaps
+## Intentional exclusions
 
-- **Two of the 33 captures are not committed yet**, both blocked on
-  `f5-sales-demo/docs-control#795`:
+The 2026-08-03 capture run discovered 43 commands, captured 34, skipped nine, and failed
+none. The exclusions are safety decisions rather than missing evidence:
 
-  - `captures/sitecli-show-ip-bgp-neighbors.txt`
-  - `captures/sitecli-journalctl.txt`
+- Eight commands are in the privileged `Exec` tier. The harness refuses that tier from live
+  catalog metadata.
+- `collect-database-stats` is `ExecUser` but performs a 15-second random-write benchmark. Its
+  manifest entry records the skip reason, and a dated disposable-node capture documents why.
 
-  In its Graceful Restart line, FRR prints "Capability" with the second `i`
-  missing, and vpm echoes the same line into the journal. `codespell` rejects both
-  files. Correcting the captured text would make the documentation describe output
-  that never occurred, and `.codespellrc` is governance-managed, so the fix belongs
-  upstream: #795 adds that word to `ignore-words-list`.
-
-  Both captures *succeed*; only committing them is blocked. Re-run
-  `capture-sitecli.sh` once #795 lands. Until then the BGP neighbours and vpm log
-  pages cannot carry embedded evidence — which the consistency gate will report,
-  because a page referencing a missing capture is a violation.
-
-  The word cannot be quoted verbatim in these notes either, for the same reason.
-- **Whether the advertised newer build installs on this topology is unsettled**, which is why
-  the command reference documents `crt-20250613-3382` only.
-
-  The tenant advertises `crt-20260201-0179` (`volterra_software_status.available_version` on
-  the site object). Two observations conflict and neither can now be confirmed:
-
-  - It was reported to fail on single-node Azure Secure Mesh v2 sites, with all three nodes
-    stopping at the `voucher` DaemonSet while the OS upgrade to `9.2026.14` succeeded.
-  - A `CUSTOMER_EDGE` site was earlier observed running that exact build, `ONLINE`, in another
-    tenant. That site no longer exists, so its type cannot be re-checked — the failure may have
-    involved the discontinued App Stack site type rather than a plain CE.
-
-  What would settle it: deploy one CE pinned to that build from scratch and see whether it
-  registers, which separates "fails to upgrade in place" from "fails to install at all". Since
-  a version change is a fleet rebuild, this is not a cheap experiment; do not start it to
-  satisfy curiosity about the newer commands.
-
-- Output for the nine commands that exist only on newer CE builds is absent, since
-  this tenant runs `crt-20250613-3382`. They are recorded by name and tier only.
+The on-box catalog was refreshed separately on the same build and records six top-level
+commands and 89 `execcli` commands.

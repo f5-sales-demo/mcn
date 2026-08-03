@@ -90,12 +90,11 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 # expected_xc_tenant = "example-corp"
 
 # --- Customer Edge versions ---
-# This is the measured exception to the latest-version policy. On 2026-08-02, the
-# newest advertised software build failed on all three nodes at install stage 10
-# (the voucher DaemonSet). These values are the known-good fallback. Retest the
-# advertised latest build during a controlled rebuild before changing them.
-ce_os_version = "9.2024.6"
-ce_sw_version = "crt-20250613-3382"
+# Empty explicitly selects the latest pair advertised by F5 Distributed Cloud.
+# The 64 GB CE disk default was verified with that pair during the clean rebuild
+# on 2026-08-03. Set concrete values only when reproducing an older build.
+ce_os_version = ""
+ce_sw_version = ""
 
 # --- F5 XC data-plane ---
 # This pre-existing namespace is read, never created or destroyed. It must exist

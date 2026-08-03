@@ -1,10 +1,11 @@
 {
   "_provenance": {
-    "node": "10.0.3.7",
+    "node": "10.0.3.4",
     "site": "mcn-ce-ha-eastus01",
-    "build": "crt-20250613-3382",
-    "site_state": "ONLINE",
-    "source": "Site CLI completion menu over SSH"
+    "build": "crt-20260201-0179",
+    "site_state": "PROVISIONED",
+    "source": "Site CLI completion menu over SSH",
+    "captured_at": "2026-08-03T16:47:48Z"
   },
   "top_level": {
     "configure": "Initial configuration of the node",
@@ -12,11 +13,12 @@
     "configure-http-proxy": "Initial configuration of the HTTP proxy",
     "configure-network": "Initial configuration of the network",
     "diagnosis": "Network diagnosis of the node",
-    "health": "Status of the node"
+    "update-tx-queue-len-vhost0": "Update tx-queue-len for vhost0 NetworkManager config"
   },
   "execcli": {
     "check-mem": "return `free`, `vmstat` command",
     "chronyc-sources": "check if ntp is synced",
+    "collect-database-stats": "collect database statistics",
     "crictl-images": "check crio images",
     "crictl-inspect": "check crio container",
     "crictl-logs": "check crio container log",
@@ -52,12 +54,16 @@
     "ip-link-show": "see link-layer information of all available devices",
     "ipsec-status": "Show ipsec status",
     "ipsec-statusall": "Show ipsec status for all targets",
+    "iptables-lv": "show iptables -L -v -n",
     "journalctl": "check system log",
     "kubelet-add-param": "Add a custom parameter to Kubelet",
     "kubelet-get-params": "Get custom parameters from Stage",
     "kubelet-remove-param": "Remove custom parameters from file",
     "load-sysctl-conf": "load sysctl.conf",
     "lsof": "calls lsof command on node",
+    "marker-exists-NetworkManager": "check if NetworkManager restart marker exists",
+    "marker-exists-crio": "check if crio restart marker exists",
+    "marker-exists-kubelet": "check if kubelet restart marker exists",
     "mpls": "invoke argo mpls command",
     "netstat": "netstat command on node",
     "nh": "invoke argo nh command",
@@ -71,12 +77,14 @@
     "show-ip-bgp-neighbors-advertised-route": "Show advertised routes to bgp neighbors",
     "show-ip-bgp-summary": "Show bgp summary",
     "sysctl": "calls sysctl command on node",
+    "systemctl-restart-NetworkManager": "restart NetworkManager service",
     "systemctl-restart-crio": "restart crio service",
     "systemctl-restart-docker": "restart docker service",
     "systemctl-restart-iscsid": "restart iscsid service",
     "systemctl-restart-kubelet": "restart kubelet service",
     "systemctl-restart-multipathd": "restart multipathd service",
     "systemctl-restart-vpm": "restart vpm service",
+    "systemctl-start-crio-prune": "start crio image prune service",
     "systemctl-status-crio": "check crio service",
     "systemctl-status-docker": "check docker service",
     "systemctl-status-iscsid": "check iscsid service",
@@ -100,6 +108,6 @@
   },
   "counts": {
     "top_level": 6,
-    "execcli": 82
+    "execcli": 89
   }
 }

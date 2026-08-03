@@ -76,13 +76,13 @@ variable "approve_registration" {
 }
 
 variable "os_version" {
-  description = "Pin the CE operating_system_version (e.g. 9.2024.6) to avoid a force-upgrade; empty = server default (latest)."
+  description = "CE operating system version. Empty deliberately selects the server-advertised latest version; set a value only to reproduce an older build."
   type        = string
   default     = ""
 }
 
 variable "sw_version" {
-  description = "Pin the CE volterra_software_version (e.g. crt-20250613-3382) to avoid a force-upgrade; empty = server default (latest)."
+  description = "CE F5 Distributed Cloud software version. Empty deliberately selects the server-advertised latest build; set a value only to reproduce an older build."
   type        = string
   default     = ""
 }

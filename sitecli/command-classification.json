@@ -39,6 +39,17 @@
       ],
       "envoy-wrappers": ["envoy-clusters", "envoy-config-dump", "envoy-hc-config-dump", "envoy-listeners"],
       "node-summary": ["health", "diagnosis"],
+      "node-maintenance": {
+        "commands": [
+          "collect-database-stats",
+          "marker-exists-NetworkManager",
+          "marker-exists-crio",
+          "marker-exists-kubelet",
+          "systemctl-restart-NetworkManager",
+          "systemctl-start-crio-prune"
+        ],
+        "_mutating": ["collect-database-stats", "systemctl-restart-NetworkManager", "systemctl-start-crio-prune"]
+      },
       "kubelet-params": ["kubelet-add-param", "kubelet-get-params", "kubelet-remove-param"],
       "ce-config-files": [
         "edit-app-env-file",
@@ -91,7 +102,17 @@
     },
     "passthrough": {
       "_treatment": "Listed as available with a pointer upstream. Not documented.",
-      "networking": ["ip", "ip-link-set", "ip-link-show", "lsof", "netstat", "nmcli", "ping", "tracepath"],
+      "networking": [
+        "ip",
+        "ip-link-set",
+        "ip-link-show",
+        "iptables-lv",
+        "lsof",
+        "netstat",
+        "nmcli",
+        "ping",
+        "tracepath"
+      ],
       "system": [
         "top",
         "check-mem",
@@ -120,48 +141,9 @@
   },
   "not_on_this_build": {
     "_note": [
-      "Commands that are NOT on build crt-20250613-3382. Kept because they are real,",
-      "but separated so nothing here is mistaken for something a reader can run."
+      "Commands not available from the current on-box Site CLI. Kept separate so",
+      "nothing here is mistaken for a command a reader can run from that surface."
     ],
-    "newer_build": {
-      "_note": [
-        "Verified present on build 20260703-e2c462a, which is what the Azure marketplace",
-        "image ships as of 2026-07-28. Measured in the Site CLI completion menu over SSH,",
-        "on a disposable single-node Azure SMSv2 CE stood up for the purpose (mcn#710):",
-        "89 execcli commands there against 82 on crt-20250613-3382, and the difference is",
-        "exactly these seven with nothing removed.",
-        "",
-        "These were previously recorded as seen on crt-20260201-0179 via the vpm/debug",
-        "catalog on a different tenant. That sighting was never verified here, and it",
-        "cannot be reproduced on this site shape: crt-20260201-0179 fails to install on a",
-        "single-node Azure SMSv2 CE, at the voucher DaemonSet. So the build named below is",
-        "the one they were actually measured on, not the one first reported.",
-        "",
-        "site_state was PROVISIONING at capture, because the node never reached ONLINE.",
-        "Presence is still evidence; absence would not have been — and nothing was absent.",
-        "",
-        "_mutating lists three, and collect-database-stats is the one to know about: its",
-        "name and the appliance's own description both read as observational, but it runs a",
-        "15 second fio RANDOM-WRITE benchmark against the etcd filesystem and lays out a",
-        "250 MiB file. It was allow-listed on the strength of the name and run once on the",
-        "disposable node; only its own output revealed the writes. A name cannot establish",
-        "that a command is read-only, so a test now scans committed captures for write",
-        "markers and fails if such a command is on the harness allow-list."
-      ],
-      "_verified_on_build": "20260703-e2c462a",
-      "_verified_date": "2026-07-28",
-      "_verified_how": "Site CLI completion menu over SSH; site_state PROVISIONING",
-      "commands": [
-        "collect-database-stats",
-        "iptables-lv",
-        "marker-exists-NetworkManager",
-        "marker-exists-crio",
-        "marker-exists-kubelet",
-        "systemctl-restart-NetworkManager",
-        "systemctl-start-crio-prune"
-      ],
-      "_mutating": ["collect-database-stats", "systemctl-restart-NetworkManager", "systemctl-start-crio-prune"]
-    },
     "unverified": {
       "_note": [
         "collect-debug-info was carried in this file with no provenance. It is in",
@@ -186,14 +168,12 @@
     }
   },
   "_provenance": {
-    "measured_on": "f5-xc-ce-vm-01, build crt-20250613-3382",
+    "measured_on": "f5-xc-ce-vm-01, build crt-20260201-0179",
     "method": "Site CLI completion menu over SSH, plus the vpm/debug catalog",
     "observations": [
-      "Enumerated twice, at site_state PROVISIONING and PROVISIONED. Both runs",
-      "returned an identical set: 6 top-level and 82 execcli commands. The surface",
-      "is therefore not registration-state dependent between those two states, and",
-      "an absent command is genuinely absent rather than not yet offered."
+      "Enumerated after the from-zero rebuild at site_state PROVISIONED: 6 top-level",
+      "and 89 execcli commands. The debug API exposed 43 commands on the same build."
     ],
-    "on_box_only": "55 of the 82 execcli commands have no vpm/debug equivalent."
+    "on_box_only": "49 of the 89 execcli commands have no vpm/debug equivalent."
   }
 }

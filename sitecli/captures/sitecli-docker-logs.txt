@@ -1,42 +1,31 @@
-2026-07-28T18:08:07.0+0000	INFO		Argo is not running
-2026-07-28T18:08:37.0+0000	INFO		Argo is not running
-2026-07-28T18:09:07.0+0000	INFO		Argo is not running
-2026-07-28T18:09:37.0+0000	INFO		Argo is not running
-2026-07-28T18:10:07.0+0000	INFO		Argo is not running
-2026-07-28T18:10:37.0+0000	INFO		Argo is not running
-2026-07-28T18:11:07.0+0000	INFO		Argo is not running
-2026-07-28T18:11:37.0+0000	INFO		Argo is not running
-2026-07-28T18:12:07.0+0000	INFO		Argo is not running
-2026-07-28T18:12:37.0+0000	INFO		Argo is not running
-Failed to get Argo PID 1
-Failed to get Argo PID 2
-Failed to get Argo PID 3
-Failed to get Argo PID 4
-Failed to get Argo PID 5
-Failed to get Argo PID 6
-Failed to get Argo PID 7
-Failed to get Argo PID 8
-Failed to get Argo PID 9
-Failed to get Argo PID 10
-Failed to get Argo PID 11
-Failed to get Argo PID 12
-Failed to get Argo PID 13
-Failed to get Argo PID 14
-Failed to get Argo PID 15
-Failed to get Argo PID 16
-Failed to get Argo PID 17
-Failed to get Argo PID 18
-Failed to get Argo PID 19
-Failed to get Argo PID 20
-2026-07-28T18:13:07.0+0000	INFO		Argo is not running
-Failed to get Argo PID 21
-Failed to get Argo PID 22
-Failed to get Argo PID 23
-Failed to get Argo PID 24
-Failed to get Argo PID 25
-Failed to get Argo PID 26
-Failed to get Argo PID 27
-Failed to get Argo PID 28
-Failed to get Argo PID 29
 
-... [capture trimmed: first 40 of 61 lines]
+> site-console@0.0.1 start-prod:site-console
+> cd server;npm start
+
+
+> stellar-webserver@1.0.0 start
+> node index.js
+
+CE is not provisioned, enabling all proxies.
+8/3/2026, 3:02:23 PM || info: "Enabling http-basic-auth as required by config"
+8/3/2026, 3:02:23 PM || info: "Serving static content from ../debug_info folder on endpoint /debug-info/files with index page enabled"
+8/3/2026, 3:02:23 PM || info: "Same port passed for HTTP and HTTPS server (port 65500), disabling HTTP server then..."
+8/3/2026, 3:02:23 PM || info: "HTTPS server started; port: 65500"
+localhost : 200
+8/3/2026, 3:39:56 PM || info: "password-verify exited with code: 200 / {\"username\":\"admin\",\"status\":true}"
+8/3/2026, 3:39:56 PM || info: "Route /usr/src/apps/volterra/site-console/dist/site-console/, replacing with index.html"
+localhost : 500
+8/3/2026, 3:39:58 PM || info: "password-verify exited with code: 500 / {\"code\":13,\"details\":[{\"code\":\"UNKNOWN\",\"details\":\"Unable to validate current password for this user: admin\",\"timestamp\":\"2026-08-03T15:39:58Z\"}],\"message\":\"Unable to validate current password for this user: admin\"}"
+localhost : 500
+8/3/2026, 3:43:30 PM || info: "password-verify exited with code: 500 / {\"code\":13,\"details\":[{\"code\":\"UNKNOWN\",\"details\":\"Unable to validate current password for this user: admin\",\"timestamp\":\"2026-08-03T15:43:30Z\"}],\"message\":\"Unable to validate current password for this user: admin\"}"
+localhost : 200
+8/3/2026, 3:43:32 PM || info: "password-verify exited with code: 200 / {\"username\":\"admin\",\"status\":true}"
+8/3/2026, 3:43:32 PM || info: "Route /usr/src/apps/volterra/site-console/dist/site-console/, replacing with index.html"
+localhost : 500
+8/3/2026, 3:43:33 PM || info: "password-verify exited with code: 500 / {\"code\":13,\"details\":[{\"code\":\"UNKNOWN\",\"details\":\"Unable to validate current password for this user: admin\",\"timestamp\":\"2026-08-03T15:43:33Z\"}],\"message\":\"Unable to validate current password for this user: admin\"}"
+
+npm warn Unknown global config "python". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "python". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown global config "python". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+(node:28) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)

@@ -38,12 +38,12 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   Observed 2026-07-28, three CEs:
+   Observed 2026-08-03 after the from-zero rebuild:
 
    ```text
-   mcn-ce-ha-eastus01 -> ONLINE
-   mcn-ce-ha-eastus02 -> ONLINE
-   mcn-ce-ha-eastus03 -> ONLINE
+   <SITE_01> -> ONLINE
+   <SITE_02> -> ONLINE
+   <SITE_03> -> ONLINE
    ```
 
 2. **Every peering is learning that CE's VIP advertisement.** Query each peering
@@ -60,21 +60,21 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   Observed 2026-07-28:
+   Observed 2026-08-03. The live addresses are omitted; read them from the command:
 
    ```text
    --- eastus01-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.4   64512     EBgp
+   <VIP>/32        <CE_01_SLO_IP>  <CE_ASN>  EBgp
    --- eastus02-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.5   64512     EBgp
+   <VIP>/32        <CE_02_SLO_IP>  <CE_ASN>  EBgp
    --- eastus03-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.6   64512     EBgp
+   <VIP>/32        <CE_03_SLO_IP>  <CE_ASN>  EBgp
    ```
 
    Three peerings, three different next hops, one prefix. That is the advertisement side of
@@ -89,13 +89,14 @@ NIC=$(terraform output -raw client_nic_name)
      -o json
    ```
 
-   Observed 2026-07-28:
+   Observed 2026-08-03. The array contained the three addresses returned by
+   `terraform output -json ce_mgmt_private_ips`:
 
    ```json
    [
      {
-       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-       "prefix": "10.250.0.10/32",
+       "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+       "prefix": "<VIP>/32",
        "state": "Active",
        "type": "VirtualNetworkGateway"
      }
@@ -123,11 +124,11 @@ NIC=$(terraform output -raw client_nic_name)
                 echo \"OK=\$ok FAIL=\$fail\""
    ```
 
-   Observed 2026-07-28:
+   Observed 2026-08-03 in the automated UAT. The final two batches were clean:
 
    ```text
-   VIP with Host header: OK=60 FAIL=0
-   bare IP (no Host): 404
+   batch=3 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
+   batch=4 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
    ```
 
 </Steps>
@@ -164,10 +165,16 @@ sends you looking at BGP, where you will find nothing wrong.
 The same applies during a demo: if you type the address into a browser rather than resolving
 the domain to it, you get the 404.
 
-## The VIP drops requests for the first three quarters of an hour, then stops
+## A fresh deployment can have a convergence transient
 
-On a freshly built stack the VIP loses a small fraction of requests for roughly the first
-45 minutes after the CEs reach `ONLINE`, and then serves cleanly. Measured over 1,470
+The 2026-08-03 from-zero UAT sent 160 VIP requests in four time-separated batches. Three
+requests failed in the first two batches; the final 80 were clean. The origin control was
+80 of 80 throughout. That proves convergence for this rebuild without attributing the early
+loss to the origin.
+
+Earlier measurements on 2026-07-28 showed the longer shape: the VIP lost a small fraction of
+requests for roughly the first 45 minutes after the CEs reached `ONLINE`, then served cleanly.
+Measured over 1,470
 requests from the client VM, all with the `Host` header:
 
 | Window | Requests | Failures | Rate |
@@ -180,7 +187,7 @@ status. The last one landed about 43 minutes after ECMP came up. Of the 900 clea
 400 ran with a 30-second timeout and every one finished in under 2 seconds, so nothing was
 hidden by a short timeout.
 
-It reproduced again on a later rebuild the same day, and that run is the clearer picture
+It reproduced again on a later rebuild on 2026-07-28, and that run is the clearer picture
 because it was sampled as the window elapsed rather than after it. 360 requests, all with
 the `Host` header, each batch paired with a control straight to the origin:
 
@@ -210,9 +217,6 @@ Two things this is deliberately not called:
   HTTP listener, so there is no way to bind a dropped request to the node that dropped it.
   The CE outside interfaces have no HTTP listener at all — only the VIP `/32` answers.
 
-It reproduced on a clean rebuild in a different tenant, so it follows the topology rather
-than the environment.
-
 <Aside type="caution" title="Do not sample 40 requests and conclude it is fine">
 Batches of 40 to 50 read as 100 % most of the time even inside the failing window. That is
 how this was first mischaracterised as an ongoing low-rate fault and then as no fault at
@@ -235,9 +239,9 @@ Both produced confident wrong answers in this environment, and neither is obviou
 
 <Aside type="danger" title="Never hardcode a CE internal address — they are reassigned on every rebuild">
 Azure does not preserve which CE gets which address in the internal subnet, and the
-addresses are not in node order. Observed 2026-07-28 the three CEs held `10.0.3.7`,
-`10.0.3.5` and `10.0.3.4` — not sequential, and different from what they held before that
-rebuild.
+addresses are not in node order. Observed 2026-07-28: the three addresses were not
+sequential and differed from the previous rebuild. Read the current mapping from Terraform;
+published documentation deliberately does not carry the deployment's values.
 
 What decides whether they move is the **NIC**, not the VM. Replacing the CE VMs alone
 leaves the NICs in place and every address survives: verified the same day, when adopting
@@ -246,8 +250,7 @@ back identical. A teardown that removes the NICs reassigns them from the subnet'
 pool, in whatever order Azure fills it.
 
 The test client's NIC sits in that same subnet, so an address you remember as a CE's may
-now be the client's — on this deployment it holds `10.0.3.6`, which a CE held before an
-earlier rebuild.
+now belong to the client.
 
 Read them instead of remembering them:
 

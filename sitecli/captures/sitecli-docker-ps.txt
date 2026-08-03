@@ -1,4 +1,4 @@
 CONTAINER ID   IMAGE                                              COMMAND                  CREATED             STATUS             PORTS     NAMES
-1fbe2f95d908   gcr.download.volterra.io/volterraio/argo           "/bin/bash -c 'sourc…"   About an hour ago   Up About an hour             argo_watch
-22aced074050   gcr.download.volterra.io/volterraio/site-console   "yarn start-prod:sit…"   About an hour ago   Up About an hour             site-console
-ff1402aa74c1   gcr.download.volterra.io/volterraio/vpm            "/bin/vpmd"              About an hour ago   Up About an hour             vpm
+f117f7fec5ed   gcr.download.volterra.io/volterraio/site-console   "container-entrypoin…"   About an hour ago   Up About an hour             site-console
+6e922d6c5cd2   gcr.download.volterra.io/volterraio/vpm            "/bin/vpmd"              About an hour ago   Up About an hour             vpm
+a89a93e00ed7   gcr.download.volterra.io/volterraio/argo           "/bin/bash -c 'sourc…"   About an hour ago   Up About an hour             argo_watch
