@@ -206,6 +206,7 @@ BEGIN {
         "208.67.222.222 208.67.220.220 168.63.129.16", _r, " ")
   for (i in _r) RESOLVERS[_r[i]] = 1
   in_key = 0
+  in_encoded_private_key = 0
 }
 
 {
@@ -229,6 +230,20 @@ BEGIN {
   if (in_key) {
     if (line ~ /-----END [A-Z ]*PRIVATE KEY-----/) { in_key = 0; print "<redacted>"; print line }
     next
+  }
+
+  # Envoy config dumps serialize certificate secrets as JSON. Private key PEM
+  # data can therefore arrive as one encoded `inline_bytes` value rather than a
+  # plaintext PEM block, which the state machine above cannot see. Preserve the
+  # JSON shape and field name while removing either supported inline payload.
+  if (line ~ /"private_key"[[:space:]]*:[[:space:]]*\{[[:space:]]*$/) {
+    in_encoded_private_key = 1
+  } else if (in_encoded_private_key && \
+             line ~ /"(inline_bytes|inline_string)"[[:space:]]*:[[:space:]]*"/) {
+    sub(/:[[:space:]]*"[^"]*"/, ": \"<redacted>\"", line)
+    in_encoded_private_key = 0
+  } else if (in_encoded_private_key && line ~ /^[[:space:]]*\}/) {
+    in_encoded_private_key = 0
   }
 
   # Credentials. Anchored on the scheme name so the placeholder cannot re-match.
