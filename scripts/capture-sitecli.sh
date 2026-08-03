@@ -44,7 +44,7 @@ MANIFEST="${OUT_DIR}/capture-manifest.json"
 CAPTURE_DIR="${OUT_DIR}/captures"
 
 CONTEXT="${XCSH_CONTEXT:-f5-sales-demo}"
-NAMESPACE="system"
+SITECLI_NS="system"
 SITE=""
 NODE=""
 MODE="capture"
@@ -75,7 +75,8 @@ while [ $# -gt 0 ]; do
     shift 2
     ;;
   --namespace)
-    NAMESPACE="example-corp"
+    [ "$#" -ge 2 ] || die "--namespace needs a value"
+    SITECLI_NS=$2
     shift 2
     ;;
   --check)
@@ -137,7 +138,7 @@ if [ -z "$SITE" ] || [ -z "$NODE" ]; then
   exit 2
 fi
 
-SITE_BASE="${API_URL}/api/operate/namespaces/${NAMESPACE}/sites/${SITE}"
+SITE_BASE="${API_URL}/api/operate/namespaces/${SITECLI_NS}/sites/${SITE}"
 
 # Handed to the scrub filter so it can remove hostnames that no address rule would
 # see — a netstat host:port column, a journal line prefix.
@@ -172,14 +173,14 @@ api() {
 
 # --- software build ----------------------------------------------------------
 fetch_build() {
-  api GET "${API_URL}/api/config/namespaces/${NAMESPACE}/sites/${SITE}" |
+  api GET "${API_URL}/api/config/namespaces/${SITECLI_NS}/sites/${SITE}" |
     jq -r '.spec.volterra_software_version // .get_spec.volterra_software_version // empty'
 }
 
 # --- discovery: POST exec-user with no "command" key -------------------------
 fetch_catalog_raw() {
   api POST "${SITE_BASE}/vpm/debug/${NODE}/exec-user" \
-    "$(jq -nc --arg ns "$NAMESPACE" --arg s "$SITE" --arg n "$NODE" \
+    "$(jq -nc --arg ns "$SITECLI_NS" --arg s "$SITE" --arg n "$NODE" \
       '{namespace:$ns, site:$s, node:$n}')" |
     jq -r '.output // empty'
 }
@@ -318,7 +319,7 @@ exec_user_raw() {
   local cmd="$1" extra="$2" argv
   argv=$(jq -nc --arg c "$cmd" --argjson e "$extra" '[$c] + $e')
   api POST "${SITE_BASE}/vpm/debug/${NODE}/exec-user" \
-    "$(jq -nc --arg ns "$NAMESPACE" --arg s "$SITE" --arg n "$NODE" --argjson cmd "$argv" \
+    "$(jq -nc --arg ns "$SITECLI_NS" --arg s "$SITE" --arg n "$NODE" --argjson cmd "$argv" \
       '{namespace:$ns, site:$s, node:$n, command:$cmd}')" |
     jq -r 'if .output then .output else "ERROR: " + (.message // "no output") end'
 }

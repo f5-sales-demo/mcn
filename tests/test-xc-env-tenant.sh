@@ -39,15 +39,15 @@ expect() {
   fi
 }
 
-# --- The two tenants this repository has actually been pointed at -------------
+# --- Representative synthetic tenants -----------------------------------------
 
 expect 'the intended tenant' \
   '{"tenant":"example-corp","api_url_set":"true"}' \
   'https://example-corp.console.ves.volterra.io'
 
-expect 'the tenant the demo was accidentally rehomed to' \
-  '{"tenant":"example-corp","api_url_set":"true"}' \
-  'https://example-corp.console.ves.volterra.io'
+expect 'a second tenant' \
+  '{"tenant":"example-partners","api_url_set":"true"}' \
+  'https://example-partners.console.ves.volterra.io'
 
 # --- URL shapes an operator or a credential file might hold -------------------
 
@@ -103,15 +103,15 @@ expect 'not a URL' \
 
 expect 'a value containing a double quote' \
   '{"tenant":"","api_url_set":"true"}' \
-  'https://ev"il.console.ves.volterra.io'
+  'https://bad"label.console.ves.volterra.io'
 
 expect 'a value containing JSON punctuation' \
   '{"tenant":"","api_url_set":"true"}' \
-  'https://a{b}:c.console.ves.volterra.io'
+  'https://bad{label}.console.ves.volterra.io'
 
 expect 'an underscore, which is not legal in a hostname label' \
   '{"tenant":"","api_url_set":"true"}' \
-  'https://f5_sales_demo.console.ves.volterra.io'
+  'https://example_corp.console.ves.volterra.io'
 
 if [ "$FAIL" -ne 0 ]; then
   printf '\nxc-env-tenant: FAILURES\n'
