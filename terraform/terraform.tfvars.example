@@ -12,8 +12,8 @@
 # instead of failing. lb_domain has none because the load balancer matches on
 # Host: this value is what every request must send, and it belongs to whoever
 # runs the deployment.
-origin_ip = "203.0.113.10"                  # the origin this demo's pool targets
-lb_domain = "mcn-ce-ha.f5-sales-demo.com"   # Host the load balancer answers to
+origin_ip = "203.0.113.10"
+lb_domain = "mcn-ce-ha.example.com"
 
 # --- Azure ---
 subscription_id = "<AZURE_SUBSCRIPTION_ID>"
@@ -87,12 +87,20 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 # XCSH_API_URL naming a different tenant fails the plan with a message saying so,
 # rather than quietly rebuilding the demo somewhere else, which is what happened.
 #
-# expected_xc_tenant = "f5-sales-demo"
+# expected_xc_tenant = "example-corp"
+
+# --- Customer Edge versions ---
+# This is the measured exception to the latest-version policy. On 2026-08-02, the
+# newest advertised software build failed on all three nodes at install stage 10
+# (the voucher DaemonSet). These values are the known-good fallback. Retest the
+# advertised latest build during a controlled rebuild before changing them.
+ce_os_version = "9.2024.6"
+ce_sw_version = "crt-20250613-3382"
 
 # --- F5 XC data-plane ---
-# A PRE-EXISTING namespace: example-corp, never created or destroyed. It must exist
+# This pre-existing namespace is read, never created or destroyed. It must exist
 # in expected_xc_tenant before the first apply.
-xc_app_namespace = "multi-cloud-networking"
+xc_app_namespace = "demo-app"
 origin_port      = 80
 vip              = "10.250.0.10"
 

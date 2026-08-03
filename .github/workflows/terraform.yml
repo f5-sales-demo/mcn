@@ -19,6 +19,7 @@ on:
       - 'docs/_includes/terraform/**'
       - 'scripts/sync-terraform-includes.sh'
       - 'tests/test-terraform-includes.sh'
+      - 'tests/test-terraform-version-policy.sh'
       - '.github/workflows/terraform.yml'
   push:
     branches: [main]
@@ -28,6 +29,7 @@ on:
       - 'docs/_includes/terraform/**'
       - 'scripts/sync-terraform-includes.sh'
       - 'tests/test-terraform-includes.sh'
+      - 'tests/test-terraform-version-policy.sh'
       - '.github/workflows/terraform.yml'
 
 permissions:
@@ -53,9 +55,6 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          # Pinned for reproducibility (matches terraform/.terraform-version).
-          terraform_version: 1.10.5
 
       - name: Init (no backend; CI has no Azure credentials)
         run: terraform init -input=false -backend=false
@@ -71,9 +70,8 @@ jobs:
 
   # SMSv2 coverage-probe validation gate. Credential-free: the numeric-leaf tests mock the
   # xcsh provider, so the provider's own schema validators fire at plan with no XC API call.
-  # NOTE: unlike the `validate` job (which pins the provider via terraform/.terraform-version
-  # and vendored config), this job resolves f5-sales-demo/xcsh from the public registry, so it
-  # only turns green once the provider version `coverage/smsv2/versions.tf` pins (>= 3.80.0, the
+  # This job resolves f5-sales-demo/xcsh from the public registry, so it only turns green once
+  # the provider version `coverage/smsv2/versions.tf` requires (>= 3.80.0, the
   # release carrying the `x-f5xc-wire-name` contract) is published there. Locally the same tests run
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
@@ -88,8 +86,6 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_version: 1.10.5
 
       - name: Init (no backend; provider resolved from the registry)
         run: terraform init -input=false -backend=false

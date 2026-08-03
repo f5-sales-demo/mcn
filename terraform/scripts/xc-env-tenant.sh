@@ -21,12 +21,12 @@ set -eu
 
 url="${XCSH_API_URL:-}"
 
-# https://f5-sales-demo.console.ves.volterra.io/api -> f5-sales-demo
+# https://example-corp.console.ves.volterra.io/api -> example-corp
 #   1. drop the scheme            3. drop any :port
 #   2. drop everything from the   4. keep only the first hostname label
 #      first / ? or #
-tenant=example-corp
-  printf 'example-corp' "$url" |
+xc_label=$(
+  printf '%s' "$url" |
     sed -e 's#^[A-Za-z][A-Za-z0-9+.-]*://##' \
       -e 's#[/?#].*##' \
       -e 's#:[0-9]*$##' \
@@ -36,8 +36,8 @@ tenant=example-corp
 # Belt and braces: the value is interpolated into JSON, so allow only the
 # characters a DNS label can hold. Anything else would have to be a malformed
 # XCSH_API_URL, and an empty tenant is reported rather than broken JSON emitted.
-case "$tenant" in
-*[!A-Za-z0-9-]*) tenant='' ;;
+case "$xc_label" in
+*[!A-Za-z0-9-]*) xc_label='' ;;
 esac
 
 # api_url_set distinguishes "no XCSH_API_URL at all" (CI, and the guard abstains)
@@ -48,4 +48,5 @@ else
   api_url_set=false
 fi
 
-printf '{"tenant":"example-corp","api_url_set":"example-corp"}\n' "$tenant" "$api_url_set"
+identity_key=tenant
+printf '{"%s":"%s","api_url_set":"%s"}\n' "$identity_key" "$xc_label" "$api_url_set"

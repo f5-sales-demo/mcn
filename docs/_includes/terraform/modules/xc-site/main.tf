@@ -15,7 +15,7 @@
 # ADOPTION IS INERT. Adding this resource to a deployment that already exists
 # plans it as a CREATE, and a create of the referenced resource does NOT fire
 # replace_triggered_by — only a subsequent change to its value does. Verified on
-# Terraform v1.10.5 (the version .terraform-version pins) and again on v1.15.0:
+# Terraform v1.10.5 and again on v1.15.0:
 # adding the pair to a populated state plans "1 to add, 0 to change,
 # 0 to destroy". So this fix does not itself trigger the fleet-wide rebuild it
 # exists to prevent — no import, no targeted apply, no seeding.
