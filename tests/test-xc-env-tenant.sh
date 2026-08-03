@@ -39,45 +39,45 @@ expect() {
   fi
 }
 
-# --- The two tenants this repository has actually been pointed at -------------
+# --- Representative synthetic tenants -----------------------------------------
 
 expect 'the intended tenant' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'https://f5-sales-demo.console.ves.volterra.io'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'https://example-corp.console.ves.volterra.io'
 
-expect 'the tenant the demo was accidentally rehomed to' \
-  '{"tenant":"f5-amer-ent","api_url_set":"true"}' \
-  'https://f5-amer-ent.console.ves.volterra.io'
+expect 'a second tenant' \
+  '{"tenant":"example-partners","api_url_set":"true"}' \
+  'https://example-partners.console.ves.volterra.io'
 
 # --- URL shapes an operator or a credential file might hold -------------------
 
 expect 'trailing slash' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'https://f5-sales-demo.console.ves.volterra.io/'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'https://example-corp.console.ves.volterra.io/'
 
 expect 'an /api path, as some tooling writes it' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'https://f5-sales-demo.console.ves.volterra.io/api'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'https://example-corp.console.ves.volterra.io/api'
 
 expect 'a deep path' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'https://f5-sales-demo.console.ves.volterra.io/api/config/namespaces/system'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'https://example-corp.console.ves.volterra.io/api/config/namespaces/system'
 
 expect 'a query string' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'https://f5-sales-demo.console.ves.volterra.io?x=1'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'https://example-corp.console.ves.volterra.io?x=1'
 
 expect 'an explicit port' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'https://f5-sales-demo.console.ves.volterra.io:443'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'https://example-corp.console.ves.volterra.io:443'
 
 expect 'plain http' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'http://f5-sales-demo.console.ves.volterra.io'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'http://example-corp.console.ves.volterra.io'
 
 expect 'no scheme at all' \
-  '{"tenant":"f5-sales-demo","api_url_set":"true"}' \
-  'f5-sales-demo.console.ves.volterra.io'
+  '{"tenant":"example-corp","api_url_set":"true"}' \
+  'example-corp.console.ves.volterra.io'
 
 # --- Abstention: unset means "no opinion", not "mismatch" ---------------------
 #
@@ -103,15 +103,15 @@ expect 'not a URL' \
 
 expect 'a value containing a double quote' \
   '{"tenant":"","api_url_set":"true"}' \
-  'https://ev"il.console.ves.volterra.io'
+  'https://bad"label.console.ves.volterra.io'
 
 expect 'a value containing JSON punctuation' \
   '{"tenant":"","api_url_set":"true"}' \
-  'https://a{b}:c.console.ves.volterra.io'
+  'https://bad{label}.console.ves.volterra.io'
 
 expect 'an underscore, which is not legal in a hostname label' \
   '{"tenant":"","api_url_set":"true"}' \
-  'https://f5_sales_demo.console.ves.volterra.io'
+  'https://example_corp.console.ves.volterra.io'
 
 if [ "$FAIL" -ne 0 ]; then
   printf '\nxc-env-tenant: FAILURES\n'
