@@ -14,6 +14,7 @@ set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SCRIPT="${REPO_ROOT}/scripts/sync-terraform-includes.sh"
+WORKFLOW="${REPO_ROOT}/.github/workflows/terraform.yml"
 
 FAIL=0
 WORK=$(mktemp -d)
@@ -128,12 +129,10 @@ else
   bad "did not name the diverged file (output: ${OUT})"
 fi
 
-# The seven cases above are hermetic and prove the SCRIPT behaves. This last one is
-# deliberately NOT hermetic: it runs --check against this repository. Without it CI
-# would happily merge a Terraform edit whose published copy was never re-synced —
-# the tests would pass on throwaway trees while the documentation showed stale
-# configuration, which is the exact failure the whole mechanism exists to prevent.
-# CI runs tests/test-*.sh and nothing else, so the real gate has to live here.
+# The seven cases above are hermetic and prove the SCRIPT behaves. This next one is
+# deliberately NOT hermetic: it runs --check against this repository. The Terraform
+# workflow calls the same check directly; keeping it here also exercises the real
+# tree in shell-test CI and prevents the workflow from being the only caller.
 echo "8. this repository's own docs/_includes/terraform is in sync"
 if OUT=$(bash "$SCRIPT" --root "$REPO_ROOT" --check 2>&1); then
   ok "${OUT}"
@@ -162,6 +161,27 @@ else
     bad "synced but never shown: ${MISSING}"
   fi
 fi
+
+echo "10. the Terraform workflow runs the sync gate for every relevant change"
+if grep -Eq 'run:[[:space:]]+bash[[:space:]]+scripts/sync-terraform-includes\.sh[[:space:]]+--check' "$WORKFLOW" &&
+  awk '
+    /name: Terraform documentation include sync/ { in_step = 1 }
+    in_step && /working-directory:[[:space:]]+\./ { found = 1 }
+    in_step && /run:[[:space:]]+bash[[:space:]]+scripts\/sync-terraform-includes\.sh[[:space:]]+--check/ { exit !found }
+  ' "$WORKFLOW"; then
+  ok "Terraform validate job invokes --check from the repository root"
+else
+  bad "Terraform validate job does not invoke --check from the repository root"
+fi
+
+for trigger_path in "docs/_includes/terraform/**" "scripts/sync-terraform-includes.sh" "tests/test-terraform-includes.sh"; do
+  trigger_count=$(grep -cF "'$trigger_path'" "$WORKFLOW" || true)
+  if [ "$trigger_count" -eq 2 ]; then
+    ok "pull_request and push both watch ${trigger_path}"
+  else
+    bad "expected two workflow path filters for ${trigger_path}, found ${trigger_count}"
+  fi
+done
 
 if [ "$FAIL" -eq 0 ]; then
   echo "PASS: terraform includes sync"
