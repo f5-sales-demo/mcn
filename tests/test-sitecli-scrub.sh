@@ -83,6 +83,22 @@ assert_removed "private key body" \
 MIIEowIBAAKCAQEAx7Vk2mFakePrivateKeyMaterialHere
 -----END RSA PRIVATE KEY-----' 'MIIEowIBAAKCAQEAx7Vk2mFakePrivateKeyMaterialHere'
 
+# Envoy config dumps encode PEM data in `private_key.inline_bytes`. Construct the
+# credential-shaped input at runtime so the test exercises the leak without
+# committing a literal private-key envelope of its own.
+private_key_header='-----BEGIN RSA PRIVATE'' KEY-----'
+private_key_footer='-----END RSA PRIVATE'' KEY-----'
+private_key_pem=$(printf '%s\n%s\n%s\n' \
+  "$private_key_header" \
+  'EXAMPLE-KEY-BODY-NOT-A-CREDENTIAL' \
+  "$private_key_footer")
+encoded_private_key=$(printf '%s' "$private_key_pem" | base64 | tr -d '\n')
+encoded_private_key_json=$(printf \
+  ' "private_key": {\n  "inline_bytes": "%s"\n }' \
+  "$encoded_private_key")
+assert_removed "encoded Envoy private key" \
+  "$encoded_private_key_json" "$encoded_private_key"
+
 # --- tenant identity -----------------------------------------------------------
 # The console-hostname rule matches on shape, not on a configured value, so these
 # two fixtures need no tenant set and deliberately name no real tenant.
