@@ -284,6 +284,24 @@ bash scripts/capture-sitecli.sh --check \
 
 `--check` no escribe nada, así que es seguro contra la demostración en vivo.
 
+## Automated UAT verification script
+
+Automate the four health checks and traffic convergence sampling end-to-end with `scripts/verify-deployment.sh`:
+
+```bash
+bash scripts/verify-deployment.sh --evidence-dir /private/path/mcn-evidence
+```
+
+The script executes all checks against the live deployment, writes `summary.json`, `terraform-version.json`, and `terraform-output.json` to the specified private evidence directory, and exits zero when traffic has converged:
+
+| Flag | Purpose | Default |
+| --- | --- | --- |
+| `--evidence-dir <dir>` | Required path for JSON output artifacts (must be empty and outside git). | None |
+| `--skip-console` | Skips the Azure Bastion Site Console password authentication test. | Enabled |
+| `--samples-per-batch <N>` | Number of VIP HTTP requests per time-separated sampling batch. | `40` |
+| `--max-batches <N>` | Maximum sampling batches before timing out (requires at least 3). | `12` |
+| `--batch-interval <sec>` | Delay between time-separated traffic sampling batches. | `300` |
+
 <CardGrid>
   <LinkCard
     title="Acceso a un Customer Edge"
