@@ -47,6 +47,20 @@ else
   printf 'XC tenant guard checks skipped (no related paths staged)\n'
 fi
 
+# Relative documentation links resolve against the PAGE URL, so './x/' means one
+# directory deeper on a non-index page than it does on an index page. Nothing else
+# catches a link that resolves nowhere: the prose linter does not resolve links,
+# the translation audit only compares hashes, and the site build does not fail on
+# a dangling relative link. Three of them reached published documentation before
+# this ran (issue #828). Sub-second, offline, and English-only, because the locale
+# trees are generated from docs/en and link paths are not translated.
+if staged | grep -qE '^(docs/en/|scripts/(check_doc_links\.py|pre-commit-local\.sh)$|tests/test-check-doc-links\.sh$)'; then
+  run "documentation link guard tests" bash tests/test-check-doc-links.sh
+  run "documentation relative links" python3 scripts/check_doc_links.py
+else
+  printf 'Documentation link checks skipped (no related paths staged)\n'
+fi
+
 # shfmt is enforced by the Lint Code Base gate (super-linter SHELL_SHFMT) but is
 # absent from .pre-commit-config.yaml, which is governance-managed. Without this,
 # a formatting-only failure is only discoverable after pushing — which is exactly
