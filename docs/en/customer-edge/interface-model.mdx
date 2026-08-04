@@ -1,0 +1,216 @@
+---
+title: Interface model and out-of-band management
+description: Why the Site Local Outside interface is special and effectively the management path, what the Secure Mesh Site v2 management network is and the three constraints that decide whether you can use it, and how both map onto the three network interface cards this deployment gives each Customer Edge.
+sidebar:
+  order: 15
+  label: Interface model
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+A Customer Edge (CE) has no local management plane worth the name. Bootstrap configuration
+and diagnostics aside, everything that manages a CE is driven from the F5 Distributed Cloud
+control plane, and the node reaches that control plane over one specific interface. That
+single fact decides the whole interface model, and getting it wrong is the most common way a
+CE deployment ends up architecturally wrong rather than broken.
+
+This page separates two things that share the word "management" and are not the same
+construct:
+
+| | What it is |
+| --- | --- |
+| **Site Local Outside (SLO)** | The interface a CE registers and phones home over. Present on every CE, in every mode. Immutable after registration. In the general case, this *is* the management path. |
+| **Management network** | A distinct, newer, narrower Secure Mesh Site v2 (SMSv2) option that adds a genuine out-of-band (OOB) interface in its own kernel Virtual Routing and Forwarding (VRF) instance. Single-node sites only. |
+
+## Site Local Outside is not a data interface that happens to be first
+
+SLO connects the CE node to the F5 Distributed Cloud Regional Edges (REs), and it is what
+registration, upgrades, and control-plane connectivity run over. It also acts as the default
+route for data-plane egress, and it is where a site-to-site tunnel terminates. Because the
+platform reserves it for reaching F5, treat it as special and design around it rather than
+loading it with application traffic.
+
+Two consequences follow, and both are contractual rather than advisory:
+
+- **SLO must be able to reach F5.** Its reachability requirements are enumerated in the
+  [CE IP Address and Domain Reference](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ce-ip-dom-ref).
+  A CE whose SLO interface cannot reach F5 does not register, and a node that has not
+  registered cannot be diagnosed through the control plane either — see
+  [the four access paths](../).
+- **SLO is immutable once the node is registered and deployed.** F5 states that after the
+  CE Site is deployed the Internet Protocol (IP) address for the SLO interface cannot be
+  changed, and neither can the Media Access Control (MAC) address. Changing SLO parameters
+  means re-deploying the node.
+
+<Aside type="caution" title="Isolating management from the data plane is done by moving the data plane, not by moving management">
+Because SLO is reserved for reaching F5 and is the default route, the way to keep management
+traffic off shared interfaces is to put the **application** traffic somewhere else: configure
+virtual hosts, load balancers, and origin or service discovery on additional interfaces or
+segments, and leave SLO to the control plane.
+
+Field practice is at least two data-plane interfaces beyond SLO — typically Site Local Inside
+(SLI) plus one more, as either a virtual local area network (VLAN) sub-interface where the
+platform supports one or a separate virtual network interface card (NIC) — configured after
+the CE finishes bootstrapping, for three interfaces in total. Those additional interfaces can
+share the SLI VRF or sit in their own segments.
+</Aside>
+
+## Segments are the general answer for internal networks
+
+SLI is optional. F5's own guidance is to consider **Network Segments** instead, reached in
+the Console under **Multi-Cloud Network Connect** > **Networking** > **Segments**. A segment
+is a global VRF that can be attached to interfaces, so it either keeps a network isolated
+inside one CE Site or extends that network across several hybrid and multi-cloud CE Sites.
+That makes segments the right instrument when a requirement is phrased as "these services
+must be constrained to their own VRF".
+
+## The Secure Mesh Site v2 management network
+
+This is the construct the **Management Network** menu enables on an SMSv2 site object, and
+it is a real OOB interface rather than a relabelled SLO. When enabled, F5 creates a separate
+network interface that is neither an SLO nor an SLI interface, operating in its own kernel
+VRF for complete isolation from data-plane traffic. Because it is out of band, it takes no
+part in the CE node forwarding plane. Its intended uses are OOB management of services
+(Secure Shell (SSH) and the local web user interface) and troubleshooting (running Site CLI
+commands and shipping syslog files out).
+
+Three constraints decide whether it is available to you at all:
+
+| Constraint | Value |
+| --- | --- |
+| Node count | **Single-node CE Sites only.** Not supported for a multi-node CE Site (cluster). |
+| Software version | `crt-20251001-0189` or later. See the [node software release notes](https://docs.cloud.f5.com/docs-v2/platform/changelogs/node-sw-release-notes). |
+| Default | Not enabled. |
+
+Enabling it also fixes the interface ordering, which is what makes an incorrect assumption
+about it visible on the node:
+
+1. Management network interface
+2. Site Local Outside (SLO) interface
+3. Any additional interfaces, which become part of the Site Local Inside (SLI) interface
+
+<Aside type="danger" title="High Availability decides node count, and it cannot be changed later">
+**High Availability** disabled means the CE Site supports exactly one node; enabled means it
+requires three. The option cannot be changed after the CE Site object is created and
+deployed, and nodes can only be added when it is enabled.
+
+So the management network and a three-node cluster are mutually exclusive by construction,
+and neither half of that pair is a runtime decision. A site created with High Availability
+enabled cannot later acquire a management network by toggling a menu — it needs a new site
+object and a re-deployment.
+</Aside>
+
+<Aside type="caution" title="Adding interfaces to a cluster is a maintenance-window operation">
+Adding a network interface restarts the data-plane services, so expect dropped traffic and
+tunnels going down. Power off each node virtual machine (VM) before adding or modifying
+interfaces.
+
+In a cluster, add the interface to **every** node and place it in the same VRF on each.
+Nodes with non-homogeneous interfaces within one CE Site cause problems, so every node in a
+given site should carry the same number of interfaces in the same VRFs.
+</Aside>
+
+## How this maps onto this deployment
+
+Each CE here has three Azure NICs, and the first one is named `mgmt` in
+`terraform/modules/ce-node/main.tf`. That name describes the Azure subnet it sits in. It does
+**not** mean an XC management network is configured, and no page here should be read as
+saying so.
+
+`terraform/modules/xc-site/main.tf` declares exactly one interface on the site object:
+
+```hcl
+interface_list {
+  name = "eth0"
+
+  ethernet_interface {
+    device = "eth0"
+    mac    = var.mgmt_nic_mac
+  }
+
+  # Site Local Outside (SLO) — required on every site; BGP peers from here.
+  network_option {
+    site_local_network {}
+  }
+
+  dhcp_client {}
+}
+```
+
+`site_local_network {}` is SLO. So:
+
+| In this deployment | What it actually is |
+| --- | --- |
+| `mgmt` NIC (`eth0`, the VM's first NIC) | The **SLO** interface. Carries registration and control-plane traffic to F5, and is the Border Gateway Protocol (BGP) local address the Azure Route Server peers with. |
+| `external` NIC | A data-plane interface. |
+| `internal` NIC | The SLI interface. |
+| Management network | **Not configured.** No `enable_management_network` marker is set on the site object. |
+
+The sites are single-node — `disable_ha {}`, one site per availability zone — so the
+management network would be *permitted* here, unlike in a three-node cluster. It is simply
+not enabled, and enabling it would renumber the interfaces per the ordering above, which the
+BGP peer binding depends on.
+
+<Aside type="caution" title="The guest does not present these three NICs the way the ordering suggests">
+`eth0` is renamed `a-i-eth0` and carries no host address at all; the SLO address appears on
+`vhost0`; and which of `eth1` and `eth2` holds the internal address is not consistent across
+nodes. Read [the interfaces command page](../commands/network/ip/) before drawing conclusions
+from interface names on a live node.
+</Aside>
+
+## Frequently asked questions
+
+### How do I define a separate out-of-band management interface with its own IP configuration and VLAN assignment?
+
+On a **single-node** CE Site, enable the **Management Network** option on the SMSv2 site
+object, on software `crt-20251001-0189` or later. F5 then creates a separate interface in its
+own kernel VRF, outside the forwarding plane.
+
+On a **multi-node (three-node) CE Site there is no supported way to do this.** The management
+network is explicitly not supported for a cluster. For a cluster, treat SLO as the management
+path — it is what reaches the F5 Global Controller and is reserved for that — and add
+additional data-plane interfaces, in the SLI VRF or in their own segments, for everything
+else.
+
+Per-interface IP configuration is set on the site object when the interface is defined.
+Whether a VLAN sub-interface can be assigned to the *management* network specifically is
+**not documented either way** by F5 at the time of writing; field experience suggests it is
+not supported, and the reliable arrangement is a dedicated interface in a port group that
+belongs to the management VLAN. Confirm with F5 before designing to it.
+
+### I enabled Management Network on my three-node site and the nodes only came up with SLO. Why?
+
+Because the option is not supported on a multi-node CE Site. The site object accepts the
+setting, but a cluster does not get the extra interface, so the outside interface you see is
+the SLO interface behaving normally. This is a supported-configuration limit, not a
+provisioning fault, and it is not fixable on that site object: **High Availability** cannot
+be changed after creation.
+
+### Can I move management off SLO after the site is deployed?
+
+No, not by reconfiguring SLO. SLO's IP and MAC addresses cannot be changed after the node is
+registered and deployed. What you can do is move the *data plane* off SLO by putting virtual
+hosts, load balancers, and origin discovery on other interfaces or segments.
+
+### In what order will my interfaces be assigned?
+
+With the management network enabled: management first, then SLO, then any additional
+interfaces as SLI. Without it: SLO first, then additional interfaces as SLI. Attach the
+interfaces before first power-on so the guest properties are set, and power the node off
+before adding or changing interfaces later.
+
+### How many interfaces should a CE have?
+
+One SLO interface is the minimum the platform requires. If management traffic must not share
+an interface with application traffic, plan on three: SLO for the control plane, plus at
+least two data-plane interfaces. This deployment uses that shape — SLO, external, internal.
+
+<Aside type="note" title="Provenance">
+Every platform behaviour on this page is drawn from current F5 product documentation:
+[Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)
+(Step 4 for SLO and SLI, Step 8.4 for the management network) and the
+[Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs).
+The single claim that could not be confirmed against either — VLAN sub-interface support on
+the management network — is marked as unverified where it appears, rather than being repeated
+as fact.
+</Aside>
