@@ -42,7 +42,7 @@ across the next hops — is called out explicitly rather than left to be assumed
 | Namespaces | CE sites in `system`; origin pool and load balancer in `var.xc_app_namespace` |
 | Customer Edges | `var.ce_count` single-node Secure Mesh v2 sites, 1 to 3, one per availability zone |
 | CE software | pinned by `var.ce_sw_version` / `var.ce_os_version` |
-| Azure VMs | three NICs each — management/SLO, external, internal/SLI |
+| Azure VMs | three NICs each — `mgmt` (which is the SLO interface), external, internal/SLI |
 | Route exchange | one Azure Route Server, ASN `var.rs_asn`, two instance addresses |
 | Peerings | one per CE, named `<key>-bgp`, CE ASN `var.ce_asn` |
 | Advertised VIP | `var.vip` as a `/32`, originated identically by every CE |

@@ -139,17 +139,17 @@ convenient moment.
 
 `sshd` binds `0.0.0.0:22`, but only the **internal (SLI)** address is on the host network
 stack in a way `sshd` will answer on. eth0 is renamed `a-i-eth0` and carries no host IP at
-all — the Argo data plane owns that interface, and the management/SLO address it would have
+all — the Argo data plane owns that interface, and the SLO address it would have
 carried appears on `vhost0` instead. The other two NICs stay on the host stack under their
 own names.
 
 Probed from a VM inside the VNet, against one CE:
 
 ```text
-management/SLO address    timed out
-external address          timed out
-internal/SLI address      OPEN     SSH-2.0-OpenSSH_8.7
-an unused address         timed out    (control)
+SLO address              timed out
+external address         timed out
+internal/SLI address     OPEN     SSH-2.0-OpenSSH_8.7
+an unused address        timed out    (control)
 ```
 
 A probe against the address you know the node by therefore returns exactly what a closed
@@ -166,7 +166,7 @@ f5-xc-ce-vm-03    eth1 -> external      eth2 -> internal/SLI
 ```
 
 Only two things hold on every node: `a-i-eth0` has no address, and `vhost0` carries the
-management/SLO address. For anything else, match on the address in
+SLO address. For anything else, match on the address in
 [`ip addr`](../../commands/network/ip/) output rather than on the interface name.
 </Aside>
 

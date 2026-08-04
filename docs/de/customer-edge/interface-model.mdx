@@ -1,0 +1,139 @@
+---
+title: Schnittstellenmodell und Out-of-Band-Verwaltung
+description: Warum die Schnittstelle Site Local Outside etwas Besonderes und effektiv der Verwaltungspfad ist, was das Verwaltungsnetzwerk von Secure Mesh Site v2 ist und welche drei Einschränkungen darüber entscheiden, ob Sie es verwenden können, und wie sich beides auf die drei Netzwerkschnittstellenkarten verteilt, die diese Bereitstellung jedem Customer Edge zuweist.
+sidebar:
+  order: 15
+  label: Schnittstellenmodell
+i18n:
+  sourceHash: "eed756007ed5"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Ein Customer Edge (CE) besitzt keine lokale Verwaltungsebene, die diesen Namen verdient. Abgesehen von der Bootstrap-Konfiguration und der Diagnose wird alles, was einen CE verwaltet, von der Steuerungsebene von F5 Distributed Cloud gesteuert, und der Knoten erreicht diese Steuerungsebene über eine bestimmte Schnittstelle. Diese eine Tatsache entscheidet über das gesamte Schnittstellenmodell, und ein Missverständnis an dieser Stelle ist der häufigste Grund, warum eine CE-Bereitstellung architektonisch falsch statt nur fehlerhaft ist.
+
+Diese Seite trennt zwei Dinge, die das Wort "Verwaltung" teilen, aber nicht dieselbe Struktur sind:
+
+| | Was es ist |
+| --- | --- |
+| **Site Local Outside (SLO)** | Die Schnittstelle, über die sich ein CE registriert und nach Hause telefoniert. Auf jedem CE in jedem Modus vorhanden. Nach der Registrierung unveränderlich. Im allgemeinen Fall *ist* dies der Verwaltungspfad. |
+| **Management network** | Eine eigenständige, neuere und engere Option von Secure Mesh Site v2 (SMSv2), die eine echte Out-of-Band-Schnittstelle (OOB) in einer eigenen Kernel-Virtual Routing and Forwarding (VRF)-Instanz hinzufügt. Nur für Einzelknoten-Standorte. |
+
+## Site Local Outside ist keine Datenschnittstelle, die zufällig an erster Stelle steht
+
+SLO verbindet den CE-Knoten mit den Regional Edges (REs) von F5 Distributed Cloud und ist die Schnittstelle, über die Registrierung, Upgrades und die Konnektivität der Steuerungsebene laufen. Sie dient auch als Standardroute für den Datenbenutzer-Egress und ist der Endpunkt eines Standort-zu-Standort-Tunnels. Da die Plattform sie für die Erreichbarkeit von F5 reserviert, behandeln Sie sie als etwas Besonderes und entwerfen Sie die Architektur um sie herum, anstatt sie mit Anwendungstraffik zu belasten.
+
+Daraus ergeben sich zwei Konsequenzen, die beide vertraglich und nicht nur beratend sind:
+
+- **SLO muss F5 erreichen können.** Die Erreichbarkeitsanforderungen sind in der [CE IP Address and Domain Reference](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ce-ip-dom-ref) aufgeführt. Ein CE, dessen SLO-Schnittstelle F5 nicht erreichen kann, registriert sich nicht, und ein nicht registrierter Knoten kann auch nicht über die Steuerungsebene diagnostiziert werden — siehe [die vier Zugriffspfade](../).
+- **SLO ist nach der Registrierung und Bereitstellung des Knotens unveränderlich.** F5 gibt an, dass nach der Bereitstellung des CE Site die Internet Protocol (IP)-Adresse für die SLO-Schnittstelle nicht mehr geändert werden kann, ebenso wenig wie die Media Access Control (MAC)-Adresse. Die Änderung von SLO-Parametern erfordert eine erneute Bereitstellung des Knotens.
+
+<Aside type="caution" title="Die Isolierung der Verwaltung von der Datenebene erfolgt durch Verschieben der Datenebene, nicht durch Verschieben der Verwaltung">
+Da SLO für das Erreichen von F5 reserviert ist und die Standardroute darstellt, besteht die Möglichkeit, den Verwaltungsverkehr von gemeinsam genutzten Schnittstellen fernzuhalten, darin, den **Anwendungsverkehr** an einer anderen Stelle zu platzieren: Konfigurieren Sie virtuelle Hosts, Lastverteiler und die Ursprungs- oder Diensterkennung auf zusätzlichen Schnittstellen oder Segmenten und überlassen Sie SLO der Steuerungsebene.
+
+Die Praxis im Feld sieht mindestens zwei Datenebenen-Schnittstellen über SLO hinaus vor — typischerweise Site Local Inside (SLI) plus eine weitere, entweder als Subschnittstelle eines virtuellen lokalen Netzwerks (VLAN), wo die Plattform dies unterstützt, oder als separate virtuelle Netzwerkschnittstellenkarte (NIC) —, die nach dem Bootstrap des CE konfiguriert werden, also insgesamt drei Schnittstellen. Diese zusätzlichen Schnittstellen können sich die SLI-VRF teilen oder in eigenen Segmenten liegen.
+</Aside>
+
+## Segmente sind die allgemeine Antwort für interne Netzwerke
+
+SLI ist optional. F5 selbst empfiehlt, stattdessen **Network Segments** in Betracht zu ziehen, die in der Konsole unter **Multi-Cloud Network Connect** > **Networking** > **Segments** erreichbar sind. Ein Segment ist eine globale VRF, die an Schnittstellen angehängt werden kann, sodass sie ein Netzwerk innerhalb eines CE Site isoliert hält oder dieses Netzwerk über mehrere hybride und Multi-Cloud-CE-Sites hinweg erweitert. Das macht Segmente zum richtigen Instrument, wenn eine Anforderung lautet: "Diese Dienste müssen auf ihre eigene VRF beschränkt sein".
+
+## Das Verwaltungsnetzwerk von Secure Mesh Site v2
+
+Dies ist die Struktur, die das Menü **Management Network** für ein SMSv2-Standortobjekt aktiviert, und es handelt sich um eine echte OOB-Schnittstelle und nicht um ein umbenanntes SLO. Wenn aktiviert, erstellt F5 eine separate Netzwerkschnittstelle, die weder eine SLO- noch eine SLI-Schnittstelle ist und in einer eigenen Kernel-VRF arbeitet, um eine vollständige Isolierung vom Verkehr der Datenebene zu gewährleisten. Da sie Out-of-Band ist, nimmt sie am Weiterleitungsebene des CE-Knotens nicht teil. Die vorgesehenen Verwendungszwecke sind die OOB-Verwaltung von Diensten (Secure Shell (SSH) und die lokale Web-Benutzeroberfläche) sowie die Fehlerbehebung (Ausführen von Site CLI-Befehlen und Exportieren von Syslog-Dateien).
+
+Drei Einschränkungen entscheiden darüber, ob sie Ihnen überhaupt zur Verfügung steht:
+
+| Einschränkung | Wert |
+| --- | --- |
+| Knotenanzahl | **Nur Einzelknoten-CE-Sites.** Wird für einen Mehrknoten-CE-Site (Cluster) nicht unterstützt. |
+| Softwareversion | `crt-20251001-0189` oder neuer. Siehe die [Versionshinweise zur Knotensoftware](https://docs.cloud.f5.com/docs-v2/platform/changelogs/node-sw-release-notes). |
+| Standard | Nicht aktiviert. |
+
+Ihre Aktivierung legt auch die Schnittstellenreihenfolge fest, was eine falsche Annahme darüber auf dem Knoten sichtbar macht:
+
+1. Verwaltungsnetzwerkschnittstelle
+2. Schnittstelle Site Local Outside (SLO)
+3. Alle zusätzlichen Schnittstellen, die Teil der Schnittstelle Site Local Inside (SLI) werden
+
+<Aside type="danger" title="Die Hohe Verfügbarkeit entscheidet über die Knotenanzahl und kann später nicht mehr geändert werden">
+**High Availability** deaktiviert bedeutet, dass der CE Site genau einen Knoten unterstützt; aktiviert bedeutet, dass er drei benötigt. Die Option kann nach der Erstellung und Bereitstellung des CE Site-Objekts nicht mehr geändert werden, und Knoten können nur hinzugefügt werden, wenn sie aktiviert ist.
+
+Das Verwaltungsnetzwerk und ein Drei-Knoten-Cluster schließen sich also konstruktionsbedingt gegenseitig aus, und keine der beiden Hälften dieses Paars ist eine Entscheidung zur Laufzeit. Ein Standort, der mit aktivierter Hoher Verfügbarkeit erstellt wurde, kann später nicht durch Umschalten eines Menüs ein Verwaltungsnetzwerk erhalten — er benötigt ein neues Standortobjekt und eine erneute Bereitstellung.
+</Aside>
+
+<Aside type="caution" title="Das Hinzufügen von Schnittstellen zu einem Cluster ist eine Wartungsfenster-Operation">
+Das Hinzufügen einer Netzwerkschnittstelle startet die Dienste der Datenebene neu, weshalb mit Paketausfällen und dem Ausfall von Tunnels zu rechnen ist. Schalten Sie jede virtuelle Maschine (VM) des Knotens aus, bevor Sie Schnittstellen hinzufügen oder ändern.
+
+Fügen Sie in einem Cluster die Schnittstelle zu **jedem** Knoten hinzu und platzieren Sie sie bei jedem Knoten in derselben VRF. Knoten mit nicht-homogenen Schnittstellen innerhalb eines CE Site verursachen Probleme, daher sollte jeder Knoten an einem bestimmten Standort dieselbe Anzahl von Schnittstellen in denselben VRFs tragen.
+</Aside>
+
+## Wie sich dies auf diese Bereitstellung überträgt
+
+Jeder CE hier verfügt über drei Azure-NICs, und die erste heißt `mgmt` in `terraform/modules/ce-node/main.tf`. Dieser Name beschreibt das Azure-Subnetz, in dem sie sich befindet. Er bedeutet **nicht**, dass ein XC-Verwaltungsnetzwerk konfiguriert ist, und keine Seite hier sollte so verstanden werden.
+
+`terraform/modules/xc-site/main.tf` deklariert genau eine Schnittstelle auf dem Standortobjekt:
+
+```hcl
+interface_list {
+  name = "eth0"
+
+  ethernet_interface {
+    device = "eth0"
+    mac    = var.mgmt_nic_mac
+  }
+
+  # Site Local Outside (SLO) — required on every site; BGP peers from here.
+  network_option {
+    site_local_network {}
+  }
+
+  dhcp_client {}
+}
+```
+
+`site_local_network {}` ist SLO. Daher gilt:
+
+| In dieser Bereitstellung | Was es tatsächlich ist |
+| --- | --- |
+| `mgmt` NIC (`eth0`, die erste NIC der VM) | Die **SLO**-Schnittstelle. Überträgt Registrierungs- und Steuerungsebenenverkehr zu F5 und ist die lokale Adresse des Border Gateway Protocol (BGP), mit der der Azure Route Server peert. |
+| `external` NIC | Eine Datenebenen-Schnittstelle. |
+| `internal` NIC | Die SLI-Schnittstelle. |
+| Verwaltungsnetzwerk | **Nicht konfiguriert.** Auf dem Standortobjekt ist kein `enable_management_network`-Marker gesetzt. |
+
+Die Standorte sind Einzelknoten — `disable_ha {}`, ein Standort pro Verfügbarkeitszone —, sodass das Verwaltungsnetzwerk hier im Gegensatz zu einem Drei-Knoten-Cluster *zulässig* wäre. Es ist lediglich nicht aktiviert, und seine Aktivierung würde die Schnittstellen gemäß der obigen Reihenfolge neu nummerieren, wovon die BGP-Peer-Bindung abhängt.
+
+<Aside type="caution" title="Das Gastsystem präsentiert diese drei NICs nicht in der Reihenfolge, die die Konfiguration nahelegt">
+`eth0` wird in `a-i-eth0` umbenannt und trägt überhaupt keine Hostadresse; die SLO-Adresse erscheint auf `vhost0`; und welche der Schnittstellen `eth1` und `eth2` die interne Adresse hält, ist von Knoten zu Knoten unterschiedlich. Lesen Sie die [Schnittstellen-Befehlsseite](../commands/network/ip/), bevor Sie Schlussfolgerungen aus den Schnittstellennamen auf einem aktiven Knoten ziehen.
+</Aside>
+
+## Häufig gestellte Fragen
+
+### Wie definiere ich eine separate Out-of-Band-Verwaltungsschnittstelle mit eigener IP-Konfiguration und VLAN-Zuweisung?
+
+Aktivieren Sie auf einem **Einzelknoten**-CE-Site die Option **Management Network** für das SMSv2-Standortobjekt ab Softwareversion `crt-20251001-0189`. F5 erstellt dann eine separate Schnittstelle in einer eigenen Kernel-VRF außerhalb der Weiterleitungsebene.
+
+Auf einem **Mehrknoten- (Drei-Knoten-) CE-Site gibt es keinen unterstützten Weg, dies zu tun.** Das Verwaltungsnetzwerk wird für einen Cluster explizit nicht unterstützt. Behandeln Sie bei einem Cluster SLO als Verwaltungspfad — sie erreicht den F5 Global Controller und ist dafür reserviert — und fügen Sie zusätzliche Datenebenen-Schnittstellen in der SLI-VRF oder in eigenen Segmenten für alles andere hinzu.
+
+Die IP-Konfiguration pro Schnittstelle wird auf dem Standortobjekt festgelegt, wenn die Schnittstelle definiert wird. Ob eine VLAN-Subschnittstelle speziell dem *Verwaltungsnetzwerk* zugewiesen werden kann, ist von F5 zum Zeitpunkt der Erstellung dieses Dokuments **in keiner Weise dokumentiert**; Erfahrungen aus der Praxis legen nahe, dass dies nicht unterstützt wird, und die zuverlässige Anordnung ist eine dedizierte Schnittstelle in einer Portgruppe, die zum Verwaltungs-VLAN gehört. Bestätigen Sie dies mit F5, bevor Sie darauf aufbauen.
+
+### Ich habe das Verwaltungsnetzwerk auf meinem Drei-Knoten-Standort aktiviert, aber die Knoten fuhren nur mit SLO hoch. Warum?
+
+Weil die Option auf einem Mehrknoten-CE-Site nicht unterstützt wird. Das Standortobjekt akzeptiert die Einstellung, aber ein Cluster erhält keine zusätzliche Schnittstelle, sodass die äußere Schnittstelle, die Sie sehen, die normal funktionierende SLO-Schnittstelle ist. Dies ist eine Grenze der unterstützten Konfiguration, kein Bereitstellungsfehler, und auf diesem Standortobjekt nicht behebbar: **High Availability** kann nach der Erstellung nicht mehr geändert werden.
+
+### Kann ich die Verwaltung nach der Bereitstellung des Standorts von SLO wegbewegen?
+
+Nein, nicht durch Neukonfiguration von SLO. Die IP- und MAC-Adressen von SLO können nach der Registrierung und Bereitstellung des Knotens nicht mehr geändert werden. Was Sie tun können, ist, die *Datenebene* von SLO wegzuverlegen, indem Sie virtuelle Hosts, Lastverteiler und die Ursprungserkennung auf andere Schnittstellen oder Segmente verlegen.
+
+### In welcher Reihenfolge werden meine Schnittstellen zugewiesen?
+
+Bei aktiviertem Verwaltungsnetzwerk: Verwaltung zuerst, dann SLO, dann alle zusätzlichen Schnittstellen als SLI. Ohne dieses: SLO zuerst, dann zusätzliche Schnittstellen als SLI. Binden Sie die Schnittstellen vor dem ersten Einschalten ein, damit die Gasteigenschaften festgelegt werden, und schalten Sie den Knoten aus, bevor Sie später Schnittstellen hinzufügen oder ändern.
+
+### Wie viele Schnittstellen sollte ein CE haben?
+
+Eine SLO-Schnittstelle ist das Minimum, das die Plattform erfordert. Wenn der Verwaltungsverkehr keine Schnittstelle mit dem Anwendungsverkehr teilen darf, planen Sie drei ein: SLO für die Steuerungsebene plus mindestens zwei Datenebenen-Schnittstellen. Diese Bereitstellung verwendet genau dieses Schema — SLO, external, internal.
+
+<Aside type="note" title="Herkunft">
+Jedes auf dieser Seite beschriebene Plattformverhalten stammt aus der aktuellen F5-Produktdokumentation: [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2) (Schritt 4 für SLO und SLI, Schritt 8.4 für das Verwaltungsnetzwerk) und den [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs). Die einzige Aussage, die gegen keines von beidem bestätigt werden konnte — die Unterstützung von VLAN-Subschnittstellen im Verwaltungsnetzwerk —, ist an der Stelle ihres Erscheinens als unbestätigt gekennzeichnet, anstatt als Tatsache dargestellt zu werden.
+</Aside>
