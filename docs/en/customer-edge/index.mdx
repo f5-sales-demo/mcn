@@ -121,3 +121,9 @@ subcommands exposed by the same build. `scripts/sitecli_ssh_harvest.py` drives t
 completion menu over [SSH](./access/ssh/) and records the description the appliance gives for
 each command, so the surface is measured rather than guessed at. Its execution is
 default-denied: it enumerates everything and runs only an allow-list.
+
+Alongside the command surface, [the interface model](./interface-model/) covers what the
+three network interface cards on each node actually are: why the Site Local Outside (SLO)
+interface is the one reserved for reaching F5, what the Secure Mesh Site v2 management
+network is and the constraints that decide whether you can use it, and why the `mgmt` NIC
+here is not an out-of-band management interface.

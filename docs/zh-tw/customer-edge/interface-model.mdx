@@ -1,0 +1,139 @@
+---
+title: 介面模型與帶外管理
+description: 解釋為什麼 Site Local Outside 介面是特殊的且實際上是管理路徑，Secure Mesh Site v2 管理網路是什麼以及決定您是否可以使用它的三個限制，以及這兩者如何對應到此部署提供給每個 Customer Edge 的三個網路介面卡上。
+sidebar:
+  order: 15
+  label: 介面模型
+i18n:
+  sourceHash: "eed756007ed5"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Customer Edge (CE) 沒有名副其實的本機管理平面。除了引導設定和診斷之外，管理 CE 的一切都由 F5 Distributed Cloud 控制平面驅動，並且節點透過一個特定介面連接到該控制平面。這單一事實決定了整個介面模型，而弄錯這一點是 CE 部署最終在架構上出現錯誤而不是單純故障的最常見原因。
+
+本頁將兩個共享「管理」一詞但並非同一結構的概念區分開來：
+
+| | 概念定義 |
+| --- | --- |
+| **Site Local Outside (SLO)** | CE 用於註冊和向主控端報告（Phone Home）的介面。存在於每個 CE 的每種模式中。註冊後不可變（Immutable）。在通常情況下，這*就是*管理路徑。 |
+| **Management network** | 一種獨立的、較新的、較窄的 Secure Mesh Site v2 (SMSv2) 選項，在其自己的核心 Virtual Routing and Forwarding (VRF) 執行實例中新增了一個真正的帶外 (OOB) 介面。僅限單節點站台。 |
+
+## Site Local Outside 並不是恰好排在第一位的資料介面
+
+SLO 將 CE 節點連接到 F5 Distributed Cloud Regional Edges (REs)，註冊、升級和控制平面連接都在其上執行。它還充當資料平面流出的預設路由，並且是站台到站台隧道終止的地方。因為平台將其保留用於連接 F5，所以請將其視為特殊介面並圍繞它進行設計，而不是向其載入應用程式流量。
+
+由此產生兩個後果，兩者都是契約性的而非建議性的：
+
+- **SLO 必須能夠連接到 F5。** 其可達性要求已在 [CE IP Address and Domain Reference](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ce-ip-dom-ref) 中列出。SLO 介面無法連接 F5 的 CE 不會註冊，未註冊的節點也無法透過控制平面進行診斷 — 參見 [四種存取路徑](../)。
+- **節點註冊並部署後，SLO 是不可變的。** F5 規定部署 CE Site 後，SLO 介面的 Internet Protocol (IP) 位址不能更改，Media Access Control (MAC) 位址也不能更改。更改 SLO 參數意味著需要重新部署節點。
+
+<Aside type="caution" title="將管理與資料平面隔離是透過移動資料平面而不是移動管理平面來實現的">
+由於 SLO 被保留用於連接 F5 並且是預設路由，因此保持管理流量遠離共享介面的方法是將 **應用程式** 流量放置在其他地方：在附加介面或區段上設定虛擬主機、負載平衡器以及源站或服務發現，將 SLO 留給控制平面。
+
+現場實踐是在 SLO 之外至少增加兩個資料平面介面 — 通常是 Site Local Inside (SLI) 加上另外一個介面，作為平台支援的虛擬區域網路 (VLAN) 子介面或單獨的虛擬網路介面卡 (NIC) — 在 CE 完成引導後進行設定，總共三個介面。這些附加介面可以共享 SLI VRF 或位於它們自己的區段中。
+</Aside>
+
+## 區段是內部網路的通用解決方案
+
+SLI 是可選的。F5 自家的指導建議考慮 **Network Segments**，可在 Console 中的 **Multi-Cloud Network Connect** > **Networking** > **Segments** 下找到。區段是一個全域 VRF，可以附加到介面，因此它可以將網路隔離在一個 CE Site 內部，或者跨多個混合和多雲 CE Sites 擴充該網路。這使得當需求表述為「這些服務必須限制在其自己的 VRF 中」時，區段成為正確的工具。
+
+## Secure Mesh Site v2 管理網路
+
+這是 SMSv2 站台物件上的 **Management Network** 選單啟用的結構，它是一個真正的 OOB 介面，而不是重新標記的 SLO。啟用後，F5 會建立一个既不是 SLO 也不是 SLI 的獨立網路介面，在其自己的核心 VRF 中運作，以與資料平面流量完全隔離。因為它是帶外的，所以它不參與 CE 節點轉發平面。其預期用途是服務帶外管理（Secure Shell (SSH) 和本機 Web 使用者介面）以及疑難排解（執行 Site CLI 命令和匯出 syslog 檔案）。
+
+三個限制決定了您是否可以使用它：
+
+| 限制條件 | 限制值 |
+| --- | --- |
+| 節點數量 | **僅限單節點 CE Sites。** 不支援多節點 CE Site（叢集）。 |
+| 軟體版本 | `crt-20251001-0189` 或更高版本。參見 [節點軟體版本說明](https://docs.cloud.f5.com/docs-v2/platform/changelogs/node-sw-release-notes)。 |
+| 預設設定 | 未啟用。 |
+
+啟用它還會固定介面順序，這使得關於它的錯誤假設在節點上變得可見：
+
+1. 管理網路介面
+2. Site Local Outside (SLO) 介面
+3. 任何附加介面（將成為 Site Local Inside (SLI) 介面的一部分）
+
+<Aside type="danger" title="高可用性決定了節點數量，並且以後無法更改">
+停用 **High Availability** 意味著 CE Site 恰好支援一個節點；啟用意味著它需要三個節點。建立並部署 CE Site 物件後，無法更改該選項，並且只有在啟用時才能新增節點。
+
+因此，管理網路和三節點叢集在結構上是互斥的，並且該對中的任何一半都不是執行階段決定的。使用啟用高可用性建立的站台以後無法透過切換選單來獲取管理網路 — 它需要一个新的站台物件和重新部署。
+</Aside>
+
+<Aside type="caution" title="向叢集新增介面是維護視窗操作">
+新增網路介面會重新啟動資料平面服務，因此預計會出現封包丟失和隧道中斷。在新增或修改介面之前，請關閉每個節點虛擬機器 (VM) 的電源。
+
+在叢集中，將介面新增到 **每個** 節點，將每個節點中的介面放置在相同的 VRF 中。在一個 CE Site 內具有非同質介面的節點會導致問題，因此給定站台中的每個節點都應在相同的 VRF 中帶有相同價量的介面。
+</Aside>
+
+## 這如何對應到此部署
+
+此處的每個 CE 都有三個 Azure NIC，第一個在 `terraform/modules/ce-node/main.tf` 中命名為 `mgmt`。該名稱描述了它所在的 Azure 子網路。它 **並不** 意味著設定了 XC 管理網路，此處的任何頁面都不應被理解為這樣說的。
+
+`terraform/modules/xc-site/main.tf` 在站台物件上宣告了恰好一個介面：
+
+```hcl
+interface_list {
+  name = "eth0"
+
+  ethernet_interface {
+    device = "eth0"
+    mac    = var.mgmt_nic_mac
+  }
+
+  # Site Local Outside (SLO) — required on every site; BGP peers from here.
+  network_option {
+    site_local_network {}
+  }
+
+  dhcp_client {}
+}
+```
+
+`site_local_network {}` 就是 SLO。因此：
+
+| 在此部署中 | 實際功能 |
+| --- | --- |
+| `mgmt` NIC (`eth0`，VM 的第一個 NIC) | **SLO** 介面。向 F5 傳輸註冊和控制平面流量，並且是 Azure Route Server 建立對等連接的 Border Gateway Protocol (BGP) 本地位址。 |
+| `external` NIC | 資料平面介面。 |
+| `internal` NIC | SLI 介面。 |
+| 管理網路 | **未設定。** 站台物件上未設定 `enable_management_network` 標記。 |
+
+這些站台是單節點的 — `disable_ha {}`，每個可用區一個站台 — 因此與三節點叢集不同，此處 *允許* 使用管理網路。它只是未啟用，啟用它將根據上述順序重新編號介面，而 BGP 對等綁定依賴於該順序。
+
+<Aside type="caution" title="客戶機（Guest OS）不會按照順序建議的方式展示這三個 NIC">
+`eth0` 被重命名為 `a-i-eth0` 並且根本不攜帶主機位址；SLO 位址出現在 `vhost0` 上；並且 `eth1` 和 `eth2` 中哪一個持有內部位址在節點之間並不一致。在從活動節點上的介面名稱得出結論之前，請閱讀 [介面命令頁面](../commands/network/ip/)。
+</Aside>
+
+## 常見問題
+
+### 如何定義具有獨立 IP 設定和 VLAN 分配的獨立帶外管理介面？
+
+在 **單節點** CE Site 上，在軟體版本為 `crt-20251001-0189` 或更高的 SMSv2 站台物件上啟用 **Management Network** 選項。然後，F5 會在轉發平面之外的獨立核心 VRF 中建立一个單獨的介面。
+
+在 **多節點（三節點）CE Site 上，沒有受支援的方法來做到這一點。** 叢集明確不支援管理網路。對於叢集，將 SLO 視為管理路徑 — 這是連接 F5 Global Controller 的路徑，並且專用於該路徑 — 頁在 SLI VRF 或其自己的區段中新增附加資料平面介面，用於處理其他所有內容。
+
+定義介面時，會在站台物件上設定每個介面的 IP 設定。特別地，VLAN 子介面是否可以分配給 *管理* 網路，在撰寫本文時 F5 尚未 **在任何一方進行文件說明**；現場經驗表明它不支援，最可靠的安排是屬於管理 VLAN 的埠群組中的專用介面。在針對它進行設計之前，請與 F5 確認。
+
+### 我在三節點站台上啟用了 Management Network，但節點僅帶著 SLO 啟動。為什麼？
+
+因為多節點 CE Site 不支援該選項。站台物件接受該設定，但叢集不會獲得額外的介面，因此您看到的外部介面是表現正常的 SLO 介面。這是受支援的設定限制，不是佈署故障，並且在該站台物件上無法修復：**High Availability** 在建立後無法更改。
+
+### 部署站台後，我可以將管理遷移出 SLO 嗎？
+
+不能透過重新設定 SLO 來實現。節點註冊並部署後，不能更改 SLO 的 IP 和 MAC 位址。您可以做的是透過將虛擬主機、負載平衡器和源站發現在其他介面或區段上放置，將 *資料平面* 遷移出 SLO。
+
+### 我的介面將按什麼順序分配？
+
+啟用管理網路：管理優先，然後是 SLO，然後是作為 SLI 的任何附加介面。未啟用時：SLO 優先，然後是作為 SLI 的附加介面。在首次開機之前附加介面以便設定客戶機屬性，頁在以後新增或更改介面之前關閉節點電源。
+
+### 一個 CE 應該有多少個介面？
+
+一個 SLO 介面是平台要求的最小值。如果管理流量絕對不能與應用流量共享介面，請計劃三個：用於控制平面的 SLO，加上至少兩個資料平面介面。此部署使用該結構 — SLO, external, internal。
+
+<Aside type="note" title="出處（Provenance）">
+本頁上的每個平台行為均引自目前的 F5 產品文件：[Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)（SLO 和 SLI 的步驟 4，管理網路的步驟 8.4）以及 [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs)。無法透過兩者確認的單一主張（管理網路上的 VLAN 子介面支援）在其出現的地方被標記為未驗證，而不是被當成事實重複。
+</Aside>

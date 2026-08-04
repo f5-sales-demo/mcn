@@ -27,14 +27,17 @@ work.
 ```text file=../../../../_data/sitecli-ip.txt
 ```
 
-The CE has three Azure NICs by design — management/SLO, external, internal/SLI — but the
-guest does not present them the way that ordering suggests, and this is where reading the
-output wrong costs time.
+The CE has three Azure NICs by design, named `mgmt`, `external` and `internal` after the
+subnets they sit in. Those names describe Azure, not the F5 Distributed Cloud interface
+roles: the `mgmt` NIC is the **Site Local Outside (SLO)** interface, and no out-of-band
+management network is configured on these sites — see
+[the interface model](../../../interface-model/). The guest then presents none of the three
+the way that ordering suggests, and this is where reading the output wrong costs time.
 
 | In the guest | Carries |
 | --- | --- |
 | `a-i-eth0` | **no address at all** — this is the renamed physical eth0, and the Argo data plane owns it |
-| `vhost0` | the management/SLO address, the one BGP peers from and the one the site object reports |
+| `vhost0` | the SLO address, the one BGP peers from and the one the site object reports |
 | `eth1` and `eth2` | the external and internal/SLI addresses — but **not in a fixed order** |
 
 <Aside type="danger" title="Which of eth1 and eth2 is the internal interface differs between nodes">
@@ -48,8 +51,7 @@ though the interface holding it is not.
 </Aside>
 
 `a-i-eth0` carrying no address is also the whole reason `sshd` cannot be reached on the
-management address: there is no listener there, not a blocked port. See
-[SSH](../../../access/ssh/).
+SLO address. See [SSH](../../../access/ssh/).
 
 ## `ip-link-show`
 

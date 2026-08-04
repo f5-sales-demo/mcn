@@ -1,0 +1,139 @@
+---
+title: Modèle d'interface et gestion hors bande
+description: Pourquoi l'interface Site Local Outside est spéciale et constitue la voie de gestion, ce qu'est le réseau de gestion Secure Mesh Site v2 et les trois contraintes qui déterminent si vous pouvez l'utiliser, et comment les deux s'associent aux trois cartes d'interface réseau que ce déploiement attribue à chaque Customer Edge.
+sidebar:
+  order: 15
+  label: Modèle d'interface
+i18n:
+  sourceHash: "eed756007ed5"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Un Customer Edge (CE) ne dispose d'aucun plan de gestion local digne de ce nom. À l'exception de la configuration d'amorçage et des diagnostics, tout ce qui gère un CE est piloté depuis le plan de contrôle F5 Distributed Cloud, et le nœud atteint ce plan de contrôle via une interface spécifique. Ce simple fait détermine l'ensemble du modèle d'interface, et une mauvaise interprétation est la cause la plus fréquente d'un déploiement CE architecturalement incorrect plutôt que défectueux.
+
+Cette page sépare deux notions qui partagent le terme "gestion" mais ne constituent pas la même structure :
+
+| | Ce que c'est |
+| --- | --- |
+| **Site Local Outside (SLO)** | L'interface sur laquelle un CE s'enregistre et communique avec le serveur central. Présente sur chaque CE, dans tous les modes. Immuable après l'enregistrement. Dans le cas général, c'est le chemin de gestion. |
+| **Management network** | Une option Secure Mesh Site v2 (SMSv2) distincte, plus récente et plus étroite qui ajoute une véritable interface hors bande (OOB) dans sa propre instance Virtual Routing and Forwarding (VRF) de noyau. Sites à nœud unique uniquement. |
+
+## Site Local Outside n'est pas une interface de données qui se trouve être la première
+
+SLO connecte le nœud CE aux Regional Edges (REs) de F5 Distributed Cloud, et c'est sur elle que reposent l'enregistrement, les mises à niveau et la connectivité du plan de contrôle. Elle sert également de route par défaut pour la sortie du plan de données et constitue le point de terminaison du tunnel de site à site. Comme la plateforme la réserve pour joindre F5, traitez-la comme spéciale et concevez l'architecture autour d'elle plutôt que de la charger avec du trafic d'application.
+
+Deux conséquences en découlent, et toutes deux sont contractuelles plutôt que consultatives :
+
+- **SLO doit pouvoir joindre F5.** Ses exigences de joignabilité sont énumérées dans la [CE IP Address and Domain Reference](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ce-ip-dom-ref). Un CE dont l'interface SLO ne peut pas joindre F5 ne s'enregistre pas, et un nœud non enregistré ne peut pas non plus être diagnostiqué via le plan de contrôle — voir [les quatre voies d'accès](../).
+- **SLO est immuable une fois le nœud enregistré et déployé.** F5 stipule qu'après le déploiement du CE Site, l'adresse Internet Protocol (IP) de l'interface SLO ne peut pas être modifiée, de même que l'adresse Media Access Control (MAC). Modifier les paramètres SLO nécessite de redéployer le nœud.
+
+<Aside type="caution" title="Isoler la gestion du plan de données se fait en déplaçant le plan de données, pas en déplaçant la gestion">
+Puisque SLO est réservée pour joindre F5 et constitue la route par défaut, le moyen de maintenir le trafic de gestion hors des interfaces partagées est de placer le trafic **d'application** ailleurs : configurez des hôtes virtuels, des équilibreurs de charge et la découverte d'origines ou de services sur des interfaces ou segments supplémentaires, et laissez SLO au plan de contrôle.
+
+La pratique du terrain consiste à ajouter au moins deux interfaces de plan de données au-delà de SLO — typiquement Site Local Inside (SLI) plus une autre, soit sous forme de sous-interface de réseau local virtuel (VLAN) lorsque la plateforme en prend une en charge, soit sous forme de carte d'interface réseau virtuelle (NIC) séparée — configurées après la fin du bootstrap du CE, pour un total de trois interfaces. Ces interfaces supplémentaires peuvent partager la VRF SLI ou résider dans leurs propres segments.
+</Aside>
+
+## Les segments sont la réponse générale pour les réseaux internes
+
+SLI est optionnel. Les propres recommandations de F5 suggèrent d'envisager plutôt les **Network Segments**, accessibles dans la console sous **Multi-Cloud Network Connect** > **Networking** > **Segments**. Un segment est une VRF globale qui peut être rattachée à des interfaces, ce qui permet soit d'isoler un réseau au sein d'un seul CE Site, soit de l'étendre à travers plusieurs CE Sites hybrides et multi-cloud. Cela fait des segments l'outil approprié lorsqu'une exigence stipule que "ces services doivent être restreints à leur propre VRF".
+
+## Le réseau de gestion Secure Mesh Site v2
+
+Il s'agit de la structure activée par le menu **Management Network** sur un objet de site SMSv2, et c'est une véritable interface OOB plutôt qu'un SLO réétiqueté. Lorsqu'il est activé, F5 crée une interface réseau séparée qui n'est ni SLO ni SLI, fonctionnant dans sa propre VRF de noyau pour une isolation complète du trafic du plan de données. Comme elle est hors bande, elle ne prend pas part au plan de transfert du nœud CE. Ses utilisations prévues sont la gestion OOB des services (Secure Shell (SSH) et l'interface utilisateur web locale) et le dépannage (exécution des commandes Site CLI et exportation des fichiers syslog).
+
+Trois contraintes déterminent si elle vous est accessible :
+
+| Contrainte | Valeur |
+| --- | --- |
+| Nombre de nœuds | **CE Sites à nœud unique uniquement.** Non pris en charge pour un CE Site multi-nœuds (cluster). |
+| Version logicielle | `crt-20251001-0189` ou ultérieure. Voir les [notes de version du logiciel de nœud](https://docs.cloud.f5.com/docs-v2/platform/changelogs/node-sw-release-notes). |
+| Par défaut | Non activé. |
+
+Son activation fixe également l'ordre des interfaces, ce qui rend toute hypothèse incorrecte à son sujet visible sur le nœud :
+
+1. Interface du réseau de gestion
+2. Interface Site Local Outside (SLO)
+3. Toutes les interfaces supplémentaires, qui font partie de l'interface Site Local Inside (SLI)
+
+<Aside type="danger" title="La Haute Disponibilité détermine le nombre de nœuds et ne peut plus être modifiée ultérieurement">
+**High Availability** désactivée signifie que le CE Site prend en charge exactement un nœud ; activée signifie qu'il en nécessite trois. L'option ne peut pas être modifiée après la création et le déploiement de l'objet CE Site, et les nœuds ne peuvent être ajoutés que lorsqu'elle est activée.
+
+Ainsi, le réseau de gestion et un cluster à trois nœuds s'excluent mutuellement par construction, et aucune de ces options n'est une décision modifiable au moment de l'exécution. Un site créé avec la Haute Disponibilité activée ne peut pas acquérir ultérieurement un réseau de gestion en basculant un menu — il nécessite un nouvel objet de site et un redéploiement.
+</Aside>
+
+<Aside type="caution" title="Ajouter des interfaces à un cluster est une opération nécessitant une fenêtre de maintenance">
+L'ajout d'une interface réseau redémarre les services du plan de données, attendez-vous donc à une perte de trafic et à une interruption des tunnels. Éteignez chaque machine virtuelle (VM) de nœud avant d'ajouter ou de modifier des interfaces.
+
+Dans un cluster, ajoutez l'interface à **chaque** nœud et placez-la dans la même VRF sur chacun d'eux. Les nœuds ayant des interfaces non homogènes au sein d'un même CE Site causent des problèmes, donc chaque nœud d'un site donné doit comporter le même nombre d'interfaces dans les mêmes VRFs.
+</Aside>
+
+## Comment cela s'associe à ce déploiement
+
+Chaque CE ici possède trois NICs Azure, et la première est nommée `mgmt` dans `terraform/modules/ce-node/main.tf`. Ce nom décrit le sous-réseau Azure dans lequel elle se trouve. Cela ne signifie **pas** qu'un réseau de gestion XC est configuré, et aucune page ici ne doit être interprétée comme disant le contraire.
+
+`terraform/modules/xc-site/main.tf` déclare exactement une interface sur l'objet de site :
+
+```hcl
+interface_list {
+  name = "eth0"
+
+  ethernet_interface {
+    device = "eth0"
+    mac    = var.mgmt_nic_mac
+  }
+
+  # Site Local Outside (SLO) — required on every site; BGP peers from here.
+  network_option {
+    site_local_network {}
+  }
+
+  dhcp_client {}
+}
+```
+
+`site_local_network {}` est SLO. Donc :
+
+| Dans ce déploiement | Ce que c'est réellement |
+| --- | --- |
+| NIC `mgmt` (`eth0`, la première NIC de la VM) | L'interface **SLO**. Achemine le trafic d'enregistrement et du plan de contrôle vers F5, et constitue l'adresse locale du Border Gateway Protocol (BGP) avec laquelle l'Azure Route Server s'interconnecte. |
+| NIC `external` | Une interface de plan de données. |
+| NIC `internal` | L'interface SLI. |
+| Réseau de gestion | **Non configuré.** Aucun marqueur `enable_management_network` n'est défini sur l'objet de site. |
+
+Les sites sont à nœud unique — `disable_ha {}`, un site par zone d'disponibilité — le réseau de gestion serait donc *autorisé* ici, contrairement à un cluster à trois nœuds. Il n'est tout simplement pas activé, et l'activer réordonnerait les interfaces selon la séquence ci-dessus, dont dépend la liaison de pair BGP.
+
+<Aside type="caution" title="Le système invité ne présente pas ces trois NICs dans l'ordre suggéré par la configuration">
+`eth0` est renommée `a-i-eth0` et ne porte aucune adresse hôte ; l'adresse SLO apparaît sur `vhost0` ; et le choix de savoir laquelle entre `eth1` et `eth2` détient l'adresse interne n'est pas cohérent d'un nœud à l'autre. Lisez la [page de commande des interfaces](../commands/network/ip/) avant de tirer des conclusions basées sur le nom des interfaces sur un nœud actif.
+</Aside>
+
+## Foire aux questions
+
+### Comment définir une interface de gestion hors bande séparée avec sa propre configuration IP et son assignation VLAN ?
+
+Sur un CE Site à **nœud unique**, activez l'option **Management Network** sur l'objet de site SMSv2, sur la version logicielle `crt-20251001-0189` ou ultérieure. F5 crée alors une interface séparée dans sa propre VRF de noyau, en dehors du plan de transfert.
+
+Sur un CE Site **multi-nœuds (trois nœuds), il n'existe aucun moyen pris en charge de faire cela.** Le réseau de gestion n'est explicitement pas pris en charge pour un cluster. Pour un cluster, traitez SLO comme le chemin de gestion — c'est ce qui atteint le F5 Global Controller et est réservé à cet effet — et ajoutez des interfaces de plan de données supplémentaires, dans la VRF SLI ou dans leurs propres segments, pour tout le reste.
+
+La configuration IP par interface est définie sur l'objet de site lors de la définition de l'interface. La possibilité d'attribuer une sous-interface VLAN au réseau de *gestion* spécifiquement n'est **pas documentée dans un sens ou dans l'autre** par F5 au moment de la rédaction ; l'expérience du terrain suggère que ce n'est pas pris en charge, et la disposition fiable est une interface dédiée dans un groupe de ports appartenant au VLAN de gestion. Confirmez auprès de F5 avant de concevoir votre architecture sur cette base.
+
+### J'ai activé le réseau de gestion sur mon site à trois nœuds et les nœuds n'ont démarré qu'avec SLO. Pourquoi ?
+
+Parce que l'option n'est pas prise en charge sur un CE Site multi-nœuds. L'objet de site accepte le paramètre, mais un cluster n'obtient pas l'interface supplémentaire, donc l'interface externe que vous voyez est l'interface SLO se comportant normalement. Il s'agit d'une limite de configuration prise en charge, pas d'un défaut de provisionnement, et ce n'est pas corrigeable sur cet objet de site : la **High Availability** ne peut pas être modifiée après la création.
+
+### Puis-je déplacer la gestion hors de SLO après le déploiement du site ?
+
+Non, pas en reconfigurant SLO. Les adresses IP et MAC de SLO ne peuvent pas être modifiées après l'enregistrement et le déploiement du nœud. Ce que vous pouvez faire est de déplacer le *plan de données* hors de SLO en plaçant les hôtes virtuels, les équilibreurs de charge et la découverte d'origines sur d'autres interfaces ou segments.
+
+### Dans quel ordre mes interfaces seront-elles assignées ?
+
+Avec le réseau de gestion activé : gestion en premier, puis SLO, puis toutes les interfaces supplémentaires en tant que SLI. Sans lui : SLO en premier, puis les interfaces supplémentaires en tant que SLI. Attachez les interfaces avant le premier démarrage afin que les propriétés de l'invité soient définies, et éteignez le nœud avant d'ajouter ou de modifier des interfaces ultérieurement.
+
+### Combien d'interfaces un CE doit-il posséder ?
+
+Une interface SLO est le minimum requis par la plateforme. Si le trafic de gestion ne doit pas partager une interface avec le trafic applicatif, prévoyez-en trois : SLO pour le plan de contrôle, plus au moins deux interfaces de plan de données. Ce déploiement utilise cette structure — SLO, external, internal.
+
+<Aside type="note" title="Provenance">
+Chaque comportement de plateforme décrit sur cette page est tiré de la documentation produit F5 actuelle : [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2) (Étape 4 pour SLO et SLI, Étape 8.4 pour le réseau de gestion) et les [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs). La seule affirmation n'ayant pas pu être confirmée dans ces documents — la prise en charge des sous-interfaces VLAN sur le réseau de gestion — est marquée comme non vérifiée là où elle apparaît, plutôt que d'être présentée comme un fait établi.
+</Aside>
