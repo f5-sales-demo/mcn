@@ -1,0 +1,139 @@
+---
+title: 接口模型与带外管理
+description: 解释为什么 Site Local Outside 接口是特殊的且实际上是管理路径，Secure Mesh Site v2 管理网络是什么以及决定您是否可以使用它的三个限制，以及这两者如何映射到此部署赋予每个 Customer Edge 的三个网络接口卡上。
+sidebar:
+  order: 15
+  label: 接口模型
+i18n:
+  sourceHash: "eed756007ed5"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Customer Edge (CE) 没有名副其实的本地管理平面。除了引导配置和诊断之外，管理 CE 的一切都由 F5 Distributed Cloud 控制平面驱动，并且节点通过一个特定接口连接到该控制平面。这单一事实决定了整个接口模型，而弄错这一点是 CE 部署最终在架构上出现错误而不是单纯故障的最常见原因。
+
+本页将两个共享“管理”一词但并非同一结构的概念区分开来：
+
+| | 概念定义 |
+| --- | --- |
+| **Site Local Outside (SLO)** | CE 用于注册和向主控端报告（Phone Home）的接口。存在于每个 CE 的每种模式中。注册后不可不可变（Immutable）。在通常情况下，这*就是*管理路径。 |
+| **Management network** | 一种独立的、较新的、较窄的 Secure Mesh Site v2 (SMSv2) 选项，在其自己的内核 Virtual Routing and Forwarding (VRF) 实例中添加了一个真正的带外 (OOB) 接口。仅限单节点站点。 |
+
+## Site Local Outside 并不是恰好排在第一位的接口数据接口
+
+SLO 将 CE 节点连接到 F5 Distributed Cloud Regional Edges (REs)，注册、升级和控制平面连接都在其上运行。它还充当数据平面流出的默认路由，并且是站点到站点隧道终止的地方。因为平台将其保留用于连接 F5，所以请将其视为特殊接口并围绕它进行设计，而不是向其加载应用程序流量。
+
+由此产生两个后果，两者都是契约性的而非建议性的：
+
+- **SLO 必须能够连接到 F5。** 其可达性要求已在 [CE IP Address and Domain Reference](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ce-ip-dom-ref) 中列出。SLO 接口无法连接 F5 的 CE 不会注册，未注册的节点也无法通过控制平面进行诊断 — 参见 [四种访问路径](../)。
+- **节点注册并部署后，SLO 是不可变的。** F5 规定部署 CE Site 后，SLO 接口的 Internet Protocol (IP) 地址不能更改，Media Access Control (MAC) 地址也不能更改。更改 SLO 参数意味着需要重新部署节点。
+
+<Aside type="caution" title="将管理与数据平面隔离是通过移动数据平面而不是移动管理平面来实现的">
+由于 SLO 被保留用于连接 F5 并且是默认路由，因此保持管理流量远离共享接口的方法是将 **应用程序** 流量放置在其他地方：在附加接口或段上配置虚拟主机、负载均衡器以及源站或服务发现，并将 SLO 留给控制平面。
+
+现场实践是在 SLO 之外至少增加两个数据平面接口 — 通常是 Site Local Inside (SLI) 加上另外一个接口，作为平台支持的虚拟局域网 (VLAN) 子接口或单独的虚拟网络接口卡 (NIC) — 在 CE 完成引导后进行配置，总共三个接口。这些附加接口可以共享 SLI VRF 或位于它们自己的段中。
+</Aside>
+
+## 段是内部网络的通用解决方案
+
+SLI 是可选的。F5 自家的指导建议考虑 **Network Segments**，可在 Console 中的 **Multi-Cloud Network Connect** > **Networking** > **Segments** 下找到。段是一个全局 VRF，可以附加到接口，因此它可以将网络隔离在一个 CE Site 内部，或者跨多个混合和多云 CE Sites 扩展该网络。这使得当需求表述为“这些服务必须限制在其自己的 VRF 中”时，段成为正确的工具。
+
+## Secure Mesh Site v2 管理网络
+
+这是 SMSv2 站点对象上的 **Management Network** 菜单启用的结构，它是一个真正的 OOB 接口，而不是重新标记的 SLO。启用后，F5 会创建一个既不是 SLO 也不是 SLI 的独立网络接口，在其自己的内核 VRF 中运行，以与数据平面流量完全隔离。因为它是带外的，所以它不参与 CE 节点转发平面。其预期用途是服务带外管理（Secure Shell (SSH) 和本地 Web 用户界面）以及故障排除（运行 Site CLI 命令和导出 syslog 文件）。
+
+三个限制决定了您是否可以使用它：
+
+| 限制条件 | 限制值 |
+| --- | --- |
+| 节点数量 | **仅限单节点 CE Sites。** 不支持多节点 CE Site（集群）。 |
+| 软件版本 | `crt-20251001-0189` 或更高版本。参见 [节点软件版本说明](https://docs.cloud.f5.com/docs-v2/platform/changelogs/node-sw-release-notes)。 |
+| 默认设置 | 未启用。 |
+
+启用它还会固定接口顺序，这使得关于它的错误假设在节点上变得可见：
+
+1. 管理网络接口
+2. Site Local Outside (SLO) 接口
+3. 任何附加接口（将成为 Site Local Inside (SLI) 接口的一部分）
+
+<Aside type="danger" title="高可用性决定了节点数量，并且以后无法更改">
+禁用 **High Availability** 意味着 CE Site 恰好支持一个节点；启用意味着它需要三个节点。创建并部署 CE Site 对象后，无法更改该选项，并且只有在启用时才能添加节点。
+
+因此，管理网络和三节点集群在结构上是互斥的，并且该对中的任何一半都不是运行时决定的。使用启用高可用性创建的站点以后无法通过切换菜单来获取管理网络 — 它需要一个新的站点对象和重新部署。
+</Aside>
+
+<Aside type="caution" title="向集群添加接口是维护窗口操作">
+添加网络接口会重新启动数据平面服务，因此预计会出现流量掉包和隧道中断。在添加或修改接口之前，请关闭每个节点虚拟机 (VM) 的电源。
+
+在集群中，将接口添加到 **每个** 节点，并将每个节点中的接口放置在相同的 VRF 中。在一个 CE Site 内具有非同质接口的节点会导致问题，因此给定站点中的每个节点都应在相同的 VRF 中带有相同数量的接口。
+</Aside>
+
+## 这如何映射到此部署
+
+此处的每个 CE 都有三个 Azure NIC，第一个在 `terraform/modules/ce-node/main.tf` 中命名为 `mgmt`。该名称描述了它所在的 Azure 子网。它 **并不** 意味着配置了 XC 管理网络，此处的任何页面都不应被理解为这样说的。
+
+`terraform/modules/xc-site/main.tf` 在站点对象上声明了恰好一个接口：
+
+```hcl
+interface_list {
+  name = "eth0"
+
+  ethernet_interface {
+    device = "eth0"
+    mac    = var.mgmt_nic_mac
+  }
+
+  # Site Local Outside (SLO) — required on every site; BGP peers from here.
+  network_option {
+    site_local_network {}
+  }
+
+  dhcp_client {}
+}
+```
+
+`site_local_network {}` 就是 SLO。因此：
+
+| 在此部署中 | 实际功能 |
+| --- | --- |
+| `mgmt` NIC (`eth0`，VM 的第一个 NIC) | **SLO** 接口。向 F5 传输注册和控制平面流量，并且是 Azure Route Server 建立对等连接的 Border Gateway Protocol (BGP) 本地地址。 |
+| `external` NIC | 数据平面接口。 |
+| `internal` NIC | SLI 接口。 |
+| 管理网络 | **未配置。** 站点对象上未设置 `enable_management_network` 标记。 |
+
+这些站点是单节点的 — `disable_ha {}`，每个可用区一个站点 — 因此与三节点集群不同，此处 *允许* 使用管理网络。它只是未启用，启用它将根据上述顺序重新编号接口，而 BGP 对等绑定依赖于该顺序。
+
+<Aside type="caution" title="客户机（Guest OS）不会按照顺序建议的方式展示这三个 NIC">
+`eth0` 被重命名为 `a-i-eth0` 并且根本不携带主机地址；SLO 地址出现在 `vhost0` 上；并且 `eth1` 和 `eth2` 中哪一个持有内部地址在节点之间并不一致。在从活动节点上的接口名称得出结论之前，请阅读 [接口命令页面](../commands/network/ip/)。
+</Aside>
+
+## 常见问题
+
+### 如何定义具有独立 IP 配置和 VLAN 分配的独立带外管理接口？
+
+在 **单节点** CE Site 上，在软件版本为 `crt-20251001-0189` 或更高的 SMSv2 站点对象上启用 **Management Network** 选项。然后，F5 会在转发平面之外的独立内核 VRF 中创建一个单独的接口。
+
+在 **多节点（三节点）CE Site 上，没有受支持的方法来做到这一点。** 集群明确不支持管理网络。对于集群，将 SLO 视为管理路径 — 这是连接 F5 Global Controller 的路径，并且专用于该路径 — 并在 SLI VRF 或其自己的段中添加附加数据平面接口，用于处理其他所有内容。
+
+定义接口时，会在站点对象上设置每个接口的 IP 配置。特别地，VLAN 子接口是否可以分配给 *管理* 网络，在撰写本文时 F5 尚未 **在任何一方进行文档说明**；现场经验表明它不支持，最可靠的安排是属于管理 VLAN 的端口组中的专用接口。在针对它进行设计之前，请与 F5 确认。
+
+### 我在三节点站点上启用了 Management Network，但节点仅带着 SLO 启动。为什么？
+
+因为多节点 CE Site 不支持该选项。站点对象接受该设置，但集群不会获得额外的接口，因此您看到的外部接口是表现正常的 SLO 接口。这是受支持的配置限制，不是规定故障，并且在该站点对象上无法修复：**High Availability** 在创建后无法更改。
+
+### 部署站点后，我可以将管理迁移出 SLO 吗？
+
+不能通过重新配置 SLO 来实现。节点注册并部署后，不能更改 SLO 的 IP 和 MAC 地址。您可以做的是通过将虚拟主机、负载均衡器和源站发现在其他接口或段上放置，将 *数据平面* 迁移出 SLO。
+
+### 我的接口将按什么顺序分配？
+
+启用管理网络：管理优先，然后是 SLO，然后是作为 SLI 的任何附加接口。未启用时：SLO 优先，然后是作为 SLI 的附加接口。在首次开机之前附加接口以便设置客户机属性，并在以后添加或更改接口之前关闭节点电源。
+
+### 一个 CE 应该有多少个接口？
+
+一个 SLO 接口是平台要求的最小值。如果管理流量绝对不能与应用流量共享接口，请计划三个：用于控制平面的 SLO，加上至少两个数据平面接口。此部署使用该结构 — SLO, external, internal。
+
+<Aside type="note" title="出处（Provenance）">
+本页上的每个平台行为均引自当前的 F5 产品文档：[Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)（SLO 和 SLI 的步骤 4，管理网络的步骤 8.4）以及 [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs)。无法通过两者确认的单一主张（管理网络上的 VLAN 子接口支持）在其出现的地方被标记为未验证，而不是被当成事实重复。
+</Aside>
