@@ -161,6 +161,40 @@ output "vip" {
 }
 
 # ---------------------------------------------------------
+# Canada Regional outputs
+# ---------------------------------------------------------
+
+output "ca_lb_domain" {
+  description = "Domain served by the Canada HTTP load balancer."
+  value       = var.ca_lb_domain
+}
+
+output "ca_re_virtual_site_name" {
+  description = "Name of the Canadian Regional Edge virtual site."
+  value       = try(xcsh_virtual_site.canada_re[0].name, null)
+}
+
+output "ca_ce_virtual_site_name" {
+  description = "Name of the Canadian Customer Edge virtual site."
+  value       = try(xcsh_virtual_site.canada_ce[0].name, null)
+}
+
+output "ca_loadbalancer_name" {
+  description = "Name of the Canadian HTTP load balancer."
+  value       = try(xcsh_http_loadbalancer.canada[0].name, null)
+}
+
+output "ca_origin_pool_name" {
+  description = "Name of the Canadian origin pool."
+  value       = try(xcsh_origin_pool.canada[0].name, null)
+}
+
+output "ca_vip" {
+  description = "HA VIP for Canadian CEs advertised via eBGP/ECMP."
+  value       = var.ca_vip
+}
+
+# ---------------------------------------------------------
 # CE registration token
 # ---------------------------------------------------------
 
