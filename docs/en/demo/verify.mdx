@@ -22,6 +22,12 @@ CLIENT=$(terraform output -raw client_vm_name)
 DOMAIN=$(terraform output -raw lb_domain)
 VIP=$(terraform output -raw vip)
 NIC=$(terraform output -raw client_nic_name)
+
+# Canada Regional Path variables (when enable_canada = true)
+CA_LB_DOMAIN=$(terraform output -raw ca_lb_domain)
+CA_VIP=$(terraform output -raw ca_vip)
+CA_RE_VSITE=$(terraform output -raw ca_re_virtual_site_name)
+CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
 ```
 
 ## Four checks, in this order
@@ -108,20 +114,33 @@ NIC=$(terraform output -raw client_nic_name)
    them rather than comparing to a previous run. One next hop where you expect three means a
    CE has stopped advertising, and step 2 identifies which.
 
-4. **The VIP serves traffic.** From the client VM, and **with the `Host` header** — see the
-   second trap. Sample enough requests to see a problem: a few dozen read as 100 % even
-   inside the convergence window described below.
+4. **The VIPs serve traffic.** From the client VM, and **with the `Host` header** — see the
+   second trap. Test both the Rest of World (`f5-sales-demo.com`) and Canada (`f5-sales-demo.ca`) domains.
 
    ```bash
    az vm run-command invoke -g "$RG" -n "$CLIENT" \
      --command-id RunShellScript --query "value[0].message" -o tsv \
      --scripts "ok=0; fail=0
-                for i in \$(seq 1 60); do
+                for i in \$(seq 1 30); do
                   c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
                         -H 'Host: ${DOMAIN}' http://${VIP}/)
                   [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
                 done
-                echo \"OK=\$ok FAIL=\$fail\""
+                echo \"ROW_DOMAIN_OK=\$ok ROW_DOMAIN_FAIL=\$fail\""
+   ```
+
+   For the Canada Regional path (`f5-sales-demo.ca`):
+
+   ```bash
+   az vm run-command invoke -g "$RG" -n "$CLIENT" \
+     --command-id RunShellScript --query "value[0].message" -o tsv \
+     --scripts "ok=0; fail=0
+                for i in \$(seq 1 30); do
+                  c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                        -H 'Host: ${CA_LB_DOMAIN}' http://${CA_VIP}/)
+                  [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
+                done
+                echo \"CANADA_DOMAIN_OK=\$ok CANADA_DOMAIN_FAIL=\$fail\""
    ```
 
    Observed 2026-08-03 in the automated UAT. The final two batches were clean:

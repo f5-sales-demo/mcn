@@ -39,25 +39,29 @@ TF_CLI_CONFIG_FILE=~/.terraformrc.provider-dev terraform plan   # when you mean 
 
 </Aside>
 
-## Supply the two values that have no default
+## Supply variable values via `tfvars`
 
-Every other variable has a working default, and every object name derives from
-`var.component`. Two are deliberately left without one:
+Every variable has a default or derived default. For internet readers and reference deployments, supply your own values via `terraform.tfvars` so deployment-specific names, subscriptions, domains, and addresses are not hardcoded into configuration:
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-| Variable | Why it has no default |
-| --- | --- |
-| `origin_ip` | Any default is one specific machine. A stale one sends a fresh deployment's traffic to somebody else's host instead of failing. |
-| `lb_domain` | The load balancer matches on `Host`, so this is what every request must send. It belongs to whoever runs the deployment. |
+| Variable | Default / Role | Why it should be customized |
+| --- | --- | --- |
+| `origin_ip` | *(no default)* | Public IP of your origin server (e.g. `203.0.113.10` from RFC 5737 documentation space). |
+| `lb_domain` | *(no default)* | FQDN for Rest of World traffic (e.g. `mcn-ce-ha.f5-sales-demo.com` or `mcn.example.com`). |
+| `ca_lb_domain` | `mcn-ce-ha.f5-sales-demo.ca` | FQDN for Canada-only traffic (e.g. `mcn.example.ca`). |
+| `enable_canada` | `true` | Toggle to deploy parallel Canadian regional infrastructure, virtual sites, and load balancer. |
+| `ca_location` | `canadacentral` | Azure region for Canadian CEs and Route Server. |
+| `ca_hub_cidr` | `10.200.0.0/16` | VNet CIDR block for Canadian Hub VNet (RFC 1918 space). |
+| `ca_vip` | `10.250.1.10` | HA VIP advertised by Canadian CEs via eBGP (must be outside VNet CIDRs). |
+| `ca_re_cities` | `["toronto", "montreal"]` | List of Regional Edge cities for Canadian RE Virtual Site selector expression. |
 
-Both are format-validated, so a typo fails the plan rather than the demo.
+Both `origin_ip` and domains are format-validated so a typo fails the plan rather than runtime routing.
 
-`terraform.tfvars` is gitignored, and must stay that way: it carries a subscription id and
-per-engineer values.
+`terraform.tfvars` is gitignored to protect sensitive environment variables, subscription IDs, and custom credentials.
 
 ## The tenant is configuration, not whatever your shell is exporting
 

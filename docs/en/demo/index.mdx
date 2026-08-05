@@ -10,10 +10,14 @@ import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
 This deployment demonstrates **active/active Customer Edge high availability in Azure**
-with no Azure load balancer in front of the CEs. Each CE originates the same host route by
-eBGP, and the Azure Route Server installs all of them as equal-cost next hops in the VNet.
-The routing fabric, rather than a load balancer, is therefore where traffic distribution
-and failed-node removal are meant to happen.
+with no Azure load balancer in front of the CEs, expanded to support **parallel regional network paths**
+in a single Terraform plan:
+
+1. **Rest of World (ROW)**: Serves `mcn-ce-ha.f5-sales-demo.com` via CEs in `eastus` with global public RE advertisement.
+2. **Canada Regional Path**: Serves `mcn-ce-ha.f5-sales-demo.ca` strictly within Canada via CEs in `canadacentral` and a Canadian Regional Edge Virtual Site targeting Toronto and Montreal PoPs (`ves.io/city in (toronto, montreal)`).
+
+Each set of CEs originates its host route by eBGP to a regional Azure Route Server, which installs all of them as equal-cost next hops in the VNet.
+The routing fabric, rather than a load balancer, is where traffic distribution and failed-node removal happen.
 
 Everything in these pages was run against the live deployment, and the output shown is the
 output it produced. What that sentence does *not* cover — failover, and how traffic divides
@@ -22,32 +26,35 @@ across the next hops — is called out explicitly rather than left to be assumed
 ## What it deploys
 
 ```text
-                     Azure Route Server            ASN 65515
-                      two instance addresses
-                                 |
-             +-------------------+-------------------+
-             |                   |                   |
-        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
-             |                   |                   |         CE ASN 64512
-        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
-          CE site             CE site             CE site
-             |                   |                   |
-             +--- each advertises the same VIP /32 ---+
-                    equal-cost multipath into the VNet
+                     Rest of World (ROW)              Canada Regional Path
+                 mcn-ce-ha.f5-sales-demo.com       mcn-ce-ha.f5-sales-demo.ca
+                           |                                 |
+                 Global Public REs               Canada RE Virtual Site
+                         |                     (Toronto & Montreal REs)
+                         |                                   |
+                Azure Route Server                Canada Azure Route Server
+                   ASN 65515                         ASN 65515
+                       |                                     |
+           +-----------+-----------+             +-----------+-----------+
+           |           |           |             |           |           |
+        CE-01       CE-02       CE-03         CE-CA-01    CE-CA-02    CE-CA-03
+       (eastus)    (eastus)    (eastus)     (canadacentral) (canadacentral) (canadacentral)
+           |           |           |             |           |           |
+           +---- VIP 10.250.0.10 --+             +---- VIP 10.250.1.10 --+
 ```
 
 | Piece | What it is |
 | --- | --- |
 | F5 Distributed Cloud tenant | `var.expected_xc_tenant` — the only place the tenant is named |
 | Namespaces | CE sites in `system`; origin pool and load balancer in `var.xc_app_namespace` |
-| Customer Edges | `var.ce_count` single-node Secure Mesh v2 sites, 1 to 3, one per availability zone |
-| CE software | pinned by `var.ce_sw_version` / `var.ce_os_version` |
-| Azure VMs | three NICs each — `mgmt` (which is the SLO interface), external, internal/SLI |
-| Route exchange | one Azure Route Server, ASN `var.rs_asn`, two instance addresses |
-| Peerings | one per CE, named `<key>-bgp`, CE ASN `var.ce_asn` |
-| Advertised VIP | `var.vip` as a `/32`, originated identically by every CE |
-| Load balancer | serves `var.lb_domain`, backed by an origin pool at `var.origin_ip` |
-| Test client | a VM inside the same VNet, for driving traffic at the VIP |
+| Rest of World CEs | `var.ce_count` single-node Secure Mesh v2 sites in `var.location` (`eastus`) |
+| Canadian CEs | `var.ca_ce_count` single-node Secure Mesh v2 sites in `var.ca_location` (`canadacentral`) |
+| Canadian Virtual Sites | `xcsh_virtual_site.canada_re` (Toronto & Montreal REs) and `xcsh_virtual_site.canada_ce` (Canadian CEs) |
+| Route exchange | Azure Route Servers in `eastus` and `canadacentral`, ASN `var.rs_asn` |
+| Peerings | eBGP peerings per CE, CE ASN `var.ce_asn` |
+| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada |
+| Load balancers | `var.lb_domain` (`f5-sales-demo.com`) for ROW; `var.ca_lb_domain` (`f5-sales-demo.ca`) for Canada |
+| Test clients | Client VMs in each regional VNet for driving traffic at the VIPs |
 
 Nothing above is a literal you should copy. Every value is readable from the deployment,
 and each page reads it rather than naming it:
