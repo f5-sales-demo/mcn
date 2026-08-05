@@ -28,6 +28,7 @@ resource "terraform_data" "ce_vm" {
 # (var.interface_name) that the BGP peer binds to — without it a standalone bgp
 # object is accepted but never renders to FRR (see xcsh #1207).
 resource "xcsh_securemesh_site_v2" "this" {
+  count       = var.create_site ? 1 : 0
   name        = var.site_name
   namespace   = "system"
   description = "MCN CE-HA (BGP/ECMP) single-node SMSv2 site ${var.site_name} — explicit eth0 SLO interface for BGP peer binding."
@@ -256,7 +257,7 @@ resource "xcsh_bgp" "this" {
     site {
       ref {
         namespace = "system"
-        name      = xcsh_securemesh_site_v2.this.name
+        name      = var.site_name
       }
       network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
       disable_internet_vip {}
@@ -283,7 +284,7 @@ resource "xcsh_bgp" "this" {
 
       external {
         asn     = var.rs_asn
-        address = var.rs_peer_ips[peers.value]
+        address = try(var.rs_peer_ips[peers.value], "")
         port    = var.peer_port
 
         interface {

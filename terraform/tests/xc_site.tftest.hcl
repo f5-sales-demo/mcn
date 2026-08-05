@@ -36,7 +36,7 @@ run "site_and_interface_binding" {
   }
 
   assert {
-    condition     = xcsh_securemesh_site_v2.this.namespace == "system"
+    condition     = one(xcsh_securemesh_site_v2.this).namespace == "system"
     error_message = "The site must be created in the system namespace."
   }
 
@@ -54,14 +54,14 @@ run "site_and_interface_binding" {
   # which would change the data path.
   assert {
     condition = (
-      xcsh_securemesh_site_v2.this.performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_disabled != null
+      one(xcsh_securemesh_site_v2.this).performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_disabled != null
     )
     error_message = "perf_mode_l7_enhanced must declare the jumbo_disabled arm."
   }
 
   assert {
     condition = (
-      xcsh_securemesh_site_v2.this.performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_enabled == null
+      one(xcsh_securemesh_site_v2.this).performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_enabled == null
     )
     error_message = "perf_mode_l7_enhanced must NOT select jumbo_enabled: jumbo_disabled is the arm F5 materialises, and switching arms changes the CE data path."
   }

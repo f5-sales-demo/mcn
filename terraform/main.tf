@@ -450,6 +450,7 @@ module "xc_site_ca" {
   for_each = try(module.ce_topology_ca[0].ce_nodes, {})
   source   = "./modules/xc-site"
 
+  create_site          = false
   site_name            = each.value.site_name
   hostname             = each.value.hostname
   interface_name       = each.value.interface_name
@@ -550,17 +551,6 @@ resource "xcsh_http_loadbalancer" "canada" {
   }
 
   advertise_custom {
-    advertise_where {
-      virtual_site {
-        network = "SITE_NETWORK_OUTSIDE"
-        virtual_site {
-          namespace = data.xcsh_namespace.mcn.name
-          name      = try(xcsh_virtual_site.canada_re[0].name, null)
-        }
-      }
-      use_default_port {}
-    }
-
     dynamic "advertise_where" {
       for_each = try(module.ce_topology_ca[0].ce_nodes, {})
       content {
