@@ -1,7 +1,7 @@
 terraform {
-  # >= 1.8 for provider-defined functions and the check{} block used to guard the
-  # HA VIP against the VNet CIDRs (see main.tf).
-  required_version = ">= 1.8"
+  # >= 1.10.0 for provider-defined functions, check{} blocks, and test framework
+  # mocking options (override_during = plan in .tftest.hcl).
+  required_version = ">= 1.10.0"
 
   required_providers {
     xcsh = {
