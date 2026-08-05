@@ -222,9 +222,10 @@ repos:
         types: [text]
         # codespell's own `skip` list only applies during its directory
         # traversal; when pre-commit passes explicit file paths it is bypassed.
-        # Filter translation docs and source catalogs here so their
-        # foreign-language words never reach codespell. See issues #579 and #934.
-        exclude: ^(docs/(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)/|README\.(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)\.md$|src/i18n/.*translations|research/benchmarks/uat-matrix/corpora/i18n\.yaml$)
+        # Filter generated artifacts, translation docs, and source catalogs
+        # here so generated identifiers and foreign-language words never reach
+        # codespell. See issues #579, #934, and #1234.
+        exclude: ^(dist/|build/|release/|vendor/|docs/(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)/|README\.(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)\.md$|src/i18n/.*translations|research/benchmarks/uat-matrix/corpora/i18n\.yaml$)
 
   # ===========================================================================
   # EditorConfig conformance — config: .editorconfig-checker.json
@@ -276,19 +277,18 @@ repos:
         pass_filenames: false
 
   # ===========================================================================
-  # Translation generation — regenerate locale docs when English changes.
-  # The developer environment provides agy. The hook translates an isolated
-  # snapshot of the staged index, validates its 12 locale outputs, and copies
-  # only allowlisted files back. It is intentionally always active locally;
-  # TRANSLATIONS_ENABLED controls GitHub Actions only.
+  # Translation validation — deterministic only. English-only source commits
+  # are allowed through so the governed workflow can generate locale output;
+  # any locale file that is staged locally must already match its English hash
+  # and preserve fence shape, links, imports, and MDX component structure.
   # ===========================================================================
   - repo: local
     hooks:
-      - id: antigravity-translate
-        name: "i18n: translate staged English docs with Antigravity"
-        entry: bash scripts/antigravity-translate-staged.sh
+      - id: validate-translations
+        name: "i18n: validate staged locale output"
+        entry: bash scripts/validate-translations.sh --staged
         language: system
-        files: ^(docs/en|src/content/docs/en)/.*\.mdx?$
+        files: ^(docs|src/content/docs)/(en|fr|es|de|pt-br|ja|ko|zh-cn|zh-tw|ar|it|hi|th)/.*\.mdx?$
         pass_filenames: false
 
 ci:
@@ -313,4 +313,4 @@ ci:
     - zizmor
     - checkov
     - gitleaks
-    - antigravity-translate
+    - validate-translations
