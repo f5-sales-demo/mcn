@@ -64,6 +64,13 @@ check "vip_outside_vnet_cidrs" {
   }
 }
 
+check "ca_vip_outside_vnet_cidrs" {
+  assert {
+    condition     = !var.enable_canada || cidrhost(var.ca_hub_cidr, 0) != cidrhost("${var.ca_vip}/${split("/", var.ca_hub_cidr)[1]}", 0)
+    error_message = "ca_vip ${var.ca_vip} must be OUTSIDE ca_hub_cidr ${var.ca_hub_cidr}."
+  }
+}
+
 # Tenant-scoped, reusable site registration token. The provider now ships
 # xcsh_token with a Computed `uid` (system_metadata.uid) — the token VALUE a CE
 # feeds to VPM at registration (the resource `id` is the token NAME, not the
@@ -322,6 +329,258 @@ resource "xcsh_http_loadbalancer" "this" {
     pool {
       namespace = data.xcsh_namespace.mcn.name
       name      = xcsh_origin_pool.this.name
+    }
+    weight   = 1
+    priority = 1
+  }
+
+  round_robin {}
+  no_challenge {}
+  user_id_client_ip {}
+  disable_waf {}
+  disable_rate_limit {}
+  disable_api_discovery {}
+  disable_api_testing {}
+  disable_api_definition {}
+  l7_ddos_protection {}
+  service_policies_from_namespace {}
+  disable_trust_client_ip_headers {}
+  disable_malicious_user_detection {}
+  disable_malware_protection {}
+  disable_threat_mesh {}
+  default_sensitive_data_policy {}
+}
+
+# ---------------------------------------------------------
+# Canada Regional Infrastructure & F5 XC Data-Plane (Canada Path)
+# ---------------------------------------------------------
+
+# Pure expansion of ca_ce_count into the per-CE node map for Canada.
+module "ce_topology_ca" {
+  count  = var.enable_canada ? 1 : 0
+  source = "./modules/ce-topology"
+
+  ce_count           = var.ca_ce_count
+  region_short       = local.ca_region_short
+  mgmt_subnet_prefix = var.ca_mgmt_subnet_prefix
+  site_prefix        = local.ca_site_prefix
+}
+
+# Canada Hub: RG, VNet, four subnets, Azure Route Server.
+module "azure_hub_ca" {
+  count  = var.enable_canada ? 1 : 0
+  source = "./modules/azure-hub"
+
+  resource_group_name        = local.ca_resource_group_name
+  location                   = var.ca_location
+  hub_cidr                   = var.ca_hub_cidr
+  mgmt_subnet_prefix         = var.ca_mgmt_subnet_prefix
+  external_subnet_prefix     = var.ca_external_subnet_prefix
+  internal_subnet_prefix     = var.ca_internal_subnet_prefix
+  route_server_subnet_prefix = var.ca_route_server_subnet_prefix
+  route_server_name          = local.ca_route_server_name
+  bastion_subnet_prefix      = var.ca_bastion_subnet_prefix
+  enable_bastion             = var.enable_bastion
+  bastion_name               = local.ca_bastion_name
+  tags                       = local.tags
+}
+
+# One Canadian CE VM (3 NICs + identity) per node.
+module "ce_node_ca" {
+  for_each = try(module.ce_topology_ca[0].ce_nodes, {})
+  source   = "./modules/ce-node"
+
+  hostname            = each.value.hostname
+  resource_group_name = try(module.azure_hub_ca[0].resource_group_name, null)
+  location            = try(module.azure_hub_ca[0].location, null)
+  zone                = each.value.az
+  vm_size             = var.ce_vm_size
+  mgmt_subnet_id      = try(module.azure_hub_ca[0].management_subnet_id, null)
+  external_subnet_id  = try(module.azure_hub_ca[0].external_subnet_id, null)
+  internal_subnet_id  = try(module.azure_hub_ca[0].internal_subnet_id, null)
+  mgmt_private_ip     = each.value.slo_ip
+  admin_username      = var.admin_username
+  ssh_public_key      = local.ssh_public_key
+
+  custom_data = base64encode(local.ca_ce_cloud_init[each.key])
+
+  tags = local.tags
+}
+
+resource "random_password" "site_console_admin_ca" {
+  for_each = try(module.ce_topology_ca[0].ce_nodes, {})
+
+  length           = 32
+  min_lower        = 1
+  min_numeric      = 1
+  min_special      = 1
+  min_upper        = 1
+  override_special = "!#%*+-=?@^_~"
+
+  keepers = {
+    ce_vm_instance_id = module.ce_node_ca[each.key].vm_instance_id
+  }
+}
+
+resource "azurerm_virtual_machine_extension" "site_console_password_ca" {
+  for_each = try(module.ce_topology_ca[0].ce_nodes, {})
+
+  name                       = "site-console-admin-password"
+  virtual_machine_id         = module.ce_node_ca[each.key].vm_id
+  publisher                  = "Microsoft.Azure.Extensions"
+  type                       = "CustomScript"
+  type_handler_version       = "2.1"
+  auto_upgrade_minor_version = true
+
+  protected_settings = jsonencode({
+    script = base64encode(<<-SCRIPT
+      #!/usr/bin/env bash
+      set -euo pipefail
+      password_b64='${base64encode(random_password.site_console_admin_ca[each.key].result)}'
+      password=$(printf '%s' "$password_b64" | base64 --decode)
+      printf 'admin:%s\n' "$password" | chpasswd
+      unset password password_b64
+    SCRIPT
+    )
+  })
+}
+
+# Canadian XC SMSv2 site + BGP object per node.
+module "xc_site_ca" {
+  for_each = try(module.ce_topology_ca[0].ce_nodes, {})
+  source   = "./modules/xc-site"
+
+  site_name            = each.value.site_name
+  hostname             = each.value.hostname
+  interface_name       = each.value.interface_name
+  mgmt_nic_mac         = module.ce_node_ca[each.key].mgmt_nic_mac
+  ce_vm_instance_id    = module.ce_node_ca[each.key].vm_instance_id
+  rs_peer_ips          = try(module.azure_hub_ca[0].rs_peer_ips, [])
+  ce_asn               = var.ce_asn
+  rs_asn               = var.rs_asn
+  os_version           = var.ce_os_version
+  sw_version           = var.ce_sw_version
+  enable_bgp           = var.enable_bgp
+  approve_registration = var.approve_registration
+}
+
+# Azure Route Server eBGP session for Canadian CEs.
+module "azure_route_server_bgp_ca" {
+  for_each = try(module.ce_topology_ca[0].ce_nodes, {})
+  source   = "./modules/azure-route-server-bgp"
+
+  name            = "${each.key}-bgp"
+  route_server_id = try(module.azure_hub_ca[0].route_server_id, null)
+  peer_asn        = var.ce_asn
+  peer_ip         = module.ce_node_ca[each.key].mgmt_private_ip
+}
+
+module "client_vm_ca" {
+  count  = var.enable_canada ? 1 : 0
+  source = "./modules/client-vm"
+
+  name                = local.ca_client_vm_name
+  resource_group_name = try(module.azure_hub_ca[0].resource_group_name, null)
+  location            = try(module.azure_hub_ca[0].location, null)
+  subnet_id           = try(module.azure_hub_ca[0].internal_subnet_id, null)
+  admin_username      = var.admin_username
+  ssh_public_key      = local.ssh_public_key
+  tags                = local.tags
+}
+
+# ---------------------------------------------------------
+# F5 XC Virtual Sites (Canada RE & Canada CE)
+# ---------------------------------------------------------
+
+resource "xcsh_virtual_site" "canada_re" {
+  count     = var.enable_canada ? 1 : 0
+  name      = local.ca_re_vsite_name
+  namespace = data.xcsh_namespace.mcn.name
+
+  site_type = "REGIONAL_EDGE"
+  site_selector {
+    expressions = ["ves.io/city in (${join(", ", var.ca_re_cities)})"]
+  }
+}
+
+resource "xcsh_virtual_site" "canada_ce" {
+  count     = var.enable_canada ? 1 : 0
+  name      = local.ca_ce_vsite_name
+  namespace = data.xcsh_namespace.mcn.name
+
+  site_type = "CUSTOMER_EDGE"
+  site_selector {
+    expressions = ["ves.io/siteName in (${join(", ", [for k, v in try(module.ce_topology_ca[0].ce_nodes, {}) : v.site_name])})"]
+  }
+}
+
+resource "xcsh_origin_pool" "canada" {
+  count       = var.enable_canada ? 1 : 0
+  name        = local.ca_origin_pool_name
+  namespace   = data.xcsh_namespace.mcn.name
+  description = "Canada reference origin pool -> ${var.origin_ip}:${var.origin_port}"
+
+  port = var.origin_port
+
+  origin_servers {
+    labels {}
+    public_ip {
+      ip = var.origin_ip
+    }
+  }
+
+  no_tls {}
+  loadbalancer_algorithm = "ROUND_ROBIN"
+  endpoint_selection     = "DISTRIBUTED"
+}
+
+resource "xcsh_http_loadbalancer" "canada" {
+  count      = var.enable_canada ? 1 : 0
+  depends_on = [module.xc_site_ca, xcsh_virtual_site.canada_re, xcsh_virtual_site.canada_ce]
+
+  name        = local.ca_lb_name
+  namespace   = data.xcsh_namespace.mcn.name
+  description = "Canada Regional HA: custom VIP ${var.ca_vip} advertised strictly via Canadian Regional Edges (Toronto and Montreal) and Canadian CEs."
+
+  domains = [var.ca_lb_domain]
+
+  http {
+    port                 = 80
+    dns_volterra_managed = false
+  }
+
+  advertise_custom {
+    advertise_where {
+      virtual_site {
+        network = "SITE_NETWORK_OUTSIDE"
+        virtual_site {
+          namespace = data.xcsh_namespace.mcn.name
+          name      = try(xcsh_virtual_site.canada_re[0].name, null)
+        }
+      }
+      use_default_port {}
+    }
+
+    dynamic "advertise_where" {
+      for_each = try(module.ce_topology_ca[0].ce_nodes, {})
+      content {
+        site {
+          network = "SITE_NETWORK_OUTSIDE"
+          site {
+            namespace = "system"
+            name      = advertise_where.value.site_name
+          }
+          ip = var.ca_vip
+        }
+        use_default_port {}
+      }
+    }
+  }
+
+  default_route_pools {
+    pool {
+      namespace = data.xcsh_namespace.mcn.name
+      name      = try(xcsh_origin_pool.canada[0].name, null)
     }
     weight   = 1
     priority = 1

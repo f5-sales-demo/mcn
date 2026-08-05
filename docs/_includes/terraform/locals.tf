@@ -60,6 +60,18 @@ locals {
   # `-f5se` matches the convention this tenant's other load balancers already use.
   lb_name = coalesce(var.lb_name, "${var.component}-f5se")
 
+  # --- Derived Canada object names ---
+  ca_region_short        = coalesce(var.ca_region_short, var.ca_location)
+  ca_site_prefix         = coalesce(var.ca_site_prefix, "${var.component}-ca")
+  ca_resource_group_name = coalesce(var.ca_resource_group_name, "rg-${var.component}-ca-${local.deployer}")
+  ca_route_server_name   = coalesce(var.ca_route_server_name, "${var.component}-ca-rs")
+  ca_bastion_name        = coalesce(var.ca_bastion_name, "${var.component}-ca-bastion")
+  ca_client_vm_name      = coalesce(var.ca_client_vm_name, "${var.component}-ca-client")
+  ca_origin_pool_name    = coalesce(var.ca_origin_pool_name, "${var.component}-ca-pool")
+  ca_lb_name             = coalesce(var.ca_lb_name, "${var.component}-ca-f5se")
+  ca_re_vsite_name       = coalesce(var.ca_re_vsite_name, "${var.component}-ca-re-vsite")
+  ca_ce_vsite_name       = coalesce(var.ca_ce_vsite_name, "${var.component}-ca-ce-vsite")
+
   # --- Standard tags (applied to every Azure resource) ---
   standard_tags = {
     component   = var.component
@@ -92,6 +104,15 @@ locals {
       token        = local.ce_registration_token
       # chomp: a key read from a .pub file ends in a newline, which would render a
       # second, empty line into authorized_keys under `content: |`.
+      ssh_public_key = chomp(local.ssh_public_key)
+    })
+  }
+
+  # --- Canada CE cloud-init, rendered once per node ---
+  ca_ce_cloud_init = {
+    for key, node in try(module.ce_topology_ca[0].ce_nodes, {}) : key => templatefile("${path.module}/cloud-init/ce-node.yaml", {
+      cluster_name   = node.site_name
+      token          = local.ce_registration_token
       ssh_public_key = chomp(local.ssh_public_key)
     })
   }
