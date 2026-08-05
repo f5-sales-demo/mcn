@@ -1,0 +1,116 @@
+Act as an expert F5 Distributed Cloud (XC) and Microsoft Azure Infrastructure-as-Code architect.
+
+Write out the complete, modular, production-grade Terraform codebase under the `terraform/` directory for an Active/Active eBGP/ECMP F5 XC Customer Edge (Secure Mesh v2) deployment on Azure with a parallel Canadian regional extension.
+
+### Core Architectural Requirements & Specifications
+
+1. Provider & Version Requirements (`terraform/versions.tf` & `terraform/providers.tf`):
+   - Terraform CLI `>= 1.10.0`.
+   - Provider `f5-sales-demo/xcsh` (version `>= 3.81.1`). Provider `xcsh` must set `api_url = local.xc_api_url` where `local.xc_api_url` is derived from `var.expected_xc_tenant` (`https://${var.expected_xc_tenant}.console.ves.volterra.io`).
+   - Provider `hashicorp/azurerm` (`~> 4.0`), with `features {}` and `subscription_id = var.subscription_id`.
+   - Provider `hashicorp/azuread` (`~> 3.0`).
+   - Provider `hashicorp/external` (`~> 2.3`).
+   - Provider `hashicorp/random` (`~> 3.0`).
+   - Backend: Partial Azure Blob backend `backend "azurerm" {}` with example `backend.hcl.example`.
+
+2. Tenant Guard & Environment Script (`terraform/data.tf`, `terraform/main.tf`, `scripts/xc-env-tenant.sh`):
+   - Include `scripts/xc-env-tenant.sh` (executable `chmod +x` POSIX shell script) that inspects `XCSH_API_URL` from the ambient environment and outputs JSON `{"tenant":"<label>","api_url_set":"<bool>"}`.
+   - Declare `data "external" "xc_env_tenant"` invoking `scripts/xc-env-tenant.sh` with a `lifecycle { postcondition }` block asserting that `self.result.tenant` is either empty or matches `var.expected_xc_tenant` (`f5-sales-demo`).
+
+3. Safety Checks (`terraform/main.tf`):
+   - `check "vip_outside_vnet_cidrs"` asserting `var.vip` (`10.250.0.10`) is strictly outside `var.hub_cidr` (`10.0.0.0/16`) and `var.spoke_cidr` (`10.1.0.0/16`).
+   - `check "ca_vip_outside_vnet_cidrs"` asserting `var.ca_vip` (`10.250.1.10`) is strictly outside `var.ca_hub_cidr` (`10.200.0.0/16`).
+
+4. Cloud-Init Bootstrapping (`terraform/cloud-init/ce-node.yaml`):
+   - Renders `#cloud-config` writing `/etc/vpm/config.yaml` (permissions `0600`, owner `root`) with:
+     - `Vpm.ClusterType: ce`
+     - `Vpm.ClusterName: ${cluster_name}`
+     - `Vpm.Token: ${token}`
+     - `Vpm.MauriceEndpoint: https://register.ves.volterra.io`
+     - `Vpm.MauricePrivateEndpoint: https://register-tls.ves.volterra.io`
+     - `Vpm.CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/azure.yml`
+     - `Kubernetes.EtcdUseTLS: true`, `Server: vip`, `CloudProvider: disabled`
+   - Renders `/var/home/admin/.ssh/authorized_keys` (permissions `0600`, owner `admin:admin`) with `${ssh_public_key}`.
+
+5. Modular Structure (`terraform/modules/`):
+   - `modules/ce-topology`: Pure computation module expanding `ce_count` (1..3) into per-CE attributes:
+     - `hostname`: `<hostname_prefix>-0<n>`
+     - `site_name`: `<site_prefix>-<region_short>0<n>`
+     - `slo_ip`: `cidrhost(mgmt_subnet_prefix, 4 + i)`
+     - `az`: `element(["1","2","3"], i)`
+     - `interface_name`: `ves-io-securemesh-site-v2-<site_prefix>-<region_short>0<n>-network-<hostname_prefix>-0<n>-eth0-0`
+   - `modules/azure-hub`:
+     - Resource Group `rg-<component>-<deployer>` (where `<deployer>` resolves from Azure AD via 4-tier fallback logic in `locals.tf`).
+     - Hub VNet (`hub-vnet`), subnets `snet-hub-management`, `snet-hub-external`, `snet-hub-internal`, `RouteServerSubnet` (`/27`), and optional `AzureBastionSubnet` (`/26`).
+     - Azure Route Server (`<component>-rs`) with Standard Public IP (`65515` ASN).
+     - Optional Azure Bastion host (`<component>-bastion`) with `tunneling_enabled = true` and `ip_connect_enabled = true`.
+   - `modules/ce-node`:
+     - User Assigned Identity per CE node.
+     - 3 NICs per VM (mgmt/SLO, external, internal) with `ip_forwarding_enabled = true` and `accelerated_networking_enabled = false`.
+     - `azurerm_linux_virtual_machine` using marketplace image `volterraedgeservices/volterra-node/volterra-node` (offer/sku/publisher `volterraedgeservices/volterra-node/volterra-node`), `plan` block, 64 GB `StandardSSD_LRS` OS disk, and `custom_data = base64encode(cloud_init)`.
+   - `modules/xc-site`:
+     - F5 XC site resource `xcsh_securemesh_site_v2` with explicit `eth0` SLO interface (`network_option.site_local_network`, DHCP client) bound to mgmt NIC MAC.
+     - Include `terraform_data "ce_vm"` parking `var.ce_vm_instance_id` (the Azure VM resource ID) with `lifecycle { replace_triggered_by = [terraform_data.ce_vm] }` inside `xcsh_securemesh_site_v2` to couple site replacement to node rebuilds and prevent `UniqueSecondaryIndexViolation`.
+     - Include `data "xcsh_site_registration"` looking up site name and `xcsh_registration_approval` approving the registration when `found = true`.
+     - Include `xcsh_bgp` configuring eBGP (CE ASN `64512`, RS ASN `65515`, peer port `179`) bound to the explicit interface `var.interface_name`.
+   - `modules/azure-route-server-bgp`:
+     - Resource `azurerm_route_server_bgp_connection` connecting Route Server to CE mgmt private IP.
+   - `modules/client-vm`:
+     - Test client Ubuntu VM in `snet-hub-internal` with NSG, public IP, and NIC.
+
+6. App Tier & Load Balancing (`terraform/main.tf`):
+   - Tenant-scoped registration token `xcsh_token.ce` (`mcn-ce-registration` in `system`).
+   - Look up pre-existing application namespace `data "xcsh_namespace" "mcn"` (`multi-cloud-networking`).
+   - Origin pool `xcsh_origin_pool.this` targeting `var.origin_ip:var.origin_port` with `ROUND_ROBIN` and `DISTRIBUTED`.
+   - HTTP Load Balancer `xcsh_http_loadbalancer.this` (`mcn-ce-ha-f5se`) with `domains = [var.lb_domain]`, `advertise_custom` for custom VIP `10.250.0.10` on `SITE_NETWORK_OUTSIDE` for each CE site, and explicit `depends_on = [module.xc_site]`.
+
+7. Canada Regional Expansion (`var.enable_canada = true`):
+   - Parallel Canada Hub VNet (`10.200.0.0/16` in `canadacentral`), 3 Canadian CE VMs, Canada Route Server, Canadian eBGP sessions, Client VM.
+   - `xcsh_virtual_site.canada_re` (RE cities `toronto`, `montreal`) and `xcsh_virtual_site.canada_ce` (CE siteName selector).
+   - Canadian Origin Pool & Load Balancer (`mcn-ce-ha.f5-sales-demo.ca` advertising VIP `10.250.1.10/32`).
+
+8. Outputs & Deployment Artifacts:
+   - Complete `outputs.tf` exporting node maps, private/public IPs, route server IDs, BGP peer IPs, domain names, VIPs, and sensitive `ce_registration_token` & `site_console_admin_passwords`.
+   - Complete `variables.tf`, `variables_azure.tf`, `variables_ce.tf`, `variables_xc.tf`, `terraform.tfvars.example`, and `.gitignore`.
+
+### Required File List to Create:
+Write out the following file layout completely:
+- `terraform/versions.tf`
+- `terraform/providers.tf`
+- `terraform/backend.tf`
+- `terraform/backend.hcl.example`
+- `terraform/data.tf`
+- `terraform/locals.tf`
+- `terraform/main.tf`
+- `terraform/variables.tf`
+- `terraform/variables_azure.tf`
+- `terraform/variables_ce.tf`
+- `terraform/variables_xc.tf`
+- `terraform/outputs.tf`
+- `terraform/terraform.tfvars.example`
+- `terraform/.gitignore`
+- `terraform/scripts/xc-env-tenant.sh`
+- `terraform/cloud-init/ce-node.yaml`
+- `terraform/modules/ce-topology/main.tf`
+- `terraform/modules/ce-topology/variables.tf`
+- `terraform/modules/ce-topology/outputs.tf`
+- `terraform/modules/ce-topology/versions.tf`
+- `terraform/modules/azure-hub/main.tf`
+- `terraform/modules/azure-hub/variables.tf`
+- `terraform/modules/azure-hub/outputs.tf`
+- `terraform/modules/azure-hub/versions.tf`
+- `terraform/modules/ce-node/main.tf`
+- `terraform/modules/ce-node/variables.tf`
+- `terraform/modules/ce-node/outputs.tf`
+- `terraform/modules/ce-node/versions.tf`
+- `terraform/modules/xc-site/main.tf`
+- `terraform/modules/xc-site/variables.tf`
+- `terraform/modules/xc-site/outputs.tf`
+- `terraform/modules/xc-site/versions.tf`
+- `terraform/modules/azure-route-server-bgp/main.tf`
+- `terraform/modules/azure-route-server-bgp/versions.tf`
+- `terraform/modules/client-vm/main.tf`
+- `terraform/modules/client-vm/variables.tf`
+- `terraform/modules/client-vm/versions.tf`
+
+Execute `terraform fmt`, `terraform init -backend=false`, and `terraform validate` after creating the files to verify complete HCL correctness.
