@@ -115,7 +115,7 @@ CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
    CE has stopped advertising, and step 2 identifies which.
 
 4. **The VIPs serve traffic.** From the client VM, and **with the `Host` header** — see the
-   second trap. Test both the Rest of World (`f5-sales-demo.com`) and Canada (`f5-sales-demo.ca`) domains.
+   second trap. Sample both the Rest of World (`f5-sales-demo.com`) and Canada (`f5-sales-demo.ca`) domains.
 
    ```bash
    az vm run-command invoke -g "$RG" -n "$CLIENT" \
@@ -126,21 +126,16 @@ CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
                         -H 'Host: ${DOMAIN}' http://${VIP}/)
                   [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
                 done
-                echo \"ROW_DOMAIN_OK=\$ok ROW_DOMAIN_FAIL=\$fail\""
-   ```
-
-   For the Canada Regional path (`f5-sales-demo.ca`):
-
-   ```bash
-   az vm run-command invoke -g "$RG" -n "$CLIENT" \
-     --command-id RunShellScript --query "value[0].message" -o tsv \
-     --scripts "ok=0; fail=0
-                for i in \$(seq 1 30); do
-                  c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
-                        -H 'Host: ${CA_LB_DOMAIN}' http://${CA_VIP}/)
-                  [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
-                done
-                echo \"CANADA_DOMAIN_OK=\$ok CANADA_DOMAIN_FAIL=\$fail\""
+                echo \"ROW_DOMAIN_OK=\$ok ROW_DOMAIN_FAIL=\$fail\"
+                if [ -n \"${CA_LB_DOMAIN:-}\" ] && [ -n \"${CA_VIP:-}\" ]; then
+                  ca_ok=0; ca_fail=0
+                  for i in \$(seq 1 30); do
+                    c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                          -H 'Host: ${CA_LB_DOMAIN}' http://${CA_VIP}/)
+                    [ \"\$c\" = 200 ] && ca_ok=\$((ca_ok+1)) || ca_fail=\$((ca_fail+1))
+                  done
+                  echo \"CANADA_DOMAIN_OK=\$ca_ok CANADA_DOMAIN_FAIL=\$ca_fail\"
+                fi"
    ```
 
    Observed 2026-08-03 in the automated UAT. The final two batches were clean:

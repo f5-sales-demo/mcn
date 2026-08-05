@@ -25,6 +25,8 @@ across the next hops — is called out explicitly rather than left to be assumed
 
 ## What it deploys
 
+Observed 2026-08-05. The dual-path regional architecture:
+
 ```text
                      Rest of World (ROW)              Canada Regional Path
                  mcn-ce-ha.f5-sales-demo.com       mcn-ce-ha.f5-sales-demo.ca
@@ -40,7 +42,7 @@ across the next hops — is called out explicitly rather than left to be assumed
         CE-01       CE-02       CE-03         CE-CA-01    CE-CA-02    CE-CA-03
        (eastus)    (eastus)    (eastus)     (canadacentral) (canadacentral) (canadacentral)
            |           |           |             |           |           |
-           +---- VIP 10.250.0.10 --+             +---- VIP 10.250.1.10 --+
+           +---- VIP <ROW_VIP> ----+             +---- VIP <CA_VIP> -------+
 ```
 
 | Piece | What it is |
