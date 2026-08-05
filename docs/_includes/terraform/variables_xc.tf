@@ -58,13 +58,64 @@ variable "lb_name" {
 }
 
 variable "lb_domain" {
-  description = "Domain served by the HTTP load balancer. REQUIRED, deliberately without a default: the load balancer matches on Host, so this value is what every request must send, and it belongs to whoever runs the deployment."
+  description = "Domain served by the HTTP load balancer for Rest of World. REQUIRED, deliberately without a default: the load balancer matches on Host, so this value is what every request must send, and it belongs to whoever runs the deployment."
   type        = string
 
   validation {
     condition     = can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.lb_domain))
     error_message = "lb_domain must be a fully-qualified lowercase domain name (for example mcn-ce-ha.f5-sales-demo.com)."
   }
+}
+
+# ---------------------------------------------------------
+# Canada Regional F5 XC inputs
+# ---------------------------------------------------------
+
+variable "enable_canada" {
+  description = "Enable parallel Canada-only regional infrastructure, Canadian virtual sites, and f5-sales-demo.ca load balancer."
+  type        = bool
+  default     = true
+}
+
+variable "ca_lb_domain" {
+  description = "Domain served by the Canada HTTP load balancer. Defaults to mcn-ce-ha.f5-sales-demo.ca."
+  type        = string
+  default     = "mcn-ce-ha.f5-sales-demo.ca"
+
+  validation {
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.ca_lb_domain))
+    error_message = "ca_lb_domain must be a fully-qualified lowercase domain name (for example mcn-ce-ha.f5-sales-demo.ca)."
+  }
+}
+
+variable "ca_re_cities" {
+  description = "List of cities for the Canadian Regional Edge Virtual Site selector. Defaults to Toronto and Montreal."
+  type        = list(string)
+  default     = ["toronto", "montreal"]
+}
+
+variable "ca_lb_name" {
+  description = "Name of the Canada HTTP load balancer. Leave null (the default) to derive `<component>-ca-f5se`."
+  type        = string
+  default     = null
+}
+
+variable "ca_origin_pool_name" {
+  description = "Name of the Canada origin pool. Leave null (the default) to derive `<component>-ca-pool`."
+  type        = string
+  default     = null
+}
+
+variable "ca_re_vsite_name" {
+  description = "Name of the Canadian Regional Edge virtual site. Leave null (the default) to derive `<component>-ca-re-vsite`."
+  type        = string
+  default     = null
+}
+
+variable "ca_ce_vsite_name" {
+  description = "Name of the Canadian Customer Edge virtual site. Leave null (the default) to derive `<component>-ca-ce-vsite`."
+  type        = string
+  default     = null
 }
 
 variable "vip" {
