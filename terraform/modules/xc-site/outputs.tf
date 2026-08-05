@@ -1,6 +1,6 @@
 output "site_name" {
   description = "XC securemesh_site_v2 name."
-  value       = xcsh_securemesh_site_v2.this.name
+  value       = var.site_name
 }
 
 output "bgp_name" {

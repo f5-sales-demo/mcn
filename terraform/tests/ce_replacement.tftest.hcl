@@ -59,7 +59,7 @@ run "site_is_keyed_to_the_ce_vm_instance_id" {
   # not rename it. A renamed site would orphan the bgp object and the LB
   # advertise rule, which both reference it by name.
   assert {
-    condition     = xcsh_securemesh_site_v2.this.name == "mcn-ce-ha-eastus01"
+    condition     = one(xcsh_securemesh_site_v2.this).name == "mcn-ce-ha-eastus01"
     error_message = "The instance-id coupling must not change the site name."
   }
 }
