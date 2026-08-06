@@ -7,16 +7,17 @@ sidebar:
   order: 30
   label: 驗證
 i18n:
-  sourceHash: 200ef0fb5d0c
+  sourceHash: c90aadf52c9b
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-在展示之前先執行這些檢查。每一項檢查都會縮小故障可能存在的範圍，因此失敗會告訴你某些具體訊息，而不只是「有東西出錯了」。
+Run these before you present. Each check narrows where a fault would be, so a failure tells
+you something rather than only that something is wrong.
 
-每道指令都會從部署中讀取自己需要的資訊。設定一次以下變數，其餘指令即可沿用：
+Every command reads what it needs from the deployment. Set these once and the rest follow:
 
 ```bash
 cd terraform
@@ -26,13 +27,19 @@ CLIENT=$(terraform output -raw client_vm_name)
 DOMAIN=$(terraform output -raw lb_domain)
 VIP=$(terraform output -raw vip)
 NIC=$(terraform output -raw client_nic_name)
+
+# Canada Regional Path variables (when enable_canada = true)
+CA_LB_DOMAIN=$(terraform output -raw ca_lb_domain)
+CA_VIP=$(terraform output -raw ca_vip)
+CA_RE_VSITE=$(terraform output -raw ca_re_virtual_site_name)
+CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
 ```
 
-## 四項檢查，依此順序
+## Four checks, in this order
 
 <Steps>
 
-1. **每個 Site 都是 `ONLINE`。** 若這一點不成立，下游的任何結果都不可能為真。
+1. **Every site is `ONLINE`.** Nothing downstream can be true if this is not.
 
    ```bash
    for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
@@ -42,15 +49,17 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   2026-07-28 觀測結果，三台 CE：
+   Observed 2026-08-03 after the from-zero rebuild:
 
    ```text
-   mcn-ce-ha-eastus01 -> ONLINE
-   mcn-ce-ha-eastus02 -> ONLINE
-   mcn-ce-ha-eastus03 -> ONLINE
+   <SITE_01> -> ONLINE
+   <SITE_02> -> ONLINE
+   <SITE_03> -> ONLINE
    ```
 
-2. **每個 peering 都學到該 CE 的 VIP 通告。** 請分別查詢每個 peering——參見下方第一個陷阱，因為這正是本示範最常看起來壞掉、實際上卻沒壞的地方。
+2. **Every peering is learning that CE's VIP advertisement.** Query each peering
+   separately — see the first trap below, because this is where the demo most often looks
+   broken and is not.
 
    ```bash
    for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
@@ -62,26 +71,28 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   2026-07-28 觀測結果：
+   Observed 2026-08-03. The live addresses are omitted; read them from the command:
 
    ```text
    --- eastus01-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.4   64512     EBgp
+   <VIP>/32        <CE_01_SLO_IP>  <CE_ASN>  EBgp
    --- eastus02-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.5   64512     EBgp
+   <VIP>/32        <CE_02_SLO_IP>  <CE_ASN>  EBgp
    --- eastus03-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.6   64512     EBgp
+   <VIP>/32        <CE_03_SLO_IP>  <CE_ASN>  EBgp
    ```
 
-   三個 peering、三個不同的 next hop、一個前綴。這就證明了 ECMP 的通告端。
+   Three peerings, three different next hops, one prefix. That is the advertisement side of
+   ECMP proven.
 
-3. **用戶端的有效路由涵蓋每一個 next hop。** 這才是 ECMP 本身，是 VNet 實際編寫的結果——不是 CE 宣稱了什麼，而是 Azure 據此做了什麼。
+3. **The client's effective routes carry every next hop.** This is the ECMP itself, as the
+   VNet has programmed it — not what the CEs claim, but what Azure did with it.
 
    ```bash
    az network nic show-effective-route-table -g "$RG" -n "$NIC" \
@@ -89,133 +100,195 @@ NIC=$(terraform output -raw client_nic_name)
      -o json
    ```
 
-   2026-07-28 觀測結果：
+   Observed 2026-08-03. The array contained the three addresses returned by
+   `terraform output -json ce_mgmt_private_ips`:
 
    ```json
    [
      {
-       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-       "prefix": "10.250.0.10/32",
+       "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+       "prefix": "<VIP>/32",
        "state": "Active",
        "type": "VirtualNetworkGateway"
      }
    ]
    ```
 
-   檢查重點是 `state: Active`，且 `nh` 中每台 CE 各有一筆。**順序不具意義，也不穩定**——Azure 每次呼叫回傳的順序都不同，所以請計算數量，而不要與先前的執行結果比對。若你預期三個 next hop 卻只看到一個，代表有一台 CE 已停止通告，而步驟 2 能指出是哪一台。
+   `state: Active` with one entry per CE in `nh` is the check. **The order is not
+   significant and is not stable** — Azure returns them differently between calls, so count
+   them rather than comparing to a previous run. One next hop where you expect three means a
+   CE has stopped advertising, and step 2 identifies which.
 
-4. **VIP 能提供服務。** 從用戶端 VM 執行，並且**帶上 `Host` 標頭**——參見第二個陷阱。取樣數量要足以看出問題：即使在下文所述的收斂視窗內，幾十次請求也會顯示為 100 %。
+4. **The VIPs serve traffic.** From the client VM, and **with the `Host` header** — see the
+   second trap. Sample both the Rest of World (`f5-sales-demo.com`) and Canada (`f5-sales-demo.ca`) domains.
 
    ```bash
    az vm run-command invoke -g "$RG" -n "$CLIENT" \
      --command-id RunShellScript --query "value[0].message" -o tsv \
      --scripts "ok=0; fail=0
-                for i in \$(seq 1 60); do
+                for i in \$(seq 1 30); do
                   c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
                         -H 'Host: ${DOMAIN}' http://${VIP}/)
                   [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
                 done
-                echo \"OK=\$ok FAIL=\$fail\""
+                echo \"ROW_DOMAIN_OK=\$ok ROW_DOMAIN_FAIL=\$fail\"
+                if [ -n \"${CA_LB_DOMAIN:-}\" ] && [ -n \"${CA_VIP:-}\" ]; then
+                  ca_ok=0; ca_fail=0
+                  for i in \$(seq 1 30); do
+                    c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                          -H 'Host: ${CA_LB_DOMAIN}' http://${CA_VIP}/)
+                    [ \"\$c\" = 200 ] && ca_ok=\$((ca_ok+1)) || ca_fail=\$((ca_fail+1))
+                  done
+                  echo \"CANADA_DOMAIN_OK=\$ca_ok CANADA_DOMAIN_FAIL=\$ca_fail\"
+                fi"
    ```
 
-   2026-07-28 觀測結果：
+   Observed 2026-08-03 in the automated UAT. The final two batches were clean:
 
    ```text
-   VIP with Host header: OK=60 FAIL=0
-   bare IP (no Host): 404
+   batch=3 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
+   batch=4 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
    ```
 
 </Steps>
 
-## 陷阱：某個 peering 只顯示一條路由，而這是正確的
+## Trap: one peering shows one route, and that is correct
 
-`list-learned-routes` 的範圍限於你指定的那個 peering。它回報的是**該**對等體所通告的內容，而非 Route Server 的整張路由表。
+`list-learned-routes` is scoped to the peering you name. It reports what **that** peer
+advertised, not the Route Server's whole table.
 
-因此單獨查詢一個 peering 只會回傳一條經由單一 next hop 的 VIP `/32`，很容易被誤讀為「只有一台 CE 在通告——其他都掛了」。其實沒有任何東西掛掉。其他通告會出現在各自的 peering 上，而這正是步驟 2 迴圈所走訪的內容。
+So querying one peering alone returns a single VIP `/32` via a single next hop, and it is
+tempting to read that as "only one CE is advertising — the others are down". Nothing is
+down. The other advertisements are visible on their own peerings, which is what step 2 loops
+over.
 
-無法只憑單一 peering 查詢就確認 ECMP。要嘛迴圈走訪每個 peering，要嘛讀取用戶端的有效路由表，後者能在一次呼叫中顯示合併後的結果。
+Confirming ECMP from a single peering query is not possible. Either loop every peering, or
+read the client's effective route table, which shows the merged result in one call.
 
-## 陷阱：裸 IP 請求回傳 404
+## Trap: a bare-IP request returns 404
 
-負載平衡器是依 `Host` 比對的。VIP 並不是一個會對任何連上該位址的人提供服務的虛擬伺服器。
+The load balancer matches on `Host`. The VIP is not a virtual server that serves anything to
+whoever connects to the address.
 
-以下兩者來自同一次針對健康部署的執行：
+Both of these came from the same run against the healthy deployment:
 
 ```text
 curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
 curl                     http://$VIP/   ->  404
 ```
 
-**裸 IP 的 404 正好證明路徑是通的**——請求抵達了 CE、CE 的 proxy 做出了回應，並因為沒有相符的已設定網域而拒絕。把它讀成服務中斷，只會讓你跑去查 BGP，而在那裡你什麼問題都找不到。
+**A bare-IP 404 is proof the path works** — the request reached the CE, the CE's proxy
+answered, and it declined because no configured domain matched. Reading it as an outage
+sends you looking at BGP, where you will find nothing wrong.
 
-同樣的情況也適用於示範過程：如果你直接在瀏覽器輸入位址，而不是把網域解析到該位址，你就會得到 404。
+The same applies during a demo: if you type the address into a browser rather than resolving
+the domain to it, you get the 404.
 
-## VIP 在最初的四十五分鐘內會丟棄請求，之後便停止
+## A fresh deployment can have a convergence transient
 
-在全新建置的堆疊上，自 CE 進入 `ONLINE` 起約前 45 分鐘內，VIP 會遺失一小部分請求，之後便乾淨地提供服務。以用戶端 VM 發出的 1,470 次請求量測，全部帶有 `Host` 標頭：
+The 2026-08-03 from-zero UAT sent 160 VIP requests in four time-separated batches. Three
+requests failed in the first two batches; the final 80 were clean. The origin control was
+80 of 80 throughout. That proves convergence for this rebuild without attributing the early
+loss to the origin.
 
-| 時段 | 請求數 | 失敗數 | 比率 |
+Earlier measurements on 2026-07-28 showed the longer shape: the VIP lost a small fraction of
+requests for roughly the first 45 minutes after the CEs reached `ONLINE`, then served cleanly.
+Measured over 1,470
+requests from the client VM, all with the `Host` header:
+
+| Window | Requests | Failures | Rate |
 | --- | --- | --- | --- |
-| ECMP 建立後最初約 45 分鐘 | 570 | 12 | **2.11 %** |
-| 接下來的 23 分鐘 | 900 | **0** | **0.00 %** |
+| First ~45 minutes after ECMP came up | 570 | 12 | **2.11 %** |
+| The following 23 minutes | 900 | **0** | **0.00 %** |
 
-每一次失敗都是 `curl: (28)`——逾時且未收到任何位元組——而非 HTTP 錯誤狀態碼。最後一次失敗發生在 ECMP 建立後約 43 分鐘。在 900 次乾淨請求中，有 400 次使用 30 秒逾時設定，且每一次都在 2 秒內完成，因此並沒有任何問題被過短的逾時所掩蓋。
+Every failure was `curl: (28)` — a timeout with zero bytes received — not an HTTP error
+status. The last one landed about 43 minutes after ECMP came up. Of the 900 clean requests,
+400 ran with a 30-second timeout and every one finished in under 2 seconds, so nothing was
+hidden by a short timeout.
 
-同一天稍後的一次重建中再度重現，而那次執行的樣貌更清楚，因為它是在視窗期間逐步取樣，而非在事後才取樣。360 次請求，全部帶有 `Host` 標頭，每一批都搭配一組直接打到來源端的對照組：
+It reproduced again on a later rebuild on 2026-07-28, and that run is the clearer picture
+because it was sampled as the window elapsed rather than after it. 360 requests, all with
+the `Host` header, each batch paired with a control straight to the origin:
 
-| 進入 `ONLINE` 後的時間 | 請求數 | 失敗數 | 比率 | 來源端對照 |
+| Time after `ONLINE` | Requests | Failures | Rate | Origin control |
 | --- | --- | --- | --- | --- |
-| 立即 | 60 | 8 | **13.3 %** | 30/30 乾淨 |
-| 約 25–40 分鐘（3 批） | 180 | 3 | **1.67 %** | 60/60 乾淨 |
-| 約 50 分鐘 | 120 | **0** | **0.00 %** | 40/40 乾淨 |
+| immediately | 60 | 8 | **13.3 %** | 30/30 clean |
+| ~25–40 min (3 batches) | 180 | 3 | **1.67 %** | 60/60 clean |
+| ~50 min | 120 | **0** | **0.00 %** | 40/40 clean |
 
-單調遞減至零，且每一批的來源端都是乾淨的——包括每八次 VIP 請求就失敗一次的那一批。
+Monotonically decreasing to zero, and the origin was clean in every batch — including the
+one where one VIP request in eight failed.
 
-**來源端並非成因。** 一組直接打到來源端（`terraform output -raw origin_ip`，繞過 VIP）的對照批次，在與失敗的 VIP 批次**同時**執行時，120 次全數乾淨。故障出在 VIP、ECMP 或 CE 路徑中的某處。
+**The origin was not the cause.** A control batch straight to the origin
+(`terraform output -raw origin_ip`, bypassing the VIP) ran 120 of 120 clean *concurrently
+with* failing VIP batches. The fault is somewhere in the VIP, ECMP or CE path.
 
-有兩件事刻意不這樣稱呼：
+Two things this is deliberately not called:
 
-- **這不是穩態缺陷。** 它會完全消失並保持消失——在 50 分鐘時 120 次中 120 次成功，而在已運行數小時的堆疊上 60 次中 60 次成功。
-- **不要因為早期的小樣本就斷定它不存在。** 某次重建後立即取樣的 60 次批次回傳 60 次中 60 次成功，看起來像「沒有暫時性問題」；同一個部署在下一次重建的一小時後卻在 60 次中失敗了 8 次。60 次請求不足以看出突發性的丟失。請取樣 100 次以上，並分成在時間上彼此間隔的批次——上表需要 360 次才呈現出這個形狀。
-- **它無法歸咎於特定的某台 CE。** 此拓撲中沒有任何機制提供逐節點的 HTTP 監聽器，因此無法把被丟棄的請求綁定到丟棄它的節點。CE 的對外介面完全沒有 HTTP 監聽器——只有 VIP `/32` 會回應。
+- **It is not a steady-state defect.** It clears completely and stays clear — 120 of 120 at
+  the 50-minute mark, and 60 of 60 on a stack that had been up for hours.
+- **Do not conclude it is absent from a small early sample.** A 60-request batch taken
+  immediately after one rebuild returned 60 of 60, which read as "no transient"; the same
+  deployment lost 8 of 60 an hour later on the next rebuild. Sixty requests is not enough
+  to see a bursty loss. Sample 100 or more, in batches separated in time — the table above
+  needed 360 to show the shape.
+- **It is not attributable to a particular CE.** Nothing in this topology gives a per-node
+  HTTP listener, so there is no way to bind a dropped request to the node that dropped it.
+  The CE outside interfaces have no HTTP listener at all — only the VIP `/32` answers.
 
-它在不同租戶的一次乾淨重建中也重現了，因此它跟隨的是拓撲，而非環境。
-
-<Aside type="caution" title="不要只取樣 40 次請求就斷定沒問題">
-即使在會失敗的視窗內，40 到 50 次的批次多半也會顯示為 100 %。這正是此問題一開始先被誤判為持續性的低比率故障，接著又被誤判為完全沒有故障的原因。請取樣 100 次以上，並分成在時間上彼此間隔的批次。
+<Aside type="caution" title="Do not sample 40 requests and conclude it is fine">
+Batches of 40 to 50 read as 100 % most of the time even inside the failing window. That is
+how this was first mischaracterised as an ongoing low-rate fault and then as no fault at
+all. Sample 100 or more, in batches separated in time.
 </Aside>
 
-## 另外兩個量測陷阱
+## Two more measurement traps
 
-兩者都在此環境中產生過令人深信不疑的錯誤答案，而且都不明顯。
+Both produced confident wrong answers in this environment, and neither is obvious.
 
-- **從 VNet 內部探測，而不是從你的工作站。** 企業 proxy 可能會在常見連接埠上自行完成 TCP 交握，因此工作站的探測會把實際上已關閉的連接埠回報為**開啟**。從工作站探測 CE 的公有位址時，連接埠 80 與 443 顯示為開啟；從 VNet 內部探測時則是關閉的。請使用用戶端 VM。
-- **CE 上的連接埠 22 只在內部（SLI）位址上回應。** 從用戶端 VM 探測時，每台 CE 的內部位址都會回傳 OpenSSH banner，而其管理與外部位址則會逾時——作為對照的未使用位址亦然。eth0 被重新命名為 `a-i-eth0` 且不帶主機 IP，因為資料路徑掌握著它。因此，探測你所熟知的那個節點位址，並不能告訴你該節點的 SSH 狀態。
+- **Probe from inside the VNet, not from your workstation.** A corporate proxy can complete
+  the TCP handshake itself on common ports, so a workstation probe reports a port **open**
+  that is actually closed. Ports 80 and 443 read as open on the CE public addresses from a
+  workstation and are closed when probed from inside the VNet. Use the client VM.
+- **Port 22 on a CE answers on the internal (SLI) address only.** Probed from the client VM,
+  each CE's internal address returns an OpenSSH banner, while its management and external
+  addresses time out — as does an unused address used as a control. eth0 is renamed
+  `a-i-eth0` and carries no host IP, because the datapath owns it. So probing the address
+  you know the node by tells you nothing about the node's SSH state.
 
-<Aside type="danger" title="切勿寫死 CE 內部位址——它們在每次重建時都會重新指派">
-Azure 不會保留哪台 CE 取得內部子網中的哪個位址，而且這些位址也不依節點順序排列。2026-07-28 觀測到三台 CE 分別持有 `10.0.3.7`、`10.0.3.5` 與 `10.0.3.4`——既非連續，也與該次重建之前所持有的不同。
+<Aside type="danger" title="Never hardcode a CE internal address — they are reassigned on every rebuild">
+Azure does not preserve which CE gets which address in the internal subnet, and the
+addresses are not in node order. Observed 2026-07-28: the three addresses were not
+sequential and differed from the previous rebuild. Read the current mapping from Terraform;
+published documentation deliberately does not carry the deployment's values.
 
-決定它們是否會變動的是 **NIC**，而不是 VM。只更換 CE VM 會讓 NIC 留在原處，所有位址都得以保留：同一天已驗證，當採用衍生的物件名稱而替換了全部三台 CE VM 後，三個內部位址完全相同地回來了。若拆除作業移除了 NIC，位址就會從子網的可用位址池重新指派，順序則取決於 Azure 如何填入。
+What decides whether they move is the **NIC**, not the VM. Replacing the CE VMs alone
+leaves the NICs in place and every address survives: verified the same day, when adopting
+the derived object names replaced all three CE VMs and the three internal addresses came
+back identical. A teardown that removes the NICs reassigns them from the subnet's free
+pool, in whatever order Azure fills it.
 
-測試用戶端的 NIC 位於同一個子網，因此你記憶中屬於某台 CE 的位址，現在可能屬於用戶端——在此部署中它持有 `10.0.3.6`，而某台 CE 在更早的重建之前曾持有該位址。
+The test client's NIC sits in that same subnet, so an address you remember as a CE's may
+now belong to the client.
 
-請讀取它們，而不要憑記憶：
+Read them instead of remembering them:
 
 ```bash
 terraform output -json ce_sli_private_ips
 ```
 
-若手邊沒有 Terraform state，可依 NIC 名稱向 Azure 查詢，NIC 名稱**是**穩定的：
+Without Terraform state to hand, ask Azure by NIC name, which *is* stable:
 
 ```bash
 az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
-連到記憶中的位址會讓你落在錯誤的節點、落在一台不是 CE 的 VM 上，或哪裡都到不了——而最後這種情況看起來與「SSH 未啟用」一模一樣。
+Connecting to a remembered address lands you on the wrong node, on a VM that is not a CE,
+or nowhere — and the last of those looks identical to "SSH is not enabled".
 </Aside>
 
-## 確認機上指令介面仍與文件相符
+## Confirm the on-box command surface still matches the docs
 
 ```bash
 bash scripts/capture-sitecli.sh --check \
@@ -223,7 +296,38 @@ bash scripts/capture-sitecli.sh --check \
   --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
 ```
 
-`--check` 不會寫入任何內容，因此對正在運行的示範環境是安全的。
+`--check` writes nothing, so it is safe against the live demo.
+
+## On-Premise KVM & FRR BGP Verification
+
+When the On-Premise KVM extension is deployed, verify hypervisor domain state, ToR router eBGP peering status, and local network reachability:
+
+1. **Verify KVM virtual machine domain state**:
+
+   ```bash
+   virsh list --all
+   ```
+
+   Confirm all three KVM Customer Edge nodes (`onprem-ce-01`, `onprem-ce-02`, `onprem-ce-03`) are in `running` state.
+
+2. **Verify FRR ToR BGP Router peering status**:
+
+   ```bash
+   docker exec frr-router vtysh -c "show ip bgp summary"
+   ```
+
+   Confirm active eBGP sessions with all three On-Prem CEs (ASN `64512`) on local bridge network `ce-bgp-net` (`10.100.0.0/24`), showing established prefixes.
+
+3. **Verify network reachability**:
+
+   ```bash
+   ping -c 3 10.100.0.1
+   for ip in 10.100.0.10 10.100.0.11 10.100.0.12; do
+     ping -c 2 "$ip"
+   done
+   ```
+
+   Confirm local ICMP reachability to the FRR ToR router interface (`10.100.0.1`) and On-Prem CE node IP addresses.
 
 ## Automated UAT verification script
 
@@ -245,13 +349,13 @@ The script executes all checks against the live deployment, writes `summary.json
 
 <CardGrid>
   <LinkCard
-    title="連線至 Customer Edge"
-    description="適用哪一種存取路徑、各自需要的憑證，以及為何這個選擇不是偏好問題。"
+    title="Reaching a Customer Edge"
+    description="Which access route applies, the credentials each needs, and why the choice is not a preference."
     href="../../customer-edge/access/"
   />
   <LinkCard
-    title="BGP 指令"
-    description="來自 FRR 的機上檢視——peering 狀態、完整路由表，以及此節點所通告的內容。"
+    title="BGP commands"
+    description="The on-box view from FRR — peering state, the full table, and what this node advertises."
     href="../../customer-edge/commands/network/bgp/"
   />
 </CardGrid>

@@ -5,7 +5,7 @@ sidebar:
   order: 20
   label: Terraform
 i18n:
-  sourceHash: b8380b6bc381
+  sourceHash: d28c74652ff4
   translator: machine
 ---
 
@@ -13,10 +13,13 @@ import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_includes/terraform/backend.tf?raw";
 import data from "../../_includes/terraform/data.tf?raw";
+import kvm from "../../_includes/terraform/kvm.tf?raw";
 import locals from "../../_includes/terraform/locals.tf?raw";
 import main from "../../_includes/terraform/main.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
 import outputs from "../../_includes/terraform/outputs.tf?raw";
 import providers from "../../_includes/terraform/providers.tf?raw";
+import providersLibvirt from "../../_includes/terraform/providers_libvirt.tf?raw";
 import variables from "../../_includes/terraform/variables.tf?raw";
 import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
 import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
@@ -41,89 +44,108 @@ import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outp
 import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
 import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
 
-下面的每个文件都是实际执行部署的文件，在构建时导入而非粘贴。
-可能产生偏差的副本终将产生偏差，因此 CI 中有一项检查：一旦此处发布的内容与
-`terraform/` 中的内容不同，检查即告失败。
+Every file below is the file that deploys, imported at build time rather than pasted.
+A copy that can drift is a copy that will, so a check in CI fails the moment what is
+published here differs from what is in `terraform/`.
 
-<Aside type="note" title="为什么配置是导入的而非内联展示">
-如果粘贴进代码块，这份配置就会成为页面源文件的一部分，而页面源文件会被翻译成十二种语言。
-其中的注释会随之被翻译，于是每个语言版本都会发布一份不同的、错误的配置。
-采用导入方式，它根本不会进入页面源文件。
+<Aside type="note" title="Why the configuration is imported rather than shown inline">
+Pasted into a code fence, this configuration would be part of the page source, and the
+page source is translated into twelve languages. The comments inside it would be
+translated with it, and each locale would publish a different, wrong configuration.
+Imported, it never enters the page source at all.
 </Aside>
 
-## 根模块
+## Root module
 
 ### `terraform/backend.tf`
 
-Azure 存储后端；其配置在 init 时提供，不提交到代码库。
+Azure storage backend; its configuration is supplied at init time and not committed.
 
 <Code code={backend} lang="hcl" title="terraform/backend.tf" />
 
 ### `terraform/data.tf`
 
-只读查询，包括用于推导部署者身份的 Azure AD 身份。
+Read-only lookups, including the Azure AD identity used to derive the deployer.
 
 <Code code={data} lang="hcl" title="terraform/data.tf" />
 
+### `terraform/kvm.tf`
+
+Declarative KVM & libvirt infrastructure managed natively via `dmacvicar/libvirt` (`v0.8.3`). Provisions local network bridge `ce-bgp-net` (`10.100.0.0/24`), base cloud storage volumes, per-CE overlay disks, cloud-init seed ISOs containing `/etc/vpm/config.yaml` bootstrap configs, and KVM virtual machine domains (`onprem-ce-01`, `02`, `03`).
+
+<Code code={kvm} lang="hcl" title="terraform/kvm.tf" />
+
 ### `terraform/locals.tf`
 
-派生对象名称所在之处。Terraform 变量的默认值无法引用其他变量，因此每个名称变量默认为 null，并在此处解析。
+Where the derived object names live. Terraform variable defaults cannot reference other variables, so each name variable defaults to null and is resolved here.
 
 <Code code={locals} lang="hcl" title="terraform/locals.tf" />
 
 ### `terraform/main.tf`
 
-顶层接线、租户守卫以及 VIP 位于 VNet 之外的检查。部署顺序记录在该文件顶部，那是权威版本。
+Top-level wiring, the tenant guard and the VIP-outside-the-VNet check. The deploy ordering is documented at the top of this file, which is the authoritative version.
 
 <Code code={main} lang="hcl" title="terraform/main.tf" />
 
+### `terraform/onprem_kvm.tf`
+
+On-Premise KVM SecureMesh v2 Site (`xcsh_securemesh_site_v2.onprem_kvm`) and eBGP peering configuration (`xcsh_bgp.onprem_ebgp`). Connects on-premise CEs (ASN `64512`) over `eth0` to containerized FRR ToR BGP router (`10.100.0.1`, ASN `65515`).
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
+
 ### `terraform/outputs.tf`
 
-文档所读取而非直接写死名称的全部内容。如果某个页面展示了一条命令，其背后就有此处的一个输出。
+Everything the documentation reads instead of naming. If a page shows a command, an output here is behind it.
 
 <Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
 
 ### `terraform/providers.tf`
 
-将 xcsh 端点固定到 var.expected_xc_tenant，正是这一点让租户成为配置的一个属性。
+Pins the xcsh endpoint to var.expected_xc_tenant, which is what makes the tenant a property of the configuration.
 
 <Code code={providers} lang="hcl" title="terraform/providers.tf" />
 
+### `terraform/providers_libvirt.tf`
+
+Configures the libvirt provider targeting the local hypervisor daemon URI (`qemu:///system`).
+
+<Code code={providersLibvirt} lang="hcl" title="terraform/providers_libvirt.tf" />
+
 ### `terraform/variables.tf`
 
-组件、环境、部署者与标签。
+Component, environment, deployer and tags.
 
 <Code code={variables} lang="hcl" title="terraform/variables.tf" />
 
 ### `terraform/variables_azure.tf`
 
-订阅、区域、CIDR、Bastion 以及 Azure 对象名称。
+Subscription, region, CIDRs, Bastion, and the Azure object names.
 
 <Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
 
 ### `terraform/variables_ce.tf`
 
-CE 数量、站点前缀、ASN、镜像版本与 VM 规格。
+CE count, site prefix, ASNs, image versions and VM size.
 
 <Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
 
 ### `terraform/variables_xc.tf`
 
-租户、应用命名空间、负载均衡器、源站池以及 VIP。
+Tenant, app namespace, load balancer, origin pool and the VIP.
 
 <Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
 
 ### `terraform/versions.tf`
 
-Terraform 版本下限与 provider 约束。xcsh 的约束是一个开放式下限，且锁定文件被 gitignore，因此每次 init 都会取用最新发布的 provider。
+Terraform floor and provider constraints. The xcsh constraint is an open-ended floor, and the lock file is gitignored, so every init takes the latest published provider.
 
 <Code code={versions} lang="hcl" title="terraform/versions.tf" />
 
-## 模块
+## Modules
 
 ### `terraform/modules/azure-hub/`
 
-资源组、中心 VNet、四个子网、Azure Route Server 以及可选的 Bastion。RouteServerSubnet 有意不带任何 NSG 或路由表。
+Resource group, hub VNet, the four subnets, the Azure Route Server and the optional Bastion. RouteServerSubnet deliberately carries no NSG or route table.
 
 <Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
 
@@ -135,7 +157,7 @@ Terraform 版本下限与 provider 约束。xcsh 的约束是一个开放式下�
 
 ### `terraform/modules/azure-route-server-bgp/`
 
-每个 eBGP 会话的 Azure 侧——每个 CE 一个 bgpConnection，将 Route Server 与该 CE 的 eth0/SLO 地址建立对等。
+The Azure side of each eBGP session — one bgpConnection per CE, peering the Route Server to that CE eth0/SLO address.
 
 <Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
 
@@ -143,7 +165,7 @@ Terraform 版本下限与 provider 约束。xcsh 的约束是一个开放式下�
 
 ### `terraform/modules/ce-node/`
 
-每个节点一台 CE 虚拟机：三块启用 IP 转发的网卡、市场镜像的 plan 块，以及作为 custom_data 传入的 cloud-init。
+One CE VM per node: three NICs with IP forwarding, the marketplace plan block, and the cloud-init handed over as custom_data.
 
 <Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
 
@@ -155,13 +177,13 @@ Terraform 版本下限与 provider 约束。xcsh 的约束是一个开放式下�
 
 ### `terraform/modules/ce-topology/`
 
-纯计算，无 provider、无数据源：将 ce_count 展开为驱动所有 for_each 的按 CE 映射。在任意 N 下都可在无凭据的情况下进行 plan 测试。
+Pure computation, no providers and no data sources: expands ce_count into the per-CE map that drives every for_each. Plan-testable at any N without credentials.
 
 <Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
 
 ### `terraform/modules/client-vm/`
 
-VNet 内的测试客户端，用于读取有效路由并向 VIP 发起流量。
+The test client inside the VNet, used to read effective routes and drive traffic at the VIP.
 
 <Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
 
@@ -171,7 +193,7 @@ VNet 内的测试客户端，用于读取有效路由并向 VIP 发起流量。
 
 ### `terraform/modules/xc-site/`
 
-XC 站点对象、其 BGP 对等，以及按站点名称解析 `r-<uuid>` 注册项的注册审批。
+The XC site object, its BGP peering, and the registration approval that resolves a `r-<uuid>` registration by site name.
 
 <Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
 

@@ -8,54 +8,66 @@ sidebar:
   order: 5
   label: 데모
 i18n:
-  sourceHash: 4fbc25642229
+  sourceHash: 8fc8320a0a1f
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-이 배포는 CE 앞에 Azure 로드 밸런서를 두지 않고 **Azure에서 액티브/액티브 Customer Edge 고가용성**을
-구현하는 방식을 보여줍니다. 각 CE는 동일한 호스트 경로를 eBGP로 원발하며, Azure Route Server는
-이들 모두를 VNet 내의 등가 넥스트홉으로 설치합니다. 따라서 트래픽 분산과 장애 노드 제거는
-로드 밸런서가 아니라 라우팅 패브릭에서 이루어지도록 되어 있습니다.
+This deployment demonstrates **active/active Customer Edge high availability in Azure and On-Premise KVM**
+with no Azure load balancer in front of the CEs, expanded to support **parallel regional network paths and an on-premise KVM extension**
+in a single Terraform plan:
 
-이 페이지들의 모든 내용은 실제 운영 중인 배포를 대상으로 실행되었으며, 표시된 출력은 그 배포가
-생성한 실제 출력입니다. 그 문장이 *포함하지 않는* 것 — 페일오버, 그리고 트래픽이 넥스트홉 간에
-어떻게 나뉘는지 — 은 가정하도록 남겨두지 않고 명시적으로 밝혀 둡니다.
+1. **Rest of World (ROW)**: Serves `mcn-ce-ha.f5-sales-demo.com` via CEs in `eastus` with global public RE advertisement.
+2. **Canada Regional Path**: Serves `mcn-ce-ha.f5-sales-demo.ca` strictly within Canada via CEs in `canadacentral` and a Canadian Regional Edge Virtual Site targeting Toronto and Montreal PoPs (`ves.io/city in (toronto, montreal)`).
+3. **On-Premise KVM Extension**: Serves on-premise workloads via 3 KVM CEs (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) peering eBGP (CE ASN `64512`) with a containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) configured with `maximum-paths 4` ECMP.
 
-## 배포되는 구성 요소
+Each set of CEs originates its host route by eBGP to a regional Azure Route Server, which installs all of them as equal-cost next hops in the VNet.
+The routing fabric, rather than a load balancer, is where traffic distribution and failed-node removal happen.
+
+Everything in these pages was run against the live deployment, and the output shown is the
+output it produced. What that sentence does *not* cover — failover, and how traffic divides
+across the next hops — is called out explicitly rather than left to be assumed.
+
+## What it deploys
+
+Observed 2026-08-05. The three-path hybrid architecture:
 
 ```text
-                     Azure Route Server            ASN 65515
-                      two instance addresses
-                                 |
-             +-------------------+-------------------+
-             |                   |                   |
-        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
-             |                   |                   |         CE ASN 64512
-        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
-          CE site             CE site             CE site
-             |                   |                   |
-             +--- each advertises the same VIP /32 ---+
-                    equal-cost multipath into the VNet
+                     Rest of World (ROW)              Canada Regional Path               On-Premise KVM Extension
+                 mcn-ce-ha.f5-sales-demo.com       mcn-ce-ha.f5-sales-demo.ca           onprem.mcn-ce-ha.example.com
+                           |                                 |                                        |
+                 Global Public REs               Canada RE Virtual Site                       On-Prem KVM Virtual Site
+                         |                     (Toronto & Montreal REs)                    (KVM Customer Edge Sites)
+                         |                                   |                                        |
+                Azure Route Server                Canada Azure Route Server                 FRR ToR BGP Router (Container)
+                   ASN 65515                         ASN 65515                                ASN 65515 (10.100.0.1)
+                       |                                     |                                        |
+           +-----------+-----------+             +-----------+-----------+                    +-----------+-----------+
+           |           |           |             |           |           |                    |           |           |
+        CE-01       CE-02       CE-03         CE-CA-01    CE-CA-02    CE-CA-03             CE-KV-01    CE-KV-02    CE-KV-03
+       (eastus)    (eastus)    (eastus)     (canadacentral) (canadacentral) (canadacentral)   (onprem-01) (onprem-02) (onprem-03)
+           |           |           |             |           |           |                    |           |           |
+           +---- VIP <ROW_VIP> ----+             +---- VIP <CA_VIP> -------+                    +---- VIP <KVM_VIP> --------+
 ```
 
-| 구성 요소 | 설명 |
+| Piece | What it is |
 | --- | --- |
-| F5 Distributed Cloud 테넌트 | `var.expected_xc_tenant` — 테넌트 이름이 지정되는 유일한 위치 |
-| 네임스페이스 | CE 사이트는 `system`에, 오리진 풀과 로드 밸런서는 `var.xc_app_namespace`에 |
-| Customer Edge | `var.ce_count`개의 단일 노드 Secure Mesh v2 사이트, 1~3개, 가용 영역당 하나 |
-| CE 소프트웨어 | `var.ce_sw_version` / `var.ce_os_version`으로 고정 |
-| Azure VM | 각각 NIC 3개 — 관리/SLO, 외부, 내부/SLI |
-| 경로 교환 | Azure Route Server 1개, ASN `var.rs_asn`, 인스턴스 주소 2개 |
-| 피어링 | CE당 하나, 이름은 `<key>-bgp`, CE ASN은 `var.ce_asn` |
-| 광고되는 VIP | `var.vip`를 `/32`로, 모든 CE가 동일하게 원발 |
-| 로드 밸런서 | `var.lb_domain`을 서비스하며, `var.origin_ip`의 오리진 풀이 백엔드 |
-| 테스트 클라이언트 | 동일 VNet 내부의 VM으로, VIP를 향해 트래픽을 발생시키는 용도 |
+| F5 Distributed Cloud tenant | `var.expected_xc_tenant` — the only place the tenant is named |
+| Namespaces | CE sites in `system`; origin pool and load balancer in `var.xc_app_namespace` |
+| Rest of World CEs | `var.ce_count` single-node Secure Mesh v2 sites in `var.location` (`eastus`) |
+| Canadian CEs | `var.ca_ce_count` single-node Secure Mesh v2 sites in `var.ca_location` (`canadacentral`) |
+| On-Premise KVM CEs | 3 KVM Customer Edge nodes (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) |
+| Canadian Virtual Sites | `xcsh_virtual_site.canada_re` (Toronto & Montreal REs) and `xcsh_virtual_site.canada_ce` (Canadian CEs) |
+| Route exchange | Azure Route Servers in `eastus` and `canadacentral` (ASN `var.rs_asn`), FRR ToR BGP Router for KVM (ASN `65515`, `10.100.0.1`) |
+| Peerings | eBGP peerings per CE, CE ASN `var.ce_asn` (`64512`) |
+| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; `10.100.0.10` for On-Prem KVM |
+| Load balancers | `var.lb_domain` (`f5-sales-demo.com`) for ROW; `var.ca_lb_domain` (`f5-sales-demo.ca`) for Canada |
+| Test clients | Client VMs in each regional VNet and local test environment for driving traffic at the VIPs |
 
-위의 어떤 것도 그대로 복사해야 할 리터럴이 아닙니다. 모든 값은 배포에서 읽어올 수 있으며,
-각 페이지는 값을 명시하는 대신 읽어옵니다:
+Nothing above is a literal you should copy. Every value is readable from the deployment,
+and each page reads it rather than naming it:
 
 ```bash
 cd terraform
@@ -63,49 +75,49 @@ terraform output -raw resource_group_name
 terraform output -json xc_site_names
 ```
 
-<Aside type="caution" title="VIP는 모든 VNet CIDR 바깥에 있어야 합니다">
-`terraform/main.tf`에는 VIP가 허브 및 스포크 CIDR 양쪽 모두의 바깥에 있음을 단언하는 `check`
-블록이 있으며, 그렇지 않으면 플랜을 거부합니다. 그 이유는 VNet CIDR 내부의 VIP는 BGP 경로가
-더 구체적임에도 불구하고 VNet 자체의 시스템 경로에 밀리기 때문입니다.
+<Aside type="caution" title="The VIP must sit outside every VNet CIDR">
+`terraform/main.tf` carries a `check` block that asserts the VIP is outside both the hub
+and spoke CIDRs, and refuses the plan otherwise. Its stated reason is that a VIP inside a
+VNet CIDR loses to the VNet's own system route despite the BGP route being more specific.
 
-이 가드를 계약으로 여기십시오. 이 데모를 다른 주소 체계로 재지정한다면 VIP도 함께 VNet 범위
-바깥으로 이동해야 합니다.
+Treat the guard as the contract: if you re-point this demo at different addressing, the
+VIP has to move out of the VNet ranges with it.
 </Aside>
 
-<Aside type="caution" title="이름 변경은 재빌드이지, 단순한 이름 바꾸기가 아닙니다">
-모든 이름이 `var.component`에서 파생되기 때문에 이를 변경하면 배포 전체의 이름이 바뀝니다 —
-그러나 `site_prefix`는 겉모습만 바뀌는 변경이 아닙니다. 이 값은 각 CE의 cloud-init에서
-`ClusterName`이 되고, `custom_data`는 교체 전용이며, cloud-init은 CE의 최초 부팅 시에만
-실행됩니다. 따라서 이를 변경하면 **모든 CE VM과 해당 XC 사이트가 교체되며**, ECMP가 재수렴하는
-동안 VIP는 잠시 손실이 발생합니다.
+<Aside type="caution" title="Renaming is a rebuild, not a rename">
+Because every name derives from `var.component`, changing it renames the whole
+deployment — but `site_prefix` is not a cosmetic change. It becomes the `ClusterName`
+in each CE's cloud-init, `custom_data` is replace-only, and cloud-init runs only on a
+CE's first boot. So changing it **replaces every CE VM and its XC site**, and the VIP is
+then briefly lossy while ECMP reconverges.
 
-이는 이론상의 이야기가 아닙니다. 실행 중인 데모에 이러한 파생 이름을 적용한 결과 CE VM 3개,
-사이트 3개, BGP 객체 3개, 로드 밸런서, 오리진 풀, Azure Route Server, Bastion 및 테스트
-클라이언트가 교체되었습니다 — `23 to add, 3 to change, 26 to destroy`.
-기존 사이트를 그대로 유지해야 한다면 `site_prefix`를 현재 값으로 고정하십시오.
+That is not theoretical: adopting these derived names on the running demo replaced three
+CE VMs, three sites, three BGP objects, the load balancer, the origin pool, the Azure
+Route Server, the Bastion and the test client — `23 to add, 3 to change, 26 to destroy`.
+Pin `site_prefix` to the current value when you need existing sites to stay put.
 </Aside>
 
-## 다음 단계
+## Where to go next
 
 <CardGrid>
   <LinkCard
-    title="배포하기"
-    description="전제 조건, 반드시 제공해야 하는 두 개의 값, 첫 apply가 2단계인 이유, 그리고 해체 방법."
+    title="Deploy it"
+    description="Prerequisites, the two values you must supply, why the first apply is two-phase, and how to tear it down."
     href="./deploy/"
   />
   <LinkCard
-    title="Terraform 구성"
-    description="다시 타이핑한 것이 아니라, 실제로 배포하는 파일에서 읽어온 구성 자체."
+    title="The Terraform"
+    description="The configuration itself, read from the files that deploy it rather than retyped."
     href="./terraform/"
   />
   <LinkCard
-    title="정상 상태 확인하기"
-    description="순서대로 진행하는 네 가지 점검과, 장애처럼 보이지만 실제로는 정상인 결과들."
+    title="Prove it healthy"
+    description="Four checks in order, and the normal-looking results that read as an outage and are not."
     href="./verify/"
   />
   <LinkCard
-    title="시연하기"
-    description="이 데모가 보여줄 수 있는 것, 아직 보여줄 수 없는 것, 그리고 ECMP를 눈에 보이게 만드는 단 하나의 명령."
+    title="Present it"
+    description="What this demo can show, what it cannot yet show, and the one command that makes ECMP visible."
     href="./present/"
   />
 </CardGrid>

@@ -7,7 +7,7 @@ sidebar:
   order: 20
   label: Terraform
 i18n:
-  sourceHash: b8380b6bc381
+  sourceHash: d28c74652ff4
   translator: machine
 ---
 
@@ -15,10 +15,13 @@ import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_includes/terraform/backend.tf?raw";
 import data from "../../_includes/terraform/data.tf?raw";
+import kvm from "../../_includes/terraform/kvm.tf?raw";
 import locals from "../../_includes/terraform/locals.tf?raw";
 import main from "../../_includes/terraform/main.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
 import outputs from "../../_includes/terraform/outputs.tf?raw";
 import providers from "../../_includes/terraform/providers.tf?raw";
+import providersLibvirt from "../../_includes/terraform/providers_libvirt.tf?raw";
 import variables from "../../_includes/terraform/variables.tf?raw";
 import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
 import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
@@ -43,89 +46,108 @@ import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outp
 import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
 import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
 
-아래의 모든 파일은 실제로 배포되는 파일이며, 붙여넣은 것이 아니라 빌드 시점에 가져온 것입니다.
-어긋날 수 있는 복사본은 결국 어긋나기 때문에, 여기에 게시된 내용이 `terraform/`에 있는 내용과
-달라지는 순간 CI의 검사가 실패합니다.
+Every file below is the file that deploys, imported at build time rather than pasted.
+A copy that can drift is a copy that will, so a check in CI fails the moment what is
+published here differs from what is in `terraform/`.
 
-<Aside type="note" title="구성을 인라인으로 표시하지 않고 가져오는 이유">
-코드 펜스에 붙여넣으면 이 구성은 페이지 소스의 일부가 되며, 페이지 소스는 12개 언어로
-번역됩니다. 그 안의 주석도 함께 번역되어, 각 로케일이 서로 다른 잘못된 구성을 게시하게
-됩니다. 가져오는 방식이라면 구성이 페이지 소스에 아예 들어가지 않습니다.
+<Aside type="note" title="Why the configuration is imported rather than shown inline">
+Pasted into a code fence, this configuration would be part of the page source, and the
+page source is translated into twelve languages. The comments inside it would be
+translated with it, and each locale would publish a different, wrong configuration.
+Imported, it never enters the page source at all.
 </Aside>
 
-## 루트 모듈
+## Root module
 
 ### `terraform/backend.tf`
 
-Azure 스토리지 백엔드입니다. 해당 구성은 init 시점에 제공되며 커밋되지 않습니다.
+Azure storage backend; its configuration is supplied at init time and not committed.
 
 <Code code={backend} lang="hcl" title="terraform/backend.tf" />
 
 ### `terraform/data.tf`
 
-읽기 전용 조회이며, 배포자를 도출하는 데 사용되는 Azure AD 자격 증명도 포함합니다.
+Read-only lookups, including the Azure AD identity used to derive the deployer.
 
 <Code code={data} lang="hcl" title="terraform/data.tf" />
 
+### `terraform/kvm.tf`
+
+Declarative KVM & libvirt infrastructure managed natively via `dmacvicar/libvirt` (`v0.8.3`). Provisions local network bridge `ce-bgp-net` (`10.100.0.0/24`), base cloud storage volumes, per-CE overlay disks, cloud-init seed ISOs containing `/etc/vpm/config.yaml` bootstrap configs, and KVM virtual machine domains (`onprem-ce-01`, `02`, `03`).
+
+<Code code={kvm} lang="hcl" title="terraform/kvm.tf" />
+
 ### `terraform/locals.tf`
 
-도출된 객체 이름이 위치하는 곳입니다. Terraform 변수 기본값은 다른 변수를 참조할 수 없으므로, 각 이름 변수는 기본값이 null이며 여기에서 확정됩니다.
+Where the derived object names live. Terraform variable defaults cannot reference other variables, so each name variable defaults to null and is resolved here.
 
 <Code code={locals} lang="hcl" title="terraform/locals.tf" />
 
 ### `terraform/main.tf`
 
-최상위 연결 구성, 테넌트 가드, 그리고 VNet 외부 VIP 검사입니다. 배포 순서는 이 파일 상단에 문서화되어 있으며, 그것이 정본입니다.
+Top-level wiring, the tenant guard and the VIP-outside-the-VNet check. The deploy ordering is documented at the top of this file, which is the authoritative version.
 
 <Code code={main} lang="hcl" title="terraform/main.tf" />
 
+### `terraform/onprem_kvm.tf`
+
+On-Premise KVM SecureMesh v2 Site (`xcsh_securemesh_site_v2.onprem_kvm`) and eBGP peering configuration (`xcsh_bgp.onprem_ebgp`). Connects on-premise CEs (ASN `64512`) over `eth0` to containerized FRR ToR BGP router (`10.100.0.1`, ASN `65515`).
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
+
 ### `terraform/outputs.tf`
 
-문서가 이름을 직접 지정하는 대신 읽어오는 모든 값입니다. 어떤 페이지가 명령을 표시한다면, 그 배후에는 여기의 출력값이 있습니다.
+Everything the documentation reads instead of naming. If a page shows a command, an output here is behind it.
 
 <Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
 
 ### `terraform/providers.tf`
 
-xcsh 엔드포인트를 var.expected_xc_tenant에 고정하며, 이로 인해 테넌트가 구성의 속성이 됩니다.
+Pins the xcsh endpoint to var.expected_xc_tenant, which is what makes the tenant a property of the configuration.
 
 <Code code={providers} lang="hcl" title="terraform/providers.tf" />
 
+### `terraform/providers_libvirt.tf`
+
+Configures the libvirt provider targeting the local hypervisor daemon URI (`qemu:///system`).
+
+<Code code={providersLibvirt} lang="hcl" title="terraform/providers_libvirt.tf" />
+
 ### `terraform/variables.tf`
 
-구성 요소, 환경, 배포자, 태그입니다.
+Component, environment, deployer and tags.
 
 <Code code={variables} lang="hcl" title="terraform/variables.tf" />
 
 ### `terraform/variables_azure.tf`
 
-구독, 리전, CIDR, Bastion, 그리고 Azure 객체 이름입니다.
+Subscription, region, CIDRs, Bastion, and the Azure object names.
 
 <Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
 
 ### `terraform/variables_ce.tf`
 
-CE 개수, 사이트 접두사, ASN, 이미지 버전, VM 크기입니다.
+CE count, site prefix, ASNs, image versions and VM size.
 
 <Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
 
 ### `terraform/variables_xc.tf`
 
-테넌트, 앱 네임스페이스, 로드 밸런서, 오리진 풀, 그리고 VIP입니다.
+Tenant, app namespace, load balancer, origin pool and the VIP.
 
 <Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
 
 ### `terraform/versions.tf`
 
-Terraform 최소 버전과 프로바이더 제약입니다. xcsh 제약은 상한이 없는 최소 버전이며 lock 파일은 gitignore 처리되어 있으므로, 모든 init은 최신 게시 프로바이더를 가져옵니다.
+Terraform floor and provider constraints. The xcsh constraint is an open-ended floor, and the lock file is gitignored, so every init takes the latest published provider.
 
 <Code code={versions} lang="hcl" title="terraform/versions.tf" />
 
-## 모듈
+## Modules
 
 ### `terraform/modules/azure-hub/`
 
-리소스 그룹, 허브 VNet, 네 개의 서브넷, Azure Route Server, 그리고 선택적 Bastion입니다. RouteServerSubnet은 의도적으로 NSG나 라우팅 테이블을 갖지 않습니다.
+Resource group, hub VNet, the four subnets, the Azure Route Server and the optional Bastion. RouteServerSubnet deliberately carries no NSG or route table.
 
 <Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
 
@@ -137,7 +159,7 @@ Terraform 최소 버전과 프로바이더 제약입니다. xcsh 제약은 상�
 
 ### `terraform/modules/azure-route-server-bgp/`
 
-각 eBGP 세션의 Azure 측입니다 — CE마다 하나의 bgpConnection으로, Route Server를 해당 CE의 eth0/SLO 주소와 피어링합니다.
+The Azure side of each eBGP session — one bgpConnection per CE, peering the Route Server to that CE eth0/SLO address.
 
 <Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
 
@@ -145,7 +167,7 @@ Terraform 최소 버전과 프로바이더 제약입니다. xcsh 제약은 상�
 
 ### `terraform/modules/ce-node/`
 
-노드당 하나의 CE VM입니다: IP 포워딩이 설정된 세 개의 NIC, 마켓플레이스 plan 블록, 그리고 custom_data로 전달되는 cloud-init입니다.
+One CE VM per node: three NICs with IP forwarding, the marketplace plan block, and the cloud-init handed over as custom_data.
 
 <Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
 
@@ -157,13 +179,13 @@ Terraform 최소 버전과 프로바이더 제약입니다. xcsh 제약은 상�
 
 ### `terraform/modules/ce-topology/`
 
-순수 계산만 수행하며 프로바이더도 데이터 소스도 없습니다: ce_count를 모든 for_each를 구동하는 CE별 맵으로 확장합니다. 자격 증명 없이도 임의의 N에서 plan 테스트가 가능합니다.
+Pure computation, no providers and no data sources: expands ce_count into the per-CE map that drives every for_each. Plan-testable at any N without credentials.
 
 <Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
 
 ### `terraform/modules/client-vm/`
 
-VNet 내부의 테스트 클라이언트로, 유효 경로를 확인하고 VIP로 트래픽을 발생시키는 데 사용됩니다.
+The test client inside the VNet, used to read effective routes and drive traffic at the VIP.
 
 <Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
 
@@ -173,7 +195,7 @@ VNet 내부의 테스트 클라이언트로, 유효 경로를 확인하고 VIP�
 
 ### `terraform/modules/xc-site/`
 
-XC 사이트 객체, 해당 BGP 피어링, 그리고 사이트 이름으로 `r-<uuid>` 등록을 확인하는 등록 승인입니다.
+The XC site object, its BGP peering, and the registration approval that resolves a `r-<uuid>` registration by site name.
 
 <Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
 

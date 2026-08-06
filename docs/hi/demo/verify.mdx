@@ -9,17 +9,17 @@ sidebar:
   order: 30
   label: सत्यापन
 i18n:
-  sourceHash: 200ef0fb5d0c
+  sourceHash: c90aadf52c9b
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-प्रस्तुति देने से पहले इन्हें चलाएँ। प्रत्येक जाँच यह सीमित करती है कि खराबी कहाँ हो सकती है, इसलिए कोई विफलता
-आपको कुछ बताती है, न कि केवल यह कि कुछ गलत है।
+Run these before you present. Each check narrows where a fault would be, so a failure tells
+you something rather than only that something is wrong.
 
-प्रत्येक कमांड जो आवश्यक है वह डिप्लॉयमेंट से पढ़ लेता है। इन्हें एक बार सेट करें और शेष अपने आप चलेंगे:
+Every command reads what it needs from the deployment. Set these once and the rest follow:
 
 ```bash
 cd terraform
@@ -29,13 +29,19 @@ CLIENT=$(terraform output -raw client_vm_name)
 DOMAIN=$(terraform output -raw lb_domain)
 VIP=$(terraform output -raw vip)
 NIC=$(terraform output -raw client_nic_name)
+
+# Canada Regional Path variables (when enable_canada = true)
+CA_LB_DOMAIN=$(terraform output -raw ca_lb_domain)
+CA_VIP=$(terraform output -raw ca_vip)
+CA_RE_VSITE=$(terraform output -raw ca_re_virtual_site_name)
+CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
 ```
 
-## चार जाँचें, इसी क्रम में
+## Four checks, in this order
 
 <Steps>
 
-1. **प्रत्येक साइट `ONLINE` है।** यदि यह सत्य नहीं है तो इसके आगे कुछ भी सत्य नहीं हो सकता।
+1. **Every site is `ONLINE`.** Nothing downstream can be true if this is not.
 
    ```bash
    for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
@@ -45,17 +51,17 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   2026-07-28 को देखा गया, तीन CE:
+   Observed 2026-08-03 after the from-zero rebuild:
 
    ```text
-   mcn-ce-ha-eastus01 -> ONLINE
-   mcn-ce-ha-eastus02 -> ONLINE
-   mcn-ce-ha-eastus03 -> ONLINE
+   <SITE_01> -> ONLINE
+   <SITE_02> -> ONLINE
+   <SITE_03> -> ONLINE
    ```
 
-2. **प्रत्येक पीयरिंग उस CE का VIP विज्ञापन सीख रही है।** प्रत्येक पीयरिंग की क्वेरी
-   अलग-अलग करें — नीचे दिया पहला जाल देखें, क्योंकि यहीं डेमो सबसे अधिक बार खराब
-   दिखता है और होता नहीं है।
+2. **Every peering is learning that CE's VIP advertisement.** Query each peering
+   separately — see the first trap below, because this is where the demo most often looks
+   broken and is not.
 
    ```bash
    for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
@@ -67,28 +73,28 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   2026-07-28 को देखा गया:
+   Observed 2026-08-03. The live addresses are omitted; read them from the command:
 
    ```text
    --- eastus01-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.4   64512     EBgp
+   <VIP>/32        <CE_01_SLO_IP>  <CE_ASN>  EBgp
    --- eastus02-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.5   64512     EBgp
+   <VIP>/32        <CE_02_SLO_IP>  <CE_ASN>  EBgp
    --- eastus03-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.6   64512     EBgp
+   <VIP>/32        <CE_03_SLO_IP>  <CE_ASN>  EBgp
    ```
 
-   तीन पीयरिंग, तीन भिन्न नेक्स्ट हॉप, एक प्रीफ़िक्स। यही ECMP का विज्ञापन पक्ष
-   प्रमाणित होना है।
+   Three peerings, three different next hops, one prefix. That is the advertisement side of
+   ECMP proven.
 
-3. **क्लाइंट के प्रभावी रूट प्रत्येक नेक्स्ट हॉप को धारण करते हैं।** यह स्वयं ECMP है, जैसा
-   VNet ने इसे प्रोग्राम किया है — वह नहीं जो CE दावा करते हैं, बल्कि वह जो Azure ने उसके साथ किया।
+3. **The client's effective routes carry every next hop.** This is the ECMP itself, as the
+   VNet has programmed it — not what the CEs claim, but what Azure did with it.
 
    ```bash
    az network nic show-effective-route-table -g "$RG" -n "$NIC" \
@@ -96,183 +102,195 @@ NIC=$(terraform output -raw client_nic_name)
      -o json
    ```
 
-   2026-07-28 को देखा गया:
+   Observed 2026-08-03. The array contained the three addresses returned by
+   `terraform output -json ce_mgmt_private_ips`:
 
    ```json
    [
      {
-       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-       "prefix": "10.250.0.10/32",
+       "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+       "prefix": "<VIP>/32",
        "state": "Active",
        "type": "VirtualNetworkGateway"
      }
    ]
    ```
 
-   `state: Active` के साथ `nh` में प्रति CE एक प्रविष्टि — यही जाँच है। **क्रम
-   महत्वपूर्ण नहीं है और स्थिर नहीं है** — Azure कॉल-दर-कॉल इन्हें भिन्न रूप में लौटाता है, इसलिए
-   पिछली बार से तुलना करने के बजाय इन्हें गिनें। जहाँ आप तीन की अपेक्षा करते हैं वहाँ एक नेक्स्ट हॉप का अर्थ है कि
-   कोई CE विज्ञापन करना बंद कर चुका है, और चरण 2 पहचानता है कि कौन सा।
+   `state: Active` with one entry per CE in `nh` is the check. **The order is not
+   significant and is not stable** — Azure returns them differently between calls, so count
+   them rather than comparing to a previous run. One next hop where you expect three means a
+   CE has stopped advertising, and step 2 identifies which.
 
-4. **VIP ट्रैफ़िक सर्व करता है।** क्लाइंट VM से, और **`Host` हेडर के साथ** — दूसरा
-   जाल देखें। समस्या देखने के लिए पर्याप्त अनुरोध सैंपल करें: नीचे वर्णित कन्वर्जेंस विंडो के भीतर भी
-   कुछ दर्जन अनुरोध 100 % जैसे पढ़े जाते हैं।
+4. **The VIPs serve traffic.** From the client VM, and **with the `Host` header** — see the
+   second trap. Sample both the Rest of World (`f5-sales-demo.com`) and Canada (`f5-sales-demo.ca`) domains.
 
    ```bash
    az vm run-command invoke -g "$RG" -n "$CLIENT" \
      --command-id RunShellScript --query "value[0].message" -o tsv \
      --scripts "ok=0; fail=0
-                for i in \$(seq 1 60); do
+                for i in \$(seq 1 30); do
                   c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
                         -H 'Host: ${DOMAIN}' http://${VIP}/)
                   [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
                 done
-                echo \"OK=\$ok FAIL=\$fail\""
+                echo \"ROW_DOMAIN_OK=\$ok ROW_DOMAIN_FAIL=\$fail\"
+                if [ -n \"${CA_LB_DOMAIN:-}\" ] && [ -n \"${CA_VIP:-}\" ]; then
+                  ca_ok=0; ca_fail=0
+                  for i in \$(seq 1 30); do
+                    c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                          -H 'Host: ${CA_LB_DOMAIN}' http://${CA_VIP}/)
+                    [ \"\$c\" = 200 ] && ca_ok=\$((ca_ok+1)) || ca_fail=\$((ca_fail+1))
+                  done
+                  echo \"CANADA_DOMAIN_OK=\$ca_ok CANADA_DOMAIN_FAIL=\$ca_fail\"
+                fi"
    ```
 
-   2026-07-28 को देखा गया:
+   Observed 2026-08-03 in the automated UAT. The final two batches were clean:
 
    ```text
-   VIP with Host header: OK=60 FAIL=0
-   bare IP (no Host): 404
+   batch=3 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
+   batch=4 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
    ```
 
 </Steps>
 
-## जाल: एक पीयरिंग एक रूट दिखाती है, और यह सही है
+## Trap: one peering shows one route, and that is correct
 
-`list-learned-routes` उस पीयरिंग तक सीमित होता है जिसका नाम आप देते हैं। यह वही बताता है जो **उस** पीयर ने
-विज्ञापित किया, Route Server की पूरी तालिका नहीं।
+`list-learned-routes` is scoped to the peering you name. It reports what **that** peer
+advertised, not the Route Server's whole table.
 
-इसलिए अकेली एक पीयरिंग की क्वेरी एकल नेक्स्ट हॉप के माध्यम से एकल VIP `/32` लौटाती है, और इसे
-"केवल एक CE विज्ञापन कर रहा है — बाकी डाउन हैं" के रूप में पढ़ने का प्रलोभन होता है। कुछ भी डाउन नहीं है।
-अन्य विज्ञापन अपनी-अपनी पीयरिंग पर दिखते हैं, और चरण 2 उन्हीं पर लूप करता है।
+So querying one peering alone returns a single VIP `/32` via a single next hop, and it is
+tempting to read that as "only one CE is advertising — the others are down". Nothing is
+down. The other advertisements are visible on their own peerings, which is what step 2 loops
+over.
 
-एकल पीयरिंग क्वेरी से ECMP की पुष्टि करना संभव नहीं है। या प्रत्येक पीयरिंग पर लूप करें, या
-क्लाइंट की प्रभावी रूट तालिका पढ़ें, जो एक ही कॉल में समेकित परिणाम दिखाती है।
+Confirming ECMP from a single peering query is not possible. Either loop every peering, or
+read the client's effective route table, which shows the merged result in one call.
 
-## जाल: बेयर-IP अनुरोध 404 लौटाता है
+## Trap: a bare-IP request returns 404
 
-लोड बैलेंसर `Host` पर मैच करता है। VIP कोई ऐसा वर्चुअल सर्वर नहीं है जो पते पर कनेक्ट होने वाले
-किसी को भी कुछ भी सर्व करे।
+The load balancer matches on `Host`. The VIP is not a virtual server that serves anything to
+whoever connects to the address.
 
-ये दोनों स्वस्थ डिप्लॉयमेंट के विरुद्ध उसी रन से आए:
+Both of these came from the same run against the healthy deployment:
 
 ```text
 curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
 curl                     http://$VIP/   ->  404
 ```
 
-**बेयर-IP 404 इस बात का प्रमाण है कि पथ काम कर रहा है** — अनुरोध CE तक पहुँचा, CE के प्रॉक्सी ने
-उत्तर दिया, और उसने अस्वीकार किया क्योंकि कोई कॉन्फ़िगर किया गया डोमेन मैच नहीं हुआ। इसे आउटेज के रूप में पढ़ना
-आपको BGP देखने भेज देता है, जहाँ आपको कुछ गलत नहीं मिलेगा।
+**A bare-IP 404 is proof the path works** — the request reached the CE, the CE's proxy
+answered, and it declined because no configured domain matched. Reading it as an outage
+sends you looking at BGP, where you will find nothing wrong.
 
-यही डेमो के दौरान भी लागू होता है: यदि आप डोमेन को उस पते पर रिज़ॉल्व करने के बजाय ब्राउज़र में पता
-टाइप करते हैं, तो आपको 404 मिलता है।
+The same applies during a demo: if you type the address into a browser rather than resolving
+the domain to it, you get the 404.
 
-## VIP पहले पौन घंटे तक अनुरोध ड्रॉप करता है, फिर रुक जाता है
+## A fresh deployment can have a convergence transient
 
-नए बनाए गए स्टैक पर, CE के `ONLINE` होने के बाद लगभग पहले 45 मिनट तक VIP अनुरोधों का एक छोटा
-अंश खो देता है, और उसके बाद साफ़-सुथरे ढंग से सर्व करता है। क्लाइंट VM से 1,470
-अनुरोधों पर मापा गया, सभी `Host` हेडर के साथ:
+The 2026-08-03 from-zero UAT sent 160 VIP requests in four time-separated batches. Three
+requests failed in the first two batches; the final 80 were clean. The origin control was
+80 of 80 throughout. That proves convergence for this rebuild without attributing the early
+loss to the origin.
 
-| विंडो | अनुरोध | विफलताएँ | दर |
+Earlier measurements on 2026-07-28 showed the longer shape: the VIP lost a small fraction of
+requests for roughly the first 45 minutes after the CEs reached `ONLINE`, then served cleanly.
+Measured over 1,470
+requests from the client VM, all with the `Host` header:
+
+| Window | Requests | Failures | Rate |
 | --- | --- | --- | --- |
-| ECMP उठने के बाद पहले ~45 मिनट | 570 | 12 | **2.11 %** |
-| उसके बाद के 23 मिनट | 900 | **0** | **0.00 %** |
+| First ~45 minutes after ECMP came up | 570 | 12 | **2.11 %** |
+| The following 23 minutes | 900 | **0** | **0.00 %** |
 
-प्रत्येक विफलता `curl: (28)` थी — शून्य बाइट प्राप्त होने के साथ टाइमआउट — कोई HTTP त्रुटि
-स्थिति नहीं। अंतिम विफलता ECMP उठने के लगभग 43 मिनट बाद हुई। 900 साफ़ अनुरोधों में से
-400 30-सेकंड टाइमआउट के साथ चले और प्रत्येक 2 सेकंड से कम में पूरा हुआ, इसलिए छोटे टाइमआउट से कुछ
-छिपा नहीं था।
+Every failure was `curl: (28)` — a timeout with zero bytes received — not an HTTP error
+status. The last one landed about 43 minutes after ECMP came up. Of the 900 clean requests,
+400 ran with a 30-second timeout and every one finished in under 2 seconds, so nothing was
+hidden by a short timeout.
 
-यह उसी दिन एक बाद के रीबिल्ड पर फिर पुनरुत्पन्न हुआ, और वह रन अधिक स्पष्ट चित्र देता है
-क्योंकि उसे विंडो बीत जाने के बाद के बजाय विंडो बीतने के दौरान सैंपल किया गया था। 360 अनुरोध, सभी
-`Host` हेडर के साथ, प्रत्येक बैच के साथ सीधे ऑरिजिन पर एक नियंत्रण बैच जोड़ा गया:
+It reproduced again on a later rebuild on 2026-07-28, and that run is the clearer picture
+because it was sampled as the window elapsed rather than after it. 360 requests, all with
+the `Host` header, each batch paired with a control straight to the origin:
 
-| `ONLINE` के बाद का समय | अनुरोध | विफलताएँ | दर | ऑरिजिन नियंत्रण |
+| Time after `ONLINE` | Requests | Failures | Rate | Origin control |
 | --- | --- | --- | --- | --- |
-| तत्काल | 60 | 8 | **13.3 %** | 30/30 साफ़ |
-| ~25–40 मिनट (3 बैच) | 180 | 3 | **1.67 %** | 60/60 साफ़ |
-| ~50 मिनट | 120 | **0** | **0.00 %** | 40/40 साफ़ |
+| immediately | 60 | 8 | **13.3 %** | 30/30 clean |
+| ~25–40 min (3 batches) | 180 | 3 | **1.67 %** | 60/60 clean |
+| ~50 min | 120 | **0** | **0.00 %** | 40/40 clean |
 
-एकरस रूप से घटकर शून्य तक, और प्रत्येक बैच में ऑरिजिन साफ़ रहा — उस बैच में भी जहाँ आठ में से
-एक VIP अनुरोध विफल हुआ।
+Monotonically decreasing to zero, and the origin was clean in every batch — including the
+one where one VIP request in eight failed.
 
-**ऑरिजिन कारण नहीं था।** सीधे ऑरिजिन पर एक नियंत्रण बैच
-(`terraform output -raw origin_ip`, VIP को बायपास करते हुए) विफल हो रहे VIP बैचों *के साथ-साथ*
-120 में से 120 साफ़ चला। खराबी VIP, ECMP या CE पथ में कहीं है।
+**The origin was not the cause.** A control batch straight to the origin
+(`terraform output -raw origin_ip`, bypassing the VIP) ran 120 of 120 clean *concurrently
+with* failing VIP batches. The fault is somewhere in the VIP, ECMP or CE path.
 
-दो बातें जिन्हें जानबूझकर ऐसा नहीं कहा जा रहा:
+Two things this is deliberately not called:
 
-- **यह स्थिर-अवस्था दोष नहीं है।** यह पूरी तरह साफ़ हो जाता है और साफ़ रहता है — 50-मिनट के निशान पर
-  120 में से 120, और घंटों से चल रहे स्टैक पर 60 में से 60।
-- **किसी छोटे प्रारंभिक सैंपल से यह निष्कर्ष न निकालें कि यह अनुपस्थित है।** एक रीबिल्ड के तुरंत बाद
-  लिया गया 60-अनुरोध बैच 60 में से 60 लौटाया, जो "कोई ट्रांज़िएंट नहीं" जैसा पढ़ा गया; उसी
-  डिप्लॉयमेंट ने अगले रीबिल्ड पर एक घंटे बाद 60 में से 8 खो दिए। बर्स्टी हानि देखने के लिए साठ अनुरोध
-  पर्याप्त नहीं हैं। 100 या अधिक सैंपल करें, समय में अलग-अलग बैचों में — ऊपर की तालिका को
-  आकार दिखाने के लिए 360 चाहिए थे।
-- **यह किसी विशेष CE को नहीं ठहराया जा सकता।** इस टोपोलॉजी में कुछ भी प्रति-नोड
-  HTTP लिसनर नहीं देता, इसलिए किसी ड्रॉप हुए अनुरोध को उस नोड से बाँधने का कोई तरीका नहीं है जिसने उसे ड्रॉप किया।
-  CE के बाहरी इंटरफ़ेस पर कोई HTTP लिसनर ही नहीं है — केवल VIP `/32` उत्तर देता है।
+- **It is not a steady-state defect.** It clears completely and stays clear — 120 of 120 at
+  the 50-minute mark, and 60 of 60 on a stack that had been up for hours.
+- **Do not conclude it is absent from a small early sample.** A 60-request batch taken
+  immediately after one rebuild returned 60 of 60, which read as "no transient"; the same
+  deployment lost 8 of 60 an hour later on the next rebuild. Sixty requests is not enough
+  to see a bursty loss. Sample 100 or more, in batches separated in time — the table above
+  needed 360 to show the shape.
+- **It is not attributable to a particular CE.** Nothing in this topology gives a per-node
+  HTTP listener, so there is no way to bind a dropped request to the node that dropped it.
+  The CE outside interfaces have no HTTP listener at all — only the VIP `/32` answers.
 
-यह एक भिन्न टेनेंट में साफ़ रीबिल्ड पर पुनरुत्पन्न हुआ, इसलिए यह पर्यावरण के बजाय टोपोलॉजी का
-अनुसरण करता है।
-
-<Aside type="caution" title="40 अनुरोध सैंपल कर यह निष्कर्ष न निकालें कि सब ठीक है">
-40 से 50 के बैच विफल हो रही विंडो के भीतर भी अधिकांश समय 100 % जैसे पढ़े जाते हैं। इसी तरह
-इसे पहले एक चालू निम्न-दर खराबी के रूप में और फिर बिल्कुल कोई खराबी न होने के रूप में गलत
-वर्गीकृत किया गया था। 100 या अधिक सैंपल करें, समय में अलग-अलग बैचों में।
+<Aside type="caution" title="Do not sample 40 requests and conclude it is fine">
+Batches of 40 to 50 read as 100 % most of the time even inside the failing window. That is
+how this was first mischaracterised as an ongoing low-rate fault and then as no fault at
+all. Sample 100 or more, in batches separated in time.
 </Aside>
 
-## दो और मापन जाल
+## Two more measurement traps
 
-दोनों ने इस परिवेश में आत्मविश्वास से गलत उत्तर दिए, और दोनों में से कोई स्पष्ट नहीं है।
+Both produced confident wrong answers in this environment, and neither is obvious.
 
-- **VNet के भीतर से प्रोब करें, अपने वर्कस्टेशन से नहीं।** कोई कॉर्पोरेट प्रॉक्सी सामान्य पोर्ट पर
-  स्वयं TCP हैंडशेक पूरा कर सकता है, इसलिए वर्कस्टेशन प्रोब उस पोर्ट को **खुला** बताता है
-  जो वास्तव में बंद है। वर्कस्टेशन से CE के सार्वजनिक पतों पर पोर्ट 80 और 443 खुले पढ़े जाते हैं
-  और VNet के भीतर से प्रोब करने पर बंद होते हैं। क्लाइंट VM का उपयोग करें।
-- **किसी CE पर पोर्ट 22 केवल आंतरिक (SLI) पते पर उत्तर देता है।** क्लाइंट VM से प्रोब करने पर,
-  प्रत्येक CE का आंतरिक पता OpenSSH बैनर लौटाता है, जबकि उसके प्रबंधन और बाहरी
-  पते टाइमआउट होते हैं — जैसा नियंत्रण के रूप में उपयोग किया गया एक अप्रयुक्त पता भी करता है। eth0 का नाम बदलकर
-  `a-i-eth0` कर दिया गया है और उस पर कोई होस्ट IP नहीं है, क्योंकि डेटापाथ उसका स्वामी है। इसलिए उस पते को
-  प्रोब करना जिससे आप नोड को जानते हैं, नोड की SSH स्थिति के बारे में कुछ नहीं बताता।
+- **Probe from inside the VNet, not from your workstation.** A corporate proxy can complete
+  the TCP handshake itself on common ports, so a workstation probe reports a port **open**
+  that is actually closed. Ports 80 and 443 read as open on the CE public addresses from a
+  workstation and are closed when probed from inside the VNet. Use the client VM.
+- **Port 22 on a CE answers on the internal (SLI) address only.** Probed from the client VM,
+  each CE's internal address returns an OpenSSH banner, while its management and external
+  addresses time out — as does an unused address used as a control. eth0 is renamed
+  `a-i-eth0` and carries no host IP, because the datapath owns it. So probing the address
+  you know the node by tells you nothing about the node's SSH state.
 
-<Aside type="danger" title="कभी किसी CE का आंतरिक पता हार्डकोड न करें — वे प्रत्येक रीबिल्ड पर पुनः असाइन होते हैं">
-Azure यह संरक्षित नहीं करता कि आंतरिक सबनेट में किस CE को कौन सा पता मिलता है, और
-पते नोड क्रम में नहीं होते। 2026-07-28 को देखा गया कि तीन CE ने `10.0.3.7`,
-`10.0.3.5` और `10.0.3.4` धारण किए — क्रमिक नहीं, और उस रीबिल्ड से पहले उन्होंने जो धारण किए थे
-उससे भिन्न।
+<Aside type="danger" title="Never hardcode a CE internal address — they are reassigned on every rebuild">
+Azure does not preserve which CE gets which address in the internal subnet, and the
+addresses are not in node order. Observed 2026-07-28: the three addresses were not
+sequential and differed from the previous rebuild. Read the current mapping from Terraform;
+published documentation deliberately does not carry the deployment's values.
 
-यह तय करने वाला कि वे बदलते हैं या नहीं, **NIC** है, VM नहीं। केवल CE VM बदलने पर
-NIC यथावत रहते हैं और प्रत्येक पता बचा रहता है: उसी दिन सत्यापित किया गया, जब व्युत्पन्न
-ऑब्जेक्ट नामों को अपनाने पर तीनों CE VM बदले गए और तीनों आंतरिक पते समान रूप से
-वापस आए। एक टियरडाउन जो NIC हटा देता है, उन्हें सबनेट के मुक्त
-पूल से पुनः असाइन करता है, उस क्रम में जिसमें Azure उसे भरता है।
+What decides whether they move is the **NIC**, not the VM. Replacing the CE VMs alone
+leaves the NICs in place and every address survives: verified the same day, when adopting
+the derived object names replaced all three CE VMs and the three internal addresses came
+back identical. A teardown that removes the NICs reassigns them from the subnet's free
+pool, in whatever order Azure fills it.
 
-परीक्षण क्लाइंट का NIC उसी सबनेट में बैठता है, इसलिए जो पता आपको किसी CE का याद है वह अब
-क्लाइंट का हो सकता है — इस डिप्लॉयमेंट पर वह `10.0.3.6` धारण करता है, जिसे एक पूर्व रीबिल्ड से पहले
-एक CE ने धारण किया था।
+The test client's NIC sits in that same subnet, so an address you remember as a CE's may
+now belong to the client.
 
-उन्हें याद रखने के बजाय पढ़ें:
+Read them instead of remembering them:
 
 ```bash
 terraform output -json ce_sli_private_ips
 ```
 
-Terraform स्टेट उपलब्ध न होने पर, Azure से NIC नाम द्वारा पूछें, जो *स्थिर* है:
+Without Terraform state to hand, ask Azure by NIC name, which *is* stable:
 
 ```bash
 az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
-किसी याद रखे गए पते से कनेक्ट करने पर आप गलत नोड पर पहुँचते हैं, ऐसे VM पर जो CE नहीं है,
-या कहीं नहीं — और इनमें से अंतिम स्थिति "SSH सक्षम नहीं है" के समान ही दिखती है।
+Connecting to a remembered address lands you on the wrong node, on a VM that is not a CE,
+or nowhere — and the last of those looks identical to "SSH is not enabled".
 </Aside>
 
-## पुष्टि करें कि ऑन-बॉक्स कमांड सरफ़ेस अभी भी दस्तावेज़ों से मेल खाता है
+## Confirm the on-box command surface still matches the docs
 
 ```bash
 bash scripts/capture-sitecli.sh --check \
@@ -280,7 +298,38 @@ bash scripts/capture-sitecli.sh --check \
   --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
 ```
 
-`--check` कुछ भी नहीं लिखता, इसलिए यह लाइव डेमो के विरुद्ध सुरक्षित है।
+`--check` writes nothing, so it is safe against the live demo.
+
+## On-Premise KVM & FRR BGP Verification
+
+When the On-Premise KVM extension is deployed, verify hypervisor domain state, ToR router eBGP peering status, and local network reachability:
+
+1. **Verify KVM virtual machine domain state**:
+
+   ```bash
+   virsh list --all
+   ```
+
+   Confirm all three KVM Customer Edge nodes (`onprem-ce-01`, `onprem-ce-02`, `onprem-ce-03`) are in `running` state.
+
+2. **Verify FRR ToR BGP Router peering status**:
+
+   ```bash
+   docker exec frr-router vtysh -c "show ip bgp summary"
+   ```
+
+   Confirm active eBGP sessions with all three On-Prem CEs (ASN `64512`) on local bridge network `ce-bgp-net` (`10.100.0.0/24`), showing established prefixes.
+
+3. **Verify network reachability**:
+
+   ```bash
+   ping -c 3 10.100.0.1
+   for ip in 10.100.0.10 10.100.0.11 10.100.0.12; do
+     ping -c 2 "$ip"
+   done
+   ```
+
+   Confirm local ICMP reachability to the FRR ToR router interface (`10.100.0.1`) and On-Prem CE node IP addresses.
 
 ## Automated UAT verification script
 
@@ -302,13 +351,13 @@ The script executes all checks against the live deployment, writes `summary.json
 
 <CardGrid>
   <LinkCard
-    title="Customer Edge तक पहुँचना"
-    description="कौन-सा एक्सेस रूट लागू होता है, प्रत्येक के लिए आवश्यक क्रेडेंशियल, और यह चुनाव प्राथमिकता का विषय क्यों नहीं है।"
+    title="Reaching a Customer Edge"
+    description="Which access route applies, the credentials each needs, and why the choice is not a preference."
     href="../../customer-edge/access/"
   />
   <LinkCard
-    title="BGP कमांड"
-    description="FRR से ऑन-बॉक्स दृश्य — पीयरिंग स्थिति, पूरी तालिका, और यह नोड क्या विज्ञापित करता है।"
+    title="BGP commands"
+    description="The on-box view from FRR — peering state, the full table, and what this node advertises."
     href="../../customer-edge/commands/network/bgp/"
   />
 </CardGrid>

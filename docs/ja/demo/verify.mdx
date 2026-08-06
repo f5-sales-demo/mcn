@@ -7,17 +7,17 @@ sidebar:
   order: 30
   label: 検証
 i18n:
-  sourceHash: 200ef0fb5d0c
+  sourceHash: c90aadf52c9b
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-プレゼンテーションの前にこれらを実行してください。各チェックは障害箇所を段階的に絞り込むため、
-失敗した場合は「何かがおかしい」だけでなく、その内容が分かります。
+Run these before you present. Each check narrows where a fault would be, so a failure tells
+you something rather than only that something is wrong.
 
-すべてのコマンドは必要な情報をデプロイメントから読み取ります。以下を一度設定すれば、残りは続けて実行できます。
+Every command reads what it needs from the deployment. Set these once and the rest follow:
 
 ```bash
 cd terraform
@@ -27,13 +27,19 @@ CLIENT=$(terraform output -raw client_vm_name)
 DOMAIN=$(terraform output -raw lb_domain)
 VIP=$(terraform output -raw vip)
 NIC=$(terraform output -raw client_nic_name)
+
+# Canada Regional Path variables (when enable_canada = true)
+CA_LB_DOMAIN=$(terraform output -raw ca_lb_domain)
+CA_VIP=$(terraform output -raw ca_vip)
+CA_RE_VSITE=$(terraform output -raw ca_re_virtual_site_name)
+CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
 ```
 
-## 4 つのチェック、この順序で
+## Four checks, in this order
 
 <Steps>
 
-1. **すべてのサイトが `ONLINE` である。** これが成り立たなければ、下流のどれも成り立ちません。
+1. **Every site is `ONLINE`.** Nothing downstream can be true if this is not.
 
    ```bash
    for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
@@ -43,17 +49,17 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   2026-07-28 に観測、CE 3 台:
+   Observed 2026-08-03 after the from-zero rebuild:
 
    ```text
-   mcn-ce-ha-eastus01 -> ONLINE
-   mcn-ce-ha-eastus02 -> ONLINE
-   mcn-ce-ha-eastus03 -> ONLINE
+   <SITE_01> -> ONLINE
+   <SITE_02> -> ONLINE
+   <SITE_03> -> ONLINE
    ```
 
-2. **すべてのピアリングがその CE の VIP アドバタイズを学習している。** 各ピアリングを
-   個別にクエリしてください — 下記の最初の罠を参照。ここがデモで最も頻繁に
-   壊れているように見えて、実際は正常な箇所です。
+2. **Every peering is learning that CE's VIP advertisement.** Query each peering
+   separately — see the first trap below, because this is where the demo most often looks
+   broken and is not.
 
    ```bash
    for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
@@ -65,28 +71,28 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   2026-07-28 に観測:
+   Observed 2026-08-03. The live addresses are omitted; read them from the command:
 
    ```text
    --- eastus01-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.4   64512     EBgp
+   <VIP>/32        <CE_01_SLO_IP>  <CE_ASN>  EBgp
    --- eastus02-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.5   64512     EBgp
+   <VIP>/32        <CE_02_SLO_IP>  <CE_ASN>  EBgp
    --- eastus03-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.6   64512     EBgp
+   <VIP>/32        <CE_03_SLO_IP>  <CE_ASN>  EBgp
    ```
 
-   3 つのピアリング、3 つの異なるネクストホップ、1 つのプレフィックス。これで ECMP の
-   アドバタイズ側が証明されました。
+   Three peerings, three different next hops, one prefix. That is the advertisement side of
+   ECMP proven.
 
-3. **クライアントの有効ルートがすべてのネクストホップを保持している。** これは VNet が
-   プログラムした ECMP そのものです — CE が主張する内容ではなく、Azure が実際に処理した結果です。
+3. **The client's effective routes carry every next hop.** This is the ECMP itself, as the
+   VNet has programmed it — not what the CEs claim, but what Azure did with it.
 
    ```bash
    az network nic show-effective-route-table -g "$RG" -n "$NIC" \
@@ -94,181 +100,195 @@ NIC=$(terraform output -raw client_nic_name)
      -o json
    ```
 
-   2026-07-28 に観測:
+   Observed 2026-08-03. The array contained the three addresses returned by
+   `terraform output -json ce_mgmt_private_ips`:
 
    ```json
    [
      {
-       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-       "prefix": "10.250.0.10/32",
+       "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+       "prefix": "<VIP>/32",
        "state": "Active",
        "type": "VirtualNetworkGateway"
      }
    ]
    ```
 
-   `state: Active` であり、`nh` に CE ごとに 1 エントリあることがチェック内容です。**順序に
-   意味はなく、安定もしていません** — Azure は呼び出しごとに異なる順序で返すため、以前の実行と
-   比較するのではなく数を数えてください。3 つ期待している場所にネクストホップが 1 つしかない場合は、
-   ある CE がアドバタイズを停止していることを意味し、ステップ 2 でどれかが判別できます。
+   `state: Active` with one entry per CE in `nh` is the check. **The order is not
+   significant and is not stable** — Azure returns them differently between calls, so count
+   them rather than comparing to a previous run. One next hop where you expect three means a
+   CE has stopped advertising, and step 2 identifies which.
 
-4. **VIP がトラフィックを処理している。** クライアント VM から、**`Host` ヘッダー付きで** — 2 番目の
-   罠を参照。問題を確認できる十分な数のリクエストをサンプルしてください。数十件では、
-   下記で説明する収束ウィンドウの中でも 100 % と読み取れてしまいます。
+4. **The VIPs serve traffic.** From the client VM, and **with the `Host` header** — see the
+   second trap. Sample both the Rest of World (`f5-sales-demo.com`) and Canada (`f5-sales-demo.ca`) domains.
 
    ```bash
    az vm run-command invoke -g "$RG" -n "$CLIENT" \
      --command-id RunShellScript --query "value[0].message" -o tsv \
      --scripts "ok=0; fail=0
-                for i in \$(seq 1 60); do
+                for i in \$(seq 1 30); do
                   c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
                         -H 'Host: ${DOMAIN}' http://${VIP}/)
                   [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
                 done
-                echo \"OK=\$ok FAIL=\$fail\""
+                echo \"ROW_DOMAIN_OK=\$ok ROW_DOMAIN_FAIL=\$fail\"
+                if [ -n \"${CA_LB_DOMAIN:-}\" ] && [ -n \"${CA_VIP:-}\" ]; then
+                  ca_ok=0; ca_fail=0
+                  for i in \$(seq 1 30); do
+                    c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                          -H 'Host: ${CA_LB_DOMAIN}' http://${CA_VIP}/)
+                    [ \"\$c\" = 200 ] && ca_ok=\$((ca_ok+1)) || ca_fail=\$((ca_fail+1))
+                  done
+                  echo \"CANADA_DOMAIN_OK=\$ca_ok CANADA_DOMAIN_FAIL=\$ca_fail\"
+                fi"
    ```
 
-   2026-07-28 に観測:
+   Observed 2026-08-03 in the automated UAT. The final two batches were clean:
 
    ```text
-   VIP with Host header: OK=60 FAIL=0
-   bare IP (no Host): 404
+   batch=3 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
+   batch=4 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
    ```
 
 </Steps>
 
-## 罠: あるピアリングにルートが 1 つしか表示されるが、それは正しい
+## Trap: one peering shows one route, and that is correct
 
-`list-learned-routes` は指定したピアリングにスコープされます。**そのピア**がアドバタイズした
-内容を報告するもので、Route Server のテーブル全体ではありません。
+`list-learned-routes` is scoped to the peering you name. It reports what **that** peer
+advertised, not the Route Server's whole table.
 
-そのため 1 つのピアリングだけをクエリすると、単一のネクストホップ経由の単一の VIP `/32` が返り、
-これを「1 つの CE だけがアドバタイズしている — 他はダウンしている」と読みたくなります。何も
-ダウンしていません。他のアドバタイズはそれぞれのピアリング上で見えており、それがステップ 2 が
-ループしている対象です。
+So querying one peering alone returns a single VIP `/32` via a single next hop, and it is
+tempting to read that as "only one CE is advertising — the others are down". Nothing is
+down. The other advertisements are visible on their own peerings, which is what step 2 loops
+over.
 
-単一のピアリングクエリから ECMP を確認することはできません。すべてのピアリングをループするか、
-1 回の呼び出しでマージ結果を示すクライアントの有効ルートテーブルを読んでください。
+Confirming ECMP from a single peering query is not possible. Either loop every peering, or
+read the client's effective route table, which shows the merged result in one call.
 
-## 罠: ベア IP のリクエストが 404 を返す
+## Trap: a bare-IP request returns 404
 
-ロードバランサーは `Host` でマッチします。VIP は、そのアドレスに接続してきた相手に何かを
-返す仮想サーバーではありません。
+The load balancer matches on `Host`. The VIP is not a virtual server that serves anything to
+whoever connects to the address.
 
-以下の両方は、正常なデプロイメントに対する同じ実行から得られたものです:
+Both of these came from the same run against the healthy deployment:
 
 ```text
 curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
 curl                     http://$VIP/   ->  404
 ```
 
-**ベア IP の 404 は経路が機能していることの証拠です** — リクエストは CE に到達し、CE の
-プロキシが応答し、設定済みドメインに一致しなかったため拒否したということです。これを障害と
-読み取ると BGP を調べに行くことになりますが、そこには何の問題も見つかりません。
+**A bare-IP 404 is proof the path works** — the request reached the CE, the CE's proxy
+answered, and it declined because no configured domain matched. Reading it as an outage
+sends you looking at BGP, where you will find nothing wrong.
 
-デモ中も同じです。ドメインを解決するのではなくブラウザにアドレスを直接入力すると、404 が返ります。
+The same applies during a demo: if you type the address into a browser rather than resolving
+the domain to it, you get the 404.
 
-## VIP は最初の 45 分間ほどリクエストをドロップし、その後止まる
+## A fresh deployment can have a convergence transient
 
-新規構築したスタックでは、CE が `ONLINE` に到達してから最初の約 45 分間、VIP はごく一部の
-リクエストを失い、その後はクリーンに処理します。クライアント VM から 1,470 リクエストを
-すべて `Host` ヘッダー付きで測定した結果:
+The 2026-08-03 from-zero UAT sent 160 VIP requests in four time-separated batches. Three
+requests failed in the first two batches; the final 80 were clean. The origin control was
+80 of 80 throughout. That proves convergence for this rebuild without attributing the early
+loss to the origin.
 
-| ウィンドウ | リクエスト | 失敗 | 率 |
+Earlier measurements on 2026-07-28 showed the longer shape: the VIP lost a small fraction of
+requests for roughly the first 45 minutes after the CEs reached `ONLINE`, then served cleanly.
+Measured over 1,470
+requests from the client VM, all with the `Host` header:
+
+| Window | Requests | Failures | Rate |
 | --- | --- | --- | --- |
-| ECMP 確立後の最初の約 45 分 | 570 | 12 | **2.11 %** |
-| その後の 23 分間 | 900 | **0** | **0.00 %** |
+| First ~45 minutes after ECMP came up | 570 | 12 | **2.11 %** |
+| The following 23 minutes | 900 | **0** | **0.00 %** |
 
-すべての失敗は `curl: (28)` — 受信バイト数 0 のタイムアウト — であり、HTTP エラー
-ステータスではありませんでした。最後の失敗は ECMP 確立から約 43 分後に発生しました。クリーンな
-900 リクエストのうち 400 は 30 秒のタイムアウトで実行し、すべて 2 秒未満で完了したため、
-短いタイムアウトによって隠された事象はありません。
+Every failure was `curl: (28)` — a timeout with zero bytes received — not an HTTP error
+status. The last one landed about 43 minutes after ECMP came up. Of the 900 clean requests,
+400 ran with a 30-second timeout and every one finished in under 2 seconds, so nothing was
+hidden by a short timeout.
 
-同日の後の再構築でも再現し、その実行はウィンドウ経過後ではなく経過中にサンプルしたため、
-より明確な描像が得られています。360 リクエスト、すべて `Host` ヘッダー付き、各バッチは
-オリジンへの直接コントロールと対になっています:
+It reproduced again on a later rebuild on 2026-07-28, and that run is the clearer picture
+because it was sampled as the window elapsed rather than after it. 360 requests, all with
+the `Host` header, each batch paired with a control straight to the origin:
 
-| `ONLINE` 後の経過時間 | リクエスト | 失敗 | 率 | オリジンコントロール |
+| Time after `ONLINE` | Requests | Failures | Rate | Origin control |
 | --- | --- | --- | --- | --- |
-| 直後 | 60 | 8 | **13.3 %** | 30/30 クリーン |
-| 約 25〜40 分（3 バッチ） | 180 | 3 | **1.67 %** | 60/60 クリーン |
-| 約 50 分 | 120 | **0** | **0.00 %** | 40/40 クリーン |
+| immediately | 60 | 8 | **13.3 %** | 30/30 clean |
+| ~25–40 min (3 batches) | 180 | 3 | **1.67 %** | 60/60 clean |
+| ~50 min | 120 | **0** | **0.00 %** | 40/40 clean |
 
-単調にゼロまで減少し、オリジンはすべてのバッチでクリーンでした — VIP リクエストの 8 件に 1 件が
-失敗したバッチも含めてです。
+Monotonically decreasing to zero, and the origin was clean in every batch — including the
+one where one VIP request in eight failed.
 
-**原因はオリジンではありませんでした。** オリジンへ直接向けたコントロールバッチ
-（`terraform output -raw origin_ip`、VIP をバイパス）は、失敗している VIP バッチと*同時に*
-実行して 120 件中 120 件クリーンでした。障害は VIP、ECMP、または CE の経路のどこかにあります。
+**The origin was not the cause.** A control batch straight to the origin
+(`terraform output -raw origin_ip`, bypassing the VIP) ran 120 of 120 clean *concurrently
+with* failing VIP batches. The fault is somewhere in the VIP, ECMP or CE path.
 
-これについて意図的にそう呼んでいない 2 点:
+Two things this is deliberately not called:
 
-- **定常状態の欠陥ではありません。** 完全に解消し、その状態が続きます — 50 分時点で 120 件中
-  120 件、数時間稼働していたスタックでは 60 件中 60 件。
-- **少数の早期サンプルから存在しないと結論しないでください。** ある再構築の直後に取得した
-  60 リクエストのバッチは 60 件中 60 件を返し、「一時的事象なし」と読めました。しかし同じ
-  デプロイメントは、次の再構築の 1 時間後に 60 件中 8 件を失いました。バースト的な損失を
-  見るには 60 リクエストでは不十分です。時間を分けたバッチで 100 件以上をサンプルしてください —
-  上記の表は形状を示すのに 360 件を必要としました。
-- **特定の CE に帰属させることはできません。** このトポロジーではノードごとの HTTP リスナーが
-  存在しないため、ドロップされたリクエストをドロップしたノードに結び付ける方法がありません。
-  CE の外部インターフェースには HTTP リスナーがまったくありません — VIP `/32` のみが応答します。
+- **It is not a steady-state defect.** It clears completely and stays clear — 120 of 120 at
+  the 50-minute mark, and 60 of 60 on a stack that had been up for hours.
+- **Do not conclude it is absent from a small early sample.** A 60-request batch taken
+  immediately after one rebuild returned 60 of 60, which read as "no transient"; the same
+  deployment lost 8 of 60 an hour later on the next rebuild. Sixty requests is not enough
+  to see a bursty loss. Sample 100 or more, in batches separated in time — the table above
+  needed 360 to show the shape.
+- **It is not attributable to a particular CE.** Nothing in this topology gives a per-node
+  HTTP listener, so there is no way to bind a dropped request to the node that dropped it.
+  The CE outside interfaces have no HTTP listener at all — only the VIP `/32` answers.
 
-別のテナントでのクリーンな再構築でも再現したため、環境ではなくトポロジーに起因します。
-
-<Aside type="caution" title="40 リクエストをサンプルして問題なしと結論しないこと">
-40〜50 件のバッチは、失敗ウィンドウの中でもほとんどの場合 100 % と読み取れます。そのために
-これは最初、継続的な低率の障害として誤って特徴付けられ、次に障害はまったくないと
-誤解されました。時間を分けたバッチで 100 件以上をサンプルしてください。
+<Aside type="caution" title="Do not sample 40 requests and conclude it is fine">
+Batches of 40 to 50 read as 100 % most of the time even inside the failing window. That is
+how this was first mischaracterised as an ongoing low-rate fault and then as no fault at
+all. Sample 100 or more, in batches separated in time.
 </Aside>
 
-## さらに 2 つの測定上の罠
+## Two more measurement traps
 
-どちらもこの環境で自信を持った誤った答えを生み、いずれも自明ではありません。
+Both produced confident wrong answers in this environment, and neither is obvious.
 
-- **ワークステーションからではなく、VNet 内部からプローブしてください。** 企業プロキシは
-  一般的なポートで TCP ハンドシェイクを自ら完了することがあるため、ワークステーションからの
-  プローブは実際には閉じているポートを**オープン**と報告します。ポート 80 と 443 は
-  ワークステーションからは CE のパブリックアドレスでオープンと読み取れますが、VNet 内部から
-  プローブすると閉じています。クライアント VM を使用してください。
-- **CE のポート 22 は内部 (SLI) アドレスでのみ応答します。** クライアント VM からプローブすると、
-  各 CE の内部アドレスは OpenSSH バナーを返しますが、管理アドレスと外部アドレスはタイムアウトします —
-  コントロールとして使用した未使用アドレスと同様です。eth0 は `a-i-eth0` にリネームされ、
-  データパスが所有しているためホスト IP を持ちません。したがって、あなたがそのノードを識別している
-  アドレスをプローブしても、ノードの SSH 状態については何も分かりません。
+- **Probe from inside the VNet, not from your workstation.** A corporate proxy can complete
+  the TCP handshake itself on common ports, so a workstation probe reports a port **open**
+  that is actually closed. Ports 80 and 443 read as open on the CE public addresses from a
+  workstation and are closed when probed from inside the VNet. Use the client VM.
+- **Port 22 on a CE answers on the internal (SLI) address only.** Probed from the client VM,
+  each CE's internal address returns an OpenSSH banner, while its management and external
+  addresses time out — as does an unused address used as a control. eth0 is renamed
+  `a-i-eth0` and carries no host IP, because the datapath owns it. So probing the address
+  you know the node by tells you nothing about the node's SSH state.
 
-<Aside type="danger" title="CE の内部アドレスをハードコードしないこと — 再構築ごとに再割り当てされます">
-Azure は内部サブネットでどの CE がどのアドレスを得るかを保持せず、アドレスはノード順でも
-ありません。2026-07-28 に観測した 3 台の CE は `10.0.3.7`、`10.0.3.5`、`10.0.3.4` を
-保持していました — 連続しておらず、その再構築前に保持していたものとも異なります。
+<Aside type="danger" title="Never hardcode a CE internal address — they are reassigned on every rebuild">
+Azure does not preserve which CE gets which address in the internal subnet, and the
+addresses are not in node order. Observed 2026-07-28: the three addresses were not
+sequential and differed from the previous rebuild. Read the current mapping from Terraform;
+published documentation deliberately does not carry the deployment's values.
 
-移動するかどうかを決めるのは VM ではなく **NIC** です。CE VM のみを置き換えると NIC は
-そのまま残り、すべてのアドレスが維持されます。同日に検証済みで、派生オブジェクト名を採用した際に
-3 台の CE VM すべてが置き換えられましたが、3 つの内部アドレスは同一のまま戻ってきました。
-NIC を削除するテアダウンでは、Azure が埋める順序でサブネットの空きプールから再割り当てされます。
+What decides whether they move is the **NIC**, not the VM. Replacing the CE VMs alone
+leaves the NICs in place and every address survives: verified the same day, when adopting
+the derived object names replaced all three CE VMs and the three internal addresses came
+back identical. A teardown that removes the NICs reassigns them from the subnet's free
+pool, in whatever order Azure fills it.
 
-テストクライアントの NIC は同じサブネットにあるため、CE のものとして記憶していたアドレスが
-今はクライアントのものになっている可能性があります — このデプロイメントでは `10.0.3.6` を
-保持しており、これは以前の再構築前に CE が保持していたものです。
+The test client's NIC sits in that same subnet, so an address you remember as a CE's may
+now belong to the client.
 
-記憶するのではなく読み取ってください:
+Read them instead of remembering them:
 
 ```bash
 terraform output -json ce_sli_private_ips
 ```
 
-Terraform state が手元にない場合は、*安定している* NIC 名で Azure に問い合わせてください:
+Without Terraform state to hand, ask Azure by NIC name, which *is* stable:
 
 ```bash
 az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
-記憶していたアドレスに接続すると、誤ったノード、CE ではない VM、あるいはどこにも
-たどり着きません — そして最後のケースは「SSH が有効化されていない」と見分けがつきません。
+Connecting to a remembered address lands you on the wrong node, on a VM that is not a CE,
+or nowhere — and the last of those looks identical to "SSH is not enabled".
 </Aside>
 
-## オンボックスのコマンド面がドキュメントと一致していることを確認する
+## Confirm the on-box command surface still matches the docs
 
 ```bash
 bash scripts/capture-sitecli.sh --check \
@@ -276,7 +296,38 @@ bash scripts/capture-sitecli.sh --check \
   --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
 ```
 
-`--check` は何も書き込まないため、稼働中のデモに対して安全です。
+`--check` writes nothing, so it is safe against the live demo.
+
+## On-Premise KVM & FRR BGP Verification
+
+When the On-Premise KVM extension is deployed, verify hypervisor domain state, ToR router eBGP peering status, and local network reachability:
+
+1. **Verify KVM virtual machine domain state**:
+
+   ```bash
+   virsh list --all
+   ```
+
+   Confirm all three KVM Customer Edge nodes (`onprem-ce-01`, `onprem-ce-02`, `onprem-ce-03`) are in `running` state.
+
+2. **Verify FRR ToR BGP Router peering status**:
+
+   ```bash
+   docker exec frr-router vtysh -c "show ip bgp summary"
+   ```
+
+   Confirm active eBGP sessions with all three On-Prem CEs (ASN `64512`) on local bridge network `ce-bgp-net` (`10.100.0.0/24`), showing established prefixes.
+
+3. **Verify network reachability**:
+
+   ```bash
+   ping -c 3 10.100.0.1
+   for ip in 10.100.0.10 10.100.0.11 10.100.0.12; do
+     ping -c 2 "$ip"
+   done
+   ```
+
+   Confirm local ICMP reachability to the FRR ToR router interface (`10.100.0.1`) and On-Prem CE node IP addresses.
 
 ## Automated UAT verification script
 
@@ -298,13 +349,13 @@ The script executes all checks against the live deployment, writes `summary.json
 
 <CardGrid>
   <LinkCard
-    title="Customer Edge への接続"
-    description="どのアクセス経路が該当するか、それぞれに必要な認証情報、そしてこの選択が好みの問題ではない理由。"
+    title="Reaching a Customer Edge"
+    description="Which access route applies, the credentials each needs, and why the choice is not a preference."
     href="../../customer-edge/access/"
   />
   <LinkCard
-    title="BGP コマンド"
-    description="FRR からのオンボックスビュー — ピアリング状態、完全なテーブル、そしてこのノードがアドバタイズしている内容。"
+    title="BGP commands"
+    description="The on-box view from FRR — peering state, the full table, and what this node advertises."
     href="../../customer-edge/commands/network/bgp/"
   />
 </CardGrid>

@@ -10,55 +10,66 @@ sidebar:
   order: 5
   label: Demonstração
 i18n:
-  sourceHash: 4fbc25642229
+  sourceHash: 8fc8320a0a1f
   translator: machine
 ---
 
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Esta implantação demonstra a **alta disponibilidade ativo/ativo do Customer Edge no Azure**
-sem nenhum balanceador de carga do Azure à frente dos CEs. Cada CE origina a mesma rota de host
-por eBGP, e o Azure Route Server instala todas elas como próximos saltos de custo igual na VNet.
-A malha de roteamento, e não um balanceador de carga, é portanto onde a distribuição de tráfego
-e a remoção de nós com falha devem acontecer.
+This deployment demonstrates **active/active Customer Edge high availability in Azure and On-Premise KVM**
+with no Azure load balancer in front of the CEs, expanded to support **parallel regional network paths and an on-premise KVM extension**
+in a single Terraform plan:
 
-Tudo nestas páginas foi executado contra a implantação ativa, e a saída exibida é a
-saída que ela produziu. O que essa frase *não* cobre — failover e como o tráfego se divide
-entre os próximos saltos — é apontado explicitamente, em vez de ser deixado como suposição.
+1. **Rest of World (ROW)**: Serves `mcn-ce-ha.f5-sales-demo.com` via CEs in `eastus` with global public RE advertisement.
+2. **Canada Regional Path**: Serves `mcn-ce-ha.f5-sales-demo.ca` strictly within Canada via CEs in `canadacentral` and a Canadian Regional Edge Virtual Site targeting Toronto and Montreal PoPs (`ves.io/city in (toronto, montreal)`).
+3. **On-Premise KVM Extension**: Serves on-premise workloads via 3 KVM CEs (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) peering eBGP (CE ASN `64512`) with a containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) configured with `maximum-paths 4` ECMP.
 
-## O que ela implanta
+Each set of CEs originates its host route by eBGP to a regional Azure Route Server, which installs all of them as equal-cost next hops in the VNet.
+The routing fabric, rather than a load balancer, is where traffic distribution and failed-node removal happen.
+
+Everything in these pages was run against the live deployment, and the output shown is the
+output it produced. What that sentence does *not* cover — failover, and how traffic divides
+across the next hops — is called out explicitly rather than left to be assumed.
+
+## What it deploys
+
+Observed 2026-08-05. The three-path hybrid architecture:
 
 ```text
-                     Azure Route Server            ASN 65515
-                      two instance addresses
-                                 |
-             +-------------------+-------------------+
-             |                   |                   |
-        <key>-bgp           <key>-bgp           <key>-bgp        eBGP
-             |                   |                   |         CE ASN 64512
-        CE eth0/SLO         CE eth0/SLO         CE eth0/SLO
-          CE site             CE site             CE site
-             |                   |                   |
-             +--- each advertises the same VIP /32 ---+
-                    equal-cost multipath into the VNet
+                     Rest of World (ROW)              Canada Regional Path               On-Premise KVM Extension
+                 mcn-ce-ha.f5-sales-demo.com       mcn-ce-ha.f5-sales-demo.ca           onprem.mcn-ce-ha.example.com
+                           |                                 |                                        |
+                 Global Public REs               Canada RE Virtual Site                       On-Prem KVM Virtual Site
+                         |                     (Toronto & Montreal REs)                    (KVM Customer Edge Sites)
+                         |                                   |                                        |
+                Azure Route Server                Canada Azure Route Server                 FRR ToR BGP Router (Container)
+                   ASN 65515                         ASN 65515                                ASN 65515 (10.100.0.1)
+                       |                                     |                                        |
+           +-----------+-----------+             +-----------+-----------+                    +-----------+-----------+
+           |           |           |             |           |           |                    |           |           |
+        CE-01       CE-02       CE-03         CE-CA-01    CE-CA-02    CE-CA-03             CE-KV-01    CE-KV-02    CE-KV-03
+       (eastus)    (eastus)    (eastus)     (canadacentral) (canadacentral) (canadacentral)   (onprem-01) (onprem-02) (onprem-03)
+           |           |           |             |           |           |                    |           |           |
+           +---- VIP <ROW_VIP> ----+             +---- VIP <CA_VIP> -------+                    +---- VIP <KVM_VIP> --------+
 ```
 
-| Peça | O que é |
+| Piece | What it is |
 | --- | --- |
-| Locatário do F5 Distributed Cloud | `var.expected_xc_tenant` — o único lugar em que o locatário é nomeado |
-| Namespaces | Sites CE em `system`; pool de origem e balanceador de carga em `var.xc_app_namespace` |
-| Customer Edges | `var.ce_count` sites Secure Mesh v2 de nó único, de 1 a 3, um por zona de disponibilidade |
-| Software do CE | fixado por `var.ce_sw_version` / `var.ce_os_version` |
-| VMs do Azure | três NICs cada — gerenciamento/SLO, externa, interna/SLI |
-| Troca de rotas | um Azure Route Server, ASN `var.rs_asn`, dois endereços de instância |
-| Peerings | um por CE, nomeado `<key>-bgp`, ASN do CE `var.ce_asn` |
-| VIP anunciado | `var.vip` como um `/32`, originado de forma idêntica por cada CE |
-| Balanceador de carga | atende `var.lb_domain`, apoiado por um pool de origem em `var.origin_ip` |
-| Cliente de teste | uma VM dentro da mesma VNet, para direcionar tráfego ao VIP |
+| F5 Distributed Cloud tenant | `var.expected_xc_tenant` — the only place the tenant is named |
+| Namespaces | CE sites in `system`; origin pool and load balancer in `var.xc_app_namespace` |
+| Rest of World CEs | `var.ce_count` single-node Secure Mesh v2 sites in `var.location` (`eastus`) |
+| Canadian CEs | `var.ca_ce_count` single-node Secure Mesh v2 sites in `var.ca_location` (`canadacentral`) |
+| On-Premise KVM CEs | 3 KVM Customer Edge nodes (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) |
+| Canadian Virtual Sites | `xcsh_virtual_site.canada_re` (Toronto & Montreal REs) and `xcsh_virtual_site.canada_ce` (Canadian CEs) |
+| Route exchange | Azure Route Servers in `eastus` and `canadacentral` (ASN `var.rs_asn`), FRR ToR BGP Router for KVM (ASN `65515`, `10.100.0.1`) |
+| Peerings | eBGP peerings per CE, CE ASN `var.ce_asn` (`64512`) |
+| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; `10.100.0.10` for On-Prem KVM |
+| Load balancers | `var.lb_domain` (`f5-sales-demo.com`) for ROW; `var.ca_lb_domain` (`f5-sales-demo.ca`) for Canada |
+| Test clients | Client VMs in each regional VNet and local test environment for driving traffic at the VIPs |
 
-Nada acima é um literal que você deva copiar. Cada valor é legível a partir da implantação,
-e cada página o lê em vez de nomeá-lo:
+Nothing above is a literal you should copy. Every value is readable from the deployment,
+and each page reads it rather than naming it:
 
 ```bash
 cd terraform
@@ -66,49 +77,49 @@ terraform output -raw resource_group_name
 terraform output -json xc_site_names
 ```
 
-<Aside type="caution" title="O VIP deve ficar fora de todo CIDR de VNet">
-`terraform/main.tf` contém um bloco `check` que verifica se o VIP está fora dos CIDRs do hub
-e do spoke, e recusa o plano caso contrário. A razão declarada é que um VIP dentro de um
-CIDR de VNet perde para a rota de sistema da própria VNet, apesar de a rota BGP ser mais específica.
+<Aside type="caution" title="The VIP must sit outside every VNet CIDR">
+`terraform/main.tf` carries a `check` block that asserts the VIP is outside both the hub
+and spoke CIDRs, and refuses the plan otherwise. Its stated reason is that a VIP inside a
+VNet CIDR loses to the VNet's own system route despite the BGP route being more specific.
 
-Trate a proteção como o contrato: se você reapontar esta demonstração para um endereçamento diferente, o
-VIP tem de sair das faixas da VNet junto com ele.
+Treat the guard as the contract: if you re-point this demo at different addressing, the
+VIP has to move out of the VNet ranges with it.
 </Aside>
 
-<Aside type="caution" title="Renomear é uma reconstrução, não uma renomeação">
-Como cada nome deriva de `var.component`, alterá-lo renomeia toda a
-implantação — mas `site_prefix` não é uma mudança cosmética. Ele se torna o `ClusterName`
-no cloud-init de cada CE, `custom_data` é somente-substituição, e o cloud-init roda apenas no
-primeiro boot de um CE. Portanto, alterá-lo **substitui cada VM de CE e seu site XC**, e o VIP
-fica então brevemente com perdas enquanto o ECMP reconverge.
+<Aside type="caution" title="Renaming is a rebuild, not a rename">
+Because every name derives from `var.component`, changing it renames the whole
+deployment — but `site_prefix` is not a cosmetic change. It becomes the `ClusterName`
+in each CE's cloud-init, `custom_data` is replace-only, and cloud-init runs only on a
+CE's first boot. So changing it **replaces every CE VM and its XC site**, and the VIP is
+then briefly lossy while ECMP reconverges.
 
-Isso não é teórico: adotar esses nomes derivados na demonstração em execução substituiu três
-VMs de CE, três sites, três objetos BGP, o balanceador de carga, o pool de origem, o Azure
-Route Server, o Bastion e o cliente de teste — `23 to add, 3 to change, 26 to destroy`.
-Fixe `site_prefix` no valor atual quando precisar que os sites existentes permaneçam intactos.
+That is not theoretical: adopting these derived names on the running demo replaced three
+CE VMs, three sites, three BGP objects, the load balancer, the origin pool, the Azure
+Route Server, the Bastion and the test client — `23 to add, 3 to change, 26 to destroy`.
+Pin `site_prefix` to the current value when you need existing sites to stay put.
 </Aside>
 
-## Para onde ir em seguida
+## Where to go next
 
 <CardGrid>
   <LinkCard
-    title="Implante-a"
-    description="Pré-requisitos, os dois valores que você deve fornecer, por que o primeiro apply é em duas fases e como desfazê-la."
+    title="Deploy it"
+    description="Prerequisites, the two values you must supply, why the first apply is two-phase, and how to tear it down."
     href="./deploy/"
   />
   <LinkCard
-    title="O Terraform"
-    description="A própria configuração, lida a partir dos arquivos que a implantam em vez de redigitada."
+    title="The Terraform"
+    description="The configuration itself, read from the files that deploy it rather than retyped."
     href="./terraform/"
   />
   <LinkCard
-    title="Comprove sua integridade"
-    description="Quatro verificações em ordem, e os resultados de aparência normal que parecem uma indisponibilidade e não são."
+    title="Prove it healthy"
+    description="Four checks in order, and the normal-looking results that read as an outage and are not."
     href="./verify/"
   />
   <LinkCard
-    title="Apresente-a"
-    description="O que esta demonstração consegue mostrar, o que ela ainda não consegue mostrar e o único comando que torna o ECMP visível."
+    title="Present it"
+    description="What this demo can show, what it cannot yet show, and the one command that makes ECMP visible."
     href="./present/"
   />
 </CardGrid>
