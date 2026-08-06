@@ -7,13 +7,14 @@ sidebar:
   order: 20
   label: เทอร์ราฟอร์ม
 i18n:
-  sourceHash: b8380b6bc381
+  sourceHash: "1686f395ef5e"
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_includes/terraform/backend.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
 import data from "../../_includes/terraform/data.tf?raw";
 import locals from "../../_includes/terraform/locals.tf?raw";
 import main from "../../_includes/terraform/main.tf?raw";
@@ -78,6 +79,13 @@ import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/ver
 การเชื่อมต่อระดับบนสุด ตัวป้องกันเทนแนนต์ และการตรวจสอบ VIP ที่อยู่ภายนอก VNet ลำดับการปรับใช้ถูกจัดทำเป็นเอกสารไว้ที่ส่วนต้นของไฟล์นี้ ซึ่งเป็นเวอร์ชันที่เชื่อถือได้
 
 <Code code={main} lang="hcl" title="terraform/main.tf" />
+
+
+### `terraform/onprem_kvm.tf`
+
+On-premise KVM Customer Edge SecureMesh Site v2 and eBGP configuration.
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
 
 ### `terraform/outputs.tf`
 

@@ -5,13 +5,14 @@ sidebar:
   order: 20
   label: Terraform
 i18n:
-  sourceHash: b8380b6bc381
+  sourceHash: "1686f395ef5e"
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_includes/terraform/backend.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
 import data from "../../_includes/terraform/data.tf?raw";
 import locals from "../../_includes/terraform/locals.tf?raw";
 import main from "../../_includes/terraform/main.tf?raw";
@@ -76,6 +77,13 @@ Azure 儲存體後端；其設定於 init 階段提供，不會提交到版本�
 最上層的接線、租戶防護，以及 VIP 位於 VNet 之外的檢查。部署順序記載於本檔案開頭，該處為權威版本。
 
 <Code code={main} lang="hcl" title="terraform/main.tf" />
+
+
+### `terraform/onprem_kvm.tf`
+
+On-premise KVM Customer Edge SecureMesh Site v2 and eBGP configuration.
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
 
 ### `terraform/outputs.tf`
 

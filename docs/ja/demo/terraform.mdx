@@ -7,13 +7,14 @@ sidebar:
   order: 20
   label: Terraform
 i18n:
-  sourceHash: b8380b6bc381
+  sourceHash: "1686f395ef5e"
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_includes/terraform/backend.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
 import data from "../../_includes/terraform/data.tf?raw";
 import locals from "../../_includes/terraform/locals.tf?raw";
 import main from "../../_includes/terraform/main.tf?raw";
@@ -79,6 +80,13 @@ Azure ストレージバックエンド。その構成は init 時に与えら�
 トップレベルの結線、テナントガード、そして VNet 外 VIP のチェック。デプロイ順序はこのファイルの先頭に記載されており、それが正式版です。
 
 <Code code={main} lang="hcl" title="terraform/main.tf" />
+
+
+### `terraform/onprem_kvm.tf`
+
+On-premise KVM Customer Edge SecureMesh Site v2 and eBGP configuration.
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
 
 ### `terraform/outputs.tf`
 

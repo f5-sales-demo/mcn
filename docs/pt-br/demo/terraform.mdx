@@ -8,13 +8,14 @@ sidebar:
   order: 20
   label: Terraform
 i18n:
-  sourceHash: b8380b6bc381
+  sourceHash: "1686f395ef5e"
   translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_includes/terraform/backend.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
 import data from "../../_includes/terraform/data.tf?raw";
 import locals from "../../_includes/terraform/locals.tf?raw";
 import main from "../../_includes/terraform/main.tf?raw";
@@ -80,6 +81,13 @@ Onde residem os nomes de objetos derivados. Valores padrão de variáveis do Ter
 Ligação de nível superior, a proteção de tenant e a verificação de VIP fora da VNet. A ordenação da implantação está documentada no início deste arquivo, que é a versão autoritativa.
 
 <Code code={main} lang="hcl" title="terraform/main.tf" />
+
+
+### `terraform/onprem_kvm.tf`
+
+On-premise KVM Customer Edge SecureMesh Site v2 and eBGP configuration.
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
 
 ### `terraform/outputs.tf`
 

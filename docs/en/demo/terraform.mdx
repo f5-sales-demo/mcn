@@ -9,6 +9,7 @@ sidebar:
 import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_includes/terraform/backend.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
 import data from "../../_includes/terraform/data.tf?raw";
 import locals from "../../_includes/terraform/locals.tf?raw";
 import main from "../../_includes/terraform/main.tf?raw";
@@ -74,6 +75,12 @@ Where the derived object names live. Terraform variable defaults cannot referenc
 Top-level wiring, the tenant guard and the VIP-outside-the-VNet check. The deploy ordering is documented at the top of this file, which is the authoritative version.
 
 <Code code={main} lang="hcl" title="terraform/main.tf" />
+
+### `terraform/onprem_kvm.tf`
+
+On-premise KVM Customer Edge SecureMesh Site v2 and eBGP configuration.
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
 
 ### `terraform/outputs.tf`
 
