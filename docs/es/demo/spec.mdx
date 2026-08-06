@@ -4,6 +4,9 @@ description: Human-readable, minimal engineering specification derived from the 
 sidebar:
   order: 26
   label: Engineering Spec
+i18n:
+  sourceHash: e71d46628f44
+  translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
@@ -18,12 +21,13 @@ It functions as both an architectural specification and an execution prompt for 
 
 Observed 2026-08-05. Architectural specification:
 
-The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC) Customer Edge (CE) Secure Mesh v2 topology** on Microsoft Azure with a parallel Canadian regional extension.
+The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC) Customer Edge (CE) Secure Mesh v2 topology** on Microsoft Azure with a parallel Canadian regional extension and an On-Premise KVM extension.
 
-- **Routing Fabric**: CEs originate host routes (`/32`) via eBGP (ASN `64512`) to an Azure Route Server (ASN `65515`). The VNet uses native ECMP for active/active traffic distribution without an Azure Load Balancer.
-- **Dual Network Paths**:
+- **Routing Fabric**: CEs originate host routes (`/32`) via eBGP (ASN `64512`) to an Azure Route Server or containerized ToR BGP router (ASN `65515`). The VNets and local libvirt networks use native ECMP for active/active traffic distribution.
+- **Three Network Paths**:
   1. **Rest of World (ROW)**: Serves `mcn-ce-ha.f5-sales-demo.com` via 3 CEs in `eastus` (`10.0.0.0/16` VNet) with global Public Regional Edge advertisement.
   2. **Canada Extension**: Serves `mcn-ce-ha.f5-sales-demo.ca` via 3 CEs in `canadacentral` (`10.200.0.0/16` VNet) advertised strictly through Canadian Regional Edges (Toronto and Montreal) and Canadian CEs.
+  3. **On-Premise KVM Extension**: Serves on-premise workloads via 3 KVM CEs (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) peering eBGP (CE ASN `64512`) with a containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) configured with `maximum-paths 4` ECMP.
 
 ---
 
@@ -38,6 +42,7 @@ The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC)
   - `hashicorp/azuread` (`~> 3.0`): Resolves deployer identity for resource naming and tagging.
   - `hashicorp/external` (`~> 2.3`): Executes environment tenant guard script.
   - `hashicorp/random` (`~> 3.0`): Generates per-CE Site Console admin passwords.
+  - `dmacvicar/libvirt` (`~> 0.8.0` / `v0.8.3`): Manages local KVM domains, volumes, seed ISOs, and network bridges for on-premise Customer Edge nodes.
 - **Backend**: Partial Azure Blob storage backend (`backend "azurerm" {}` with `backend.hcl.example`).
 
 ### Tenant Guard & CIDR Safety Checks (`data.tf`, `main.tf`, `scripts/xc-env-tenant.sh`)
@@ -99,6 +104,15 @@ Pure-computation module expanding `ce_count` (1..3) into per-CE node maps:
 
 - **`modules/azure-route-server-bgp`**: Resource `azurerm_route_server_bgp_connection` connecting Route Server to CE management private IP.
 - **`modules/client-vm`**: Test client Ubuntu VM in `snet-hub-internal` with NSG, public IP, `admin_username = "azureuser"`, and `private_ip_address_allocation = "Dynamic"`.
+
+### On-Premise KVM Infrastructure (`kvm.tf`, `onprem_kvm.tf`, `providers_libvirt.tf`)
+
+- **libvirt Provider**: `provider "libvirt"` targeting local QEMU hypervisor (`qemu:///system`).
+- **Network Bridge**: `libvirt_network.ce_bgp_net` creating NAT-mode bridge `virbr-ce-bgp` on subnet `10.100.0.0/24` with DHCP and DNS enabled.
+- **Base Image & Storage**: `libvirt_volume.base_cloud` importing base cloud OS image, and `libvirt_volume.ce_disk` provisioning 20 GB root overlay disks per CE (`onprem-ce-01`, `02`, `03`).
+- **Cloud-Init ISO Seed**: `libvirt_cloudinit_disk.ce_cloudinit` injecting `/etc/vpm/config.yaml` with `ClusterName: onprem-kvm-site` and `ClusterType: ce`.
+- **KVM Domains**: `libvirt_domain.ce_node` defining 2 vCPU / 2048 MB RAM VMs with autostart enabled, attached to `ce-bgp-net`.
+- **F5 XC Site & eBGP**: `xcsh_securemesh_site_v2.onprem_kvm` (`onprem-kvm-site`) and `xcsh_bgp.onprem_ebgp` peering CE ASN `64512` to containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) on port 179 over `eth0`.
 
 ---
 

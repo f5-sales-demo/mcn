@@ -10,17 +10,17 @@ sidebar:
   order: 30
   label: Verificar
 i18n:
-  sourceHash: 200ef0fb5d0c
+  sourceHash: c90aadf52c9b
   translator: machine
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-Execute estas verificações antes de apresentar. Cada verificação restringe onde uma falha estaria, de modo que uma falha lhe
-diz algo em vez de apenas indicar que algo está errado.
+Run these before you present. Each check narrows where a fault would be, so a failure tells
+you something rather than only that something is wrong.
 
-Todos os comandos leem o que precisam da implantação. Defina isto uma vez e o resto segue:
+Every command reads what it needs from the deployment. Set these once and the rest follow:
 
 ```bash
 cd terraform
@@ -30,13 +30,19 @@ CLIENT=$(terraform output -raw client_vm_name)
 DOMAIN=$(terraform output -raw lb_domain)
 VIP=$(terraform output -raw vip)
 NIC=$(terraform output -raw client_nic_name)
+
+# Canada Regional Path variables (when enable_canada = true)
+CA_LB_DOMAIN=$(terraform output -raw ca_lb_domain)
+CA_VIP=$(terraform output -raw ca_vip)
+CA_RE_VSITE=$(terraform output -raw ca_re_virtual_site_name)
+CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
 ```
 
-## Quatro verificações, nesta ordem
+## Four checks, in this order
 
 <Steps>
 
-1. **Todos os sites estão `ONLINE`.** Nada downstream pode ser verdadeiro se isto não for.
+1. **Every site is `ONLINE`.** Nothing downstream can be true if this is not.
 
    ```bash
    for s in $(terraform output -json xc_site_names | jq -r '.[]'); do
@@ -46,17 +52,17 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   Observado em 2026-07-28, três CEs:
+   Observed 2026-08-03 after the from-zero rebuild:
 
    ```text
-   mcn-ce-ha-eastus01 -> ONLINE
-   mcn-ce-ha-eastus02 -> ONLINE
-   mcn-ce-ha-eastus03 -> ONLINE
+   <SITE_01> -> ONLINE
+   <SITE_02> -> ONLINE
+   <SITE_03> -> ONLINE
    ```
 
-2. **Cada peering está aprendendo o anúncio de VIP daquele CE.** Consulte cada peering
-   separadamente — veja a primeira armadilha abaixo, porque é aqui que a demonstração mais frequentemente parece
-   quebrada e não está.
+2. **Every peering is learning that CE's VIP advertisement.** Query each peering
+   separately — see the first trap below, because this is where the demo most often looks
+   broken and is not.
 
    ```bash
    for k in $(terraform output -json xc_site_names | jq -r 'keys[]'); do
@@ -68,28 +74,28 @@ NIC=$(terraform output -raw client_nic_name)
    done
    ```
 
-   Observado em 2026-07-28:
+   Observed 2026-08-03. The live addresses are omitted; read them from the command:
 
    ```text
    --- eastus01-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.4   64512     EBgp
+   <VIP>/32        <CE_01_SLO_IP>  <CE_ASN>  EBgp
    --- eastus02-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.5   64512     EBgp
+   <VIP>/32        <CE_02_SLO_IP>  <CE_ASN>  EBgp
    --- eastus03-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   10.250.0.10/32  10.0.1.6   64512     EBgp
+   <VIP>/32        <CE_03_SLO_IP>  <CE_ASN>  EBgp
    ```
 
-   Três peerings, três next hops diferentes, um prefixo. Esse é o lado do anúncio do
-   ECMP comprovado.
+   Three peerings, three different next hops, one prefix. That is the advertisement side of
+   ECMP proven.
 
-3. **As rotas efetivas do cliente carregam todos os next hops.** Este é o ECMP em si, conforme
-   a VNet o programou — não o que os CEs afirmam, mas o que o Azure fez com isso.
+3. **The client's effective routes carry every next hop.** This is the ECMP itself, as the
+   VNet has programmed it — not what the CEs claim, but what Azure did with it.
 
    ```bash
    az network nic show-effective-route-table -g "$RG" -n "$NIC" \
@@ -97,184 +103,195 @@ NIC=$(terraform output -raw client_nic_name)
      -o json
    ```
 
-   Observado em 2026-07-28:
+   Observed 2026-08-03. The array contained the three addresses returned by
+   `terraform output -json ce_mgmt_private_ips`:
 
    ```json
    [
      {
-       "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-       "prefix": "10.250.0.10/32",
+       "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+       "prefix": "<VIP>/32",
        "state": "Active",
        "type": "VirtualNetworkGateway"
      }
    ]
    ```
 
-   `state: Active` com uma entrada por CE em `nh` é a verificação. **A ordem não é
-   significativa e não é estável** — o Azure os retorna de forma diferente entre chamadas, portanto conte-os
-   em vez de comparar com uma execução anterior. Um next hop onde você espera três significa que um
-   CE parou de anunciar, e a etapa 2 identifica qual.
+   `state: Active` with one entry per CE in `nh` is the check. **The order is not
+   significant and is not stable** — Azure returns them differently between calls, so count
+   them rather than comparing to a previous run. One next hop where you expect three means a
+   CE has stopped advertising, and step 2 identifies which.
 
-4. **O VIP atende tráfego.** A partir da VM cliente, e **com o cabeçalho `Host`** — veja a
-   segunda armadilha. Amostre requisições suficientes para ver um problema: algumas dezenas são lidas como 100 % mesmo
-   dentro da janela de convergência descrita abaixo.
+4. **The VIPs serve traffic.** From the client VM, and **with the `Host` header** — see the
+   second trap. Sample both the Rest of World (`f5-sales-demo.com`) and Canada (`f5-sales-demo.ca`) domains.
 
    ```bash
    az vm run-command invoke -g "$RG" -n "$CLIENT" \
      --command-id RunShellScript --query "value[0].message" -o tsv \
      --scripts "ok=0; fail=0
-                for i in \$(seq 1 60); do
+                for i in \$(seq 1 30); do
                   c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
                         -H 'Host: ${DOMAIN}' http://${VIP}/)
                   [ \"\$c\" = 200 ] && ok=\$((ok+1)) || fail=\$((fail+1))
                 done
-                echo \"OK=\$ok FAIL=\$fail\""
+                echo \"ROW_DOMAIN_OK=\$ok ROW_DOMAIN_FAIL=\$fail\"
+                if [ -n \"${CA_LB_DOMAIN:-}\" ] && [ -n \"${CA_VIP:-}\" ]; then
+                  ca_ok=0; ca_fail=0
+                  for i in \$(seq 1 30); do
+                    c=\$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+                          -H 'Host: ${CA_LB_DOMAIN}' http://${CA_VIP}/)
+                    [ \"\$c\" = 200 ] && ca_ok=\$((ca_ok+1)) || ca_fail=\$((ca_fail+1))
+                  done
+                  echo \"CANADA_DOMAIN_OK=\$ca_ok CANADA_DOMAIN_FAIL=\$ca_fail\"
+                fi"
    ```
 
-   Observado em 2026-07-28:
+   Observed 2026-08-03 in the automated UAT. The final two batches were clean:
 
    ```text
-   VIP with Host header: OK=60 FAIL=0
-   bare IP (no Host): 404
+   batch=3 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
+   batch=4 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
    ```
 
 </Steps>
 
-## Armadilha: um peering mostra uma rota, e isso está correto
+## Trap: one peering shows one route, and that is correct
 
-`list-learned-routes` tem escopo limitado ao peering que você nomeia. Ele relata o que **aquele** peer
-anunciou, não a tabela completa do Route Server.
+`list-learned-routes` is scoped to the peering you name. It reports what **that** peer
+advertised, not the Route Server's whole table.
 
-Portanto, consultar um peering isoladamente retorna um único `/32` do VIP via um único next hop, e é
-tentador ler isso como "apenas um CE está anunciando — os outros estão fora". Nada está
-fora. Os outros anúncios estão visíveis em seus próprios peerings, que é o que a etapa 2 percorre
-em loop.
+So querying one peering alone returns a single VIP `/32` via a single next hop, and it is
+tempting to read that as "only one CE is advertising — the others are down". Nothing is
+down. The other advertisements are visible on their own peerings, which is what step 2 loops
+over.
 
-Confirmar ECMP a partir de uma consulta a um único peering não é possível. Ou percorra todos os peerings, ou
-leia a tabela de rotas efetivas do cliente, que mostra o resultado combinado em uma única chamada.
+Confirming ECMP from a single peering query is not possible. Either loop every peering, or
+read the client's effective route table, which shows the merged result in one call.
 
-## Armadilha: uma requisição para o IP puro retorna 404
+## Trap: a bare-IP request returns 404
 
-O balanceador de carga corresponde pelo `Host`. O VIP não é um virtual server que serve algo a
-quem quer que se conecte ao endereço.
+The load balancer matches on `Host`. The VIP is not a virtual server that serves anything to
+whoever connects to the address.
 
-Ambos vieram da mesma execução contra a implantação saudável:
+Both of these came from the same run against the healthy deployment:
 
 ```text
 curl -H "Host: $DOMAIN" http://$VIP/   ->  200   (60 of 60)
 curl                     http://$VIP/   ->  404
 ```
 
-**Um 404 no IP puro é prova de que o caminho funciona** — a requisição chegou ao CE, o proxy do CE
-respondeu, e recusou porque nenhum domínio configurado correspondeu. Lê-la como uma indisponibilidade
-faz você procurar no BGP, onde não encontrará nada errado.
+**A bare-IP 404 is proof the path works** — the request reached the CE, the CE's proxy
+answered, and it declined because no configured domain matched. Reading it as an outage
+sends you looking at BGP, where you will find nothing wrong.
 
-O mesmo se aplica durante uma demonstração: se você digitar o endereço em um navegador em vez de resolver
-o domínio para ele, você obtém o 404.
+The same applies during a demo: if you type the address into a browser rather than resolving
+the domain to it, you get the 404.
 
-## O VIP descarta requisições nos primeiros três quartos de hora, e depois para
+## A fresh deployment can have a convergence transient
 
-Em uma pilha recém-construída, o VIP perde uma pequena fração das requisições durante aproximadamente os primeiros
-45 minutos depois que os CEs alcançam `ONLINE`, e depois passa a atender sem falhas. Medido em 1.470
-requisições a partir da VM cliente, todas com o cabeçalho `Host`:
+The 2026-08-03 from-zero UAT sent 160 VIP requests in four time-separated batches. Three
+requests failed in the first two batches; the final 80 were clean. The origin control was
+80 of 80 throughout. That proves convergence for this rebuild without attributing the early
+loss to the origin.
 
-| Janela | Requisições | Falhas | Taxa |
+Earlier measurements on 2026-07-28 showed the longer shape: the VIP lost a small fraction of
+requests for roughly the first 45 minutes after the CEs reached `ONLINE`, then served cleanly.
+Measured over 1,470
+requests from the client VM, all with the `Host` header:
+
+| Window | Requests | Failures | Rate |
 | --- | --- | --- | --- |
-| Primeiros ~45 minutos após o ECMP subir | 570 | 12 | **2,11 %** |
-| Os 23 minutos seguintes | 900 | **0** | **0,00 %** |
+| First ~45 minutes after ECMP came up | 570 | 12 | **2.11 %** |
+| The following 23 minutes | 900 | **0** | **0.00 %** |
 
-Toda falha foi `curl: (28)` — um timeout com zero bytes recebidos — não um status de erro
-HTTP. A última ocorreu cerca de 43 minutos depois de o ECMP subir. Das 900 requisições sem falha,
-400 rodaram com timeout de 30 segundos e todas terminaram em menos de 2 segundos, então nada foi
-escondido por um timeout curto.
+Every failure was `curl: (28)` — a timeout with zero bytes received — not an HTTP error
+status. The last one landed about 43 minutes after ECMP came up. Of the 900 clean requests,
+400 ran with a 30-second timeout and every one finished in under 2 seconds, so nothing was
+hidden by a short timeout.
 
-Reproduziu-se novamente em uma reconstrução posterior no mesmo dia, e aquela execução é o retrato mais claro
-porque foi amostrada enquanto a janela transcorria, e não depois dela. 360 requisições, todas com
-o cabeçalho `Host`, cada lote emparelhado com um controle direto para a origem:
+It reproduced again on a later rebuild on 2026-07-28, and that run is the clearer picture
+because it was sampled as the window elapsed rather than after it. 360 requests, all with
+the `Host` header, each batch paired with a control straight to the origin:
 
-| Tempo após `ONLINE` | Requisições | Falhas | Taxa | Controle na origem |
+| Time after `ONLINE` | Requests | Failures | Rate | Origin control |
 | --- | --- | --- | --- | --- |
-| imediatamente | 60 | 8 | **13,3 %** | 30/30 sem falha |
-| ~25–40 min (3 lotes) | 180 | 3 | **1,67 %** | 60/60 sem falha |
-| ~50 min | 120 | **0** | **0,00 %** | 40/40 sem falha |
+| immediately | 60 | 8 | **13.3 %** | 30/30 clean |
+| ~25–40 min (3 batches) | 180 | 3 | **1.67 %** | 60/60 clean |
+| ~50 min | 120 | **0** | **0.00 %** | 40/40 clean |
 
-Decrescendo monotonicamente até zero, e a origem estava limpa em todos os lotes — incluindo
-aquele em que uma requisição ao VIP em cada oito falhou.
+Monotonically decreasing to zero, and the origin was clean in every batch — including the
+one where one VIP request in eight failed.
 
-**A origem não foi a causa.** Um lote de controle direto para a origem
-(`terraform output -raw origin_ip`, contornando o VIP) executou 120 de 120 sem falha *simultaneamente
-com* lotes de VIP que falhavam. A falha está em algum ponto do caminho VIP, ECMP ou CE.
+**The origin was not the cause.** A control batch straight to the origin
+(`terraform output -raw origin_ip`, bypassing the VIP) ran 120 of 120 clean *concurrently
+with* failing VIP batches. The fault is somewhere in the VIP, ECMP or CE path.
 
-Duas coisas que isto deliberadamente não é chamado:
+Two things this is deliberately not called:
 
-- **Não é um defeito de regime estacionário.** Ele desaparece completamente e permanece assim — 120 de 120 na
-  marca de 50 minutos, e 60 de 60 em uma pilha que estava no ar há horas.
-- **Não conclua que está ausente a partir de uma pequena amostra inicial.** Um lote de 60 requisições tomado
-  imediatamente após uma reconstrução retornou 60 de 60, o que foi lido como "sem transiente"; a mesma
-  implantação perdeu 8 de 60 uma hora depois, na reconstrução seguinte. Sessenta requisições não são suficientes
-  para ver uma perda em rajadas. Amostre 100 ou mais, em lotes separados no tempo — a tabela acima
-  precisou de 360 para mostrar o formato.
-- **Não é atribuível a um CE específico.** Nada nesta topologia fornece um listener HTTP
-  por nó, portanto não há como vincular uma requisição descartada ao nó que a descartou.
-  As interfaces externas dos CEs não têm listener HTTP algum — apenas o `/32` do VIP responde.
+- **It is not a steady-state defect.** It clears completely and stays clear — 120 of 120 at
+  the 50-minute mark, and 60 of 60 on a stack that had been up for hours.
+- **Do not conclude it is absent from a small early sample.** A 60-request batch taken
+  immediately after one rebuild returned 60 of 60, which read as "no transient"; the same
+  deployment lost 8 of 60 an hour later on the next rebuild. Sixty requests is not enough
+  to see a bursty loss. Sample 100 or more, in batches separated in time — the table above
+  needed 360 to show the shape.
+- **It is not attributable to a particular CE.** Nothing in this topology gives a per-node
+  HTTP listener, so there is no way to bind a dropped request to the node that dropped it.
+  The CE outside interfaces have no HTTP listener at all — only the VIP `/32` answers.
 
-Reproduziu-se em uma reconstrução limpa em um tenant diferente, portanto acompanha a topologia e não
-o ambiente.
-
-<Aside type="caution" title="Não amostre 40 requisições e conclua que está tudo bem">
-Lotes de 40 a 50 são lidos como 100 % na maior parte do tempo, mesmo dentro da janela de falhas. Foi
-assim que isto foi primeiro caracterizado erroneamente como uma falha contínua de baixa taxa e depois como nenhuma falha
-alguma. Amostre 100 ou mais, em lotes separados no tempo.
+<Aside type="caution" title="Do not sample 40 requests and conclude it is fine">
+Batches of 40 to 50 read as 100 % most of the time even inside the failing window. That is
+how this was first mischaracterised as an ongoing low-rate fault and then as no fault at
+all. Sample 100 or more, in batches separated in time.
 </Aside>
 
-## Duas outras armadilhas de medição
+## Two more measurement traps
 
-Ambas produziram respostas erradas com confiança neste ambiente, e nenhuma delas é óbvia.
+Both produced confident wrong answers in this environment, and neither is obvious.
 
-- **Sonde de dentro da VNet, não da sua estação de trabalho.** Um proxy corporativo pode completar
-  ele mesmo o handshake TCP em portas comuns, de modo que uma sondagem da estação de trabalho relata uma porta **aberta**
-  que na verdade está fechada. As portas 80 e 443 são lidas como abertas nos endereços públicos dos CEs a partir de uma
-  estação de trabalho e estão fechadas quando sondadas de dentro da VNet. Use a VM cliente.
-- **A porta 22 em um CE responde apenas no endereço interno (SLI).** Sondado a partir da VM cliente,
-  o endereço interno de cada CE retorna um banner do OpenSSH, enquanto seus endereços de gerenciamento e externo
-  expiram — assim como um endereço não utilizado usado como controle. A eth0 é renomeada para
-  `a-i-eth0` e não carrega IP de host, porque o datapath a possui. Portanto, sondar o endereço
-  pelo qual você conhece o nó não lhe diz nada sobre o estado de SSH do nó.
+- **Probe from inside the VNet, not from your workstation.** A corporate proxy can complete
+  the TCP handshake itself on common ports, so a workstation probe reports a port **open**
+  that is actually closed. Ports 80 and 443 read as open on the CE public addresses from a
+  workstation and are closed when probed from inside the VNet. Use the client VM.
+- **Port 22 on a CE answers on the internal (SLI) address only.** Probed from the client VM,
+  each CE's internal address returns an OpenSSH banner, while its management and external
+  addresses time out — as does an unused address used as a control. eth0 is renamed
+  `a-i-eth0` and carries no host IP, because the datapath owns it. So probing the address
+  you know the node by tells you nothing about the node's SSH state.
 
-<Aside type="danger" title="Nunca fixe no código um endereço interno de CE — eles são reatribuídos em cada reconstrução">
-O Azure não preserva qual CE recebe qual endereço na sub-rede interna, e os
-endereços não estão em ordem de nó. Observado em 2026-07-28, os três CEs detinham `10.0.3.7`,
-`10.0.3.5` e `10.0.3.4` — não sequenciais, e diferentes dos que detinham antes daquela
-reconstrução.
+<Aside type="danger" title="Never hardcode a CE internal address — they are reassigned on every rebuild">
+Azure does not preserve which CE gets which address in the internal subnet, and the
+addresses are not in node order. Observed 2026-07-28: the three addresses were not
+sequential and differed from the previous rebuild. Read the current mapping from Terraform;
+published documentation deliberately does not carry the deployment's values.
 
-O que decide se eles mudam é a **NIC**, não a VM. Substituir apenas as VMs dos CEs
-deixa as NICs no lugar e todos os endereços sobrevivem: verificado no mesmo dia, quando a adoção
-dos nomes de objeto derivados substituiu todas as três VMs de CE e os três endereços internos
-voltaram idênticos. Uma destruição que remove as NICs faz com que sejam reatribuídos a partir do pool livre
-da sub-rede, na ordem em que o Azure o preencher.
+What decides whether they move is the **NIC**, not the VM. Replacing the CE VMs alone
+leaves the NICs in place and every address survives: verified the same day, when adopting
+the derived object names replaced all three CE VMs and the three internal addresses came
+back identical. A teardown that removes the NICs reassigns them from the subnet's free
+pool, in whatever order Azure fills it.
 
-A NIC do cliente de teste fica nessa mesma sub-rede, portanto um endereço que você lembra como sendo de um CE pode
-agora ser o do cliente — nesta implantação ele detém `10.0.3.6`, que um CE detinha antes de uma
-reconstrução anterior.
+The test client's NIC sits in that same subnet, so an address you remember as a CE's may
+now belong to the client.
 
-Leia-os em vez de memorizá-los:
+Read them instead of remembering them:
 
 ```bash
 terraform output -json ce_sli_private_ips
 ```
 
-Sem o estado do Terraform à mão, pergunte ao Azure pelo nome da NIC, que *é* estável:
+Without Terraform state to hand, ask Azure by NIC name, which *is* stable:
 
 ```bash
 az network nic show -g "$RG" -n "<vm-name>-internal-nic" \
   --query ipConfigurations[0].privateIPAddress -o tsv
 ```
 
-Conectar-se a um endereço memorizado leva você ao nó errado, a uma VM que não é um CE,
-ou a lugar nenhum — e o último caso parece idêntico a "o SSH não está habilitado".
+Connecting to a remembered address lands you on the wrong node, on a VM that is not a CE,
+or nowhere — and the last of those looks identical to "SSH is not enabled".
 </Aside>
 
-## Confirme que a superfície de comandos no equipamento ainda corresponde à documentação
+## Confirm the on-box command surface still matches the docs
 
 ```bash
 bash scripts/capture-sitecli.sh --check \
@@ -282,7 +299,38 @@ bash scripts/capture-sitecli.sh --check \
   --node "$(terraform output -json ce_vm_names | jq -r '.eastus01')"
 ```
 
-`--check` não escreve nada, portanto é seguro contra a demonstração em produção.
+`--check` writes nothing, so it is safe against the live demo.
+
+## On-Premise KVM & FRR BGP Verification
+
+When the On-Premise KVM extension is deployed, verify hypervisor domain state, ToR router eBGP peering status, and local network reachability:
+
+1. **Verify KVM virtual machine domain state**:
+
+   ```bash
+   virsh list --all
+   ```
+
+   Confirm all three KVM Customer Edge nodes (`onprem-ce-01`, `onprem-ce-02`, `onprem-ce-03`) are in `running` state.
+
+2. **Verify FRR ToR BGP Router peering status**:
+
+   ```bash
+   docker exec frr-router vtysh -c "show ip bgp summary"
+   ```
+
+   Confirm active eBGP sessions with all three On-Prem CEs (ASN `64512`) on local bridge network `ce-bgp-net` (`10.100.0.0/24`), showing established prefixes.
+
+3. **Verify network reachability**:
+
+   ```bash
+   ping -c 3 10.100.0.1
+   for ip in 10.100.0.10 10.100.0.11 10.100.0.12; do
+     ping -c 2 "$ip"
+   done
+   ```
+
+   Confirm local ICMP reachability to the FRR ToR router interface (`10.100.0.1`) and On-Prem CE node IP addresses.
 
 ## Automated UAT verification script
 
@@ -304,13 +352,13 @@ The script executes all checks against the live deployment, writes `summary.json
 
 <CardGrid>
   <LinkCard
-    title="Alcançando um Customer Edge"
-    description="Qual rota de acesso se aplica, as credenciais que cada uma exige e por que a escolha não é uma preferência."
+    title="Reaching a Customer Edge"
+    description="Which access route applies, the credentials each needs, and why the choice is not a preference."
     href="../../customer-edge/access/"
   />
   <LinkCard
-    title="Comandos BGP"
-    description="A visão no equipamento a partir do FRR — estado do peering, a tabela completa e o que este nó anuncia."
+    title="BGP commands"
+    description="The on-box view from FRR — peering state, the full table, and what this node advertises."
     href="../../customer-edge/commands/network/bgp/"
   />
 </CardGrid>
