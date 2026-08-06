@@ -1,0 +1,17 @@
+<network>
+  <name>ce-bgp-net</name>
+  <forward mode="nat">
+    <nat>
+      <port start="1024" end="65535"/>
+    </nat>
+  </forward>
+  <bridge name="virbr-ce-bgp" stp="on" delay="0"/>
+  <ip address="10.100.0.1" netmask="255.255.255.0">
+    <dhcp>
+      <range start="10.100.0.10" end="10.100.0.200"/>
+      <host mac="52:54:00:00:00:11" name="onprem-ce01" ip="10.100.0.11"/>
+      <host mac="52:54:00:00:00:12" name="onprem-ce02" ip="10.100.0.12"/>
+      <host mac="52:54:00:00:00:13" name="onprem-ce03" ip="10.100.0.13"/>
+    </dhcp>
+  </ip>
+</network>

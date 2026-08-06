@@ -1,0 +1,17 @@
+#cloud-config
+write_files:
+  - path: /etc/vpm/config.yaml
+    permissions: '0600'
+    owner: root:root
+    content: |
+      Vpm:
+        ClusterType: ce
+        ClusterName: onprem-kvm-site
+        Token: REPLACE_WITH_REGISTRATION_TOKEN
+        MauriceEndpoint: https://register.ves.volterra.io
+        MauricePrivateEndpoint: https://register-tls.ves.volterra.io
+        CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/kvm.yml
+      Kubernetes:
+        EtcdUseTLS: true
+        Server: vip
+        CloudProvider: disabled
