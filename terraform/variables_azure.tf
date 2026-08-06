@@ -5,7 +5,7 @@
 variable "subscription_id" {
   description = "Azure subscription ID used by the azurerm provider."
   type        = string
-  # Default = the f5-AZR_4261_SALES_SA_ALL subscription the lab was built in.
+  # Default = the <AZURE_SUBSCRIPTION_ID> subscription the lab was built in.
   default = "00000000-0000-0000-0000-000000000000"
 }
 
