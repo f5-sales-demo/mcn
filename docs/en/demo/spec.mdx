@@ -10,8 +10,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 This document serves as the **human-readable Engineering Specification** for the Active/Active
 eBGP/ECMP F5 XC Customer Edge (Secure Mesh v2) architecture on Microsoft Azure.
-It is derived directly from the project's source-of-truth prompt (`prompt.txt`) created via automated prompt engineering,
-and is formatted so that it functions as both an architectural specification and an execution prompt for `xcsh -p`.
+It functions as both an architectural specification and an execution prompt for `xcsh -p`.
 
 ---
 
@@ -39,7 +38,7 @@ The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC)
 - **Backend**: Partial Azure Blob storage backend (`backend "azurerm" {}` with `backend.hcl.example`).
 
 ### Tenant Guard & CIDR Safety Checks (`data.tf`, `main.tf`, `scripts/xc-env-tenant.sh`)
-- **Tenant Guard**: Executable script `scripts/xc-env-tenant.sh` (`chmod +x`) inspects ambient `XCSH_API_URL` and outputs JSON `{"tenant":"<label>","api_url_set":"<bool>"}`. A `lifecycle { postcondition }` block on `data.external.xc_env_tenant` asserts the ambient tenant matches `var.expected_xc_tenant` (`f5-sales-demo`), failing the plan if an operator is pointed at the wrong tenant.
+- **Tenant Guard**: Executable script `scripts/xc-env-tenant.sh` (`chmod +x`) outputs JSON `{"tenant":"<label>","api_url_set":"<bool>"}` from `XCSH_API_URL`. A `lifecycle { postcondition }` block on `data.external.xc_env_tenant` asserts the ambient tenant matches `var.expected_xc_tenant` (`f5-sales-demo`), failing the plan if pointed at the wrong tenant.
 - **CIDR Safety Checks**: `check "vip_outside_vnet_cidrs"` and `check "ca_vip_outside_vnet_cidrs"` assert that VIPs (`10.250.0.10` and `10.250.1.10`) sit strictly outside all hub and spoke VNet CIDRs to prevent VNet system routes from overriding BGP host routes.
 
 ---
