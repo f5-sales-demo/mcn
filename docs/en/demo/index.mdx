@@ -9,13 +9,14 @@ sidebar:
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-This deployment demonstrates **active/active Customer Edge high availability in Azure and On-Premise KVM**
-with no Azure load balancer in front of the CEs, expanded to support **parallel regional network paths and an on-premise KVM extension**
+This deployment demonstrates **active/active Customer Edge high availability in Azure, AWS, and On-Premise KVM**
+with no cloud load balancer in front of the CEs, expanded to support **parallel regional network paths, an AWS extension, and an on-premise KVM extension**
 in a single Terraform plan:
 
 1. **Rest of World (ROW)**: Serves `mcn-ce-ha.f5-sales-demo.com` via CEs in `eastus` with global public RE advertisement.
 2. **Canada Regional Path**: Serves `mcn-ce-ha.f5-sales-demo.ca` strictly within Canada via CEs in `canadacentral` and a Canadian Regional Edge Virtual Site targeting Toronto and Montreal PoPs (`ves.io/city in (toronto, montreal)`).
-3. **On-Premise KVM Extension**: Serves on-premise workloads via 3 KVM CEs (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) peering eBGP (CE ASN `64512`) with a containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) configured with `maximum-paths 4` ECMP.
+3. **AWS Customer Edge Extension**: Serves `aws.mcn-ce-ha.f5-sales-demo.com` via 3 EC2 CEs (`m5.2xlarge`) in AWS VPC (`10.150.0.0/16`) in `us-east-1` with dual NICs and eBGP/ECMP active/active routing.
+4. **On-Premise KVM Extension**: Serves on-premise workloads via 3 KVM CEs (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) peering eBGP (CE ASN `64512`) with a containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) configured with `maximum-paths 4` ECMP.
 
 Each set of CEs originates its host route by eBGP to a regional Azure Route Server, which installs all of them as equal-cost next hops in the VNet.
 The routing fabric, rather than a load balancer, is where traffic distribution and failed-node removal happen.
@@ -52,13 +53,15 @@ Observed 2026-08-05. The three-path hybrid architecture:
 | Namespaces | CE sites in `system`; origin pool and load balancer in `var.xc_app_namespace` |
 | Rest of World CEs | `var.ce_count` single-node Secure Mesh v2 sites in `var.location` (`eastus`) |
 | Canadian CEs | `var.ca_ce_count` single-node Secure Mesh v2 sites in `var.ca_location` (`canadacentral`) |
+| AWS CEs | `var.aws_ce_count` EC2 Customer Edge nodes in `var.aws_location` (`us-east-1`) VPC (`10.150.0.0/16`) |
 | On-Premise KVM CEs | 3 KVM Customer Edge nodes (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) |
 | Canadian Virtual Sites | `xcsh_virtual_site.canada_re` (Toronto & Montreal REs) and `xcsh_virtual_site.canada_ce` (Canadian CEs) |
-| Route exchange | Azure Route Servers in `eastus` and `canadacentral` (ASN `var.rs_asn`), FRR ToR BGP Router for KVM (ASN `65515`, `10.100.0.1`) |
+| AWS Virtual Site | `xcsh_virtual_site.aws` (AWS Customer Edge Site `aws-site`) |
+| Route exchange | Azure Route Servers in `eastus` and `canadacentral` (ASN `var.rs_asn`), AWS VPC Router (ASN `65515`), FRR ToR BGP Router for KVM (ASN `65515`, `10.100.0.1`) |
 | Peerings | eBGP peerings per CE, CE ASN `var.ce_asn` (`64512`) |
-| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; `10.100.0.10` for On-Prem KVM |
-| Load balancers | `var.lb_domain` (`f5-sales-demo.com`) for ROW; `var.ca_lb_domain` (`f5-sales-demo.ca`) for Canada |
-| Test clients | Client VMs in each regional VNet and local test environment for driving traffic at the VIPs |
+| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; `var.aws_vip` (`10.150.0.10`) for AWS; `10.100.0.10` for On-Prem KVM |
+| Load balancers | `var.lb_domain` (`f5-sales-demo.com`) for ROW; `var.ca_lb_domain` (`f5-sales-demo.ca`) for Canada; `var.aws_lb_domain` (`aws.mcn-ce-ha.f5-sales-demo.com`) for AWS |
+| Test clients | Client VMs in each regional VNet, AWS VPC, and local test environment for driving traffic at the VIPs |
 
 Nothing above is a literal you should copy. Every value is readable from the deployment,
 and each page reads it rather than naming it:

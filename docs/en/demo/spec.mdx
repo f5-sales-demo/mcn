@@ -18,13 +18,14 @@ It functions as both an architectural specification and an execution prompt for 
 
 Observed 2026-08-05. Architectural specification:
 
-The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC) Customer Edge (CE) Secure Mesh v2 topology** on Microsoft Azure with a parallel Canadian regional extension and an On-Premise KVM extension.
+The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC) Customer Edge (CE) Secure Mesh v2 topology** on Microsoft Azure with an Amazon Web Services (AWS) extension, a parallel Canadian regional extension, and an On-Premise KVM extension.
 
-- **Routing Fabric**: CEs originate host routes (`/32`) via eBGP (ASN `64512`) to an Azure Route Server or containerized ToR BGP router (ASN `65515`). The VNets and local libvirt networks use native ECMP for active/active traffic distribution.
-- **Three Network Paths**:
+- **Routing Fabric**: CEs originate host routes (`/32`) via eBGP (ASN `64512`) to an Azure Route Server, AWS VPC Router, or containerized ToR BGP router (ASN `65515`). The VNets, VPCs, and local libvirt networks use native ECMP for active/active traffic distribution.
+- **Four Network Paths**:
   1. **Rest of World (ROW)**: Serves `mcn-ce-ha.f5-sales-demo.com` via 3 CEs in `eastus` (`10.0.0.0/16` VNet) with global Public Regional Edge advertisement.
   2. **Canada Extension**: Serves `mcn-ce-ha.f5-sales-demo.ca` via 3 CEs in `canadacentral` (`10.200.0.0/16` VNet) advertised strictly through Canadian Regional Edges (Toronto and Montreal) and Canadian CEs.
-  3. **On-Premise KVM Extension**: Serves on-premise workloads via 3 KVM CEs (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) peering eBGP (CE ASN `64512`) with a containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) configured with `maximum-paths 4` ECMP.
+  3. **AWS Customer Edge Extension**: Serves `aws.mcn-ce-ha.f5-sales-demo.com` via 3 EC2 CEs (`m5.2xlarge`) in AWS VPC (`10.150.0.0/16` in `us-east-1`) with dual NICs (public SLO / private SLI) and eBGP/ECMP routing.
+  4. **On-Premise KVM Extension**: Serves on-premise workloads via 3 KVM CEs (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) peering eBGP (CE ASN `64512`) with a containerized FRR ToR BGP Router (`10.100.0.1`, ASN `65515`) configured with `maximum-paths 4` ECMP.
 
 ---
 
@@ -36,6 +37,7 @@ The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC)
 - **Providers**:
   - `f5-sales-demo/xcsh` (`>= 3.81.1`): `api_url` is dynamically derived from `var.expected_xc_tenant` (`https://${var.expected_xc_tenant}.console.ves.volterra.io`).
   - `hashicorp/azurerm` (`~> 4.0`): Declares `features {}` and `subscription_id = var.subscription_id`.
+  - `hashicorp/aws` (`~> 5.0`): Configures AWS region `var.aws_location` (`us-east-1`).
   - `hashicorp/azuread` (`~> 3.0`): Resolves deployer identity for resource naming and tagging.
   - `hashicorp/external` (`~> 2.3`): Executes environment tenant guard script.
   - `hashicorp/random` (`~> 3.0`): Generates per-CE Site Console admin passwords.

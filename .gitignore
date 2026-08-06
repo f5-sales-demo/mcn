@@ -215,3 +215,6 @@ packages/typescript-edit-benchmark/runs/
 # Local review working artifacts. No trailing slash, so symlinks match too.
 .codex-review
 .agy-review.*
+
+PLAN.md
+kvm/

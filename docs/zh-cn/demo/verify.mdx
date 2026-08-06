@@ -1,14 +1,9 @@
 ---
-title: 验证健康状态
-description: >-
-  按顺序执行四项检查，每一项都会进一步缩小故障范围；此外还有四种看起来正常却被误读为故障的结果——单个对等会话查询、裸 IP 返回
-  404、新建部署上出现丢包的 VIP，以及从错误接口或错误网络发起的端口探测。
+title: Prove it healthy
+description: Four checks in order, each narrowing where a fault would be, and the four normal-looking results that read as an outage and are not — a single-peering query, a bare-IP 404, a lossy VIP on a fresh build, and a port probe from the wrong interface or the wrong network.
 sidebar:
   order: 30
-  label: 验证
-i18n:
-  sourceHash: c90aadf52c9b
-  translator: machine
+  label: Verify
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";

@@ -1,17 +1,9 @@
 ---
-title: Prouver son bon fonctionnement
-description: >-
-  Quatre vérifications dans l'ordre, chacune réduisant le périmètre où se
-  situerait une panne, et les quatre résultats d'apparence normale qui se lisent
-  comme une panne sans en être une — une requête sur un seul peering, un 404 sur
-  IP nue, un VIP avec pertes sur un déploiement récent, et une sonde de port
-  depuis la mauvaise interface ou le mauvais réseau.
+title: Prove it healthy
+description: Four checks in order, each narrowing where a fault would be, and the four normal-looking results that read as an outage and are not — a single-peering query, a bare-IP 404, a lossy VIP on a fresh build, and a port probe from the wrong interface or the wrong network.
 sidebar:
   order: 30
-  label: Vérification
-i18n:
-  sourceHash: c90aadf52c9b
-  translator: machine
+  label: Verify
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";

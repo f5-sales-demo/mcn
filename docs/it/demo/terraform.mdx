@@ -1,15 +1,9 @@
 ---
-title: Il Terraform
-description: >-
-  La configurazione che distribuisce questa demo, letta dai file che la
-  distribuiscono anziché ridigitata — il modulo root e i suoi sei moduli figlio,
-  con una nota su ciò di cui ogni file è responsabile.
+title: The Terraform
+description: The configuration that deploys this demo, read from the files that deploy it rather than retyped — the root module and its six child modules, with a note on what each file is responsible for.
 sidebar:
   order: 20
   label: Terraform
-i18n:
-  sourceHash: d28c74652ff4
-  translator: machine
 ---
 
 import { Aside } from "@astrojs/starlight/components";
@@ -28,6 +22,10 @@ import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
 import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
 import variablesXc from "../../_includes/terraform/variables_xc.tf?raw";
 import versions from "../../_includes/terraform/versions.tf?raw";
+import awsCe from "../../_includes/terraform/aws_ce.tf?raw";
+import awsVpc from "../../_includes/terraform/aws_vpc.tf?raw";
+import awsXc from "../../_includes/terraform/aws_xc.tf?raw";
+import variablesAws from "../../_includes/terraform/variables_aws.tf?raw";
 import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
 import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
 import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
@@ -119,6 +117,30 @@ Configures the libvirt provider targeting the local hypervisor daemon URI (`qemu
 Component, environment, deployer and tags.
 
 <Code code={variables} lang="hcl" title="terraform/variables.tf" />
+
+### `terraform/variables_aws.tf`
+
+AWS location, VPC CIDR, CE count, instance size, VIP, and load balancer domain.
+
+<Code code={variablesAws} lang="hcl" title="terraform/variables_aws.tf" />
+
+### `terraform/aws_vpc.tf`
+
+AWS VPC, public SLO subnets, private SLI subnets, internet gateway, route tables, and security groups.
+
+<Code code={awsVpc} lang="hcl" title="terraform/aws_vpc.tf" />
+
+### `terraform/aws_ce.tf`
+
+AWS Customer Edge EC2 nodes, IAM role/profile, key pair, dual network interfaces, Elastic IPs, cloud-init user_data, site registration lookup, and automatic registration approval.
+
+<Code code={awsCe} lang="hcl" title="terraform/aws_ce.tf" />
+
+### `terraform/aws_xc.tf`
+
+AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), eBGP peering (`xcsh_bgp.aws_ebgp`), virtual site (`xcsh_virtual_site.aws`), origin pool (`xcsh_origin_pool.aws`), and HTTP load balancer (`xcsh_http_loadbalancer.aws`).
+
+<Code code={awsXc} lang="hcl" title="terraform/aws_xc.tf" />
 
 ### `terraform/variables_azure.tf`
 
