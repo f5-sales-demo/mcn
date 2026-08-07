@@ -11,7 +11,7 @@ variable "enable_aws" {
 variable "aws_location" {
   description = "AWS region for all AWS resources."
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "aws_vpc_cidr" {
