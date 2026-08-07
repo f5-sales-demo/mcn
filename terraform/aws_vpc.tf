@@ -8,6 +8,8 @@ data "aws_availability_zones" "available" {
 }
 
 resource "aws_vpc" "aws" {
+  #checkov:skip=CKV2_AWS_11:Lab VPC - flow logging not required
+  #checkov:skip=CKV2_AWS_12:Lab VPC - default security group managed by AWS
   count = var.enable_aws ? 1 : 0
 
   cidr_block           = var.aws_vpc_cidr

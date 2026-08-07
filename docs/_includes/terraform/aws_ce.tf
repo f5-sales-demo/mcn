@@ -94,6 +94,7 @@ resource "aws_network_interface" "sli" {
 }
 
 resource "aws_eip" "ce" {
+  #checkov:skip=CKV2_AWS_19:Lab Elastic IP - attached to SLO network interface on CE instance
   count = var.enable_aws ? var.aws_ce_count : 0
 
   domain            = "vpc"
