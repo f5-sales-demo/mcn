@@ -214,3 +214,43 @@ output "ce_registration_token" {
   value       = local.ce_registration_token
   sensitive   = true
 }
+
+# ---------------------------------------------------------
+# AWS outputs
+# ---------------------------------------------------------
+
+output "aws_vpc_id" {
+  description = "AWS VPC ID."
+  value       = try(aws_vpc.aws[0].id, null)
+}
+
+output "aws_ce_instance_ids" {
+  description = "EC2 instance IDs of the AWS Customer Edge nodes."
+  value       = aws_instance.ce[*].id
+}
+
+output "aws_ce_public_ips" {
+  description = "Elastic IPs assigned to the AWS Customer Edge nodes."
+  value       = aws_eip.ce[*].public_ip
+}
+
+output "aws_lb_domain" {
+  description = "Domain served by the AWS HTTP load balancer."
+  value       = var.aws_lb_domain
+}
+
+output "aws_loadbalancer_name" {
+  description = "Name of the AWS HTTP load balancer."
+  value       = try(xcsh_http_loadbalancer.aws[0].name, null)
+}
+
+output "aws_origin_pool_name" {
+  description = "Name of the AWS origin pool."
+  value       = try(xcsh_origin_pool.aws[0].name, null)
+}
+
+output "aws_vip" {
+  description = "HA VIP for AWS CEs advertised via eBGP/ECMP."
+  value       = var.aws_vip
+}
+

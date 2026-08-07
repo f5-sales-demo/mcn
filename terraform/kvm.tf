@@ -22,7 +22,7 @@ resource "libvirt_network" "ce_bgp_net" {
 resource "libvirt_volume" "base_cloud" {
   name   = "base-cloud-noble.qcow2"
   pool   = "default"
-  source = "${path.module}/kvm/images/base-cloud.qcow2"
+  source = "${path.module}/../kvm/images/base-cloud.qcow2"
   format = "qcow2"
 }
 
