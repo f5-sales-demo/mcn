@@ -6,6 +6,8 @@
 mock_provider "azurerm" {}
 mock_provider "azuread" {}
 mock_provider "xcsh" {}
+mock_provider "aws" {}
+mock_provider "libvirt" {}
 
 variables {
   # Explicitly null so these assert the DERIVED names no matter what a local

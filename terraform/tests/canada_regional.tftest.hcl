@@ -3,6 +3,8 @@
 mock_provider "azurerm" {}
 mock_provider "azuread" {}
 mock_provider "xcsh" {}
+mock_provider "aws" {}
+mock_provider "libvirt" {}
 
 variables {
   site_prefix            = null
