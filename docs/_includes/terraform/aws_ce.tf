@@ -5,11 +5,11 @@
 data "aws_ami" "f5_xc" {
   count       = var.enable_aws ? 1 : 0
   most_recent = true
-  owners      = ["354149635304", "aws-marketplace"]
+  owners      = ["679593333241", "434481986642", "aws-marketplace"]
 
   filter {
     name   = "name"
-    values = ["f5-xc-*", "f5-volterra-*", "ves-volterra-*"]
+    values = ["f5xc-ce-*", "f5-xc-*", "f5-volterra-*"]
   }
 }
 
@@ -125,6 +125,8 @@ resource "aws_instance" "ce" {
 
   user_data = <<-EOF
     #cloud-config
+    hostname: ${var.component}-aws-ce-${count.index + 1}
+    fqdn: ${var.component}-aws-ce-${count.index + 1}.us-east-2.compute.internal
     write_files:
       - path: /etc/vpm/config.yaml
         permissions: '0644'
@@ -151,7 +153,6 @@ resource "aws_instance" "ce" {
 data "xcsh_site_registration" "aws" {
   count     = var.enable_aws ? var.aws_ce_count : 0
   site_name = "aws-site"
-  hostname  = "${var.component}-aws-ce-${count.index + 1}"
   namespace = "system"
 }
 

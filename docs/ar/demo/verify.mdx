@@ -28,6 +28,12 @@ CA_LB_DOMAIN=$(terraform output -raw ca_lb_domain)
 CA_VIP=$(terraform output -raw ca_vip)
 CA_RE_VSITE=$(terraform output -raw ca_re_virtual_site_name)
 CA_CE_VSITE=$(terraform output -raw ca_ce_virtual_site_name)
+
+# AWS Customer Edge Extension variables (when enable_aws = true)
+AWS_VPC_ID=$(terraform output -raw aws_vpc_id)
+AWS_LB_DOMAIN=$(terraform output -raw aws_lb_domain)
+AWS_VIP=$(terraform output -raw aws_vip)
+AWS_LB_NAME=$(terraform output -raw aws_loadbalancer_name)
 ```
 
 ## Four checks, in this order
@@ -323,6 +329,29 @@ When the On-Premise KVM extension is deployed, verify hypervisor domain state, T
    ```
 
    Confirm local ICMP reachability to the FRR ToR router interface (`10.100.0.1`) and On-Prem CE node IP addresses.
+
+## AWS Customer Edge Verification
+
+When the AWS Customer Edge extension is deployed (`enable_aws = true`), verify EC2 node instances, F5 XC site state, and HTTP load balancer routing:
+
+1. **Verify EC2 Customer Edge Instance States**:
+
+   ```bash
+   aws ec2 describe-instances --region us-east-2 \
+     --instance-ids $(terraform output -json aws_ce_instance_ids | jq -r '.[]') \
+     --query "Reservations[*].Instances[*].{InstanceId:InstanceId,State:State.Name,PublicIp:PublicIpAddress,PrivateIp:PrivateIpAddress}" \
+     -o table
+   ```
+
+2. **Verify AWS SecureMesh v2 Site and Load Balancer State in F5 XC**:
+
+   ```bash
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/system/securemesh_site_v2s/aws-site" | jq -r '.spec.site_state'
+
+   curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
+     "$XCSH_API_URL/api/config/namespaces/multi-cloud-networking/http_loadbalancers/$AWS_LB_NAME" | jq -r '.spec.state'
+   ```
 
 ## Automated UAT verification script
 
