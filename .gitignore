@@ -194,7 +194,7 @@ tui-debug.log
 *.cpuprofile
 .nyc_output/
 packages/ai/test/.temp-images/
-docs/superpowers/
+superpowers/
 .superpowers/
 !.xcsh/
 .xcsh/plugins/
@@ -215,6 +215,3 @@ packages/typescript-edit-benchmark/runs/
 # Local review working artifacts. No trailing slash, so symlinks match too.
 .codex-review
 .agy-review.*
-
-PLAN.md
-kvm/
