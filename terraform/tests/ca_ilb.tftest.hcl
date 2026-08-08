@@ -41,8 +41,8 @@ run "canadian_ilb_plans_successfully" {
   }
 
   assert {
-    condition     = output.ca_ilb_frontend_ip == "10.250.1.10"
-    error_message = "Canada ILB frontend private IP should be 10.250.1.10."
+    condition     = output.ca_ilb_frontend_ip == "10.200.1.10"
+    error_message = "Canada ILB frontend private IP should be 10.200.1.10."
   }
 
   assert {
