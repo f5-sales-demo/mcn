@@ -1,0 +1,71 @@
+---
+title: Roteamento e failover
+description: Projete BGP e ECMP para que os prefixos de serviço sigam sites Customer Edge íntegros sem deixar caminhos estáticos que causem perdas silenciosas de tráfego (blackhole).
+sidebar:
+  order: 20
+  label: Roteamento e failover
+i18n:
+  sourceHash: "a1fa45a030f4"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Em um projeto de alta disponibilidade em nível de roteamento, cada site Customer Edge (CE) origina o mesmo prefixo de serviço por meio do Border Gateway Protocol (BGP). O roteador de northbound instala os anúncios utilizáveis como próximos saltos de Equal-Cost Multi-Path (ECMP) e se torna o ponto que distribui o tráfego e remove os caminhos com falha.
+
+```text
+service VIP /32
+       |
+roteador de upstream: próximos saltos de custo igual
+       |              |              |
+    site CE 1      site CE 2      site CE 3
+```
+
+## Anuncie endereços de serviço como rotas
+
+Anuncie um endereço IP virtual (VIP) individual como uma rota de host `/32` quando o serviço for IPv4. Reserve um prefixo apenas de roteamento para esses endereços de serviço e não anexe esse prefixo a uma Virtual Private Cloud (VPC), Virtual Network (VNet), VLAN ou sub-rede local. A rede deve aprender os endereços de serviço a partir de anúncios de roteamento, e não pelo Address Resolution Protocol (ARP) em um segmento conectado.
+
+Manter o prefixo de serviço separado evita ambiguidades entre uma rota conectada e a rota BGP. Também torna explícitos o planejamento de capacidade, filtragem e política de rota. Aloque o prefixo de acordo com o processo de gerenciamento de endereços da organização; não copie um prefixo de laboratório para outra rede.
+
+## Deixe o roteamento remover um caminho com falha
+
+Uma sessão BGP estabelecida fornece ao roteador de upstream um sinal de atividade. Quando a sessão é fechada ou seu temporizador de retenção (hold timer) expira, o par retira as rotas aprendidas nessa sessão. O Bidirectional Forwarding Detection (BFD), quando ambos os pares o suportam e ativam, pode fornecer uma detecção de falhas mais rápida. O tempo de convergência, portanto, depende do protocolo e dos temporizadores configurados; não é instantâneo.
+
+Uma rota estática não tem estado de sessão equivalente. Os caminhos de ECMP estáticos permanecem qualificados após a falha de um CE, a menos que o roteador do cliente ou o controlador de Software-Defined Wide Area Network (SD-WAN) monitore o próximo salto com um mecanismo de integridade compatível e remova a rota. Sem esse mecanismo, o roteador pode continuar selecionando um CE com falha e causar perdas silenciosas em alguns fluxos.
+
+<Aside type="danger" title="Um próximo salto alcançável não representa a integridade da aplicação">
+O BGP prova que o par de roteamento está disponível. Ele não prova necessariamente que todas as aplicações por trás desse par estão íntegras. Decida se o estado da sessão de roteamento é suficiente ou si a integridade do serviço precisa de um sinal compatível separado.
+</Aside>
+
+## Dimensione o roteador antes da frota de CEs
+
+O roteador decide quantos caminhos de custo igual ele instala. Compare sua contagem máxima de caminhos ECMP com o número de anúncios de CE esperados para cada VIP. Quando a contagem de anúncios for maior que o limite de caminhos instalados, sites CE íntegros adicionais podem permanecer sem uso para esse prefixo.
+
+Verifique a tabela de encaminhamento instalada em vez de confiar apenas na visualização de rotas recebidas do BGP. O plano de controle pode reter mais candidatos do que o plano de dados instala.
+
+## Trate preferência e ECMP como políticas diferentes
+
+Os caminhos têm custo igual apenas enquanto os atributos de seleção de rota e a métrica os tornarem iguais. Alterar a preferência local (local preference), o Multi-Exit Discriminator (MED), a distância administrativa ou uma métrica de rota estática pode fazer com que um CE seja preferido para um VIP. Essa é uma política de direcionamento válida, mas é um comportamento ativo/preferido, e não uma distribuição igualitária.
+
+Aplique preferência por prefixo apenas quando essa assimetria for intencional. Confirme se um caminho menos preferido se torna utilizável quando o caminho preferido é retirado e não deixe um caminho estático preferido não monitorado que sobreviva ao seu CE.
+
+## Separe as etiquetas do plano de controle das evidências de tráfego
+
+Em um projeto com vários túneis ou caminhos, uma etiqueta `ACTIVE` pode identificar o caminho selecionado para sincronização do plano de controle sem provar que outros caminhos de ECMP não transportam dados. Não infira o estado de encaminhamento apenas a partir dessa etiqueta. Verifique a tabela de rotas ou túneis e observe os contadores de tráfego em todos os caminhos esperados.
+
+## Verifique o caminho completo
+
+Para cada prefixo de serviço, verifique tudo o que segue:
+
+- cada CE pretendido anuncia o prefixo;
+- a tabela BGP de upstream aceita os caminhos esperados;
+- a tabela de encaminhamento instala não mais e não menos caminhos do que a plataforma suporta;
+- a retirada de um anúncio remove o próximo salto após o intervalo de detecção e convergência configurado;
+- as verificações de aplicação são bem-sucedidas por meio dos caminhos restantes.
+
+Use o [fluxo de trabalho de diagnóstico de BGP](../../workflows/bgp-diagnostics/) do repositório para distinguir problemas de anúncio de CE de problemas de encaminhamento de upstream.
+
+## Referências a padrões
+
+- A [RFC 4271](https://www.rfc-editor.org/rfc/rfc4271.html) define a retirada de rotas BGP e o comportamento do temporizador de retenção.
+- A [RFC 5880](https://www.rfc-editor.org/rfc/rfc5880.html) define a detecção de falhas BFD.

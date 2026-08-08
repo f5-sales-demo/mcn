@@ -1,0 +1,58 @@
+---
+title: Alta disponibilidad de Customer Edge
+description: Elija entre varios sitios Customer Edge independientes unidos por BGP y ECMP, y un clúster de sitios de múltiples nodos que proporciona redundancia local.
+sidebar:
+  order: 10
+  label: Descripción general
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+La alta disponibilidad de F5 Distributed Cloud Customer Edge (CE) puede existir en dos capas diferentes. Elija la capa antes de elegir un protocolo de enrutamiento: varios sitios CE independientes proporcionan disponibilidad a nivel de enrutamiento, mientras que los nodos de un sitio CE proporcionan agrupación (clustering) a nivel de sitio.
+
+| Diseño | Unidad de fallo | Distribución de tráfico | Cuándo usarlo |
+| --- | --- | --- | --- |
+| Sitios CE independientes seleccionados por un Sitio Virtual (Virtual Site) | Un sitio CE | El enrutador ascendente instala rutas de igual costo del Protocolo de puerta de enlace de frontera (BGP) hacia los sitios | La red admite BGP y multidifusión de igual costo (ECMP), y la aplicación no requiere una dirección IP virtual (VIP) local compartida implementada por los nodos CE |
+| Un sitio CE de múltiples nodos | Un nodo dentro del sitio | El clúster posee el comportamiento de reenvío local del sitio; el Protocolo de redundancia de enrutador virtual (VRRP) puede proporcionar un siguiente salto local donde sea compatible | La red conectada requiere una puerta de enlace redundante local o un comportamiento de equilibrio de carga local que los sitios independientes no comparten |
+
+Estos diseños resuelven problemas diferentes. Un Sitio Virtual agrupa sitios para la selección de políticas y servicios; no los convierte en un solo clúster. Un clúster agrupa nodos en un solo sitio; no hace que un enrutador ascendente distribuya el tráfico entre sitios separados.
+
+## Preferir alta disponibilidad a nivel de enrutamiento cuando la red puede retirar rutas fallidas
+
+Con alta disponibilidad a nivel de enrutamiento, cada sitio CE anuncia el mismo prefijo de servicio. El enrutador ascendente instala rutas de igual costo y distribuye los nuevos flujos entre los sitios. Cuando se retira la ruta de un sitio, el enrutador deja de seleccionar esa ruta después de que el protocolo de enrutamiento converge.
+
+Este patrón se escala agregando sitios, pero la distribución efectiva está limitada por el enrutador ascendente. Si el enrutador admite menos siguientes saltos de igual costo que el número de sitios CE en buen estado, algunas rutas anunciadas no transportarán tráfico. Valide el límite y el comportamiento de ECMP del enrutador antes de seleccionar un número de sitios; no existe un número universal y portátil de CE.
+
+## Usar agrupación (clustering) cuando la red local lo requiera
+
+VRRP elige un enrutador activo entre múltiples enrutadores que comparten una dirección virtual. Un sitio CE de un solo nodo no tiene un segundo nodo para elegir y, por lo tanto, no puede proporcionar redundancia VRRP. Donde el tipo de sitio y el entorno de F5 Distributed Cloud admitan VRRP, cree el sitio de múltiples nodos requerido en lugar de describir un solo nodo como un clúster.
+
+<Aside type="caution" title="La alta disponibilidad es una decisión de creación del sitio">
+Para Secure Mesh Site v2, habilitar **High Availability** cambia el sitio de un nodo a la forma requerida de múltiples nodos. Esta configuración no se puede cambiar después de que el sitio se haya creado y implementado. Confirme el recuento de nodos actual y las restricciones de la plataforma en [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2) antes de construir el sitio.
+</Aside>
+
+## No combine los nombres de los dos diseños
+
+Utilice **sitio de un solo nodo** (single-node site) para un CE administrado de forma independiente y **clúster de múltiples nodos** (multi-node cluster) para un sitio cuyos nodos participan en la alta disponibilidad a nivel de sitio. Llamar clúster a un conjunto independiente de sitios de un solo nodo oculta los límites importantes de falla y enrutamiento.
+
+<CardGrid>
+  <LinkCard
+    title="Enrutamiento y fallos"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="Afinidad ECMP"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## Referencias de estándares
+
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) define VRRP y su elección entre múltiples enrutadores.
+- [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs) describen las restricciones actuales del sitio que afectan el diseño de nodos e interfaces.

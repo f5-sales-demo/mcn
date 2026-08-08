@@ -1,0 +1,60 @@
+---
+title: Afinidad y persistencia de ECMP
+description: Comprenda cómo ECMP mantiene los flujos de red en una ruta, por qué eso no es persistencia de la aplicación y qué cambia cuando un enrutador omite el puerto de origen de su hash.
+sidebar:
+  order: 30
+  label: Afinidad ECMP
+i18n:
+  sourceHash: "879d6851e54b"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+El enrutamiento de multidifusión de igual costo (ECMP) distribuye flujos; no comprende usuarios, cookies, sesiones de inicio de sesión ni transacciones de aplicaciones. Diseñe la persistencia de la aplicación en una capa con reconocimiento de aplicaciones en lugar de tratar un hash ECMP estable como una función de persistencia.
+
+## Un hash identifica un flujo, no un usuario
+
+Muchos enrutadores seleccionan una ruta de igual costo a partir de campos en las cabeceras de Protocolo de Internet (IP) y de transporte. Una entrada común es el quintuplo (5-tuple): dirección de origen, dirección de destino, protocolo, puerto de origen y puerto de destino. Los campos exactos, la semilla (seed) y el comportamiento son específicos de la plataforma.
+
+Los paquetes con los mismos campos seleccionados normalmente siguen la misma ruta mientras el conjunto de ECMP sea estable. Una nueva conexión puede usar un puerto de origen diferente y, por lo tanto, seleccionar otro CE. HTTP/1.0, HTTP/1.1, HTTP/2, la reutilización de conexiones del navegador, los proxies y la traducción de direcciones de red (NAT) cambian cuántas conexiones de transporte representan una sesión de usuario aparente.
+
+Ese comportamiento es únicamente afinidad de flujo. No es persistencia de dirección de origen, persistencia de cookies ni replicación del estado de la sesión.
+
+## Omitir el puerto de origen cambia el equilibrio
+
+Algunos enrutadores pueden omitir el puerto de origen del hash ECMP. Hacerlo puede mantener las conexiones con las mismas direcciones de origen y destino en una ruta con más frecuencia, pero reduce los valores disponibles para distribuir el tráfico. Muchos usuarios detrás de una sola dirección NAT pueden concentrarse en un solo CE.
+
+Esta configuración aún no garantiza la persistencia de la aplicación:
+
+- un cambio en el conjunto de rutas puede reasignar el hash;
+- una falla de CE mueve el nuevo tráfico a un CE diferente;
+- la dirección de un cliente puede cambiar;
+- el enrutador no copia el estado de la aplicación entre los CE.
+
+<Aside type="caution" title="No prescriba un solo hash para cada red">
+Los controles y valores predeterminados de hash varían según el enrutador. Seleccione los campos solo después de medir los patrones esperados de cliente, NAT, protocolo y reutilización de conexiones. Un cambio que mejora la afinidad gruesa puede crear un desequilibrio de carga grave.
+</Aside>
+
+## Coloque la persistencia estricta en la capa correcta
+
+Cuando una aplicación requiere que un usuario regrese al mismo contexto de procesamiento, use un mecanismo de persistencia de capa de aplicación compatible o externalice el estado de la sesión. Los ejemplos incluyen la persistencia de cookies, la persistencia de dirección de origen implementada por un equilibrador de carga con reconocimiento de aplicaciones y un almacén de sesiones compartido.
+
+Defina el requisito con precisión:
+
+| Requisito | Mecanismo adecuado |
+| --- | --- |
+| Mantener los paquetes de un flujo de transporte en una sola ruta | Hachage de flujo ECMP |
+| Mantener nuevas conexiones desde una dirección en un solo destino | Afinidad de dirección de origen, con la concentración de NAT comprendida |
+| Mantener un usuario autenticado en una sola instancia de aplicación | Persistencia de la capa de aplicación |
+| Sobrevivir a la pérdida del CE seleccionado o de la instancia de aplicación | Estado de sesión replicado o externo más conmutación por error con detección de salud |
+
+## Verificar con tráfico, no con suposiciones
+
+Genere múltiples conexiones independientes y compare los contadores por ruta o por CE. Incluya clientes detrás de NAT, todas las versiones de HTTP dentro del alcance, conexiones de larga duración y un cambio en el conjunto de rutas. Una solicitud exitosa demuestra la accesibilidad; no demuestra una distribución uniforme ni persistencia.
+
+Para el aspecto de enrutamiento de un cambio en el conjunto de rutas, consulte [Enrutamiento y fallos](../routing-and-failover/).
+
+## Referencia de estándares
+
+[RFC 2992](https://www.rfc-editor.org/rfc/rfc2992.html) describe un modelo para distribuir flujos entre siguientes saltos de igual costo y la interrupción causada cuando cambia el conjunto de siguientes saltos.

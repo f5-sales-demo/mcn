@@ -1,0 +1,58 @@
+---
+title: Customer Edgeの高可用性
+description: BGPとECMPで結合された複数の独立したCustomer Edgeサイトと、ローカルの冗長性を提供する1つのマルチノードサイトクラスターのどちらかを選択します。
+sidebar:
+  order: 10
+  label: 概要
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+F5 Distributed Cloud Customer Edge (CE) の高可用性は、2つの異なるレイヤーで存在できます。ルーティングプロトコルを選択する前にレイヤーを選択してください。複数の独立したCEサイトはルーティングレベルの可用性を提供し、1つのCEサイトのノードはサイトレベルのクラスタリングを提供します。
+
+| 設計 | 障害単位 | トラフィック分散 | 使用すべき状況 |
+| --- | --- | --- | --- |
+| Virtual Siteによって選択される独立したCEサイト | 1つのCEサイト | アップストリームルーターがサイトへのイコールコストのBorder Gateway Protocol (BGP)パスをインストールします | ネットワークがBGPおよびEqual-Cost Multi-Path (ECMP)をサポートしており、アプリケーションがCEノードによって実装される共有ローカル仮想IPアドレス(VIP)を必要としない場合 |
+| 1つのマルチノードCEサイト | サイト内の1つのノード | クラスターがサイトのローカルフォワーディング動作を所有します。サポートされている場合は、Virtual Router Redundancy Protocol (VRRP)がローカルネクストホップを提供できます | 接続されたネットワークが、独立したサイト間では共有されないローカル冗長ゲートウェイまたはローカルロードバランシング動作を必要とする場合 |
+
+これらの設計は異なる問題を解決します。Virtual Siteはポリシーとサービス選択のためにサイトをグループ化しますが、それらを1つのクラスターにするわけではありません。クラスターはノードを1つのサイトにグループ化しますが、アップストリームルーターに個別のサイト間でトラフィックを分散させるわけではありません。
+
+## ネットワークが障害パスを撤回できる場合はルーティングレベルのHAを優先する
+
+ルーティングレベルのHAでは、各CEサイトは同じサービスプレフィックスを広報します。アップストリームルーターはイコールコストパスをインストールし、サイト全体に新しいフローを分散します。1つのサイトのパスが撤回されると、ルーティングプロトコルの収束後にルーターはそのパスの選択を停止します。
+
+このパターンはサイトを追加することで拡張可能ですが、実質的なファンアウトはアップストリームルーターによって制限されます。ルーターがサポートするイコールコストネクストホップの数が、正常なCEサイトの数より少ない場合、一部の広報されたパスはトラフィックを転送しません。サイト数を選択する前に、ルーターのECMP制限と動作を検証してください。ポータブルでユニバーサルなCE数は存在しません。
+
+## ローカルネットワークが必要とする場合はクラスタリングを使用する
+
+VRRPは、仮想アドレスを共有する複数のルーターからアクティブルーターを選出します。シングルノードのCEサイトには選出する2番目のノードがないため、VRRPの冗長性を提供できません。F5 Distributed Cloudのサイトタイプおよび環境がVRRPをサポートしている場合は、シングルノードをクラスターとして表すのではなく、必要なマルチノードサイトを作成してください。
+
+<Aside type="caution" title="高可用性はサイト作成時の決定事項です">
+Secure Mesh Site v2の場合、**High Availability**を有効にすると、サイトが1つのノードから必要なマルチノード構成に変更されます。この設定は、サイトの作成およびデプロイ後に変更することはできません。サイトを構築する前に、[Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)で現在ノード数とプラットフォームの制約を確認してください。
+</Aside>
+
+## 2つの設計の名前を混同しないでください
+
+独立して管理される1つのCEには**single-node site**（シングルノードサイト）を使用し、ノードがサイトレベルのHAに参加する1つのサイトには**multi-node cluster**（マルチノードクラスター）を使用します。独立したシングルノードサイト of 集合をクラスターと呼ぶと、重要な障害境界やルーティング境界が隠されてしまいます。
+
+<CardGrid>
+  <LinkCard
+    title="ルーティングとフェイルオーバー"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="ECMPアフィニティ"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## 標準リファレンス
+
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) はVRRPと、複数のルーター間での選出について定義しています。
+- [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs) は、ノードおよびインターフェースの設計に影響を与える現在のサイトの制約について説明しています。

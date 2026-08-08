@@ -1,0 +1,60 @@
+---
+title: Affinité et persistance ECMP
+description: Comprenez comment l'ECMP maintient les flux réseau sur un chemin, pourquoi il ne s'agit pas d'une persistance applicative, et ce qui change lorsqu'un routeur omet le port source de son calcul de hachage.
+sidebar:
+  order: 30
+  label: Affinité ECMP
+i18n:
+  sourceHash: "879d6851e54b"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Le routage ECMP (Equal-Cost Multi-Path) distribue des flux ; il ne comprend pas les utilisateurs, les cookies, les sessions de connexion ou les transactions applicatives. Concevez la persistance applicative à un niveau sensible à l'application (application-aware) plutôt que de traiter un hachage ECMP stable comme une fonctionnalité de persistance.
+
+## Un hachage identifie un flux, pas un utilisateur
+
+De nombreux routeurs sélectionnent un chemin à coût égal à partir de champs situés dans les en-têtes IP (Internet Protocol) et de transport. Une entrée courante est le quintuplet (5-tuple) : adresse source, adresse de destination, protocole, port source et port de destination. Les champs exacts, la graine (seed) et le comportement sont spécifiques à chaque plateforme.
+
+Les paquets partageant les mêmes champs sélectionnés suivent normalement le même chemin tant que l'ensemble ECMP reste stable. Une nouvelle connexion peut utiliser un port source différent et donc sélectionner un autre CE. Les protocoles HTTP/1.0, HTTP/1.1, HTTP/2, la réutilisation des connexions par les navigateurs, les proxies et la traduction d'adresses réseau (NAT) modifient tous le nombre de connexions de transport représentant une seule session utilisateur apparente.
+
+Ce comportement n'est qu'une affinité de flux. Il ne s'agit pas d'une persistance d'adresse source, d'une persistance de cookie ou d'une réplication d'état de session.
+
+## L'omission du port source modifie le compromis
+
+Certains routeurs peuvent omettre le port source du hachage ECMP. Cela permet de maintenir plus souvent les connexions ayant les mêmes adresses source et de destination sur un même chemin, mais cela réduit le nombre de valeurs disponibles pour répartir le trafic. De nombreux utilisateurs derrière une même adresse NAT peuvent alors se concentrer sur un seul CE.
+
+Cette configuration ne garantit toujours pas la persistance applicative :
+
+- un changement de l'ensemble de chemins peut recalculer le hachage ;
+- une défaillance de CE redirige le nouveau trafic vers un autre CE ;
+- l'adresse d'un client peut changer ;
+- l'état de l'application n'est pas copié entre les CE par le routeur.
+
+<Aside type="caution" title="Ne pas imposer un hachage unique pour chaque réseau">
+Les contrôles et valeurs par défaut des fonctions de hachage varient selon le routeur. Sélectionnez les champs uniquement après avoir mesuré les modèles attendus de clients, de NAT, de protocoles et de réutilisation des connexions. Un changement qui améliore l'affinité globale peut créer un déséquilibre de charge important.
+</Aside>
+
+## Placer la persistance stricte au bon niveau
+
+Lorsqu'une application exige qu'un utilisateur revienne au même contexte de traitement, utilisez un mécanisme de persistance de couche applicative pris en charge ou externalisez l'état de la session. Les exemples incluent la persistance par cookie, la persistance par adresse source implémentée par un équilibreur de charge sensible à l'application, et un stockage de session partagé.
+
+Définissez le besoin précisément :
+
+| Exigence | Mécanisme approprié |
+| --- | --- |
+| Maintenir les paquets d'un flux de transport sur un seul chemin | Hachage de flux ECMP |
+| Maintenir les nouvelles connexions d'une même adresse sur une même cible | Affinité d'adresse source, en tenant compte de la concentration NAT |
+| Maintenir un utilisateur authentifié sur une même instance d'application | Persistance au niveau de la couche applicative |
+| Survivre à la perte du CE sélectionné ou de l'instance applicative | État de session répliqué ou externe et basculement sensible à la santé |
+
+## Vérifier par le trafic, pas par des suppositions
+
+Générez plusieurs connexions indépendantes et comparez les compteurs par chemin ou par CE. Incluez des clients derrière un NAT, chaque version HTTP concernée, des connexions de longue durée et un changement d'ensemble de chemins. Une requête réussie prouve la connectivité ; elle ne prouve pas une répartition équitable ni la persistance.
+
+Pour l'aspect routage d'un changement d'ensemble de chemins, voir [Routage et basculement](../routing-and-failover/).
+
+## Référence aux normes
+
+[RFC 2992](https://www.rfc-editor.org/rfc/rfc2992.html) décrit un modèle de distribution des flux sur des prochains sauts à coût égal et la perturbation causée lorsque l'ensemble de prochains sauts change.

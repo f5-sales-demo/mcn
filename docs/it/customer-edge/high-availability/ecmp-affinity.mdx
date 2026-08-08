@@ -1,0 +1,60 @@
+---
+title: Affinità ECMP e persistenza
+description: Comprendi come ECMP mantiene i flussi di rete su un percorso, perché non si tratta di persistenza dell'applicazione e cosa cambia quando un router esclude la porta sorgente dal suo hash.
+sidebar:
+  order: 30
+  label: Affinità ECMP
+i18n:
+  sourceHash: "879d6851e54b"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Il routing Equal-Cost Multi-Path (ECMP) distribuisce i flussi; non comprende utenti, cookie, sessioni di login o transazioni applicative. Progetta la persistenza dell'applicazione a un livello in grado di riconoscere l'applicazione anziché trattare un hash ECMP stabile come una funzionalità di persistenza.
+
+## Un hash identifica un flusso, non un utente
+
+Molti router selezionano un percorso a costo paritetico dai campi presenti negli header di rete (IP) e di trasporto. Un input comune è la quintupla: indirizzo sorgente, indirizzo di destinazione, protocollo, porta sorgente e porta di destinazione. I campi esatti, il seed e il comportamento sono specifici della piattaforma.
+
+I pacchetti con gli stessi campi selezionati normalmente seguono lo stesso percorso finché il set ECMP è stabile. Una nuova connessione può utilizzare una porta sorgente diversa e quindi selezionare un altro CE. HTTP/1.0, HTTP/1.1, HTTP/2, il riutilizzo delle connessioni del browser, i proxy e il Network Address Translation (NAT) modificano tutti il numero di connessioni di trasporto che rappresentano un'unica sessione utente apparente.
+
+Questo comportamento rappresenta solo l'affinità di flusso. Non si tratta di persistenza dell'indirizzo sorgente, persistenza dei cookie o replica dello stato della sessione.
+
+## Escludere la porta sorgente modifica il compromesso
+
+Alcuni router possono escludere la porta sorgente dall'hash ECMP. In questo modo è possibile mantenere più spesso sullo stesso percorso le connessioni con gli stessi indirizzi sorgente e di destinazione, ma si riducono i valori disponibili per distribuire il traffico. Molti utenti dietro un singolo indirizzo NAT possono quindi concentrarsi su un unico CE.
+
+Questa configurazione non garantisce comunque la persistenza dell'applicazione:
+
+- una modifica del set di percorsi può rimappare l'hash;
+- un guasto del CE sposta il nuovo traffico su un CE diverso;
+- l'indirizzo del client può variare;
+- lo stato dell'applicazione non viene copiato tra i CE da parte del router.
+
+<Aside type="caution" title="Non prescrivere un unico hash per ogni rete">
+I controlli e i valori predefiniti dell'hash variano in base al router. Seleziona i campi solo dopo aver misurato i pattern previsti dei client, del NAT, dei protocolli e del riutilizzo delle connessioni. Una modifica che migliora l'affinità approssimativa può creare un grave squilibrio del carico.
+</Aside>
+
+## Posizionare la persistenza rigorosa al livello corretto
+
+Quando un'applicazione richiede che un utente ritorni allo stesso contesto di elaborazione, utilizza un meccanismo di persistenza a livello applicativo supportato o esternalizza lo stato della sessione. Gli esempi includono la persistenza dei cookie, la persistenza dell'indirizzo sorgente implementata da un bilanciatore del carico in grado di riconoscere l'applicazione e uno storage di sessione condiviso.
+
+Specifica il requisito in modo preciso:
+
+| Requisito | Meccanismo appropriato |
+| --- | --- |
+| Mantenere i pacchetti di un flusso di trasporto su un unico percorso | Hashing del flusso ECMP |
+| Mantenere le nuove connessioni da un indirizzo su un unico target | Affinità dell'indirizzo sorgente, considerando la concentrazione NAT |
+| Mantenere un singolo utente autenticato su un'unica istanza dell'applicazione | Persistenza a livello applicativo |
+| Sopravvivere alla perdita del CE selezionato o dell'istanza dell'applicazione | Stato della sessione replicato o esterno più failover sensibile allo stato di salute |
+
+## Verificare con il traffico, non con le ipotesi
+
+Genera più connessioni indipendenti e confronta i contatori per percorso o per CE. Includi i client dietro NAT, ogni versione HTTP in ambito, le connessioni a lungo termine e una modifica del set di percorsi. Una richiesta andata a buon fine prova la raggiungibilità; non prova la distribuzione uniforme o la persistenza.
+
+Per il lato routing di una modifica del set di percorsi, consulta [Routing e failover](../routing-and-failover/).
+
+## Riferimento agli standard
+
+[RFC 2992](https://www.rfc-editor.org/rfc/rfc2992.html) descrive un modello per la distribuzione dei flussi su next hop a costo paritetico e l'interruzione causata dalla modifica del set di next hop.

@@ -1,0 +1,58 @@
+---
+title: Haute disponibilité du Customer Edge
+description: Choisissez entre plusieurs sites Customer Edge indépendants reliés par BGP et ECMP, et un cluster de sites multi-nœuds offrant une redondance locale.
+sidebar:
+  order: 10
+  label: Aperçu
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+La haute disponibilité du Customer Edge (CE) de F5 Distributed Cloud peut exister à deux niveaux différents. Choisissez le niveau avant de choisir un protocole de routage : plusieurs sites CE indépendants offrent une disponibilité au niveau du routage, tandis que les nœuds d'un seul site CE forment un cluster pour assurer la disponibilité au niveau du site.
+
+| Conception | Unité de défaillance | Distribution du trafic | Quand l'utiliser |
+| --- | --- | --- | --- |
+| Sites CE indépendants sélectionnés par un site virtuel (Virtual Site) | Un site CE | Le routeur en amont installe des chemins BGP (Border Gateway Protocol) à coût égal vers les sites | Le réseau prend en charge BGP et l'ECMP (Equal-Cost Multi-Path), et l'application ne nécessite pas d'adresse IP virtuelle locale (VIP) partagée implémentée par les nœuds CE |
+| Un site CE multi-nœuds | Un nœud au sein du site | Le cluster contrôle le comportement de transfert local du site ; le protocole VRRP (Virtual Router Redundancy Protocol) peut fournir un saut suivant local là où il est pris en charge | Le réseau connecté nécessite une passerelle localement redondante ou un comportement d'équilibrage de charge local que des sites indépendants ne partagent pas |
+
+Ces conceptions résolvent des problèmes différents. Un site virtuel (Virtual Site) regroupe des sites pour la sélection de politiques et de services ; il ne les transforme pas en un seul cluster. Un cluster regroupe des nœuds en un seul site ; il ne permet pas à un routeur en amont de distribuer le trafic entre des sites distincts.
+
+## Préférer la haute disponibilité au niveau routage lorsque le réseau peut retirer les chemins défaillants
+
+Avec la haute disponibilité au niveau routage, chaque site CE annonce le même préfixe de service. Le routeur en amont installe des chemins à coût égal (ECMP) et distribue les nouveaux flux entre les sites. Lorsque le chemin d'un site est retiré, le routeur cesse de sélectionner ce chemin après la convergence du protocole de routage.
+
+Ce modèle s'adapte en ajoutant des sites, mais le déploiement effectif est limité par le routeur en amont. Si le routeur prend en charge moins de prochains sauts à coût égal que le nombre de sites CE sains, certains chemins annoncés n'achemineront pas de trafic. Validez la limite ECMP et le comportement du routeur avant de choisir un nombre de sites ; il n'existe pas de nombre universel et portable de CE.
+
+## Utiliser le clustering lorsque le réseau local l'exige
+
+Le protocole VRRP élit un routeur actif parmi plusieurs routeurs partageant une adresse virtuelle. Un site CE à nœud unique n'a pas de second nœud à élire et ne peut donc pas fournir de redondance VRRP. Là où le type de site et l'environnement de F5 Distributed Cloud prennent en charge le VRRP, créez le site multi-nœuds requis plutôt que de qualifier un nœud unique de cluster.
+
+<Aside type="caution" title="La haute disponibilité est une décision prise lors de la création du site">
+Pour un site Secure Mesh Site v2, l'activation de la **haute disponibilité** (High Availability) fait passer le site d'un nœud unique à la configuration multi-nœuds requise. Ce paramètre ne peut pas être modifié après la création et le déploiement du site. Confirmez le nombre actuel de nœuds et les contraintes de plateforme dans [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2) avant de construire le site.
+</Aside>
+
+## Ne pas confondre les noms de ces deux conceptions
+
+Utilisez **site à nœud unique** (single-node site) pour un CE géré de manière indépendante, et **cluster multi-nœuds** (multi-node cluster) pour un site dont les nœuds participent à la haute disponibilité au niveau du site. Qualifier de cluster un ensemble indépendant de sites à nœud unique masque les frontières importantes de routage et de défaillance.
+
+<CardGrid>
+  <LinkCard
+    title="Routage et basculement"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="Affinité ECMP"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## Références aux normes
+
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) définit le protocole VRRP et son processus d'élection parmi plusieurs routeurs.
+- [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs) décrit les contraintes actuelles des sites qui affectent la conception des nœuds et des interfaces.
