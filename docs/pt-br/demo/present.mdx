@@ -1,35 +1,25 @@
 ---
-title: Apresente a demonstração
-description: >-
-  O que esta implantação pode demonstrar e como mostrá-la em um único comando —
-  multipath de custo igual programado pela malha de roteamento em vez de um
-  balanceador de carga — além das três coisas que ela ainda não pode mostrar,
-  declaradas com clareza para que um ensaio não as descubra diante de uma
-  plateia.
+title: Present the demo
+description: What this deployment can demonstrate and how to show it in one command — equal-cost multipath programmed by the routing fabric rather than a load balancer — plus the three things it cannot yet show, stated plainly so a rehearsal does not discover them in front of an audience.
 sidebar:
   order: 40
-  label: Apresentar
-i18n:
-  sourceHash: 5e23dca1c815
-  translator: machine
+  label: Present
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-A afirmação que esta demonstração sustenta é restrita e vale a pena declará-la com precisão, porque uma afirmação mais ampla não
-sobreviverá às perguntas:
+The claim this demo supports is narrow and worth stating precisely, because a wider one will
+not survive questions:
 
-> Vários Customer Edges anunciam cada um a mesma rota de host por eBGP, e o Azure instala todos
-> eles como próximos saltos de custo igual. A distribuição de tráfego e a remoção de nós são, portanto,
-> propriedades da malha de roteamento — não há balanceador de carga do Azure à frente dos CEs.
+> Customer Edges in Azure, AWS, and On-Premise KVM advertise the same host route by eBGP (or load balance via Azure ILB), and the native routing fabric installs all of them as equal-cost next hops. Traffic distribution and node removal are therefore properties of the routing fabric — there is no cloud load balancer required in front of the CEs for BGP/ECMP topologies.
 
-Execute [as quatro verificações de saúde](../verify/) primeiro. Tudo o que vem abaixo pressupõe que elas passaram.
+Run [the four health checks](../verify/) first. Everything below assumes they passed.
 
-## O único comando que torna isso visível
+## The one command that makes it visible
 
-As rotas efetivas são o artefato individual mais forte: elas são o que o Azure realmente programou,
-não o que os CEs afirmam.
+Effective routes are the strongest single artefact: they are what Azure actually programmed,
+not what the CEs claim.
 
 ```bash
 cd terraform
@@ -40,22 +30,23 @@ az network nic show-effective-route-table \
   -o json
 ```
 
-Observado em 2026-07-28:
+Observed 2026-08-03. The addresses are shown as placeholders because published pages do not
+carry live deployment values:
 
 ```json
 [
   {
-    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-    "prefix": "10.250.0.10/32",
+    "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+    "prefix": "<VIP>/32",
     "state": "Active"
   }
 ]
 ```
 
-Um prefixo, três próximos saltos, `Active`. Esse é todo o propósito da demonstração em uma única
-saída, e vale a pena fazer uma pausa nisso: nada no quadro é um balanceador de carga.
+One prefix, three next hops, `Active`. That is the whole point of the demo in a single
+output, and it is worth pausing on: nothing in the picture is a load balancer.
 
-Depois, mostre-o atendendo, de dentro da VNet e com o cabeçalho `Host`:
+Then show it serving, from inside the VNet and with the `Host` header:
 
 ```bash
 az vm run-command invoke \
@@ -67,69 +58,76 @@ az vm run-command invoke \
                http://$(terraform output -raw vip)/"
 ```
 
-<Aside type="caution" title="Não demonstre digitando o endereço em um navegador">
-O balanceador de carga faz a correspondência pelo `Host`, então uma requisição com IP puro retorna **404** — em uma implantação completamente
-saudável. Envie o cabeçalho ou resolva o domínio para o VIP antes. Um 404 diante
-de uma plateia é difícil de contornar, mesmo que nada esteja errado.
+<Aside type="caution" title="Do not demo it by typing the address into a browser">
+The load balancer matches on `Host`, so a bare-IP request returns **404** — on a completely
+healthy deployment. Either send the header, or resolve the domain to the VIP first. A 404 in
+front of an audience is hard to walk back from even though nothing is wrong.
 </Aside>
 
-## Ordem sugerida
+## Suggested order
 
 <Steps>
 
-1. **Contextualize.** Um VIP, vários CEs, nenhum balanceador de carga. A malha de roteamento é o
-   mecanismo de HA.
-2. **Mostre o lado do anúncio.** Percorra os peerings ([verificação 2](../verify/)) — cada CE
-   anunciando o mesmo prefixo com seu próprio próximo salto, todos com o mesmo AS path, de modo que nenhum é
-   preferido.
-3. **Mostre o que o Azure fez com isso.** A tabela de rotas efetivas acima: um prefixo, N próximos
-   saltos, `Active`.
-4. **Mostre-o atendendo.** O `curl` acima, com o cabeçalho.
-5. **Mostre a configuração.** [O Terraform](../terraform/) está publicado aqui, lido a partir
-   dos arquivos que o implantam — útil quando alguém pergunta se isso é reproduzível.
+1. **Frame the 4-path hybrid architecture.** One VIP per regional path, several CEs, and no cloud load balancer needed for BGP/ECMP:
+   - **ROW (`eastus`)**: Azure Route Server + eBGP/ECMP (`f5-sales-demo.com`)
+   - **Canada (`canadacentral`)**: Canadian Regional Edge Virtual Site (`f5-sales-demo.ca`) supporting Azure Route Server (eBGP/ECMP) or Azure Internal Load Balancer (`enable_canada_ilb`)
+   - **AWS (`us-east-2`)**: AWS VPC + EC2 CEs (`m5.2xlarge`) (`aws.mcn-ce-ha.f5-sales-demo.com`)
+   - **On-Premise KVM**: Local libvirt bridge + FRR ToR BGP router (`10.100.0.1`, ASN `65515`, `maximum-paths 4`)
+2. **Show the advertisement side.** Loop the peerings ([check 2](../verify/)) — each CE
+   advertising the same prefix with its own next hop, all with the same AS path, so none is
+   preferred.
+3. **Show what Azure, AWS, and FRR did with it.**
+   - In Azure: Effective route table showing one prefix with $N$ next hops (`type: VirtualNetworkGateway`).
+   - In On-Premise FRR: `vtysh -c "show ip bgp 10.100.0.10/32"` showing multiple `*=` multipath entries, and `ip route show 10.100.0.10/32` in Linux kernel showing ECMP multipath next hops.
+4. **Show regional data sovereignty & traffic localization.** Demonstrate how `xcsh_virtual_site.canada_re` uses `ves.io/city in (toronto, montreal)` to restrict ingress, egress, and TLS decryption for `f5-sales-demo.ca` strictly within Canadian Regional Edges.
+5. **Show Canadian ILB Architecture Variation (when `enable_canada_ilb = true`).** Show how Azure Standard ILB (`azurerm_lb.ca_ilb`) uses HA Ports (`protocol = "All"`) and Health Probes (`Tcp/65500`) to distribute traffic across Canadian CE management NICs without BGP.
+6. **Show it serving.** The `curl` commands, sending Host headers for `mcn-ce-ha.f5-sales-demo.com`, `mcn-ce-ha.f5-sales-demo.ca`, and `aws.mcn-ce-ha.f5-sales-demo.com`.
+7. **Show the configuration.** [The Terraform](../terraform/) is published here, read from
+   the files that deploy it — useful when someone asks whether this is reproducible.
 
 </Steps>
 
-## O que esta demonstração ainda não pode mostrar
+## What this demo cannot yet show
 
-Declarado aqui em vez de descoberto ao vivo. Todos os três são ausências de evidência, não falhas
-conhecidas.
+Stated here rather than discovered live. All three are absences of evidence, not known
+failures.
 
-<Aside type="danger" title="Não ensaie uma história de failover a partir destas páginas">
-**O failover não foi testado.** Os próximos saltos de custo igual foram verificados como instalados; o que
-acontece com a tabela de rotas quando um CE é interrompido ou deixa de anunciar não foi exercitado
-contra esta implantação. O mecanismo pretendido é retirar o anúncio de um CE e
-observar a contagem de próximos saltos cair, mas até que isso tenha sido realmente executado e medido, é um
-plano, não um resultado — portanto, não prometa isso e não improvise diante de uma plateia.
+<Aside type="danger" title="Do not rehearse a failover story from these pages">
+**Failover has not been tested.** The equal-cost next hops are verified installed; what
+happens to the route table when a CE is stopped or stops advertising has not been exercised
+against this deployment. The intended mechanism is to withdraw one CE's advertisement and
+watch the next-hop count drop, but until that has actually been run and measured it is a
+plan, not a result — so do not promise it, and do not improvise it in front of an audience.
 
-Acompanhado na [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). Isso exige uma janela
-em que ninguém mais esteja usando o ambiente, já que altera o estado de anúncio ao vivo.
+Tracked in [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). It needs a window
+when nobody else is using the environment, since it changes live advertisement state.
 </Aside>
 
-- **A distribuição de tráfego entre os próximos saltos não foi medida.** 1.470 requisições ao
-  VIP estão contabilizadas na [página de verificação](../verify/), o que estabelece que o caminho
-  funciona e como se comporta ao longo do tempo. Nada disso mostra como as requisições foram distribuídas entre os
-  próximos saltos, e esta topologia não oferece um listener HTTP por nó para atribuí-las. Se
-  perguntarem "está uniforme?", a resposta honesta é que isso não foi medido aqui.
-- **A causa do transiente de convergência em builds recém-criados não está estabelecida.** Ela está
-  caracterizada — quando acontece, por quanto tempo, e que a origem permanece limpa durante todo o período —
-  e não explicada.
+- **Traffic distribution across the next hops has not been measured.** The from-zero UAT sent
+  160 requests to the VIP, and earlier testing sent 1,470 more. The
+  [verify page](../verify/) establishes that the path
+  works and how it behaves over time. None of that shows how requests were spread across the
+  next hops, and this topology gives no per-node HTTP listener to attribute them with. If
+  asked "is it even?", the honest answer is that it has not been measured here.
+- **The cause of the fresh-build convergence transient is not established.** It is
+  characterised — when it happens, for how long, and that the origin is clean throughout —
+  and not explained.
 
-<Aside type="note" title="Se você vai apresentar em uma stack recém-criada, espere">
-O VIP perde uma pequena fração das requisições durante aproximadamente os primeiros 45 minutos após os CEs
-atingirem `ONLINE`. Isso se resolve completamente. Construa a demonstração bem antes de precisar dela, e execute
-novamente a verificação 4 imediatamente antes.
+<Aside type="note" title="If you are presenting on a freshly built stack, wait">
+The VIP loses a small fraction of requests for roughly the first 45 minutes after the CEs
+reach `ONLINE`. It clears completely. Build the demo well before you need it, and re-run
+check 4 immediately beforehand.
 </Aside>
 
 <CardGrid>
   <LinkCard
-    title="Prove que está saudável"
-    description="As quatro verificações e os resultados de aparência normal que parecem uma indisponibilidade e não são."
+    title="Prove it healthy"
+    description="The four checks, and the normal-looking results that read as an outage and are not."
     href="../verify/"
   />
   <LinkCard
-    title="O Terraform"
-    description="A configuração em si, para a pergunta sobre se isso é reproduzível."
+    title="The Terraform"
+    description="The configuration itself, for the question about whether this is reproducible."
     href="../terraform/"
   />
 </CardGrid>

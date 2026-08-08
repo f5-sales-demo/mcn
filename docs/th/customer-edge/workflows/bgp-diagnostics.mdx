@@ -1,41 +1,53 @@
 ---
-title: เส้นทางไม่ถูกโฆษณาหรือเรียนรู้
-description: >-
-  ลำดับขั้นตอนสำหรับไซต์ที่ออนไลน์อยู่แต่ VIP ไม่สามารถเข้าถึงได้
-  หรือไม่ได้เรียนรู้ prefix ที่ควรจะได้รับ
+title: Routes are not being advertised or learned
+description: Ordered sequence for a site that is online but whose VIP is unreachable, or which is not learning the prefixes it should.
 sidebar:
   order: 20
   label: BGP
-i18n:
-  sourceHash: eff4d5527048
-  translator: machine
 ---
 
 import { Steps, Aside } from "@astrojs/starlight/components";
 
-สำหรับไซต์ที่มีสถานะ `ONLINE` — หากไม่ใช่ ให้เริ่มต้นที่
-[การลงทะเบียน](../registration/)
+For a site that is `ONLINE` — if it is not, start with
+[registration](../registration/).
 
 <Steps>
 
-1. **การ peering ทำงานอยู่หรือไม่?**
-   [`show-ip-bgp-summary`](../../commands/network/bgp/) อ่านค่า `State/PfxRcd`: หากเป็นตัวเลขหมายความว่าเชื่อมต่อแล้ว และ `Up/Down` แสดงให้เห็นว่าการเชื่อมต่อมีความเสถียรหรือไม่ ค่าที่น้อยในไซต์ที่ทำงานมาหลายวันหมายความว่า session กำลังขาดหายและเชื่อมต่อซ้ำ (flapping)
+1. **Is peering up at all?**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/). Read `State/PfxRcd`: a
+   number means established, and `Up/Down` shows whether it has been stable. A small
+   value on a site that has been up for days means the session is flapping.
 
-2. **หาก session หยุดทำงาน** สาเหตุมักอยู่ต่ำกว่าระดับ BGP ให้ตรวจสอบว่า interface ที่รองรับ peering ทำงานอยู่ด้วย
-   [`ip-link-show`](../../commands/network/ip/) จากนั้นยืนยันการเข้าถึง peer address บนโทโพโลยีนี้ peer คือ Azure Route Server instances
+2. **If the session is down**, the cause is usually below BGP. Confirm the interface
+   carrying the peering is up with
+   [`ip-link-show`](../../commands/network/ip/), then confirm reachability to the
+   peer address.
+   - **On Azure**: Peers are Azure Route Server instances (`az network routeserver peering list-learned-routes`).
+   - **On AWS**: Peers are the AWS VPC Router / gateway interface (`10.150.0.1`).
+   - **On-Premise KVM**: Peers are the containerized FRR ToR BGP router (`docker exec frr-router vtysh -c "show ip bgp summary"`).
 
-3. **หาก session ทำงานอยู่แต่ VIP ไม่สามารถเข้าถึงได้** ให้ตรวจสอบว่า node กำลังโฆษณาอะไรอยู่จริง ๆ ด้วย
-   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/) หาก VIP ไม่ปรากฏอยู่ที่นั่น ปัญหาอยู่ที่ node นี้ และการดูที่ peer จะไม่ช่วยแก้ปัญหาได้
+3. **If the session is up but the VIP is unreachable**, check what the node is
+   actually advertising with
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/). If the
+   VIP is absent there, the problem is on this node and looking at the peer will not
+   help.
 
-4. **หาก node โฆษณาได้อย่างถูกต้องแต่ทราฟฟิกยังไม่มาถึง** control plane และ data plane ขัดแย้งกัน ให้ตรวจสอบตาราง forwarding ที่ data plane ใช้งานจริงด้วย [`rt`](../../commands/network/dataplane-forwarding/) โดยจำไว้ว่า VRF id ของมันไม่ใช่ตัวที่ BGP รายงาน
+4. **If the node advertises correctly but traffic still does not arrive**, the
+   control plane and the data plane disagree. Check the forwarding table the data
+   plane actually uses with [`rt`](../../commands/network/dataplane-forwarding/),
+   remembering that its VRF id is not the one BGP reports.
 
-   จากนั้นแก้ไข next hop ด้วย `nh` prefix ที่ปรากฏใน `rt` ซึ่ง next hop เป็น `Drop` คือ blackhole
+   Then resolve the next hop with `nh`. A prefix present in `rt` whose next hop is
+   `Drop` is a blackhole.
 
-5. **หาก session flapping** [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
-   จะมีสาเหตุการ reset ครั้งล่าสุดและ timer ที่ตกลงกันไว้
+5. **If the session flaps**, [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
+   carries the last reset reason and the negotiated timers.
 
 </Steps>
 
-<Aside type="caution" title="รูปแบบการกำหนดหมายเลข VRF สองแบบที่แตกต่างกัน">
-`show-ip-bgp-summary` รายงาน `vrf-id` ของ FRR ส่วน Argo data plane กำหนดหมายเลขตารางแยกต่างหาก และการส่ง FRR's number ไปยัง `rt --dump` จะคืนค่า `No such file or directory` — ซึ่งดูเหมือน node เสียมากกว่าการส่ง argument ผิด บนโทโพโลยีนี้ VRF 2 คือตาราง inet4 ที่มีข้อมูล
+<Aside type="caution" title="Two different VRF numbering schemes">
+`show-ip-bgp-summary` reports FRR's `vrf-id`. The Argo data plane numbers its tables
+separately, and passing FRR's number to `rt --dump` returns `No such file or
+directory` — which looks like a broken node rather than a wrong argument. On this
+topology VRF 2 is the populated inet4 table.
 </Aside>

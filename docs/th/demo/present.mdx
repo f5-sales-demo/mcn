@@ -1,34 +1,25 @@
 ---
-title: นำเสนอเดโม
-description: >-
-  สิ่งที่การดีพลอยนี้สามารถสาธิตได้และวิธีแสดงด้วยคำสั่งเดียว —
-  เส้นทางหลายทางที่มีต้นทุนเท่ากันซึ่งถูกโปรแกรมโดยโครงสร้างการกำหนดเส้นทางแทนที่จะเป็นตัวกระจายโหลด
-  — พร้อมกับสามสิ่งที่ยังไม่สามารถแสดงได้
-  ระบุไว้อย่างตรงไปตรงมาเพื่อให้การซ้อมไม่ต้องมาค้นพบสิ่งเหล่านั้นต่อหน้าผู้ฟัง
+title: Present the demo
+description: What this deployment can demonstrate and how to show it in one command — equal-cost multipath programmed by the routing fabric rather than a load balancer — plus the three things it cannot yet show, stated plainly so a rehearsal does not discover them in front of an audience.
 sidebar:
   order: 40
-  label: นำเสนอ
-i18n:
-  sourceHash: 5e23dca1c815
-  translator: machine
+  label: Present
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-ข้อกล่าวอ้างที่เดโมนี้สนับสนุนมีขอบเขตจำกัดและควรระบุอย่างแม่นยำ เพราะข้อกล่าวอ้างที่กว้างกว่านี้
-จะไม่อาจทนต่อคำถามได้:
+The claim this demo supports is narrow and worth stating precisely, because a wider one will
+not survive questions:
 
-> Customer Edge หลายตัวต่างประกาศ host route เดียวกันผ่าน eBGP และ Azure ติดตั้งทั้งหมด
-> เป็น next hop ที่มีต้นทุนเท่ากัน การกระจายทราฟฟิกและการนำโหนดออกจึงเป็น
-> คุณสมบัติของโครงสร้างการกำหนดเส้นทาง — ไม่มีตัวกระจายโหลดของ Azure อยู่หน้า CE เลย
+> Customer Edges in Azure, AWS, and On-Premise KVM advertise the same host route by eBGP (or load balance via Azure ILB), and the native routing fabric installs all of them as equal-cost next hops. Traffic distribution and node removal are therefore properties of the routing fabric — there is no cloud load balancer required in front of the CEs for BGP/ECMP topologies.
 
-รัน [การตรวจสอบสุขภาพทั้งสี่รายการ](../verify/) ก่อน ทุกอย่างด้านล่างนี้สมมติว่าผ่านแล้ว
+Run [the four health checks](../verify/) first. Everything below assumes they passed.
 
-## คำสั่งเดียวที่ทำให้มองเห็นได้
+## The one command that makes it visible
 
-Effective route เป็นหลักฐานเดี่ยวที่หนักแน่นที่สุด: เพราะเป็นสิ่งที่ Azure โปรแกรมไว้จริง
-ไม่ใช่สิ่งที่ CE กล่าวอ้าง
+Effective routes are the strongest single artefact: they are what Azure actually programmed,
+not what the CEs claim.
 
 ```bash
 cd terraform
@@ -39,22 +30,23 @@ az network nic show-effective-route-table \
   -o json
 ```
 
-สังเกตเมื่อ 2026-07-28:
+Observed 2026-08-03. The addresses are shown as placeholders because published pages do not
+carry live deployment values:
 
 ```json
 [
   {
-    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-    "prefix": "10.250.0.10/32",
+    "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+    "prefix": "<VIP>/32",
     "state": "Active"
   }
 ]
 ```
 
-หนึ่ง prefix, สาม next hop, `Active` นั่นคือสาระสำคัญทั้งหมดของเดโมในเอาต์พุตเดียว
-และควรหยุดพิจารณาสักครู่: ไม่มีสิ่งใดในภาพนี้ที่เป็นตัวกระจายโหลด
+One prefix, three next hops, `Active`. That is the whole point of the demo in a single
+output, and it is worth pausing on: nothing in the picture is a load balancer.
 
-จากนั้นแสดงการให้บริการ จากภายใน VNet และพร้อมกับเฮดเดอร์ `Host`:
+Then show it serving, from inside the VNet and with the `Host` header:
 
 ```bash
 az vm run-command invoke \
@@ -66,68 +58,76 @@ az vm run-command invoke \
                http://$(terraform output -raw vip)/"
 ```
 
-<Aside type="caution" title="อย่าสาธิตด้วยการพิมพ์ที่อยู่ลงในเบราว์เซอร์">
-ตัวกระจายโหลดจับคู่ด้วย `Host` ดังนั้นคำขอที่ใช้ IP เปล่าจะได้ผลลัพธ์ **404** — บนการดีพลอย
-ที่สมบูรณ์ดีทุกอย่าง ให้ส่งเฮดเดอร์ไปด้วย หรือแปลงชื่อโดเมนให้ชี้ไปที่ VIP ก่อน 404 ต่อหน้า
-ผู้ฟังนั้นแก้สถานการณ์ได้ยากแม้ว่าจะไม่มีอะไรผิดพลาดเลย
+<Aside type="caution" title="Do not demo it by typing the address into a browser">
+The load balancer matches on `Host`, so a bare-IP request returns **404** — on a completely
+healthy deployment. Either send the header, or resolve the domain to the VIP first. A 404 in
+front of an audience is hard to walk back from even though nothing is wrong.
 </Aside>
 
-## ลำดับที่แนะนำ
+## Suggested order
 
 <Steps>
 
-1. **วางกรอบ** หนึ่ง VIP, CE หลายตัว, ไม่มีตัวกระจายโหลด โครงสร้างการกำหนดเส้นทางคือ
-   กลไก HA
-2. **แสดงด้านการประกาศเส้นทาง** วนดู peering ([การตรวจสอบที่ 2](../verify/)) — CE แต่ละตัว
-   ประกาศ prefix เดียวกันด้วย next hop ของตัวเอง ทั้งหมดมี AS path เดียวกัน จึงไม่มีตัวใด
-   ถูกเลือกมากกว่า
-3. **แสดงสิ่งที่ Azure ทำกับมัน** ตาราง effective route ด้านบน: หนึ่ง prefix, N next hop,
-   `Active`
-4. **แสดงการให้บริการ** คำสั่ง `curl` ด้านบน พร้อมเฮดเดอร์
-5. **แสดงการกำหนดค่า** [Terraform](../terraform/) ถูกเผยแพร่ไว้ที่นี่ อ่านมาจาก
-   ไฟล์ที่ใช้ดีพลอยจริง — มีประโยชน์เมื่อมีคนถามว่าสิ่งนี้ทำซ้ำได้หรือไม่
+1. **Frame the 4-path hybrid architecture.** One VIP per regional path, several CEs, and no cloud load balancer needed for BGP/ECMP:
+   - **ROW (`eastus`)**: Azure Route Server + eBGP/ECMP (`f5-sales-demo.com`)
+   - **Canada (`canadacentral`)**: Canadian Regional Edge Virtual Site (`f5-sales-demo.ca`) supporting Azure Route Server (eBGP/ECMP) or Azure Internal Load Balancer (`enable_canada_ilb`)
+   - **AWS (`us-east-2`)**: AWS VPC + EC2 CEs (`m5.2xlarge`) (`aws.mcn-ce-ha.f5-sales-demo.com`)
+   - **On-Premise KVM**: Local libvirt bridge + FRR ToR BGP router (`10.100.0.1`, ASN `65515`, `maximum-paths 4`)
+2. **Show the advertisement side.** Loop the peerings ([check 2](../verify/)) — each CE
+   advertising the same prefix with its own next hop, all with the same AS path, so none is
+   preferred.
+3. **Show what Azure, AWS, and FRR did with it.**
+   - In Azure: Effective route table showing one prefix with $N$ next hops (`type: VirtualNetworkGateway`).
+   - In On-Premise FRR: `vtysh -c "show ip bgp 10.100.0.10/32"` showing multiple `*=` multipath entries, and `ip route show 10.100.0.10/32` in Linux kernel showing ECMP multipath next hops.
+4. **Show regional data sovereignty & traffic localization.** Demonstrate how `xcsh_virtual_site.canada_re` uses `ves.io/city in (toronto, montreal)` to restrict ingress, egress, and TLS decryption for `f5-sales-demo.ca` strictly within Canadian Regional Edges.
+5. **Show Canadian ILB Architecture Variation (when `enable_canada_ilb = true`).** Show how Azure Standard ILB (`azurerm_lb.ca_ilb`) uses HA Ports (`protocol = "All"`) and Health Probes (`Tcp/65500`) to distribute traffic across Canadian CE management NICs without BGP.
+6. **Show it serving.** The `curl` commands, sending Host headers for `mcn-ce-ha.f5-sales-demo.com`, `mcn-ce-ha.f5-sales-demo.ca`, and `aws.mcn-ce-ha.f5-sales-demo.com`.
+7. **Show the configuration.** [The Terraform](../terraform/) is published here, read from
+   the files that deploy it — useful when someone asks whether this is reproducible.
 
 </Steps>
 
-## สิ่งที่เดโมนี้ยังแสดงไม่ได้
+## What this demo cannot yet show
 
-ระบุไว้ที่นี่แทนที่จะไปค้นพบสดๆ ทั้งสามข้อเป็นการขาดหลักฐาน ไม่ใช่ความล้มเหลวที่ทราบแล้ว
+Stated here rather than discovered live. All three are absences of evidence, not known
+failures.
 
-<Aside type="danger" title="อย่าซ้อมเรื่องราว failover จากหน้าเหล่านี้">
-**failover ยังไม่ได้รับการทดสอบ** next hop ที่มีต้นทุนเท่ากันได้รับการยืนยันว่าติดตั้งแล้ว แต่
-สิ่งที่เกิดขึ้นกับตารางเส้นทางเมื่อ CE ถูกหยุดหรือหยุดประกาศเส้นทางนั้นยังไม่ได้ถูกทดลอง
-กับการดีพลอยนี้ กลไกที่ตั้งใจไว้คือถอนการประกาศของ CE หนึ่งตัวและ
-ดูจำนวน next hop ลดลง แต่จนกว่าจะได้รันและวัดผลจริง สิ่งนั้นก็ยังเป็นเพียง
-แผน ไม่ใช่ผลลัพธ์ — ดังนั้นอย่าให้คำมั่นสัญญา และอย่าแสดงแบบด้นสดต่อหน้าผู้ฟัง
+<Aside type="danger" title="Do not rehearse a failover story from these pages">
+**Failover has not been tested.** The equal-cost next hops are verified installed; what
+happens to the route table when a CE is stopped or stops advertising has not been exercised
+against this deployment. The intended mechanism is to withdraw one CE's advertisement and
+watch the next-hop count drop, but until that has actually been run and measured it is a
+plan, not a result — so do not promise it, and do not improvise it in front of an audience.
 
-ติดตามได้ที่ [issue 700](https://github.com/f5-sales-demo/mcn/issues/700) ต้องใช้ช่วงเวลา
-ที่ไม่มีใครอื่นใช้สภาพแวดล้อมนี้ เนื่องจากมันเปลี่ยนสถานะการประกาศเส้นทางที่ใช้งานจริง
+Tracked in [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). It needs a window
+when nobody else is using the environment, since it changes live advertisement state.
 </Aside>
 
-- **การกระจายทราฟฟิกข้าม next hop ยังไม่ได้ถูกวัด** คำขอ 1,470 รายการไปยัง
-  VIP ถูกบันทึกไว้ใน [หน้าการตรวจสอบ](../verify/) ซึ่งยืนยันว่าเส้นทาง
-  ใช้งานได้และมีพฤติกรรมอย่างไรตามเวลา แต่ไม่มีสิ่งใดในนั้นแสดงว่าคำขอถูกกระจายข้าม
-  next hop อย่างไร และโทโพโลยีนี้ไม่มี HTTP listener ต่อโหนดที่จะใช้ระบุที่มาได้ หาก
-  ถูกถามว่า "กระจายเท่ากันไหม?" คำตอบที่ตรงไปตรงมาคือยังไม่ได้วัดในที่นี้
-- **สาเหตุของช่วงชั่วคราวในการลู่เข้าของสแตกที่สร้างใหม่ยังไม่ได้ระบุ** มันถูก
-  อธิบายลักษณะไว้ — เกิดขึ้นเมื่อใด นานเท่าใด และต้นทางสะอาดตลอดช่วงเวลานั้น —
-  แต่ไม่ได้อธิบายสาเหตุ
+- **Traffic distribution across the next hops has not been measured.** The from-zero UAT sent
+  160 requests to the VIP, and earlier testing sent 1,470 more. The
+  [verify page](../verify/) establishes that the path
+  works and how it behaves over time. None of that shows how requests were spread across the
+  next hops, and this topology gives no per-node HTTP listener to attribute them with. If
+  asked "is it even?", the honest answer is that it has not been measured here.
+- **The cause of the fresh-build convergence transient is not established.** It is
+  characterised — when it happens, for how long, and that the origin is clean throughout —
+  and not explained.
 
-<Aside type="note" title="หากคุณกำลังนำเสนอบนสแตกที่สร้างใหม่ ให้รอ">
-VIP จะสูญเสียคำขอเป็นสัดส่วนเล็กน้อยในช่วงประมาณ 45 นาทีแรกหลังจาก CE
-เข้าสู่สถานะ `ONLINE` อาการนี้หายไปโดยสมบูรณ์ ให้สร้างเดโมล่วงหน้านานพอก่อนที่คุณจะต้องใช้
-และรันการตรวจสอบที่ 4 อีกครั้งทันทีก่อนนำเสนอ
+<Aside type="note" title="If you are presenting on a freshly built stack, wait">
+The VIP loses a small fraction of requests for roughly the first 45 minutes after the CEs
+reach `ONLINE`. It clears completely. Build the demo well before you need it, and re-run
+check 4 immediately beforehand.
 </Aside>
 
 <CardGrid>
   <LinkCard
-    title="พิสูจน์ว่าระบบสมบูรณ์"
-    description="การตรวจสอบทั้งสี่รายการ และผลลัพธ์ที่ดูเหมือนปกติแต่อ่านได้ว่าเป็นเหตุขัดข้องซึ่งจริงๆ ไม่ใช่"
+    title="Prove it healthy"
+    description="The four checks, and the normal-looking results that read as an outage and are not."
     href="../verify/"
   />
   <LinkCard
-    title="Terraform"
-    description="ตัวการกำหนดค่าเอง สำหรับคำถามว่าสิ่งนี้ทำซ้ำได้หรือไม่"
+    title="The Terraform"
+    description="The configuration itself, for the question about whether this is reproducible."
     href="../terraform/"
   />
 </CardGrid>

@@ -1,54 +1,53 @@
 ---
-title: Les routes ne sont pas annoncées ou apprises
-description: >-
-  Séquence ordonnée pour un site en ligne dont le VIP est inaccessible, ou qui
-  n'apprend pas les préfixes attendus.
+title: Routes are not being advertised or learned
+description: Ordered sequence for a site that is online but whose VIP is unreachable, or which is not learning the prefixes it should.
 sidebar:
   order: 20
   label: BGP
-i18n:
-  sourceHash: eff4d5527048
-  translator: machine
 ---
 
 import { Steps, Aside } from "@astrojs/starlight/components";
 
-Pour un site dont l'état est `ONLINE` — s'il ne l'est pas, commencez par
-[l'enregistrement](../registration/).
+For a site that is `ONLINE` — if it is not, start with
+[registration](../registration/).
 
 <Steps>
 
-1. **Le peering est-il établi ?**
-   [`show-ip-bgp-summary`](../../commands/network/bgp/). Lisez `State/PfxRcd` : un
-   nombre signifie que la session est établie, et `Up/Down` indique si elle a été stable. Une valeur faible
-   sur un site actif depuis plusieurs jours signifie que la session est instable.
+1. **Is peering up at all?**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/). Read `State/PfxRcd`: a
+   number means established, and `Up/Down` shows whether it has been stable. A small
+   value on a site that has been up for days means the session is flapping.
 
-2. **Si la session est inactive**, la cause se situe généralement en dessous de BGP. Vérifiez que l'interface
-   portant le peering est active avec
-   [`ip-link-show`](../../commands/network/ip/), puis confirmez l'accessibilité à
-   l'adresse du pair. Sur cette topologie, les pairs sont les instances Azure Route Server.
+2. **If the session is down**, the cause is usually below BGP. Confirm the interface
+   carrying the peering is up with
+   [`ip-link-show`](../../commands/network/ip/), then confirm reachability to the
+   peer address.
+   - **On Azure**: Peers are Azure Route Server instances (`az network routeserver peering list-learned-routes`).
+   - **On AWS**: Peers are the AWS VPC Router / gateway interface (`10.150.0.1`).
+   - **On-Premise KVM**: Peers are the containerized FRR ToR BGP router (`docker exec frr-router vtysh -c "show ip bgp summary"`).
 
-3. **Si la session est active mais que le VIP est inaccessible**, vérifiez ce que le nœud
-   annonce réellement avec
-   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/). Si le
-   VIP est absent, le problème se situe sur ce nœud et l'examen du pair ne sera pas utile.
+3. **If the session is up but the VIP is unreachable**, check what the node is
+   actually advertising with
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/). If the
+   VIP is absent there, the problem is on this node and looking at the peer will not
+   help.
 
-4. **Si le nœud annonce correctement mais que le trafic n'arrive toujours pas**, le
-   plan de contrôle et le plan de données sont en désaccord. Vérifiez la table de transfert utilisée
-   par le plan de données avec [`rt`](../../commands/network/dataplane-forwarding/),
-   en gardant à l'esprit que son identifiant VRF n'est pas celui rapporté par BGP.
+4. **If the node advertises correctly but traffic still does not arrive**, the
+   control plane and the data plane disagree. Check the forwarding table the data
+   plane actually uses with [`rt`](../../commands/network/dataplane-forwarding/),
+   remembering that its VRF id is not the one BGP reports.
 
-   Résolvez ensuite le saut suivant avec `nh`. Un préfixe présent dans `rt` dont le saut suivant est
-   `Drop` est un trou noir.
+   Then resolve the next hop with `nh`. A prefix present in `rt` whose next hop is
+   `Drop` is a blackhole.
 
-5. **Si la session est instable**, [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
-   contient la dernière raison de réinitialisation et les minuteries négociées.
+5. **If the session flaps**, [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
+   carries the last reset reason and the negotiated timers.
 
 </Steps>
 
-<Aside type="caution" title="Deux schémas de numérotation VRF distincts">
-`show-ip-bgp-summary` rapporte le `vrf-id` de FRR. Le plan de données Argo numérote ses tables
-séparément, et passer le numéro de FRR à `rt --dump` retourne `No such file or
-directory` — ce qui ressemble à un nœud défaillant plutôt qu'à un argument incorrect. Sur cette
-topologie, le VRF 2 est la table inet4 renseignée.
+<Aside type="caution" title="Two different VRF numbering schemes">
+`show-ip-bgp-summary` reports FRR's `vrf-id`. The Argo data plane numbers its tables
+separately, and passing FRR's number to `rt --dump` returns `No such file or
+directory` — which looks like a broken node rather than a wrong argument. On this
+topology VRF 2 is the populated inet4 table.
 </Aside>

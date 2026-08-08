@@ -311,13 +311,16 @@ When the On-Premise KVM extension is deployed, verify hypervisor domain state, T
 
    Confirm all three KVM Customer Edge nodes (`onprem-ce-01`, `onprem-ce-02`, `onprem-ce-03`) are in `running` state.
 
-2. **Verify FRR ToR BGP Router peering status**:
+2. **Verify FRR ToR BGP Router peering status and ECMP multipath routes**:
 
    ```bash
    docker exec frr-router vtysh -c "show ip bgp summary"
+   docker exec frr-router vtysh -c "show ip bgp 10.100.0.10/32"
+   docker exec frr-router ip route show 10.100.0.10/32
    ```
 
    Confirm active eBGP sessions with all three On-Prem CEs (ASN `64512`) on local bridge network `ce-bgp-net` (`10.100.0.0/24`), showing established prefixes.
+   The `show ip bgp 10.100.0.10/32` command verifies BGP multipath (`*=` entries) installed by `maximum-paths 4`, and `ip route show` confirms ECMP multipath next hops installed in the Linux kernel.
 
 3. **Verify network reachability**:
 

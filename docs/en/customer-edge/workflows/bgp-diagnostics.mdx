@@ -21,7 +21,10 @@ For a site that is `ONLINE` — if it is not, start with
 2. **If the session is down**, the cause is usually below BGP. Confirm the interface
    carrying the peering is up with
    [`ip-link-show`](../../commands/network/ip/), then confirm reachability to the
-   peer address. On this topology the peers are the Azure Route Server instances.
+   peer address.
+   - **On Azure**: Peers are Azure Route Server instances (`az network routeserver peering list-learned-routes`).
+   - **On AWS**: Peers are the AWS VPC Router / gateway interface (`10.150.0.1`).
+   - **On-Premise KVM**: Peers are the containerized FRR ToR BGP router (`docker exec frr-router vtysh -c "show ip bgp summary"`).
 
 3. **If the session is up but the VIP is unreachable**, check what the node is
    actually advertising with
