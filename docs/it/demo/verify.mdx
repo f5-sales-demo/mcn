@@ -144,11 +144,24 @@ AWS_LB_NAME=$(terraform output -raw aws_loadbalancer_name)
                 fi"
    ```
 
-   Observed 2026-08-03 in the automated UAT. The final two batches were clean:
+   Observed 2026-08-08 live HTTP response headers and body proxied by Customer Edge (`server: volt-adc`):
 
    ```text
-   batch=3 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
-   batch=4 vip_ok=40 vip_fail=0 origin_ok=20 origin_fail=0
+   HTTP/1.1 200 OK
+   date: Sat, 08 Aug 2026 13:26:32 GMT
+   content-type: text/html
+   content-length: 1089
+   last-modified: Wed, 22 Jul 2026 02:38:45 GMT
+   vary: Accept-Encoding
+   etag: "6a602d35-441"
+   accept-ranges: bytes
+   x-envoy-upstream-service-time: 322
+   server: volt-adc
+
+   <!DOCTYPE html>
+   <html>
+   <head><title>Origin Server</title></head>
+   <body>
    ```
 
 </Steps>
