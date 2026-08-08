@@ -99,8 +99,10 @@ against this deployment. The intended mechanism is to withdraw one CE's advertis
 watch the next-hop count drop, but until that has actually been run and measured it is a
 plan, not a result — so do not promise it, and do not improvise it in front of an audience.
 
-Tracked in [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). It needs a window
-when nobody else is using the environment, since it changes live advertisement state.
+Testing it needs a window when nobody else is using the environment, since it changes live
+advertisement state. Until then, use the generic
+[routing and failover guide](../../customer-edge/high-availability/routing-and-failover/)
+to explain the intended mechanism without presenting it as an observed result from this demo.
 </Aside>
 
 - **Traffic distribution across the next hops has not been measured.** The from-zero UAT sent

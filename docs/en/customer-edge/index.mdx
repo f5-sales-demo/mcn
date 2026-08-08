@@ -127,3 +127,7 @@ three network interface cards on each node actually are: why the Site Local Outs
 interface is the one reserved for reaching F5, what the Secure Mesh Site v2 management
 network is and the constraints that decide whether you can use it, and why the `mgmt` NIC
 here is not an out-of-band management interface.
+
+For architecture rather than diagnostics, [Customer Edge high availability](./high-availability/)
+separates multi-node clustering from several independent sites joined by BGP and ECMP, then
+explains route withdrawal, path limits, flow affinity, and application persistence.

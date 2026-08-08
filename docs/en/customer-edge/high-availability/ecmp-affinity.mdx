@@ -1,0 +1,79 @@
+---
+title: ECMP affinity and persistence
+description: Understand how ECMP keeps network flows on a path, why that is not application persistence, and what changes when a router omits the source port from its hash.
+sidebar:
+  order: 30
+  label: ECMP affinity
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Equal-Cost Multi-Path (ECMP) routing distributes flows; it does not understand users,
+cookies, login sessions, or application transactions. Design application persistence at an
+application-aware layer rather than treating a stable ECMP hash as a persistence feature.
+
+## A hash identifies a flow, not a user
+
+Many routers select an equal-cost path from fields in the Internet Protocol (IP) and
+transport headers. A common input is the five-tuple: source address, destination address,
+protocol, source port, and destination port. The exact fields, seed, and behavior are
+platform-specific.
+
+Packets with the same selected fields normally follow the same path while the ECMP set is
+stable. A new connection can use a different source port and therefore select another CE.
+HTTP/1.0, HTTP/1.1, HTTP/2, browser connection reuse, proxies, and Network Address
+Translation (NAT) all change how many transport connections represent one apparent user
+session.
+
+That behavior is flow affinity only. It is not source-address persistence, cookie
+persistence, or session-state replication.
+
+## Omitting the source port changes the tradeoff
+
+Some routers can omit the source port from the ECMP hash. Doing so can keep connections with
+the same source and destination addresses on one path more often, but it reduces the values
+available to spread traffic. Many users behind one NAT address can then concentrate on a
+single CE.
+
+This configuration still does not guarantee application persistence:
+
+- a path-set change can remap the hash;
+- a CE failure moves new traffic to a different CE;
+- a client address can change;
+- application state is not copied between CEs by the router.
+
+<Aside type="caution" title="Do not prescribe one hash for every network">
+Hash controls and defaults differ by router. Select fields only after measuring the expected
+client, NAT, protocol, and connection-reuse patterns. A change that improves coarse affinity
+can create severe load imbalance.
+</Aside>
+
+## Put strict persistence at the correct layer
+
+When an application requires a user to return to the same processing context, use a
+supported application-layer persistence mechanism or externalize the session state. Examples
+include cookie persistence, source-address persistence implemented by an application-aware
+load balancer, and a shared session store.
+
+State the requirement precisely:
+
+| Requirement | Appropriate mechanism |
+| --- | --- |
+| Keep packets in one transport flow on one path | ECMP flow hashing |
+| Keep new connections from one address on one target | Source-address affinity, with NAT concentration understood |
+| Keep one authenticated user on one application instance | Application-layer persistence |
+| Survive loss of the selected CE or application instance | Replicated or external session state plus health-aware failover |
+
+## Verify with traffic, not assumptions
+
+Generate multiple independent connections and compare per-path or per-CE counters. Include
+clients behind NAT, every HTTP version in scope, long-lived connections, and a path-set
+change. A successful request proves reachability; it does not prove even distribution or
+persistence.
+
+For the routing side of a path-set change, see [Routing and failover](../routing-and-failover/).
+
+## Standards reference
+
+[RFC 2992](https://www.rfc-editor.org/rfc/rfc2992.html) describes one model for distributing
+flows across equal-cost next hops and the disruption caused when the next-hop set changes.

@@ -98,6 +98,10 @@ So the management network and a three-node cluster are mutually exclusive by con
 and neither half of that pair is a runtime decision. A site created with High Availability
 enabled cannot later acquire a management network by toggling a menu — it needs a new site
 object and a re-deployment.
+
+This is site-level clustering. It is different from routing-level availability across
+independent CE sites; use the [high-availability design guide](../high-availability/) to choose
+between them.
 </Aside>
 
 <Aside type="caution" title="Adding interfaces to a cluster is a maintenance-window operation">
