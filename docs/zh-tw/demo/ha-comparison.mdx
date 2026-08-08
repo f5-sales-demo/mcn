@@ -12,6 +12,7 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 When deploying F5 Distributed Cloud (XC) Customer Edge (CE) nodes in cloud environments, choosing the high availability (HA) ingress pattern is a key architectural decision.
 
 This deployment demonstrates both primary HA patterns in a single multi-cloud environment:
+
 1. **Dynamic BGP / ECMP Routing (Azure Route Server / AWS VPC / FRR ToR)**: Used for the Rest of World (`eastus`), AWS (`us-east-2`), and On-Premise KVM paths.
 2. **Azure Internal Load Balancer (ILB) with HA Ports**: Used as the Canadian regional demonstration variation (`enable_canada_ilb = true`).
 
@@ -81,7 +82,7 @@ az network nic show-effective-route-table \
 
 ## 3. Pattern B Drill-Down: Azure Internal Load Balancer (ILB)
 
-### Architecture & Traffic Flow
+### Pattern B Architecture & Traffic Flow
 
 In the Azure ILB architecture variation (`enable_canada_ilb = true`), Azure's Standard Load Balancer acts as the L4 ingress mechanism for the Canadian Customer Edge cluster.
 
