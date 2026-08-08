@@ -1,28 +1,25 @@
 ---
-title: 演示展示
-description: >-
-  本次部署能够演示什么内容，以及如何用一条命令进行展示——由路由架构而非负载均衡器编排的等价多路径——以及它目前还无法展示的三件事，明确说明以避免在观众面前才发现这些问题。
+title: Present the demo
+description: What this deployment can demonstrate and how to show it in one command — equal-cost multipath programmed by the routing fabric rather than a load balancer — plus the three things it cannot yet show, stated plainly so a rehearsal does not discover them in front of an audience.
 sidebar:
   order: 40
-  label: 演示
-i18n:
-  sourceHash: 5e23dca1c815
-  translator: machine
+  label: Present
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-本演示所支持的论点范围很窄，值得精确表述，因为更宽泛的说法经不起提问：
+The claim this demo supports is narrow and worth stating precisely, because a wider one will
+not survive questions:
 
-> 多个 Customer Edge 各自通过 eBGP 通告同一条主机路由，Azure 将它们全部安装为等价下一跳。
-> 因此流量分布和节点移除是路由架构的特性——CE 前面并没有 Azure 负载均衡器。
+> Customer Edges in Azure, AWS, and On-Premise KVM advertise the same host route by eBGP (or load balance via Azure ILB), and the native routing fabric installs all of them as equal-cost next hops. Traffic distribution and node removal are therefore properties of the routing fabric — there is no cloud load balancer required in front of the CEs for BGP/ECMP topologies.
 
-请先运行[四项健康检查](../verify/)。以下内容均假定检查已通过。
+Run [the four health checks](../verify/) first. Everything below assumes they passed.
 
-## 让它可见的那一条命令
+## The one command that makes it visible
 
-有效路由是最有力的单一证据：它们是 Azure 实际编排的内容，而不是 CE 声称的内容。
+Effective routes are the strongest single artefact: they are what Azure actually programmed,
+not what the CEs claim.
 
 ```bash
 cd terraform
@@ -33,21 +30,23 @@ az network nic show-effective-route-table \
   -o json
 ```
 
-观测于 2026-07-28：
+Observed 2026-08-03. The addresses are shown as placeholders because published pages do not
+carry live deployment values:
 
 ```json
 [
   {
-    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-    "prefix": "10.250.0.10/32",
+    "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+    "prefix": "<VIP>/32",
     "state": "Active"
   }
 ]
 ```
 
-一条前缀、三个下一跳、`Active`。这一条输出就是整个演示的要点所在，值得停下来强调：画面中没有任何负载均衡器。
+One prefix, three next hops, `Active`. That is the whole point of the demo in a single
+output, and it is worth pausing on: nothing in the picture is a load balancer.
 
-然后展示它正在提供服务，从 VNet 内部发起并带上 `Host` 头：
+Then show it serving, from inside the VNet and with the `Host` header:
 
 ```bash
 az vm run-command invoke \
@@ -59,59 +58,76 @@ az vm run-command invoke \
                http://$(terraform output -raw vip)/"
 ```
 
-<Aside type="caution" title="不要通过在浏览器中输入地址来演示">
-负载均衡器基于 `Host` 进行匹配，因此裸 IP 请求会返回 **404**——即使部署完全健康也是如此。
-要么发送该请求头，要么先将域名解析到 VIP。在观众面前出现 404 很难挽回，即便实际上一切正常。
+<Aside type="caution" title="Do not demo it by typing the address into a browser">
+The load balancer matches on `Host`, so a bare-IP request returns **404** — on a completely
+healthy deployment. Either send the header, or resolve the domain to the VIP first. A 404 in
+front of an audience is hard to walk back from even though nothing is wrong.
 </Aside>
 
-## 建议的顺序
+## Suggested order
 
 <Steps>
 
-1. **搭建框架。** 一个 VIP、多个 CE、没有负载均衡器。路由架构就是 HA 机制。
-2. **展示通告一侧。** 循环查看对等会话（[检查 2](../verify/)）——每个 CE 使用各自的下一跳通告同一条前缀，
-   且 AS path 相同，因此没有哪一条会被优选。
-3. **展示 Azure 对此做了什么。** 上面的有效路由表：一条前缀、N 个下一跳、`Active`。
-4. **展示它在提供服务。** 上面那条带请求头的 `curl`。
-5. **展示配置。** [Terraform](../terraform/) 已在此发布，直接从部署所用的文件中读取——
-   当有人询问这是否可复现时会很有用。
+1. **Frame the 4-path hybrid architecture.** One VIP per regional path, several CEs, and no cloud load balancer needed for BGP/ECMP:
+   - **ROW (`eastus`)**: Azure Route Server + eBGP/ECMP (`f5-sales-demo.com`)
+   - **Canada (`canadacentral`)**: Canadian Regional Edge Virtual Site (`f5-sales-demo.ca`) supporting Azure Route Server (eBGP/ECMP) or Azure Internal Load Balancer (`enable_canada_ilb`)
+   - **AWS (`us-east-2`)**: AWS VPC + EC2 CEs (`m5.2xlarge`) (`aws.mcn-ce-ha.f5-sales-demo.com`)
+   - **On-Premise KVM**: Local libvirt bridge + FRR ToR BGP router (`10.100.0.1`, ASN `65515`, `maximum-paths 4`)
+2. **Show the advertisement side.** Loop the peerings ([check 2](../verify/)) — each CE
+   advertising the same prefix with its own next hop, all with the same AS path, so none is
+   preferred.
+3. **Show what Azure, AWS, and FRR did with it.**
+   - In Azure: Effective route table showing one prefix with $N$ next hops (`type: VirtualNetworkGateway`).
+   - In On-Premise FRR: `vtysh -c "show ip bgp 10.100.0.10/32"` showing multiple `*=` multipath entries, and `ip route show 10.100.0.10/32` in Linux kernel showing ECMP multipath next hops.
+4. **Show regional data sovereignty & traffic localization.** Demonstrate how `xcsh_virtual_site.canada_re` uses `ves.io/city in (toronto, montreal)` to restrict ingress, egress, and TLS decryption for `f5-sales-demo.ca` strictly within Canadian Regional Edges.
+5. **Show Canadian ILB Architecture Variation (when `enable_canada_ilb = true`).** Show how Azure Standard ILB (`azurerm_lb.ca_ilb`) uses HA Ports (`protocol = "All"`) and Health Probes (`Tcp/65500`) to distribute traffic across Canadian CE management NICs without BGP.
+6. **Show it serving.** The `curl` commands, sending Host headers for `mcn-ce-ha.f5-sales-demo.com`, `mcn-ce-ha.f5-sales-demo.ca`, and `aws.mcn-ce-ha.f5-sales-demo.com`.
+7. **Show the configuration.** [The Terraform](../terraform/) is published here, read from
+   the files that deploy it — useful when someone asks whether this is reproducible.
 
 </Steps>
 
-## 本演示目前还无法展示的内容
+## What this demo cannot yet show
 
-在此明确说明，而不是在现场才发现。这三点都是缺少证据，而非已知的故障。
+Stated here rather than discovered live. All three are absences of evidence, not known
+failures.
 
-<Aside type="danger" title="不要基于这些页面排练故障切换的说法">
-**故障切换尚未测试。** 已验证等价下一跳被安装；但当某个 CE 被停止或停止通告时路由表会发生什么，
-尚未在本部署上实际验证过。预期机制是撤回某个 CE 的通告并观察下一跳数量下降，
-但在真正运行并测量之前，这只是一个计划，而不是结果——所以不要做出承诺，也不要在观众面前临场发挥。
+<Aside type="danger" title="Do not rehearse a failover story from these pages">
+**Failover has not been tested.** The equal-cost next hops are verified installed; what
+happens to the route table when a CE is stopped or stops advertising has not been exercised
+against this deployment. The intended mechanism is to withdraw one CE's advertisement and
+watch the next-hop count drop, but until that has actually been run and measured it is a
+plan, not a result — so do not promise it, and do not improvise it in front of an audience.
 
-跟踪于 [issue 700](https://github.com/f5-sales-demo/mcn/issues/700)。它需要一个无人使用该环境的时间窗口，
-因为它会改变实时的通告状态。
+Tracked in [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). It needs a window
+when nobody else is using the environment, since it changes live advertisement state.
 </Aside>
 
-- **各下一跳之间的流量分布尚未测量。** [验证页面](../verify/)记录了向 VIP 发出的 1,470 个请求，
-  这证明了路径可用以及它随时间的表现。但这些都没有显示请求如何在下一跳之间分散，
-  而且该拓扑没有提供按节点的 HTTP 监听器来归因这些请求。如果被问到"分布是否均匀？"，
-  诚实的回答是这里尚未测量。
-- **全新构建时收敛瞬态的成因尚未确定。** 它已被描述特征——何时发生、持续多久、以及源站在整个过程中都是正常的——
-  但没有得到解释。
+- **Traffic distribution across the next hops has not been measured.** The from-zero UAT sent
+  160 requests to the VIP, and earlier testing sent 1,470 more. The
+  [verify page](../verify/) establishes that the path
+  works and how it behaves over time. None of that shows how requests were spread across the
+  next hops, and this topology gives no per-node HTTP listener to attribute them with. If
+  asked "is it even?", the honest answer is that it has not been measured here.
+- **The cause of the fresh-build convergence transient is not established.** It is
+  characterised — when it happens, for how long, and that the origin is clean throughout —
+  and not explained.
 
-<Aside type="note" title="如果你要在刚构建的环境上演示，请等待">
-在 CE 达到 `ONLINE` 之后的大约前 45 分钟内，VIP 会丢失一小部分请求。之后会完全恢复。
-请在真正需要之前就构建好演示环境，并在演示前立即重新运行检查 4。
+<Aside type="note" title="If you are presenting on a freshly built stack, wait">
+The VIP loses a small fraction of requests for roughly the first 45 minutes after the CEs
+reach `ONLINE`. It clears completely. Build the demo well before you need it, and re-run
+check 4 immediately beforehand.
 </Aside>
 
 <CardGrid>
   <LinkCard
-    title="证明它是健康的"
-    description="四项检查，以及那些看似正常却读起来像故障、但实际并非故障的结果。"
+    title="Prove it healthy"
+    description="The four checks, and the normal-looking results that read as an outage and are not."
     href="../verify/"
   />
   <LinkCard
-    title="Terraform 配置"
-    description="配置本身，用于回答这是否可复现的问题。"
+    title="The Terraform"
+    description="The configuration itself, for the question about whether this is reproducible."
     href="../terraform/"
   />
 </CardGrid>

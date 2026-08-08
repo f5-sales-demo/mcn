@@ -12,9 +12,7 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 The claim this demo supports is narrow and worth stating precisely, because a wider one will
 not survive questions:
 
-> Several Customer Edges each advertise the same host route by eBGP, and Azure installs all
-> of them as equal-cost next hops. Traffic distribution and node removal are therefore
-> properties of the routing fabric — there is no Azure load balancer in front of the CEs.
+> Customer Edges in Azure, AWS, and On-Premise KVM advertise the same host route by eBGP (or load balance via Azure ILB), and the native routing fabric installs all of them as equal-cost next hops. Traffic distribution and node removal are therefore properties of the routing fabric — there is no cloud load balancer required in front of the CEs for BGP/ECMP topologies.
 
 Run [the four health checks](../verify/) first. Everything below assumes they passed.
 
@@ -70,15 +68,21 @@ front of an audience is hard to walk back from even though nothing is wrong.
 
 <Steps>
 
-1. **Frame it.** One VIP, several CEs, no load balancer — plus parallel regional routing paths (ROW `f5-sales-demo.com` and Canada-only `f5-sales-demo.ca`).
+1. **Frame the 4-path hybrid architecture.** One VIP per regional path, several CEs, and no cloud load balancer needed for BGP/ECMP:
+   - **ROW (`eastus`)**: Azure Route Server + eBGP/ECMP (`f5-sales-demo.com`)
+   - **Canada (`canadacentral`)**: Canadian Regional Edge Virtual Site (`f5-sales-demo.ca`) supporting Azure Route Server (eBGP/ECMP) or Azure Internal Load Balancer (`enable_canada_ilb`)
+   - **AWS (`us-east-2`)**: AWS VPC + EC2 CEs (`m5.2xlarge`) (`aws.mcn-ce-ha.f5-sales-demo.com`)
+   - **On-Premise KVM**: Local libvirt bridge + FRR ToR BGP router (`10.100.0.1`, ASN `65515`, `maximum-paths 4`)
 2. **Show the advertisement side.** Loop the peerings ([check 2](../verify/)) — each CE
    advertising the same prefix with its own next hop, all with the same AS path, so none is
    preferred.
-3. **Show what Azure did with it.** The effective route table above: one prefix, N next
-   hops, `Active`.
+3. **Show what Azure, AWS, and FRR did with it.**
+   - In Azure: Effective route table showing one prefix with $N$ next hops (`type: VirtualNetworkGateway`).
+   - In On-Premise FRR: `vtysh -c "show ip bgp 10.100.0.10/32"` showing multiple `*=` multipath entries, and `ip route show 10.100.0.10/32` in Linux kernel showing ECMP multipath next hops.
 4. **Show regional data sovereignty & traffic localization.** Demonstrate how `xcsh_virtual_site.canada_re` uses `ves.io/city in (toronto, montreal)` to restrict ingress, egress, and TLS decryption for `f5-sales-demo.ca` strictly within Canadian Regional Edges.
-5. **Show it serving.** The `curl` commands above, sending Host headers for both `mcn-ce-ha.f5-sales-demo.com` and `mcn-ce-ha.f5-sales-demo.ca`.
-6. **Show the configuration.** [The Terraform](../terraform/) is published here, read from
+5. **Show Canadian ILB Architecture Variation (when `enable_canada_ilb = true`).** Show how Azure Standard ILB (`azurerm_lb.ca_ilb`) uses HA Ports (`protocol = "All"`) and Health Probes (`Tcp/65500`) to distribute traffic across Canadian CE management NICs without BGP.
+6. **Show it serving.** The `curl` commands, sending Host headers for `mcn-ce-ha.f5-sales-demo.com`, `mcn-ce-ha.f5-sales-demo.ca`, and `aws.mcn-ce-ha.f5-sales-demo.com`.
+7. **Show the configuration.** [The Terraform](../terraform/) is published here, read from
    the files that deploy it — useful when someone asks whether this is reproducible.
 
 </Steps>

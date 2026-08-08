@@ -1,32 +1,25 @@
 ---
-title: 데모 시연하기
-description: >-
-  이 배포가 무엇을 시연할 수 있고 단일 명령으로 어떻게 보여줄 수 있는지 — 로드 밸런서가 아니라 라우팅 패브릭이 프로그래밍한 등가 비용
-  다중 경로 — 그리고 아직 보여줄 수 없는 세 가지를 명확히 밝혀 리허설이 청중 앞에서 그것을 발견하지 않도록 합니다.
+title: Present the demo
+description: What this deployment can demonstrate and how to show it in one command — equal-cost multipath programmed by the routing fabric rather than a load balancer — plus the three things it cannot yet show, stated plainly so a rehearsal does not discover them in front of an audience.
 sidebar:
   order: 40
-  label: 시연
-i18n:
-  sourceHash: 5e23dca1c815
-  translator: machine
+  label: Present
 ---
 
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-이 데모가 뒷받침하는 주장은 범위가 좁으며 정확하게 진술할 가치가 있습니다. 더 넓은 주장은
-질문을 견디지 못할 것이기 때문입니다:
+The claim this demo supports is narrow and worth stating precisely, because a wider one will
+not survive questions:
 
-> 여러 Customer Edge가 각각 eBGP로 동일한 호스트 경로를 광고하고, Azure는 그들 모두를
-> 등가 비용 다음 홉으로 설치합니다. 따라서 트래픽 분산과 노드 제거는 라우팅 패브릭의
-> 속성입니다 — CE 앞단에 Azure 로드 밸런서는 없습니다.
+> Customer Edges in Azure, AWS, and On-Premise KVM advertise the same host route by eBGP (or load balance via Azure ILB), and the native routing fabric installs all of them as equal-cost next hops. Traffic distribution and node removal are therefore properties of the routing fabric — there is no cloud load balancer required in front of the CEs for BGP/ECMP topologies.
 
-먼저 [네 가지 상태 점검](../verify/)을 실행하십시오. 아래의 모든 내용은 그 점검이 통과했다고 가정합니다.
+Run [the four health checks](../verify/) first. Everything below assumes they passed.
 
-## 이를 가시화하는 단 하나의 명령
+## The one command that makes it visible
 
-유효 경로(effective routes)는 가장 강력한 단일 증거물입니다. CE가 주장하는 것이 아니라
-Azure가 실제로 프로그래밍한 내용이기 때문입니다.
+Effective routes are the strongest single artefact: they are what Azure actually programmed,
+not what the CEs claim.
 
 ```bash
 cd terraform
@@ -37,22 +30,23 @@ az network nic show-effective-route-table \
   -o json
 ```
 
-2026-07-28 관측 결과:
+Observed 2026-08-03. The addresses are shown as placeholders because published pages do not
+carry live deployment values:
 
 ```json
 [
   {
-    "nh": ["10.0.1.5", "10.0.1.6", "10.0.1.4"],
-    "prefix": "10.250.0.10/32",
+    "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
+    "prefix": "<VIP>/32",
     "state": "Active"
   }
 ]
 ```
 
-하나의 프리픽스, 세 개의 다음 홉, `Active`. 이것이 단일 출력에 담긴 이 데모의 요점 전부이며,
-잠시 짚고 넘어갈 가치가 있습니다: 이 그림 안에 로드 밸런서는 없습니다.
+One prefix, three next hops, `Active`. That is the whole point of the demo in a single
+output, and it is worth pausing on: nothing in the picture is a load balancer.
 
-그다음 VNet 내부에서 `Host` 헤더와 함께 서비스가 동작하는 것을 보여주십시오:
+Then show it serving, from inside the VNet and with the `Host` header:
 
 ```bash
 az vm run-command invoke \
@@ -64,69 +58,76 @@ az vm run-command invoke \
                http://$(terraform output -raw vip)/"
 ```
 
-<Aside type="caution" title="브라우저에 주소를 입력하는 방식으로 데모하지 마십시오">
-로드 밸런서는 `Host`로 매칭하므로, IP만 사용한 요청은 완전히 정상적인 배포에서도 **404**를
-반환합니다. 헤더를 함께 보내거나, 먼저 도메인을 VIP로 확인(resolve)하십시오. 아무 문제가
-없더라도 청중 앞에서의 404는 되돌리기 어렵습니다.
+<Aside type="caution" title="Do not demo it by typing the address into a browser">
+The load balancer matches on `Host`, so a bare-IP request returns **404** — on a completely
+healthy deployment. Either send the header, or resolve the domain to the VIP first. A 404 in
+front of an audience is hard to walk back from even though nothing is wrong.
 </Aside>
 
-## 권장 순서
+## Suggested order
 
 <Steps>
 
-1. **틀을 제시합니다.** 하나의 VIP, 여러 CE, 로드 밸런서 없음. 라우팅 패브릭이 HA
-   메커니즘입니다.
-2. **광고 측면을 보여줍니다.** 피어링을 순회합니다([점검 2](../verify/)) — 각 CE가 동일한
-   프리픽스를 자신의 다음 홉과 함께 광고하며, 모두 동일한 AS 경로를 가지므로 어느 것도
-   우선되지 않습니다.
-3. **Azure가 그것으로 무엇을 했는지 보여줍니다.** 위의 유효 경로 테이블: 하나의 프리픽스,
-   N개의 다음 홉, `Active`.
-4. **서비스가 동작함을 보여줍니다.** 헤더를 포함한 위의 `curl`.
-5. **구성을 보여줍니다.** [Terraform](../terraform/)이 여기에 게시되어 있으며, 배포를
-   수행하는 파일에서 직접 읽어옵니다 — 누군가 이것이 재현 가능한지 물을 때 유용합니다.
+1. **Frame the 4-path hybrid architecture.** One VIP per regional path, several CEs, and no cloud load balancer needed for BGP/ECMP:
+   - **ROW (`eastus`)**: Azure Route Server + eBGP/ECMP (`f5-sales-demo.com`)
+   - **Canada (`canadacentral`)**: Canadian Regional Edge Virtual Site (`f5-sales-demo.ca`) supporting Azure Route Server (eBGP/ECMP) or Azure Internal Load Balancer (`enable_canada_ilb`)
+   - **AWS (`us-east-2`)**: AWS VPC + EC2 CEs (`m5.2xlarge`) (`aws.mcn-ce-ha.f5-sales-demo.com`)
+   - **On-Premise KVM**: Local libvirt bridge + FRR ToR BGP router (`10.100.0.1`, ASN `65515`, `maximum-paths 4`)
+2. **Show the advertisement side.** Loop the peerings ([check 2](../verify/)) — each CE
+   advertising the same prefix with its own next hop, all with the same AS path, so none is
+   preferred.
+3. **Show what Azure, AWS, and FRR did with it.**
+   - In Azure: Effective route table showing one prefix with $N$ next hops (`type: VirtualNetworkGateway`).
+   - In On-Premise FRR: `vtysh -c "show ip bgp 10.100.0.10/32"` showing multiple `*=` multipath entries, and `ip route show 10.100.0.10/32` in Linux kernel showing ECMP multipath next hops.
+4. **Show regional data sovereignty & traffic localization.** Demonstrate how `xcsh_virtual_site.canada_re` uses `ves.io/city in (toronto, montreal)` to restrict ingress, egress, and TLS decryption for `f5-sales-demo.ca` strictly within Canadian Regional Edges.
+5. **Show Canadian ILB Architecture Variation (when `enable_canada_ilb = true`).** Show how Azure Standard ILB (`azurerm_lb.ca_ilb`) uses HA Ports (`protocol = "All"`) and Health Probes (`Tcp/65500`) to distribute traffic across Canadian CE management NICs without BGP.
+6. **Show it serving.** The `curl` commands, sending Host headers for `mcn-ce-ha.f5-sales-demo.com`, `mcn-ce-ha.f5-sales-demo.ca`, and `aws.mcn-ce-ha.f5-sales-demo.com`.
+7. **Show the configuration.** [The Terraform](../terraform/) is published here, read from
+   the files that deploy it — useful when someone asks whether this is reproducible.
 
 </Steps>
 
-## 이 데모가 아직 보여줄 수 없는 것
+## What this demo cannot yet show
 
-라이브 중에 발견하는 대신 여기에 명시합니다. 세 가지 모두 알려진 실패가 아니라 증거의
-부재입니다.
+Stated here rather than discovered live. All three are absences of evidence, not known
+failures.
 
-<Aside type="danger" title="이 페이지들을 근거로 페일오버 시나리오를 리허설하지 마십시오">
-**페일오버는 테스트되지 않았습니다.** 등가 비용 다음 홉이 설치되었음은 검증되었지만, CE가
-중지되거나 광고를 중단할 때 경로 테이블에 무슨 일이 일어나는지는 이 배포에 대해 실행되지
-않았습니다. 의도된 메커니즘은 한 CE의 광고를 철회하고 다음 홉 수가 줄어드는 것을 관찰하는
-것이지만, 실제로 실행하고 측정하기 전까지는 결과가 아니라 계획입니다 — 그러므로 약속하지
-말고, 청중 앞에서 즉흥적으로 시도하지 마십시오.
+<Aside type="danger" title="Do not rehearse a failover story from these pages">
+**Failover has not been tested.** The equal-cost next hops are verified installed; what
+happens to the route table when a CE is stopped or stops advertising has not been exercised
+against this deployment. The intended mechanism is to withdraw one CE's advertisement and
+watch the next-hop count drop, but until that has actually been run and measured it is a
+plan, not a result — so do not promise it, and do not improvise it in front of an audience.
 
-[이슈 700](https://github.com/f5-sales-demo/mcn/issues/700)에서 추적됩니다. 라이브 광고
-상태를 변경하므로, 아무도 이 환경을 사용하지 않는 시간대가 필요합니다.
+Tracked in [issue 700](https://github.com/f5-sales-demo/mcn/issues/700). It needs a window
+when nobody else is using the environment, since it changes live advertisement state.
 </Aside>
 
-- **다음 홉 간 트래픽 분산은 측정되지 않았습니다.** VIP로 향한 1,470건의 요청은
-  [검증 페이지](../verify/)에 기록되어 있으며, 이는 경로가 동작함과 시간에 따른 동작 양상을
-  입증합니다. 그중 어느 것도 요청이 다음 홉들에 어떻게 분산되었는지는 보여주지 않으며, 이
-  토폴로지는 요청을 귀속시킬 노드별 HTTP 리스너를 제공하지 않습니다. "고르게 분산되나요?"라는
-  질문에 대한 정직한 답은, 여기서는 측정되지 않았다는 것입니다.
-- **신규 빌드의 수렴 과도 현상의 원인은 확인되지 않았습니다.** 특성은 파악되었으나 — 언제
-  발생하는지, 얼마나 지속되는지, 그리고 그 기간 내내 오리진은 정상이라는 점 — 설명되지는
-  않았습니다.
+- **Traffic distribution across the next hops has not been measured.** The from-zero UAT sent
+  160 requests to the VIP, and earlier testing sent 1,470 more. The
+  [verify page](../verify/) establishes that the path
+  works and how it behaves over time. None of that shows how requests were spread across the
+  next hops, and this topology gives no per-node HTTP listener to attribute them with. If
+  asked "is it even?", the honest answer is that it has not been measured here.
+- **The cause of the fresh-build convergence transient is not established.** It is
+  characterised — when it happens, for how long, and that the origin is clean throughout —
+  and not explained.
 
-<Aside type="note" title="새로 빌드한 스택에서 시연하는 경우, 기다리십시오">
-CE가 `ONLINE`에 도달한 후 약 첫 45분 동안 VIP는 소수의 요청을 손실합니다. 이는 완전히
-해소됩니다. 필요한 시점보다 충분히 앞서 데모를 빌드하고, 바로 직전에 점검 4를 다시
-실행하십시오.
+<Aside type="note" title="If you are presenting on a freshly built stack, wait">
+The VIP loses a small fraction of requests for roughly the first 45 minutes after the CEs
+reach `ONLINE`. It clears completely. Build the demo well before you need it, and re-run
+check 4 immediately beforehand.
 </Aside>
 
 <CardGrid>
   <LinkCard
-    title="정상 상태 입증하기"
-    description="네 가지 점검과, 장애처럼 보이지만 실제로는 정상인 결과들."
+    title="Prove it healthy"
+    description="The four checks, and the normal-looking results that read as an outage and are not."
     href="../verify/"
   />
   <LinkCard
-    title="Terraform"
-    description="이것이 재현 가능한지에 대한 질문을 위한, 구성 자체."
+    title="The Terraform"
+    description="The configuration itself, for the question about whether this is reproducible."
     href="../terraform/"
   />
 </CardGrid>

@@ -1,47 +1,53 @@
 ---
-title: रूट्स का विज्ञापन या अधिगम नहीं हो रहा
-description: >-
-  उस साइट के लिए क्रमबद्ध अनुक्रम जो ऑनलाइन है लेकिन जिसका VIP अनुपलब्ध है, या
-  जो अपेक्षित प्रीफ़िक्स नहीं सीख रही।
+title: Routes are not being advertised or learned
+description: Ordered sequence for a site that is online but whose VIP is unreachable, or which is not learning the prefixes it should.
 sidebar:
   order: 20
   label: BGP
-i18n:
-  sourceHash: eff4d5527048
-  translator: machine
 ---
 
 import { Steps, Aside } from "@astrojs/starlight/components";
 
-उस साइट के लिए जो `ONLINE` है — यदि नहीं है, तो
-[पंजीकरण](../registration/) से शुरू करें।
+For a site that is `ONLINE` — if it is not, start with
+[registration](../registration/).
 
 <Steps>
 
-1. **क्या पीयरिंग बिल्कुल भी सक्रिय है?**
-   [`show-ip-bgp-summary`](../../commands/network/bgp/) देखें। `State/PfxRcd` पढ़ें: एक
-   संख्या का अर्थ है स्थापित, और `Up/Down` दर्शाता है कि यह कितना स्थिर रहा है। किसी ऐसी साइट पर जो कई दिनों से सक्रिय हो, एक छोटा मान यह संकेत देता है कि सत्र फ्लैप कर रहा है।
+1. **Is peering up at all?**
+   [`show-ip-bgp-summary`](../../commands/network/bgp/). Read `State/PfxRcd`: a
+   number means established, and `Up/Down` shows whether it has been stable. A small
+   value on a site that has been up for days means the session is flapping.
 
-2. **यदि सत्र बंद है**, तो कारण सामान्यतः BGP से नीचे होता है। उस इंटरफ़ेस की स्थिति की पुष्टि करें जो पीयरिंग वहन कर रहा है
-   [`ip-link-show`](../../commands/network/ip/) से, फिर पीयर पते तक पहुँच की पुष्टि करें। इस टोपोलॉजी में पीयर Azure Route Server इंस्टेंस हैं।
+2. **If the session is down**, the cause is usually below BGP. Confirm the interface
+   carrying the peering is up with
+   [`ip-link-show`](../../commands/network/ip/), then confirm reachability to the
+   peer address.
+   - **On Azure**: Peers are Azure Route Server instances (`az network routeserver peering list-learned-routes`).
+   - **On AWS**: Peers are the AWS VPC Router / gateway interface (`10.150.0.1`).
+   - **On-Premise KVM**: Peers are the containerized FRR ToR BGP router (`docker exec frr-router vtysh -c "show ip bgp summary"`).
 
-3. **यदि सत्र सक्रिय है लेकिन VIP अनुपलब्ध है**, तो जाँचें कि नोड वास्तव में क्या विज्ञापित कर रहा है
-   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/) से। यदि VIP वहाँ अनुपस्थित है, तो समस्या इस नोड पर है और पीयर को देखने से कोई सहायता नहीं मिलेगी।
+3. **If the session is up but the VIP is unreachable**, check what the node is
+   actually advertising with
+   [`show-ip-bgp-neighbors-advertised-route`](../../commands/network/bgp/). If the
+   VIP is absent there, the problem is on this node and looking at the peer will not
+   help.
 
-4. **यदि नोड सही ढंग से विज्ञापित करता है लेकिन ट्रैफ़िक फिर भी नहीं पहुँचता**, तो कंट्रोल प्लेन और डेटा प्लेन में असहमति है। [`rt`](../../commands/network/dataplane-forwarding/) से वह फ़ॉरवर्डिंग तालिका जाँचें जो डेटा प्लेन वास्तव में उपयोग करता है,
-   यह ध्यान रखते हुए कि इसका VRF id वह नहीं है जो BGP रिपोर्ट करता है।
+4. **If the node advertises correctly but traffic still does not arrive**, the
+   control plane and the data plane disagree. Check the forwarding table the data
+   plane actually uses with [`rt`](../../commands/network/dataplane-forwarding/),
+   remembering that its VRF id is not the one BGP reports.
 
-   फिर `nh` से नेक्स्ट हॉप को रिज़ॉल्व करें। `rt` में उपस्थित कोई प्रीफ़िक्स जिसका नेक्स्ट हॉप
-   `Drop` है, वह एक ब्लैकहोल है।
+   Then resolve the next hop with `nh`. A prefix present in `rt` whose next hop is
+   `Drop` is a blackhole.
 
-5. **यदि सत्र फ्लैप करता है**, तो [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
-   अंतिम रीसेट कारण और वार्ताकृत टाइमर दर्शाता है।
+5. **If the session flaps**, [`show-ip-bgp-neighbors`](../../commands/network/bgp/)
+   carries the last reset reason and the negotiated timers.
 
 </Steps>
 
-<Aside type="caution" title="दो अलग-अलग VRF नंबरिंग योजनाएँ">
-`show-ip-bgp-summary` FRR का `vrf-id` रिपोर्ट करता है। Argo डेटा प्लेन अपनी तालिकाओं को
-अलग से क्रमांकित करता है, और FRR का नंबर `rt --dump` को पास करने पर `No such file or
-directory` लौटता है — जो एक गलत तर्क की बजाय टूटे हुए नोड जैसा दिखता है। इस
-टोपोलॉजी में VRF 2 पॉप्युलेटेड inet4 तालिका है।
+<Aside type="caution" title="Two different VRF numbering schemes">
+`show-ip-bgp-summary` reports FRR's `vrf-id`. The Argo data plane numbers its tables
+separately, and passing FRR's number to `rt --dump` returns `No such file or
+directory` — which looks like a broken node rather than a wrong argument. On this
+topology VRF 2 is the populated inet4 table.
 </Aside>
