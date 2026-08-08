@@ -157,12 +157,8 @@ data "xcsh_site_registration" "aws" {
 }
 
 resource "xcsh_registration_approval" "aws" {
-  for_each = {
-    for idx, reg in data.xcsh_site_registration.aws :
-    idx => reg if var.enable_aws && reg.found
-  }
-
+  count     = var.enable_aws && length(data.xcsh_site_registration.aws) > 0 && try(data.xcsh_site_registration.aws[0].found, false) ? var.aws_ce_count : 0
   namespace = "system"
-  name      = each.value.name
+  name      = data.xcsh_site_registration.aws[count.index].name
   state     = "APPROVED"
 }
