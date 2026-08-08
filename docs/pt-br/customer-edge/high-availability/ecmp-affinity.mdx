@@ -1,0 +1,60 @@
+---
+title: Afinidade e persistência de ECMP
+description: Entenda como o ECMP mantém os fluxos de rede em um caminho, por que isso não é persistência de aplicação e o que muda quando um roteador omite a porta de origem de seu hash.
+sidebar:
+  order: 30
+  label: Afinidade de ECMP
+i18n:
+  sourceHash: "879d6851e54b"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+O roteamento Equal-Cost Multi-Path (ECMP) distribui fluxos; ele não entende usuários, cookies, sessões de login ou transações de aplicação. Projete a persistência de aplicação em uma camada com reconhecimento de aplicação, em vez de tratar um hash de ECMP estável como um recurso de persistência.
+
+## Um hash identifica um fluxo, não um usuário
+
+Muitos roteadores selecionam um caminho de custo igual a partir de campos nos cabeçalhos de Protocolo de Internet (IP) e de transporte. Uma entrada comum é a tupla de cinco elementos (five-tuple): endereço de origem, endereço de destino, protocolo, porta de origem e porta de destino. Os campos exatos, a semente (seed) e o comportamento são específicos da plataforma.
+
+Os pacotes com os mesmos campos selecionados normalmente seguem o mesmo caminho enquanto o conjunto de ECMP estiver estável. Uma nova conexão pode usar uma porta de origem diferente e, portanto, selecionar outro CE. HTTP/1.0, HTTP/1.1, HTTP/2, reutilização de conexões de navegador, proxies e Network Address Translation (NAT) alteram a quantidade de conexões de transporte que representam uma sessão de usuário aparente.
+
+Esse comportamento representa apenas afinidade de fluxo. Não é persistência de endereço de origem, persistência de cookie ou replicação de estado de sessão.
+
+## Omitir a porta de origem altera a compensação
+
+Alguns roteadores podem omitir a porta de origem do hash de ECMP. Isso pode manter conexões com os mesmos endereços de origem e destino em um caminho com mais frequência, mas reduz os valores disponíveis para distribuir o tráfego. Muitos usuários por trás de um único endereço NAT podem se concentrar em um único CE.
+
+Essa configuração ainda não garante a persistência de aplicação:
+
+- uma alteração no conjunto de caminhos pode remapear o hash;
+- uma falha no CE move o novo tráfego para um CE diferente;
+- o endereço do cliente pode ser alterado;
+- o estado da aplicação não é copiado entre CEs pelo roteador.
+
+<Aside type="caution" title="Não determine um único hash para todas as redes">
+Os controles de hash e os padrões diferem de acordo com o roteador. Selecione os campos somente após medir os padrões esperados de cliente, NAT, protocolo e reutilização de conexões. Uma alteração que melhore a afinidade grosseira pode criar um desequilíbrio severo de carga.
+</Aside>
+
+## Coloque a persistência estrita na camada correta
+
+Quando uma aplicação exigir que um usuário retorne ao mesmo contexto de processamento, use um mecanismo de persistência de camada de aplicação suportado ou externalize o estado da sessão. Os exemplos incluem persistência de cookie, persistência de endereço de origem implementada por um balanceador de carga com reconhecimento de aplicação e um armazenamento de sessão compartilhado.
+
+Especifique o requisito com precisão:
+
+| Requisito | Mecanismo adequado |
+| --- | --- |
+| Manter os pacotes em um fluxo de transporte em um único caminho | Hash de fluxo de ECMP |
+| Manter novas conexões de um endereço em um único destino | Afinidade de endereço de origem, considerando a concentração de NAT |
+| Manter um usuário autenticado em uma única instância de aplicação | Persistência de camada de aplicação |
+| Sobreviver à perda do CE selecionado ou da instância de aplicação | Estado de sessão replicado ou externo mais failover baseado em integridade |
+
+## Verifique com tráfego, não com suposições
+
+Gere várias conexões independentes e compare os contadores por caminho ou por CE. Inclua clientes por trás de NAT, todas as versões do HTTP no escopo, conexões de longa duração e uma alteração no conjunto de caminhos. Uma solicitação bem-sucedida prova a alcançabilidade; não prova a distribuição uniforme ou persistência.
+
+Para o aspecto de roteamento de uma alteração no conjunto de caminhos, consulte [Roteamento e failover](../routing-and-failover/).
+
+## Referência a padrões
+
+A [RFC 2992](https://www.rfc-editor.org/rfc/rfc2992.html) descreve um modelo para distribuir fluxos entre próximos saltos de custo igual e a interrupção causada quando o conjunto de próximos saltos é alterado.

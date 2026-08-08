@@ -1,0 +1,58 @@
+---
+title: Customer Edge 고가용성
+description: BGP 및 ECMP로 결합된 여러 독립적인 Customer Edge 사이트와 로컬 이중화를 제공하는 단일 다중 노드 사이트 클러스터 중에서 선택합니다.
+sidebar:
+  order: 10
+  label: 개요
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+F5 Distributed Cloud Customer Edge (CE) 고가용성은 두 가지 상이한 레이어에서 존재할 수 있습니다. 라우팅 프로토콜을 선택하기 전에 레이어를 선택하십시오. 여러 독립적인 CE 사이트는 라우팅 수준 가용성을 제공하는 반면, 단일 CE 사이트의 노드들은 사이트 수준 클러스터링을 제공합니다.
+
+| 디자인 | 장애 단위 | 트라픽 분산 | 사용 목적 |
+| --- | --- | --- | --- |
+| Virtual Site에 의해 선택된 독립적인 CE 사이트 | 단일 CE 사이 | 업스트림 라우터가 사이트에 대해 이퀄 코스트 Border Gateway Protocol (BGP) 경로를 설치합니다 | 네트워크가 BGP 및 Equal-Cost Multi-Path (ECMP)를 지원하고, 애플리케이션이 CE 노드에 의해 구현된 공유 로컬 가상 IP 주소(VIP)를 필요로 하지 않는 경우 |
+| 단일 다중 노드 CE 사이트 | 사이트 내의 단일 노드 | 클러스터가 사이트의 로컬 포워딩 동작을 소유합니다. 지원되는 경우 Virtual Router Redundancy Protocol (VRRP)이 로컬 넥스트 홉을 제공할 수 있습니다 | 연결된 네트워크가 독립적인 사이트 간에 공유되지 않는 로컬 이중화 게이트웨이 또는 로컬 로드 밸런싱 동작을 필요로 하는 경우 |
+
+이 디자인들은 서로 다른 문제를 해결합니다. Virtual Site는 정책 및 서비스 선택을 위해 사이트들을 그룹화하며, 이를 하나의 클러스터로 만들지 않습니다. 클러스터는 노드들을 하나의 사이트로 그룹화하며, 업스트림 라우터가 개별 사이트 간에 트래픽을 분산시키도록 만들지 않습니다.
+
+## 네트워크가 장애 경로를 철회할 수 있는 경우 라우팅 수준 HA 선호
+
+라우팅 수준 HA의 경우, 각 CE 사이트는 동일한 서비스 프리픽스를 알립니다. 업스트림 라우터는 이퀄 코스트 경로를 설치하고 사이트 전체에 새로운 플로우를 분산시킵니다. 하나의 사이트 경로가 철회되면, 라우터는 라우팅 프로토콜이 수렴한 후 해당 경로의 선택을 중단합니다.
+
+이 패턴은 사이트를 추가하여 확장되지만, 실질적인 팬아웃은 업스트림 라우터에 의해 제한됩니다. 라우터가 정상 CE 사이트 수보다 적은 이퀄 코스트 넥스트 홉을 지원하는 경우, 일부 알려진 경로는 트래픽을 전송하지 않습니다. 사이트 수를 선택하기 전에 라우터의 ECMP 한계 및 동작을 검증하십시오. 이식 가능한 범용 CE 수는 존재하지 않습니다.
+
+## 로컬 네트워크에서 요구할 때 클러스터링 사용
+
+VRRP는 가상 주소를 공유하는 여러 라우터 중에서 활성 라우터를 선출합니다. 단일 노드 CE 사이트는 선출할 두 번째 노드가 없으므로 VRRP 이중화를 제공할 수 없습니다. F5 Distributed Cloud 사이트 유형 및 환경이 VRRP를 지원하는 경우, 단일 노드를 클러스터로 설명하기보다는 필요한 다중 노드 사이트를 생성하십시오.
+
+<Aside type="caution" title="고가용성은 사이트 생성 시 결정하는 사항입니다">
+Secure Mesh Site v2의 경우, **High Availability**를 활성화하면 사이트가 단일 노드에서 필요한 다중 노드 형태로 변경됩니다. 이 설정은 사이트가 생성 및 배포된 후에는 변경할 수 없습니다. 사이트를 구축하기 전에 [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)에서 현재 노드 수 및 플랫폼 제약 조건을 확인하십시오.
+</Aside>
+
+## 두 디자인의 이름을 혼동하지 마십시오
+
+독립적으로 관리되는 하나의 CE에는 **single-node site**를 사용하고, 노드가 사이트 수준 HA에 참여하는 하나의 사이에는 **multi-node cluster**를 사용하십시오. 독립적인 단일 노드 사이트 집합을 클러스터라고 부르면 중요한 장애 및 라우팅 경계가 감춰집니다.
+
+<CardGrid>
+  <LinkCard
+    title="라우팅 및 페일오버"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="ECMP 어피니티"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## 표준 참조
+
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html)은 VRRP 및 여러 라우터 간의 선출에 대해 정의합니다.
+- [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs)는 노드 및 인터페이스 설계에 영향을 미치는 현재 사이트 제약 조건을 설명합니다.

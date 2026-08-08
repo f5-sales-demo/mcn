@@ -1,0 +1,58 @@
+---
+title: Alta disponibilidade do Customer Edge
+description: Escolha entre vários sites Customer Edge independentes unidos por BGP e ECMP, e um cluster de sites de vários nós que fornece redundância local.
+sidebar:
+  order: 10
+  label: Visão geral
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+A alta disponibilidade do F5 Distributed Cloud Customer Edge (CE) pode existir em duas camadas diferentes. Escolha a camada antes de escolher um protocolo de roteamento: vários sites CE independentes fornecem disponibilidade em nível de roteamento, enquanto os nós de um site CE fornecem clusterização em nível de site.
+
+| Projeto | Unidade de falha | Distribuição de tráfego | Quando usar |
+| --- | --- | --- | --- |
+| Sites CE independentes selecionados por um Site Virtual (Virtual Site) | Um site CE | O roteador de upstream instala caminhos BGP (Border Gateway Protocol) de custo igual para os sites | A rede suporta BGP e Equal-Cost Multi-Path (ECMP), e a aplicação não requer um endereço IP virtual (VIP) local compartilhado implementado pelos nós CE |
+| Um site CE de vários nós | Um nó dentro do site | O cluster controla o comportamento de encaminhamento local do site; o Virtual Router Redundancy Protocol (VRRP) pode fornecer um próximo salto local onde houver suporte | A rede conectada requer um gateway redundante local ou comportamento de balanceamento de carga local que os sites independentes não compartilham |
+
+Esses projetos resolvem problemas diferentes. Um Site Virtual agrupa sites para seleção de políticas e serviços; ele não os transforma em um único cluster. Um cluster agrupa nós em um único site; ele não faz com que um roteador de upstream distribua o tráfego entre sites separados.
+
+## Prefira alta disponibilidade em nível de roteamento quando a rede puder retirar caminhos com falha
+
+Com alta disponibilidade em nível de roteamento, cada site CE anuncia o mesmo prefixo de serviço. O roteador de upstream instala caminhos de custo igual e distribui novos fluxos entre os sites. Quando o caminho de um site é retirado, o roteador para de selecionar esse caminho após a convergência do protocolo de roteamento.
+
+Esse padrão é dimensionado adicionando sites, mas a distribuição efetiva é limitada pelo roteador de upstream. Se o roteador suportar menos próximos saltos de custo igual do que o número de sites CE íntegros, alguns caminhos anunciados não transportarão tráfego. Valide o limite e o comportamento de ECMP do roteador antes de selecionar uma contagem de sites; não há uma contagem universal portátil de CEs.
+
+## Use clusterização quando a rede local exigir
+
+O VRRP elege um roteador ativo a partir de vários roteadores que compartilham um endereço virtual. Um site CE de nó único não tem um segundo nó para eleger e, portanto, não pode fornecer redundância de VRRP. Onde o tipo de site e o ambiente do F5 Distributed Cloud suportarem VRRP, crie o site de vários nós necessário em vez de descrever um único nó como um cluster.
+
+<Aside type="caution" title="A alta disponibilidade é uma decisão de criação do site">
+Para o Secure Mesh Site v2, a ativação de **High Availability** altera o site de um único nó para a forma de vários nós necessária. A configuração não pode ser alterada após a criação e implantação do site. Confirme a contagem atual de nós e as restrições da plataforma em [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2) antes de criar o site.
+</Aside>
+
+## Não combine os nomes dos dois projetos
+
+Use **site de nó único** (single-node site) para um CE gerenciado de forma independente e **cluster de vários nós** (multi-node cluster) para um site cujos nós participam de HA em nível de site. Chamar um conjunto independente de sites de nó único de cluster oculta os limites importantes de falha e roteamento.
+
+<CardGrid>
+  <LinkCard
+    title="Roteamento e failover"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="Afinidade de ECMP"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## Referências a padrões
+
+- A [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) define o VRRP e sua eleição entre vários roteadores.
+- As [Perguntas frequentes do Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs) descrevem as restrições atuais do site que afetam o projeto de nós e interfaces.

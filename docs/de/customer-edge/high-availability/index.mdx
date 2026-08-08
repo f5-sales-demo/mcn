@@ -1,0 +1,58 @@
+---
+title: Customer Edge Hochverfügbarkeit
+description: Wählen Sie zwischen mehreren unabhängigen Customer Edge-Standorten, die über BGP und ECMP verbunden sind, und einem Multi-Node-Standort-Cluster, der lokale Redundanz bietet.
+sidebar:
+  order: 10
+  label: Übersicht
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+Die Hochverfügbarkeit von F5 Distributed Cloud Customer Edge (CE) kann auf zwei verschiedenen Ebenen konzipiert werden. Wählen Sie die Ebene, bevor Sie sich für ein Routing-Protokoll entscheiden: Mehrere unabhängige CE-Standorte bieten Verfügbarkeit auf Routing-Ebene, während die Knoten eines einzelnen CE-Standorts ein Clustering auf Standortebene ermöglichen.
+
+| Design | Ausfalleinheit | Verkehrsverteilung | Verwendung |
+| --- | --- | --- | --- |
+| Unabhängige CE-Standorte, die durch einen Virtual Site ausgewählt werden | Ein CE-Standort | Der Upstream-Router installiert gleichwertige BGP-Pfade (Border Gateway Protocol) zu den Standorten | Das Netzwerk unterstützt BGP und Equal-Cost Multi-Path (ECMP), und die Anwendung erfordert keine gemeinsame lokale virtuelle IP-Adresse (VIP), die von den CE-Knoten bereitgestellt wird |
+| Ein Multi-Node-CE-Standort | Ein Knoten innerhalb des Standorts | Der Cluster bestimmt das lokale Weiterleitungsverhalten des Standorts; Virtual Router Redundancy Protocol (VRRP) can, sofern unterstützt, einen lokalen Next-Hop bereitstellen | Das angeschlossene Netzwerk erfordert ein lokal redundantes Gateway oder lokales Load Balancing, das nicht von unabhängigen Standorten geteilt wird |
+
+Diese Designs lösen unterschiedliche Probleme. Ein Virtual Site gruppiert Standorte für die Richtlinien- und Dienstauswahl; er macht sie jedoch nicht zu einem einzigen Cluster. Ein Cluster gruppiert Knoten zu einem einzigen Standort; er veranlasst jedoch keinen Upstream-Router dazu, Datenverkehr über separate Standorte hinweg zu verteilen.
+
+## Bevorzugen Sie Hochverfügbarkeit auf Routing-Ebene, wenn das Netzwerk ausgefallene Pfade entziehen kann
+
+Bei der Hochverfügbarkeit auf Routing-Ebene kündigt jeder CE-Standort denselben Dienstpräfix an. Der Upstream-Router installiert gleichwertige Pfade und verteilt neue Datenströme auf die Standorte. Wenn der Pfad eines Standorts entzogen wird, wählt der Router diesen Pfad nach der Konvergenz des Routing-Protokolls nicht mehr aus.
+
+Dieses Muster lässt sich durch Hinzufügen von Standorten skalieren, aber der effektive Fan-Out ist durch den Upstream-Router begrenzt. Wenn der Router weniger gleichwertige Next-Hops unterstützt als gesunde CE-Standorte vorhanden sind, werden einige angekündigte Pfade keinen Datenverkehr übertragen. Überprüfen Sie das ECMP-Limit und das Verhalten des Routers, bevor Sie die Anzahl des Standorte festlegen. Es gibt keine universelle Anzahl an CEs, die für alle Plattformen gilt.
+
+## Verwenden Sie Clustering, wenn das lokale Netzwerk es erfordert
+
+VRRP wählt einen aktiven Router aus mehreren Routern aus, die sich eine virtuelle Adresse teilen. Ein Single-Node-CE-Standort hat keinen zweiten Knoten zur Auswahl und kann daher keine VRRP-Redundanz bieten. Wenn der Standorttyp und die Umgebung von F5 Distributed Cloud VRRP unterstützen, erstellen Sie den erforderlichen Multi-Node-Standort, anstatt einen einzelnen Knoten als Cluster zu bezeichnen.
+
+<Aside type="caution" title="Hochverfügbarkeit wird bei der Standorterstellung festgelegt">
+Bei Secure Mesh Site v2 ändert die Aktivierung von **High Availability** den Standort von einem einzelnen Knoten in die erforderliche Multi-Node-Form. Diese Einstellung kann nach der Erstellung und Bereitstellung des Standorts nicht mehr geändert werden. Bestätigen Sie die aktuelle Knotenzahl und die Plattformeinschränkungen unter [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2), bevor Sie den Standort erstellen.
+</Aside>
+
+## Verwechseln Sie nicht die Bezeichnungen der beiden Designs
+
+Verwenden Sie **Single-Node-Standort** (single-node site) für ein unabhängig verwaltetes CE und **Multi-Node-Cluster** (multi-node cluster) für einen Standort, dessen Knoten an der Hochverfügbarkeit auf Standortebene teilnehmen. Die Bezeichnung einer unabhängigen Gruppe von Single-Node-Standorten als Cluster verschleiert die wichtigen Ausfall- und Routinggrenzen.
+
+<CardGrid>
+  <LinkCard
+    title="Routing und Failover"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="ECMP-Affinität"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## Standards-Referenzen
+
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) definiert VRRP und dessen Auswahlverfahren (Election) unter mehreren Routern.
+- [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs) beschreiben aktuelle Standorteinschränkungen, die sich auf das Knoten- und Schnittstellendesign auswirken.

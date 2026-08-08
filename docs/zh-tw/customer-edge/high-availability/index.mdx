@@ -1,0 +1,58 @@
+---
+title: Customer Edge 高可用性
+description: 在透過 BGP 和 ECMP 結合的多個獨立 Customer Edge 網站，與提供本地備援的單一多節點網站叢集之間進行選擇。
+sidebar:
+  order: 10
+  label: 概述
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+F5 Distributed Cloud Customer Edge (CE) 的高可用性可以存在於兩個不同的層級。請在選擇路由協定之前先選擇層級：多個獨立的 CE 網站提供路由層級的可用性，而單個 CE 網站的節點則提供網站層級的叢集。
+
+| 設計 | 故障單元 | 流量分配 | 適用場景 |
+| --- | --- | --- | --- |
+| 由 Virtual Site 選擇的獨立 CE 網站 | 單個 CE 網站 | 上游路由器向網站安裝等價邊界網關協定 (BGP) 路徑 | 網路支援 BGP 和等價多路徑 (ECMP)，且應用程式不需要由 CE 節點實作的共享本地虛擬 IP 位址 (VIP) |
+| 單個多節點 CE 網站 | 網站內的單個節點 | 叢集擁有網站的本地轉發行為；在支援的情況下，虛擬路由器備援協定 (VRRP) 可以提供本地下一跳 | 連接的網路需要獨立網站不共享的本地備援閘道器或本地負載平衡行為 |
+
+這些設計解決了不同的問題。Virtual Site 對網站進行分組，以便進行策略和服務選擇；它不會將它們組合成一個叢集。叢集將節點分組到單個網站中；它不會使上游路由器跨獨立網站分配流量。
+
+## 當網路可以撤銷故障路徑時，優先選擇路由層級的 HA
+
+在路由層級的 HA 中，每個 CE 網站都宣告相同的服務前綴。上游路由器安裝等價路徑，並跨網站分配新流。當撤銷某個網站的路徑時，路由器將在路由協定收斂後停止選擇該路徑。
+
+這種模式可以透過增加網站來進行擴充，但有效的扇出受上游路由器限制。如果上游路由器支援的等價下一跳數量少於健康的 CE 網站數量，一些被宣告的路徑將不會承載流量。在選擇網站數量之前，請驗證路由器的 ECMP 限制和行為；不存在通用的、可攜式的 CE 數量。
+
+## 當本地網路需要時使用叢集
+
+VRRP 從共享虛擬位址的多個路由器中選舉出一個活動路由器。單節點 CE 網站沒有第二個節點可供選舉，因此無法提供 VRRP 備援。在 F5 Distributed Cloud 網站類型和環境支援 VRRP 的地方，请建立所需的多節點網站，而不是將單節點描述為叢集。
+
+<Aside type="caution" title="高可用性是建立網站時的決定">
+對於 Secure Mesh Site v2，啟用 **High Availability**（高可用性）會將網站從單節點變更為所需的多節點形式。該設定在網站建立並部署後無法變更。在建置網站之前，請確認 [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2) 中的目前節點數量和平台限制。
+</Aside>
+
+## 不要混淆這兩種設計的名稱
+
+將 **single-node site**（單節點網站）用於獨立管理的單個 CE，將 **multi-node cluster**（多節點叢集）用於其節點參與網站級 HA 的單個網站。將一組獨立的單節點網站稱為叢集會隱藏重要的故障和路由邊界。
+
+<CardGrid>
+  <LinkCard
+    title="路由和故障轉移"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="ECMP 親和性"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## 標準參考
+
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) 定義了 VRRP 及其在多個路由器中的選舉。
+- [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs) 描述了影響節點和介面設計的目前網站限制。

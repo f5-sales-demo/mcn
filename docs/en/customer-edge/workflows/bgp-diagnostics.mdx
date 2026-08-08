@@ -51,3 +51,7 @@ separately, and passing FRR's number to `rt --dump` returns `No such file or
 directory` — which looks like a broken node rather than a wrong argument. On this
 topology VRF 2 is the populated inet4 table.
 </Aside>
+
+This workflow diagnoses a CE. It does not prove how many equal-cost paths the upstream
+router installed or whether a static path survived a failed CE. For those design and
+verification boundaries, see [Routing and failover](../../high-availability/routing-and-failover/).

@@ -1,0 +1,71 @@
+---
+title: Routing e failover
+description: Progetta BGP ed ECMP in modo che i prefissi di servizio seguano i siti Customer Edge sani senza lasciare percorsi statici che causino il blackhole del traffico.
+sidebar:
+  order: 20
+  label: Routing e failover
+i18n:
+  sourceHash: "a1fa45a030f4"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+In un design ad alta disponibilità a livello di routing, ciascun sito Customer Edge (CE) origina lo stesso prefisso di servizio tramite Border Gateway Protocol (BGP). Il router a monte installa gli annunci utilizzabili come next hop Equal-Cost Multi-Path (ECMP) e diventa il punto che distribuisce il traffico e rimuove i percorsi falliti.
+
+```text
+VIP di servizio /32
+       |
+router a monte: next hop a costo paritetico
+       |              |              |
+    sito CE 1      sito CE 2      sito CE 3
+```
+
+## Annunciare gli indirizzi di servizio come rotte
+
+Annuncia un singolo indirizzo IP virtuale (VIP) come rotta host `/32` quando il servizio è IPv4. Riserva un prefisso dedicato solo al routing per questi indirizzi di servizio e non associare tale prefisso a un Virtual Private Cloud (VPC), Virtual Network (VNet), VLAN o subnet locale. La rete dovrebbe apprendere gli indirizzi di servizio dagli annunci di routing anziché dall'Address Resolution Protocol (ARP) su un segmento connesso.
+
+Mantenere separato il prefisso di servizio evita ambiguità tra una rotta connessa e la rotta BGP. Rende inoltre esplicite la policy di instradamento, il filtraggio e la pianificazione della capacità. Alloca il prefisso in base al processo di gestione degli indirizzi dell'organizzazione; non copiare un prefisso di laboratorio in un'altra rete.
+
+## Lasciare che il routing rimuova un percorso fallito
+
+Una sessione BGP stabilita fornisce al router a monte un segnale di liveness. Quando la sessione viene chiusa o il relativo hold timer scade, il peer revoca le rotte apprese durante tale sessione. Il Bidirectional Forwarding Detection (BFD), quando entrambi i peer lo supportano e lo abilitano, può fornire un rilevamento dei guasti più rapido. Il tempo di convergenza dipende quindi dal protocollo e dai timer configurati; non è istantaneo.
+
+Una rotta statica non ha uno stato di sessione equivalente. I percorsi ECMP statici rimangono idonei dopo il guasto di un CE, a meno che il router del cliente o il controller SD-WAN (Software-Defined Wide Area Network) non monitorino il next hop con un meccanismo di controllo dello stato supportato e rimuovano la rotta. Senza tale meccanismo, il router può continuare a selezionare un CE fallito e causare il blackhole di alcuni flussi.
+
+<Aside type="danger" title="Un next hop raggiungibile non indica lo stato di salute dell'applicazione">
+BGP dimostra che il peer di routing è disponibile. Non prova necessariamente che ogni applicazione dietro tale peer sia sana. Decidi se lo stato della sessione di routing è sufficiente o se lo stato del servizio richiede un segnale separato e supportato.
+</Aside>
+
+## Dimensionare il router prima della flotta CE
+
+Il router decide quanti percorsi a costo paritetico installare. Confronta il numero massimo di percorsi ECMP con il numero di annunci CE previsti per ciascun VIP. Quando il numero di annunci è superiore al limite dei percorsi installati, ulteriori siti CE sani potrebbero rimanere inutilizzati per quel prefisso.
+
+Controlla la tabella di inoltro installata anziché affidarti solo alla visualizzazione delle rotte ricevute BGP. Il control plane può conservare più candidati rispetto a quanti ne installa il data plane.
+
+## Trattare la preferenza ed ECMP como policy diverse
+
+I percorsi sono a costo paritetico solo finché gli attributi di selezione della rotta e la metrica li rendono uguali. La modifica della preferenza locale, del Multi-Exit Discriminator (MED), della distanza amministrativa o della metrica di una rotta statica può rendere un CE preferito per un VIP. Questa è una policy di steering valida, ma si tratta di un comportamento attivo/preferito piuttosto che di una distribuzione paritetica.
+
+Applica la preferenza per prefisso solo quando tale asimmetria è intenzionale. Conferma che un percorso meno preferito diventi utilizzabile quando il percorso preferito viene revocato e non lasciare un percorso preferito statico non monitorato che sopravviva al suo CE.
+
+## Separare le etichette del control plane dalle prove di traffico
+
+In un design con più tunnel o percorsi, un'etichetta `ACTIVE` può identificare il percorso selezionato per la sincronizzazione del control plane senza dimostrare che altri percorsi ECMP non trasportino dati. Non inferire lo stato di inoltro solo da quell'etichetta. Verifica la tabella delle rotte o dei tunnel e osserva i contatori di traffico su ogni percorso previsto.
+
+## Verificare il percorso completo
+
+Per ogni prefisso di servizio, verifica tutto quanto segue:
+
+- ogni CE previsto annuncia il prefisso;
+- la tabella BGP a monte accetta i percorsi previsti;
+- la tabella di inoltro non installa né più né meno percorsi di quanti ne supporti la piattaforma;
+- la revoca di un annuncio rimuove quel next hop dopo l'intervallo di rilevamento e convergenza configurato;
+- i controlli dell'applicazione hanno esito positivo attraverso i percorsi rimanenti.
+
+Utilizza il [flusso di lavoro di diagnostica BGP](../../workflows/bgp-diagnostics/) del repository per distinguere i problemi di annuncio CE dai problemi di inoltro a monte.
+
+## Riferimenti agli standard
+
+- [RFC 4271](https://www.rfc-editor.org/rfc/rfc4271.html) definisce la revoca delle rotte BGP e il comportamento dell'hold-timer.
+- [RFC 5880](https://www.rfc-editor.org/rfc/rfc5880.html) definisce il rilevamento dei guasti BFD.

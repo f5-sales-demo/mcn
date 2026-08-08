@@ -1,0 +1,71 @@
+---
+title: Enrutamiento y fallos
+description: Diseñe BGP y ECMP para que los prefijos de servicio sigan a los sitios Customer Edge en buen estado sin dejar rutas estáticas que provoquen una pérdida silenciosa de tráfico (blackhole).
+sidebar:
+  order: 20
+  label: Enrutamiento y fallos
+i18n:
+  sourceHash: "a1fa45a030f4"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+En un diseño de alta disponibilidad a nivel de enrutamiento, cada sitio de Customer Edge (CE) origina el mismo prefijo de servicio a través del Protocolo de puerta de enlace de frontera (BGP). El enrutador ascendente instala los anuncios utilizables como siguientes saltos de multidifusión de igual costo (ECMP) y se convierte en el punto que distribuye el tráfico y elimina las rutas fallidas.
+
+```text
+service VIP /32
+       |
+enrutador ascendente: siguientes saltos de igual costo
+       |              |              |
+    sitio CE 1     sitio CE 2     sitio CE 3
+```
+
+## Anunciar direcciones de servicio como rutas
+
+Anuncie una dirección IP virtual (VIP) individual como una ruta de host `/32` cuando el servicio sea IPv4. Reserve un prefijo exclusivo para rutas para estas direcciones de servicio y no adjunte ese prefijo a una nube privada virtual (VPC), red virtual (VNet), VLAN o subred local. La red debe aprender las direcciones de servicio a partir de anuncios de enrutamiento en lugar del Protocolo de resolución de direcciones (ARP) en un segmento conectado.
+
+Mantener el prefijo de servicio separado evita la ambigüedad entre una ruta conectada y la ruta BGP. También hace que la política de rutas, el filtrado y la planificación de capacidad sean explícitos. Asigne el prefijo de acuerdo con el proceso de gestión de direcciones de la organización; no copie un prefijo de laboratorio en otra red.
+
+## Permitir que el enrutamiento elimine una ruta fallida
+
+Una sesión BGP establecida le da al enrutador ascendente una señal de actividad. Cuando se cierra la sesión o expira su temporizador de espera (hold timer), el par retira las rutas aprendidas durante esa sesión. La detección de reenvío bidireccional (BFD), cuando ambos pares la admiten y la habilitan, puede proporcionar una detección de fallos más rápida. Por lo tanto, el tiempo de convergencia depende del protocolo y los temporizadores configurados; no es instantáneo.
+
+Una ruta estática no tiene un estado de sesión equivalente. Las rutas ECMP estáticas siguen siendo elegibles después de que un CE falla, a menos que el enrutador del cliente o el controlador de red de área amplia definida por software (SD-WAN) rastreen el siguiente salto con un mecanismo de salud compatible y eliminen la ruta. Sin ese mecanismo, el enrutador puede continuar seleccionando un CE fallido y perder silenciosamente algunos flujos.
+
+<Aside type="danger" title="Un siguiente salto accesible no es la salud de la aplicación">
+BGP demuestra que el par de enrutamiento está disponible. No demuestra necesariamente que todas las aplicaciones detrás de ese par estén en buen estado. Decida si el estado de la sesión de enrutamiento es suficiente o si la salud del servicio necesita una señal compatible separada.
+</Aside>
+
+## Dimensionar el enrutador antes de la flota de CE
+
+El enrutador decide cuántas rutas de igual costo instala. Compare su recuento máximo de rutas ECMP con el número de anuncios de CE esperados para cada VIP. Cuando el recuento de anuncios es mayor que el límite de rutas instaladas, es posible que sitios CE adicionales en buen estado permanezcan sin usar para ese prefijo.
+
+Verifique la tabla de reenvío instalada en lugar de confiar solo en la vista de rutas recibidas de BGP. El plano de control puede retener más candidatos de los que instala el plano de datos.
+
+## Tratar la preferencia y ECMP como políticas diferentes
+
+Las rutas son de igual costo solo mientras los atributos de selección de ruta y la métrica las hagan iguales. Cambiar la preferencia local (local preference), el Discriminador de salida múltiple (MED), la distancia administrativa o la métrica de una ruta estática puede hacer que se prefiera un CE para una VIP. Esa es una política de direccionamiento válida, pero es un comportamiento activo/preferido en lugar de una distribución equitativa.
+
+Aplique la preferencia por prefijo solo cuando esa asimetría sea intencional. Confirme que una ruta menos preferida se vuelva utilizable cuando se retire la ruta preferida y no deje una ruta estática preferida sin rastrear que sobreviva a su CE.
+
+## Separar las etiquetas del plano de control de la evidencia de tráfico
+
+En un diseño con múltiples túneles o rutas, una etiqueta `ACTIVE` puede identificar la ruta seleccionada para la sincronización del plano de control sin demostrar que otras rutas ECMP no transportan datos. No infiera el estado de reenvío únicamente a partir de esa etiqueta. Verifique la tabla de rutas o túneles y observe los contadores de tráfico en cada ruta esperada.
+
+## Verificar la ruta completa
+
+Para cada prefijo de servicio, verifique todo lo siguiente:
+
+- cada CE previsto anuncia el prefijo;
+- la tabla BGP ascendente acepta las rutas esperadas;
+- la tabla de reenvío no instala más ni menos rutas de las que admite la plataforma;
+- retirar un anuncio elimina ese siguiente salto después del intervalo de detección y convergencia configurado;
+- las comprobaciones de la aplicación se realizan correctamente a través de las rutas restantes.
+
+Utilice el [flujo de trabajo de diagnóstico de BGP](../../workflows/bgp-diagnostics/) del repositorio para distinguir los problemas de anuncios de CE de los problemas de reenvío ascendente.
+
+## Referencias de estándares
+
+- [RFC 4271](https://www.rfc-editor.org/rfc/rfc4271.html) define el retiro de rutas BGP y el comportamiento del temporizador de espera.
+- [RFC 5880](https://www.rfc-editor.org/rfc/rfc5880.html) define la detección de fallos de BFD.

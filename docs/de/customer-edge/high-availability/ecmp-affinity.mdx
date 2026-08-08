@@ -1,0 +1,60 @@
+---
+title: ECMP-Affinität und Persistenz
+description: Erfahren Sie wie ECMP Netzwerkströme auf einem Pfad hält, warum dies keine Anwendungspersistenz darstellt und was sich ändert, wenn ein Router den Quellport aus seinem Hash ausschließt.
+sidebar:
+  order: 30
+  label: ECMP-Affinität
+i18n:
+  sourceHash: "879d6851e54b"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Equal-Cost Multi-Path (ECMP)-Routing verteilt Datenströme (Flows); es versteht keine Benutzer, Cookies, Login-Sitzungen oder Anwendungstransaktionen. Konzipieren Sie die Anwendungspersistenz auf einer anwendungsbezogenen Ebene (Application-Aware Layer), anstatt einen stabilen ECMP-Hash als Persistenzfunktion zu betrachten.
+
+## Ein Hash identifiziert einen Datenstrom, keinen Benutzer
+
+Viele Router wählen einen gleichwertigen Pfad basierend auf Feldern in den IP- (Internet Protocol) und Transport-Headern aus. Eine typische Eingabe ist das 5-Tupel: Quelladresse, Zieladresse, Protokoll, Quellport und Zielport. Die genauen Felder, der Seed und das Verhalten sind plattformspezifisch.
+
+Pakete mit denselben ausgewählten Feldern folgen normalerweise demselben Pfad, solange die ECMP-Gruppe stabil ist. Eine neue Verbindung kann einen anderen Quellport verwenden und daher ein anderes CE auswählen. HTTP/1.0, HTTP/1.1, HTTP/2, die Wiederverwendung von Browserverbindungen, Proxys und Network Address Translation (NAT) verändern alle die Anzahl der Transportverbindungen, die eine scheinbare Benutzersitzung darstellen.
+
+Dieses Verhalten stellt lediglich eine Affinität auf Datenstromebene (Flow Affinity) dar. Es handelt sich nicht um Quelladressen-Persistenz, Cookie-Persistenz oder eine Replikation des Sitzungsstatus.
+
+## Der Ausschluss des Quellports verändert die Abwägung
+
+Einige Router können den Quellport aus dem ECMP-Hash ausschließen. Dies kann dazu führen, dass Verbindungen mit denselben Quell- und Zieladressen häufiger auf demselben Pfad verbleiben, verringert jedoch die Anzahl der für die Lastverteilung verfügbaren Werte. Viele Benutzer hinter einer einzigen NAT-Adresse können sich dann auf einen einzelnen CE konzentrieren.
+
+Diese Konfiguration garantiert jedoch immer noch keine Anwendungspersistenz:
+
+- eine Änderung der Pfadgruppe kann den Hash neu zuordnen;
+- ein CE-Ausfall leitet neuen Datenverkehr an einen anderen CE weiter;
+- eine Client-Adresse kann sich ändern;
+- der Anwendungsstatus wird vom Router nicht zwischen den CEs kopiert.
+
+<Aside type="caution" title="Schreiben Sie nicht einen Hash-Typ für jedes Netzwerk vor">
+Hash-Steuerungen und -Standardeinstellungen unterscheiden sich je nach Router. Wählen Sie die Felder erst aus, nachdem Sie die erwarteten Client-, NAT-, Protokoll- und Verbindungs-Wiederverwendungsmuster analysiert haben. Eine Änderung zur Verbesserung der groben Affinität kann zu einer erheblichen Lastungleichheit führen.
+</Aside>
+
+## Platzieren Sie strikte Persistenz auf der richtigen Ebene
+
+Wenn eine Anwendung erfordert, dass ein Benutzer zum selben Verarbeitungskontext zurückkehrt, verwenden Sie einen unterstützten Persistenzmechanismus auf Anwendungsebene oder externalisieren Sie den Sitzungsstatus. Beispiele hierfür sind Cookie-Persistenz, von einem anwendungsbezogenen Load Balancer implementierte Quelladressen-Persistenz und ein gemeinsam genutzter Sitzungsspeicher.
+
+Formulieren Sie die Anforderung präzise:
+
+| Anforderung | Geeigneter Mechanismus |
+| --- | --- |
+| Pakete in einem Transport-Flow auf einem Pfad halten | ECMP-Flow-Hashing |
+| Neue Verbindungen von einer Adresse auf einem Ziel halten | Quelladressen-Affinität, unter Berücksichtigung der NAT-Konzentration |
+| Einen authentifizierten Benutzer auf einer Anwendungsinstanz halten | Persistenz auf Anwendungsebene |
+| Ausfall des ausgewählten CE oder der Anwendungsinstanz überstehen | Replizierter oder externer Sitzungsstatus plus zustandsabhängiges Failover |
+
+## Mit Datenverkehr überprüfen, nicht mit Annahmen
+
+Erzeugen Sie mehrere unabhängige Verbindungen und vergleichen Sie die Zähler pro Pfad oder pro CE. Berücksichtigen Sie Clients hinter NAT, alle relevanten HTTP-Versionen, langlebige Verbindungen und eine Änderung der Pfadgruppe. Eine erfolgreiche Anfrage beweist die Erreichbarkeit; sie beweist weder eine gleichmäßige Verteilung noch Persistenz.
+
+Für die Routing-Seite einer Pfadgruppenänderung siehe [Routing und Failover](../routing-and-failover/).
+
+## Standards-Referenz
+
+[RFC 2992](https://www.rfc-editor.org/rfc/rfc2992.html) beschreibt ein Modell zur Verteilung von Datenströmen auf gleichwertige Next-Hops und die Störungen, die entstehen, wenn sich die Next-Hop-Gruppe ändert.

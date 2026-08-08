@@ -1,0 +1,58 @@
+---
+title: Alta disponibilità del Customer Edge
+description: Scegli tra diversi siti Customer Edge indipendenti uniti da BGP ed ECMP e un cluster di siti multi-nodo che fornisce ridondanza locale.
+sidebar:
+  order: 10
+  label: Panoramica
+i18n:
+  sourceHash: "68b13abd8af1"
+  translator: "machine"
+---
+
+import { Aside, CardGrid } from "@astrojs/starlight/components";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+
+L'alta disponibilità di F5 Distributed Cloud Customer Edge (CE) può esistere su due livelli diversi. Scegli il livello prima di scegliere un protocollo di routing: diversi siti CE indipendenti forniscono disponibilità a livello di routing, mentre i nodi di un sito CE forniscono il clustering a livello di sito.
+
+| Design | Unità di errore | Distribuzione del traffico | Quando usarlo |
+| --- | --- | --- | --- |
+| Siti CE indipendenti selezionati da un Virtual Site | Un sito CE | Il router a monte installa percorsi Border Gateway Protocol (BGP) a costo paritetico verso i siti | La rete supporta BGP ed Equal-Cost Multi-Path (ECMP) e l'applicazione non richiede un indirizzo IP virtuale (VIP) locale condiviso implementato dai nodi CE |
+| Un sito CE multi-nodo | Un nodo all'interno del sito | Il cluster gestisce il comportamento di inoltro locale del sito; Virtual Router Redundancy Protocol (VRRP) può fornire un next hop locale dove supportato | La rete connessa richiede un gateway localmente ridondante o un comportamento di bilanciamento del carico locale che i siti indipendenti non condividono |
+
+Questi design risolvono problemi diversi. Un Virtual Site raggruppa i siti per la selezione delle policy e dei servizi; non li trasforma in un unico cluster. Un cluster raggruppa i nodi in un unico sito; non fa in modo che un router a monte distribuisca il traffico tra siti separati.
+
+## Preferire l'alta disponibilità a livello di routing quando la rete può revocare i percorsi falliti
+
+Con l'alta disponibilità a livello di routing, ciascun sito CE annuncia lo stesso prefisso di servizio. Il router a monte installa percorsi a costo paritetico e distribuisce i nuovi flussi tra i siti. Quando il percorso di un sito viene revocato, il router smette di selezionare quel percorso dopo la convergenza del protocollo di routing.
+
+Questo modello scala aggiungendo siti, ma il fan-out effettivo è limitato dal router a monte. Se il router supporta meno next hop a costo paritetico rispetto al numero di siti CE sani, alcuni percorsi annunciati non trasporteranno traffico. Convalida il limite e il comportamento ECMP del router prima di selezionare il numero di siti; non esiste un numero di CE universale e portabile.
+
+## Usare il clustering quando la rete locale lo richiede
+
+VRRP elegge un router attivo tra più router che condividono un indirizzo virtuale. Un sito CE a nodo singolo non ha un secondo nodo da eleggere e quindi non può fornire ridondanza VRRP. Laddove il tipo di sito e l'ambiente di F5 Distributed Cloud supportino VRRP, crea il sito multi-nodo richiesto anziché descrivere un singolo nodo come un cluster.
+
+<Aside type="caution" title="L'alta disponibilità è una decisione da prendere alla creazione del sito">
+Per Secure Mesh Site v2, l'abilitazione dell'**alta disponibilità** modifica il sito da un singolo nodo alla forma multi-nodo richiesta. L'impostazione non può essere modificata dopo che il sito è stato creato e distribuito. Conferma il numero di nodi corrente e i vincoli della piattaforma in [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2) prima di creare il sito.
+</Aside>
+
+## Non combinare i nomi dei due design
+
+Utilizza **sito a nodo singolo** per un CE gestito in modo indipendente e **cluster multi-nodo** per un sito i cui nodi partecipano all'alta disponibilità a livello di sito. Chiamare cluster un insieme indipendente di siti a nodo singolo nasconde gli importanti limiti di errore e di routing.
+
+<CardGrid>
+  <LinkCard
+    title="Routing e failover"
+    description="Advertise a service prefix, remove failed paths, and plan for ECMP limits."
+    href="./routing-and-failover/"
+  />
+  <LinkCard
+    title="Affinità ECMP"
+    description="Understand flow hashing and why it is not application persistence."
+    href="./ecmp-affinity/"
+  />
+</CardGrid>
+
+## Riferimenti agli standard
+
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) definisce il protocollo VRRP e la sua elezione tra più router.
+- Le [FAQ su Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs) descrivono i vincoli correnti del sito che influiscono sulla progettazione dei nodi e delle interfacce.

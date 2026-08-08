@@ -1,0 +1,71 @@
+---
+title: Routing und Failover
+description: Konzipieren Sie BGP und ECMP so, dass Dienstpräfixe gesunden Customer Edge-Standorten folgen, ohne statische Pfade zu hinterlassen, die Datenverkehr ins Leere laufen lassen.
+sidebar:
+  order: 20
+  label: Routing und Failover
+i18n:
+  sourceHash: "a1fa45a030f4"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Bei einem Hochverfügbarkeitsdesign auf Routing-Ebene sendet jeder Customer Edge (CE)-Standort denselben Dienstpräfix über das Border Gateway Protocol (BGP). Der übergeordnete Router (Northbound Router) installiert die nutzbaren Ankündigungen als gleichwertige Next-Hops (ECMP, Equal-Cost Multi-Path) und fungiert as die Stelle, die den Datenverkehr verteilt und ausgefallene Pfade entfernt.
+
+```text
+service VIP /32
+       |
+Upstream-Router: gleichwertige Next-Hops
+       |              |              |
+ CE-Standort 1  CE-Standort 2  CE-Standort 3
+```
+
+## Dienstadressen als Routen ankündigen
+
+Kündigen Sie eine einzelne virtuelle IP-Adresse (VIP) als eine `/32`-Hostroute an, wenn der Dienst IPv4 nutzt. Reservieren Sie ein reines Routing-Präfix für diese Dienstadressen und binden Sie dieses Präfix nicht an eine Virtual Private Cloud (VPC), ein Virtual Network (VNet), ein VLAN oder ein lokales Subnetz. Das Netzwerk sollte die Dienstadressen aus Routing-Ankündigungen lernen und nicht über das Address Resolution Protocol (ARP) in einem angeschlossenen Segment.
+
+Die Trennung des Dienstpräfixes vermeidet Unklarheiten zwischen einer direkt verbundenen Route (Connected Route) und der BGP-Route. Zudem werden dadurch Richtlinien, Filterung und Kapazitätsplanung für das Routing explizit. Weisen Sie das Präfix gemäß dem Adressverwaltungsprozess des Unternehmens zu; kopieren Sie kein Laborpräfix in ein anderes Netzwerk.
+
+## Ausgefallene Pfade über das Routing entfernen lassen
+
+Eine etablierte BGP-Sitzung liefert dem Upstream-Router ein Liveness-Signal. Wenn die Sitzung geschlossen wird oder ihr Hold-Timer abläuft, entzieht der Peer die über diese Sitzung gelernten Routen. Bidirectional Forwarding Detection (BFD) kann, sofern von beiden Peers unterstützt und aktiviert, eine schnellere Fehlererkennung ermöglichen. Die Konvergenzzeit hängt daher von den konfigurierten Protokollen und Timern ab; sie erfolgt nicht augenblicklich.
+
+Eine statische Route verfügt über keinen vergleichbaren Sitzungsstatus. Statische ECMP-Pfade bleiben auch nach dem Ausfall eines CE aktiv, es sei denn, der Kunden-Router oder der SD-WAN-Controller (Software-Defined Wide Area Network) überwacht den Next-Hop mit einem unterstützten Zustandserkennungs-Mechanismus (Health Check) und entfernt die Route. Ohne einen solchen Mechanismus wählt der Router möglicherweise weiterhin ein ausgefallenes CE aus, was dazu führt, dass einige Datenströme ins Leere laufen.
+
+<Aside type="danger" title="Ein erreichbarer Next-Hop ist keine Garantie für den Anwendungszustand">
+BGP beweist lediglich, dass der Routing-Peer verfügbar ist. Es ist nicht zwingend ein Beweis dafür, dass jede Anwendung hinter diesem Peer auch funktioniert. Entscheiden Sie, ob der Zustand der Routing-Sitzung ausreicht oder ob der Zustand des Dienstes ein separates, unterstütztes Signal erfordert.
+</Aside>
+
+## Dimensionieren Sie den Router vor der CE-Flotte
+
+Der Router entscheidet, wie viele gleichwertige Pfade er installiert. Vergleichen Sie seine maximale Anzahl von ECMP-Pfaden mit der Anzahl der erwarteten CE-Kündigungen für jede VIP. Wenn die Anzahl der Kündigungen das Limit für installierte Pfade überschreitet, bleiben zusätzliche gesunde CE-Standorte für dieses Präfix möglicherweise ungenutzt.
+
+Überprüfen Sie die tatsächlich installierte Weiterleitungstabelle (Forwarding Table), anstatt sich nur auf die Ansicht der empfangenen BGP-Routen zu verlassen. Die Control Plane kann mehr Pfad-Kandidaten vorhalten, als die Data Plane tatsächlich installiert.
+
+## Behandeln Sie Präferenz und ECMP als unterschiedliche Richtlinien
+
+Pfade sind nur so lange gleichwertig (Equal-Cost), wie sie durch die Attribute der Routenauswahl und die Metrik gleichgestellt werden. Das Ändern von Local Preference, Multi-Exit Discriminator (MED), administrativer Distanz oder einer statischen Routenmetrik kann dazu führen, dass ein bestimmtes CE für eine VIP bevorzugt wird. Dies ist eine legitime Steuerungsrichtlinie, stellt jedoch ein Aktiv/Bevorzugt-Verhalten und keine gleichmäßige Verteilung dar.
+
+Wenden Sie eine Präferenz pro Präfix nur an, wenn diese Asymmetrie beabsichtigt ist. Stellen Sie sicher, dass ein weniger bevorzugter Pfad nutzbar wird, wenn der bevorzugte Pfad entzogen wird, und hinterlassen Sie keine nicht überwachte, statische, bevorzugte Route, die ihren CE überdauert.
+
+## Trennen Sie Control-Plane-Labels von tatsächlichen Verkehrsdaten
+
+In einem Design mit mehreren Tunneln oder Pfaden kann ein `ACTIVE`-Label den für die Control-Plane-Synchronisation ausgewählten Pfad kennzeichnen, ohne jedoch zu beweisen, dass andere ECMP-Pfade keine Daten übertragen. Schließen Sie nicht allein aus diesem Label auf den Weiterleitungsstatus. Überprüfen Sie die Routen- oder Tunneltabelle und beobachten Sie die Traffic-Zähler auf jedem erwarteten Pfad.
+
+## Überprüfen Sie den vollständigen Pfad
+
+Überprüfen Sie für jedes Dienstpräfix Folgendes:
+
+- jeder vorgesehene CE kündigt das Präfix an;
+- die Upstream-BGP-Tabelle akzeptiert die erwarteten Pfade;
+- die Weiterleitungstabelle installiert weder mehr noch weniger Pfade, als die Plattform unterstützt;
+- das Zurückziehen einer Kündigung entfernt diesen Next-Hop nach dem konfigurierten Erkennungs- und Konvergenzintervall;
+- Anwendungsprüfungen sind über die verbleibenden Pfade erfolgreich.
+
+Verwenden Sie den [BGP-Diagnose-Workflow](../../workflows/bgp-diagnostics/) des Repositories, um Probleme bei der CE-Ankündigung von Weiterleitungsproblemen im Upstream-Netzwerk zu unterscheiden.
+
+## Standards-Referenzen
+
+- [RFC 4271](https://www.rfc-editor.org/rfc/rfc4271.html) definiert das Zurückziehen von BGP-Routen und das Verhalten des Hold-Timers.
+- [RFC 5880](https://www.rfc-editor.org/rfc/rfc5880.html) definiert die BFD-Fehlererkennung.

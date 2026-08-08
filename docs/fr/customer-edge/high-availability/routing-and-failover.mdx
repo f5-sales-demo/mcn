@@ -1,0 +1,71 @@
+---
+title: Routage et basculement
+description: Concevez BGP et ECMP de manière à ce que les préfixes de service suivent les sites Customer Edge sains sans laisser de chemins statiques qui créent des trous noirs pour le trafic (blackhole).
+sidebar:
+  order: 20
+  label: Routage et basculement
+i18n:
+  sourceHash: "a1fa45a030f4"
+  translator: "machine"
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Dans une architecture de haute disponibilité au niveau du routage, chaque site Customer Edge (CE) émet le même préfixe de service via le protocole BGP (Border Gateway Protocol). Le routeur orienté nord (northbound) installe les annonces utilisables en tant que prochains sauts ECMP (Equal-Cost Multi-Path) et devient le point central qui distribue le trafic et supprime les chemins défaillants.
+
+```text
+service VIP /32
+       |
+routeur en amont : prochains sauts à coût égal
+       |              |              |
+    site CE 1      site CE 2      site CE 3
+```
+
+## Annoncer les adresses de service en tant que routes
+
+Annoncez chaque adresse IP virtuelle (VIP) individuelle sous forme de route d'hôte `/32` lorsque le service utilise IPv4. Réservez un préfixe dédié uniquement au routage pour ces adresses de service, et ne l'associez pas à un Virtual Private Cloud (VPC), un réseau virtuel (VNet), un VLAN ou un sous-réseau local. Le réseau doit apprendre les adresses de service via les annonces de routage plutôt que par le protocole ARP (Address Resolution Protocol) sur un segment connecté.
+
+Maintenir le préfixe de service distinct évite toute ambiguïté entre une route connectée et la route BGP. Cela rend également explicites la politique de routage, le filtrage et la planification de la capacité. Allouez le préfixe conformément au processus de gestion des adresses de votre organisation ; ne copiez pas un préfixe de laboratoire dans un autre réseau.
+
+## Laisser le routage supprimer un chemin défaillant
+
+Une session BGP établie fournit un signal d'activité (liveness) au routeur en amont. Lorsque la session est fermée ou que son temporisateur d'attente (hold timer) expire, le pair retire les routes apprises au cours de cette session. La détection de transfert bidirectionnel (BFD), lorsque les deux pairs la prennent en charge et l'activent, peut accélérer la détection des pannes. Le temps de convergence dépend donc du protocole et des temporisateurs configurés ; il n'est pas instantané.
+
+Une route statique n'a pas d'état de session équivalent. Les chemins ECMP statiques restent éligibles après la défaillance d'un CE, à moins que le routeur du client ou le contrôleur de réseau étendu défini par logiciel (SD-WAN) ne surveille le saut suivant avec un mécanisme de santé pris en charge et ne supprime la route. Sans ce mécanisme, le routeur peut continuer à sélectionner un CE défaillant et bloquer certains flux (blackhole).
+
+<Aside type="danger" title="Un prochain saut accessible ne garantit pas la santé de l'application">
+Le protocole BGP prouve que le pair de routage est disponible. Il ne prouve pas nécessairement que chaque application derrière ce pair est saine. Déterminez si l'état de la session de routage est suffisant ou si la santé du service nécessite un signal pris en charge distinct.
+</Aside>
+
+## Dimensionner le routeur avant la flotte de CE
+
+Le routeur décide du nombre de chemins à coût égal qu'il installe. Comparez son nombre de chemins ECMP maximal avec le nombre d'annonces CE attendues pour chaque VIP. Lorsque le nombre d'annonces est supérieur à la limite de chemins installés, des sites CE sains supplémentaires peuvent rester inutilisés pour ce préfixe.
+
+Vérifiez la table de transfert (forwarding table) installée plutôt que de vous fier uniquement à la vue des routes BGP reçues. Le plan de contrôle peut conserver plus de candidats que ce que le plan de données installe réellement.
+
+## Traiter la préférence et l'ECMP comme des politiques distinctes
+
+Les chemins ne sont à coût égal que tant que les attributs de sélection de route et la métrique les rendent égaux. Modifier la préférence locale (local preference), le MED (Multi-Exit Discriminator), la distance administrative ou la métrique d'une route statique peut rendre un CE préféré pour une VIP. Il s'agit d'une politique d'orientation valide, mais d'un comportement de type actif/préféré plutôt que d'une distribution équitable.
+
+N'appliquez une préférence par préfixe que si cette asymétrie est intentionnelle. Confirmez qu'un chemin moins préféré devient utilisable lorsque le chemin préféré est retiré, et ne laissez pas un chemin préféré statique non suivi qui survivrait à son CE.
+
+## Séparer les étiquettes du plan de contrôle des preuves de trafic
+
+Dans une architecture comportant plusieurs tunnels ou chemins, une étiquette `ACTIVE` peut identifier le chemin sélectionné pour la synchronisation du plan de contrôle sans pour autant prouver que les autres chemins ECMP n'acheminent pas de données. Ne déduisez pas l'état de transfert à partir de cette seule étiquette. Vérifiez la table de routage ou des tunnels et observez les compteurs de trafic sur chaque chemin attendu.
+
+## Vérifier le chemin complet
+
+Pour chaque préfixe de service, vérifiez tous les éléments suivants :
+
+- chaque CE prévu annonce le préfixe ;
+- la table BGP en amont accepte les chemins attendus ;
+- la table de transfert n'installe ni plus ni moins de chemins que ce que la plateforme prend en charge ;
+- le retrait d'une annonce supprime ce prochain saut après l'intervalle de détection et de convergence configuré ;
+- les contrôles applicatifs réussissent via les chemins restants.
+
+Utilisez le [workflow de diagnostic BGP](../../workflows/bgp-diagnostics/) du dépôt pour distinguer les problèmes d'annonce CE des problèmes de transfert en amont.
+
+## Références aux normes
+
+- [RFC 4271](https://www.rfc-editor.org/rfc/rfc4271.html) définit le retrait des routes BGP et le comportement du temporisateur d'attente (hold-timer).
+- [RFC 5880](https://www.rfc-editor.org/rfc/rfc5880.html) définit la détection de pannes BFD.

@@ -11,6 +11,10 @@ import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
 When deploying F5 Distributed Cloud (XC) Customer Edge (CE) nodes in cloud environments, choosing the high availability (HA) ingress pattern is a key architectural decision.
 
+This page compares the two patterns implemented by this repository. For reusable guidance
+on Virtual Sites versus clustering, route withdrawal, ECMP path limits, and persistence,
+start with [Customer Edge high availability](../../customer-edge/high-availability/).
+
 This deployment demonstrates both primary HA patterns in a single multi-cloud environment:
 
 1. **Dynamic BGP / ECMP Routing (Azure Route Server / AWS VPC / FRR ToR)**: Used for the Rest of World (`eastus`), AWS (`us-east-2`), and On-Premise KVM paths.
@@ -27,7 +31,7 @@ The table below summarizes the core differences between dynamic BGP/ECMP routing
 | Architectural Metric | Pattern A: BGP / ECMP via Azure Route Server | Pattern B: Azure Internal Load Balancer (ILB) |
 | --- | --- | --- |
 | **Ingress Mechanism** | CEs advertise `/32` host routes via eBGP (ASN `64512`) to Azure Route Server (ASN `65515`). ARS updates VNet system route tables with equal-cost next hops. | Azure Standard ILB listens on a static VNet private IP (`10.250.1.10`) and balances traffic across CE management NICs (`eth0`/SLO). |
-| **Health Detection & Node Removal** | BGP hold timer / BFD session monitoring. When a CE node or VPM service fails, the BGP session drops and ARS removes its next hop from the VNet route table. | Azure ILB Health Probe (`Tcp/65500` Site Console or `Tcp/80`). When a node fails consecutive probes, ILB removes it from the backend address pool. |
+| **Health Detection & Node Removal** | This deployment uses BGP session state and hold timers; BFD is disabled. When a route is withdrawn or the session times out, ARS removes that next hop after convergence. | Azure ILB Health Probe (`Tcp/65500` Site Console or `Tcp/80`). When a node fails consecutive probes, ILB removes it from the backend address pool. |
 | **Port & Protocol Handling** | All ports destined for the `/32` VIP route natively to the CEs without port translation or rule limits. | Azure ILB HA Ports rule (`protocol = "All"`, `frontend_port = 0`, `backend_port = 0`) forwards all TCP/UDP traffic to backend CEs. |
 | **Subnet & Footprint Requirements** | Requires a dedicated `/27` subnet named `RouteServerSubnet` (`10.0.4.0/27`) with no Network Security Group or route table. | **No dedicated subnet required.** Frontend IP sits directly in existing management (`snet-hub-management`) or internal subnets. |
 | **BGP Configuration on CE** | Requires `xcsh_bgp` resources bound to the explicit `eth0` SLO interface on each CE site object. | **No BGP configuration required.** CE nodes require no BGP peering resources or BGP neighbor definitions. |
@@ -58,7 +62,7 @@ In the eBGP/ECMP architecture, Customer Edge nodes act as BGP speakers peering w
 1. **Host Route Advertisement**: Each CE node advertises the HTTP Load Balancer VIP (`10.250.0.10/32`) via eBGP (ASN `64512`) to the Azure Route Server peer IPs (`10.0.4.4`, `10.0.4.5`, ASN `65515`).
 2. **VNet Route Table Programming**: Azure Route Server receives the host route from all active CEs and programs the VNet effective route table with multiple equal-cost next hops (`nextHopType: VirtualNetworkGateway`).
 3. **Data-Plane Forwarding**: Client traffic to `10.250.0.10` is distributed across all healthy CE nodes by the Azure SDN fabric using 5-tuple hash ECMP.
-4. **Node Failure & Failover**: If `CE-02` dies or VPM stops, its BGP session tears down. Azure Route Server immediately withdraws `CE-02`'s next hop from the VNet route table, directing subsequent flows to `CE-01` and `CE-03`.
+4. **Route Withdrawal**: If `CE-02` closes its BGP session, or the hold timer expires, Azure Route Server removes that path after routing convergence. This repository has not measured that failover interval, so the architecture is not evidence of a specific recovery time.
 
 ### Key Verification Commands for Pattern A
 
@@ -133,7 +137,7 @@ az network lb probe show \
 | **Cost Optimization** | **Azure ILB** | Replaces ~$430/month Azure Route Server standing charge with ~$18/month Standard ILB. |
 | **Subnet Constrained Environment** | **Azure ILB** | Does not require carving out a dedicated `/27` `RouteServerSubnet`. |
 | **Multi-Cloud Consistency (AWS & Azure)** | **BGP / ECMP** | Uses identical BGP host route advertisement mechanics across AWS VPC, Azure ARS, and On-Premise ToR routers. |
-| **Native Direct Server Return (DSR)** | **BGP / ECMP** | Packets route directly to the CE node without intermediate load balancer translation. |
+| **Native routed ingress** | **BGP / ECMP** | Packets route to a CE next hop without an intermediate Azure load-balancer rule. This row does not claim Direct Server Return behavior. |
 
 ---
 
