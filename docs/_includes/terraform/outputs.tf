@@ -190,8 +190,18 @@ output "ca_origin_pool_name" {
 }
 
 output "ca_vip" {
-  description = "HA VIP for Canadian CEs advertised via eBGP/ECMP."
+  description = "HA VIP for Canadian CEs advertised via eBGP/ECMP or Azure ILB."
   value       = var.ca_vip
+}
+
+output "ca_ilb_id" {
+  description = "Azure Internal Load Balancer ID for Canadian regional path."
+  value       = try(azurerm_lb.ca_ilb[0].id, null)
+}
+
+output "ca_ilb_frontend_ip" {
+  description = "Azure Internal Load Balancer frontend private IP for Canadian regional path."
+  value       = try(azurerm_lb.ca_ilb[0].frontend_ip_configuration[0].private_ip_address, null)
 }
 
 # ---------------------------------------------------------

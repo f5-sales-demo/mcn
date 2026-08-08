@@ -25,6 +25,12 @@ variable "location" {
 # Canada regional Azure placement & CIDRs
 # ---------------------------------------------------------
 
+variable "enable_canada_ilb" {
+  description = "Deploy Azure Internal Load Balancer (ILB) in front of Canadian CEs as an alternative to Azure Route Server (eBGP/ECMP)."
+  type        = bool
+  default     = true
+}
+
 variable "ca_location" {
   description = "Azure region for Canadian regional resources."
   type        = string

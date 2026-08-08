@@ -26,6 +26,7 @@ import awsCe from "../../_includes/terraform/aws_ce.tf?raw";
 import awsVpc from "../../_includes/terraform/aws_vpc.tf?raw";
 import awsXc from "../../_includes/terraform/aws_xc.tf?raw";
 import variablesAws from "../../_includes/terraform/variables_aws.tf?raw";
+import caIlb from "../../_includes/terraform/ca_ilb.tf?raw";
 import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
 import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
 import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
@@ -144,9 +145,15 @@ AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), eBGP peering (`xcsh_bgp.
 
 ### `terraform/variables_azure.tf`
 
-Subscription, region, CIDRs, Bastion, and the Azure object names.
+Subscription, region, CIDRs, Bastion, Canadian ILB variant option, and the Azure object names.
 
 <Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
+
+### `terraform/ca_ilb.tf`
+
+Azure Internal Load Balancer (ILB) variant configuration for the Canadian regional path (`enable_canada_ilb`).
+
+<Code code={caIlb} lang="hcl" title="terraform/ca_ilb.tf" />
 
 ### `terraform/variables_ce.tf`
 
