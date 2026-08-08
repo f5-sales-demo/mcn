@@ -30,14 +30,20 @@ az network nic show-effective-route-table \
   -o json
 ```
 
-Observed 2026-08-03. The addresses are shown as placeholders because published pages do not
-carry live deployment values:
+Observed 2026-08-08 on live deployment:
 
 ```json
 [
   {
-    "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
-    "prefix": "<VIP>/32",
+    "addressPrefix": [
+      "10.250.0.10/32"
+    ],
+    "nextHopIpAddress": [
+      "10.0.1.4",
+      "10.0.1.5",
+      "10.0.1.6"
+    ],
+    "nextHopType": "VirtualNetworkGateway",
     "state": "Active"
   }
 ]

@@ -50,12 +50,12 @@ AWS_LB_NAME=$(terraform output -raw aws_loadbalancer_name)
    done
    ```
 
-   Observed 2026-08-03 after the from-zero rebuild:
+   Observed 2026-08-08 after live deployment verification:
 
    ```text
-   <SITE_01> -> ONLINE
-   <SITE_02> -> ONLINE
-   <SITE_03> -> ONLINE
+   mcn-ce-ha-eastus01 -> ONLINE
+   mcn-ce-ha-eastus02 -> ONLINE
+   mcn-ce-ha-eastus03 -> ONLINE
    ```
 
 2. **Every peering is learning that CE's VIP advertisement.** Query each peering
@@ -72,21 +72,21 @@ AWS_LB_NAME=$(terraform output -raw aws_loadbalancer_name)
    done
    ```
 
-   Observed 2026-08-03. The live addresses are omitted; read them from the command:
+   Observed 2026-08-08 on live Azure Route Server peerings:
 
    ```text
    --- eastus01-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   <VIP>/32        <CE_01_SLO_IP>  <CE_ASN>  EBgp
+   10.250.0.10/32  10.0.1.4   64512     EBgp
    --- eastus02-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   <VIP>/32        <CE_02_SLO_IP>  <CE_ASN>  EBgp
+   10.250.0.10/32  10.0.1.5   64512     EBgp
    --- eastus03-bgp
    Net             NextHop    AsPath    Origin
    --------------  ---------  --------  --------
-   <VIP>/32        <CE_03_SLO_IP>  <CE_ASN>  EBgp
+   10.250.0.10/32  10.0.1.6   64512     EBgp
    ```
 
    Three peerings, three different next hops, one prefix. That is the advertisement side of
@@ -101,16 +101,21 @@ AWS_LB_NAME=$(terraform output -raw aws_loadbalancer_name)
      -o json
    ```
 
-   Observed 2026-08-03. The array contained the three addresses returned by
-   `terraform output -json ce_mgmt_private_ips`:
+   Observed 2026-08-08 on client VM `mcn-ce-ha-client`:
 
    ```json
    [
      {
-       "nh": ["<CE_01_SLO_IP>", "<CE_02_SLO_IP>", "<CE_03_SLO_IP>"],
-       "prefix": "<VIP>/32",
-       "state": "Active",
-       "type": "VirtualNetworkGateway"
+       "addressPrefix": [
+         "10.250.0.10/32"
+       ],
+       "nextHopIpAddress": [
+         "10.0.1.4",
+         "10.0.1.5",
+         "10.0.1.6"
+       ],
+       "nextHopType": "VirtualNetworkGateway",
+       "state": "Active"
      }
    ]
    ```
