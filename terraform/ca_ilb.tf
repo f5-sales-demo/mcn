@@ -13,7 +13,7 @@ resource "azurerm_lb" "ca_ilb" {
   frontend_ip_configuration {
     name                          = "ca-ilb-frontend"
     subnet_id                     = module.azure_hub_ca[0].management_subnet_id
-    private_ip_address            = var.ca_vip
+    private_ip_address            = cidrhost(var.ca_mgmt_subnet_prefix, 10)
     private_ip_address_allocation = "Static"
   }
 
@@ -30,7 +30,7 @@ resource "azurerm_network_interface_backend_address_pool_association" "ca_ce" {
   for_each = var.enable_canada && var.enable_canada_ilb ? module.ce_topology_ca[0].ce_nodes : {}
 
   network_interface_id    = module.ce_node_ca[each.key].mgmt_nic_id
-  ip_configuration_name   = "management"
+  ip_configuration_name   = "ipconfig1"
   backend_address_pool_id = azurerm_lb_backend_address_pool.ca_ce_backend[0].id
 }
 
