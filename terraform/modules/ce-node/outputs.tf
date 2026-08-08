@@ -1,3 +1,8 @@
+output "mgmt_nic_id" {
+  description = "Resource ID of the eth0/SLO (mgmt) NIC."
+  value       = azurerm_network_interface.mgmt.id
+}
+
 output "mgmt_nic_mac" {
   description = "MAC address of the eth0/SLO (mgmt) NIC. Wired into the XC site interface binding so a NIC recreate updates the site."
   value       = azurerm_network_interface.mgmt.mac_address
