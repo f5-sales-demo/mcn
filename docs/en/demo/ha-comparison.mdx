@@ -82,6 +82,25 @@ az network nic show-effective-route-table \
   -o json
 ```
 
+Observed output from healthy ARS BGP/ECMP deployment:
+
+```json
+[
+  {
+    "addressPrefix": [
+      "10.250.0.10/32"
+    ],
+    "nextHopIpAddress": [
+      "10.0.1.4",
+      "10.0.1.5",
+      "10.0.1.6"
+    ],
+    "nextHopType": "VirtualNetworkGateway",
+    "state": "Active"
+  }
+]
+```
+
 ---
 
 ## 3. Pattern B Drill-Down: Azure Internal Load Balancer (ILB)
@@ -125,6 +144,26 @@ az network lb probe show \
   --lb-name "$(terraform output -raw ca_ilb_id | cut -d/ -f9)" \
   -n "site-console-probe" \
   -o json
+```
+
+Observed output from healthy Canadian Azure ILB deployment:
+
+```json
+{
+  "backendPools": [
+    "ca-ce-backend-pool"
+  ],
+  "frontendIp": "10.200.1.10",
+  "name": "mcn-ce-ha-ca-ilb",
+  "probes": [
+    {
+      "name": "site-console-probe",
+      "port": 65500,
+      "protocol": "Tcp"
+    }
+  ],
+  "sku": "Standard"
+}
 ```
 
 ---
