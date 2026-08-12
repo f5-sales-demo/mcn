@@ -41,7 +41,7 @@ env:
 jobs:
   validate:
     name: validate
-    runs-on: [self-hosted, Linux, X64, mcn]
+    runs-on: [self-hosted, Linux, X64, mcn, ubuntu-24.04]
     defaults:
       run:
         working-directory: terraform
@@ -78,7 +78,7 @@ jobs:
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2
-    runs-on: [self-hosted, Linux, X64, mcn]
+    runs-on: [self-hosted, Linux, X64, mcn, ubuntu-24.04]
     defaults:
       run:
         working-directory: coverage/smsv2
