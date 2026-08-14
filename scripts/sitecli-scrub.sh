@@ -169,7 +169,9 @@ function scrub_ipv6(line,   out, rest, tok, pre, post, first) {
     tok  = substr(rest, RSTART, RLENGTH)
     post = substr(rest, RSTART + RLENGTH)
 
-    if (tok !~ /::/ && tok !~ /(^|:)[0-9A-Fa-f]{3,4}(:|$)/) {
+    # Spell out the 3-or-4-hextet width: runner mawk panics on {3,4} here.
+    if (tok !~ /::/ && \
+        tok !~ /(^|:)[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]?(:|$)/) {
       out = out pre tok                     # a MAC, or a plain colon list
       rest = post
       continue
