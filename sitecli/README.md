@@ -167,6 +167,14 @@ presented as if it were complete.
 
 ## Writing the documentation pages
 
+### Command classification
+
+`command-classification.json` records the editorial classification used by the on-box command
+catalog. F5-owned commands receive full pages, third-party commands receive only the
+Customer-Edge-specific interpretation when one exists, and ordinary passthrough commands remain
+listed with an upstream pointer. Keep this maintenance rationale here; the operator-facing catalog
+should describe the treatment a reader receives rather than the file that controls it.
+
 Four rules are enforced by tests, so they are not style preferences.
 
 **No deployment-specific value inside a `bash` or `sh` fence.** A literal in a command is an

@@ -1,0 +1,35 @@
+---
+title: Deploy the full showcase
+description: Plan and deploy all default MCN showcase paths.
+sidebar:
+  order: 22
+---
+
+Run a plan before you create resources. Confirm that the AWS Route Server, three AWS sites, KVM
+CE, FRR peer, and local client appear alongside the Azure and Canadian resources.
+
+1. Initialize Terraform with your backend configuration.
+
+   ```bash
+   terraform -chdir=terraform init -backend-config=backend.hcl
+   ```
+
+2. Review the complete plan.
+
+   ```bash
+   terraform -chdir=terraform plan
+   ```
+
+3. Apply the approved plan.
+
+   ```bash
+   terraform -chdir=terraform apply
+   ```
+
+4. Apply again after newly booted CEs register so Terraform can approve their registrations.
+
+   ```bash
+   terraform -chdir=terraform apply
+   ```
+
+If a KVM image is unavailable, stop. Do not present an incomplete full showcase.

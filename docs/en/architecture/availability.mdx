@@ -1,0 +1,13 @@
+---
+title: Choose an availability path
+description: Compare BGP ECMP and the Canadian Azure Internal Load Balancer path.
+sidebar:
+  order: 12
+---
+
+Use BGP ECMP when you want the routing fabric to learn one external VIP from independent Customer
+Edges and remove a path when a peer fails. Use the Canadian ILB path when you need to show an Azure
+frontend with health-probed backends.
+
+The two Canadian addresses are intentionally different: `ca_vip` is the BGP-advertised VIP; the
+ILB frontend is a private Azure address. Do not use one as evidence for the other.

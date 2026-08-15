@@ -1,0 +1,17 @@
+---
+title: Clean up the full showcase
+description: Restore tests, destroy the stack, and confirm no showcase resources remain.
+sidebar:
+  order: 25
+---
+
+Restore any stopped test node before teardown. Confirm routing converges and save only sanitized
+evidence. Then destroy the lab stack:
+
+```bash
+terraform -chdir=terraform destroy
+```
+
+After destroy, confirm that Azure resources, AWS Route Server resources, F5 site and application
+objects, libvirt domains and volumes, and Docker containers and networks no longer exist. A clean
+backendless plan is the final configuration check.

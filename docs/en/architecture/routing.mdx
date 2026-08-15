@@ -1,0 +1,12 @@
+---
+title: Understand routing and affinity
+description: Understand route learning, withdrawal, ECMP, and application affinity in the showcase.
+sidebar:
+  order: 13
+---
+
+Each BGP path advertises the load-balancer VIP from a separate site. Route Server selects and
+installs usable paths; removing a peer withdraws that path while traffic can continue on the
+remaining paths. Existing flows can stay pinned while new flows use the remaining ECMP set.
+
+For operator evidence and commands, use [BGP diagnostics](../../customer-edge/workflows/bgp-diagnostics/).

@@ -7,6 +7,7 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
+  kvm_ce_image_path      = "/tmp/f5xc-ce.qcow2"
   site_prefix            = null
   ca_site_prefix         = null
   lb_name                = null

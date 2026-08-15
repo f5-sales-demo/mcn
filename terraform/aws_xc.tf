@@ -1,17 +1,14 @@
-# ---------------------------------------------------------
-# F5 XC SecureMesh v2 Site, BGP, Virtual Site, Origin Pool & LB for AWS
-# ---------------------------------------------------------
-
+# Independent AWS Secure Mesh sites and their BGP sessions. AWS Route Server
+# peers with each EC2 SLO address; the F5 object records the matching session.
 resource "xcsh_securemesh_site_v2" "aws" {
-  count       = var.enable_aws ? 1 : 0
-  name        = "aws-site"
+  for_each    = local.aws_sites
+  name        = each.value.site_name
   namespace   = "system"
-  description = "AWS Customer Edge SecureMesh Site v2"
+  description = "AWS single-node Customer Edge ${each.key}"
 
   aws {
     not_managed {}
   }
-
   disable_ha {}
   block_all_services {}
   no_network_policy {}
@@ -25,41 +22,34 @@ resource "xcsh_securemesh_site_v2" "aws" {
   disable_management_network {}
 }
 
-resource "xcsh_bgp" "aws_ebgp" {
-  count     = var.enable_aws ? 1 : 0
-  name      = "${var.component}-aws-ebgp"
+resource "xcsh_bgp" "aws" {
+  for_each  = local.aws_sites
+  name      = "${each.value.site_name}-bgp"
   namespace = "system"
-
   where {
     site {
       network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
       ref {
-        name      = xcsh_securemesh_site_v2.aws[0].name
+        name      = xcsh_securemesh_site_v2.aws[each.key].name
         namespace = "system"
       }
       disable_internet_vip {}
     }
   }
-
   bgp_parameters {
-    asn = 64512
+    asn = var.aws_ce_asn
     local_address {}
   }
-
   peers {
-    metadata {
-      name = "peer-aws-router"
-    }
+    metadata { name = "aws-route-server-${each.key}" }
     external {
-      asn     = 65515
-      address = cidrhost(var.aws_vpc_cidr, 1)
+      asn     = var.aws_route_server_asn
+      address = aws_vpc_route_server_endpoint.aws[each.value.index % 2].eni_address
       port    = 179
-
       interface {
         name      = "eth0"
         namespace = "system"
       }
-
       disable_v6 {}
     }
     passive_mode_disabled {}
@@ -71,28 +61,20 @@ resource "xcsh_virtual_site" "aws" {
   count     = var.enable_aws ? 1 : 0
   name      = "${var.component}-aws-vsite"
   namespace = data.xcsh_namespace.mcn.name
-
   site_type = "CUSTOMER_EDGE"
-  site_selector {
-    expressions = ["ves.io/siteName in (aws-site)"]
-  }
+  site_selector { expressions = ["ves.io/siteName in (${join(", ", [for site in values(local.aws_sites) : site.site_name])})"] }
 }
 
 resource "xcsh_origin_pool" "aws" {
   count       = var.enable_aws ? 1 : 0
   name        = "${var.component}-aws-pool"
   namespace   = data.xcsh_namespace.mcn.name
-  description = "AWS origin pool serving MCN CE-HA demo"
-
-  port = var.origin_port
-
+  description = "AWS Route Server showcase origin pool"
+  port        = var.origin_port
   origin_servers {
     labels {}
-    public_ip {
-      ip = var.origin_ip
-    }
+    public_ip { ip = var.origin_ip }
   }
-
   no_tls {}
   loadbalancer_algorithm = "ROUND_ROBIN"
   endpoint_selection     = "DISTRIBUTED"
@@ -102,13 +84,8 @@ resource "xcsh_http_loadbalancer" "aws" {
   count     = var.enable_aws ? 1 : 0
   name      = "${var.component}-aws-lb"
   namespace = data.xcsh_namespace.mcn.name
-
-  domains = [var.aws_lb_domain]
-
-  http {
-    port = 80
-  }
-
+  domains   = [var.aws_lb_domain]
+  http { port = 80 }
   advertise_custom {
     advertise_where {
       virtual_site {
@@ -121,7 +98,6 @@ resource "xcsh_http_loadbalancer" "aws" {
       use_default_port {}
     }
   }
-
   default_route_pools {
     pool {
       name      = xcsh_origin_pool.aws[0].name
@@ -130,7 +106,6 @@ resource "xcsh_http_loadbalancer" "aws" {
     weight   = 1
     priority = 1
   }
-
   round_robin {}
   no_challenge {}
   user_id_client_ip {}

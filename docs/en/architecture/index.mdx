@@ -1,0 +1,19 @@
+---
+title: Understand the architecture
+description: Understand the four connected paths in the MCN full showcase before you deploy it.
+sidebar:
+  order: 10
+---
+
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+import { CardGrid } from "@astrojs/starlight/components";
+
+The showcase connects F5 Distributed Cloud Customer Edges in Azure, Canada, AWS, and KVM. Start
+here to choose the routing and availability story you will demonstrate.
+
+<CardGrid>
+  <LinkCard title="Topology" description="See the four paths, their clients, and the proof each produces." href="./topology/" />
+  <LinkCard title="Availability decision" description="Compare BGP ECMP with the Canadian ILB path." href="./availability/" />
+  <LinkCard title="Routing and affinity" description="Understand route withdrawal, ECMP, and connection behavior." href="./routing/" />
+  <LinkCard title="Customer Edge interfaces" description="Learn what the CE network interfaces represent." href="./interfaces/" />
+</CardGrid>

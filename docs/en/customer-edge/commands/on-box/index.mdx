@@ -1,6 +1,6 @@
 ---
 title: On-box commands
-description: The Site CLI's own command set — 6 top-level commands and 89 execcli subcommands — and how it overlaps the debug API's separate catalog of 43 without either containing the other. Explains the hidden execcli command that runs them, which commands are documented in full and which are only listed, and how the set was measured.
+description: Use the Site CLI command catalog to choose the right on-box diagnostic command and understand its relation to the debug API.
 sidebar:
   order: 40
   label: On-box
@@ -28,21 +28,12 @@ own one-line description for each. That completion menu is the authoritative cat
 build, and it is what `sitecli/exec-catalog.json` records.
 </Aside>
 
-## How this was measured, and how the sets overlap
+## Command coverage
 
-The set below is not transcribed from a vendor document. It was read from a live node with
-`scripts/sitecli_ssh_harvest.py` and committed to `sitecli/exec-catalog.json` with its
-provenance. The current catalog records software build `crt-20260201-0179`, site state
-`PROVISIONED`, and capture time `2026-08-03T16:47:48Z`.
-
-Against the debug API's 43 commands, that gives two figures worth keeping straight:
-
-- **49** `execcli` subcommands have no API equivalent.
-- **54** commands across the whole on-box surface have no API equivalent; the additional five
-  live at the top level rather than under `execcli`.
-
-Both are correct; a reader who recomputes one and finds the other has not made a mistake.
-Every figure here derives from `sitecli/catalog.json` and `sitecli/exec-catalog.json`.
+Use this catalog for commands available on the Customer Edge build captured for this guide.
+Some commands also appear in the [debug API](../../access/debug-api/); use the access method that
+fits the incident and the permissions you have. The catalog pages identify the command category,
+privilege tier, syntax, captured output, and any operational cautions.
 
 <Aside type="caution" title="Five commands that do not exist">
 `factory-reset`, `upgrade`, `reboot`, `show` and `clear` are **not** on this build. They are
@@ -68,17 +59,11 @@ A Customer Edge runs Linux and a number of third-party daemons. Documenting thei
 would duplicate their own references and imply F5 owns them, so the rule is: **document
 F5's software, and for everything else document only what is specific to a CE.**
 
-Three tiers, because "ours" and "theirs" is not a clean split. The split is recorded in
-`sitecli/command-classification.json`.
-
 | Tier | Treatment |
 | --- | --- |
 | **F5 software** | Full documentation — purpose, syntax, arguments, captured output, what to look for. Argo, Vega, `vpm`, `vifdump`, `configure*`, the `edit-*` set, kubelet parameters, root access. |
 | **CE-specific interpretation** | A third-party tool whose output means something particular on a CE. The CE-specific reading is documented and the tool's own semantics are left upstream. |
 | **Passthrough** | Plain Linux or third-party with nothing CE-specific to say. Listed as available, with a pointer upstream. No prose. |
-
-That distinction decides whether a page exists at all, and it is what keeps this
-documentation from rotting into a worse copy of the man pages.
 
 ## F5 software
 

@@ -1,0 +1,39 @@
+---
+title: Terraform source reference
+description: Browse the Terraform source that implements the MCN full showcase.
+sidebar:
+  order: 41
+---
+
+import { Code } from "@astrojs/starlight/components";
+import awsVpc from "../../_includes/terraform/aws_vpc.tf?raw";
+import awsCe from "../../_includes/terraform/aws_ce.tf?raw";
+import awsXc from "../../_includes/terraform/aws_xc.tf?raw";
+import kvm from "../../_includes/terraform/kvm.tf?raw";
+import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
+import variablesKvm from "../../_includes/terraform/variables_kvm.tf?raw";
+
+The Terraform source is the implementation authority. The documentation imports its tracked files
+from `docs/_includes/terraform`; do not copy resource definitions into prose.
+
+## AWS Route Server
+
+`aws_vpc.tf` creates the VPC association, endpoints, and route propagation. `aws_ce.tf` creates the
+three independent CE peers and test client. `aws_xc.tf` creates their F5 site and application path.
+
+<Code code={awsVpc} lang="hcl" title="terraform/aws_vpc.tf" />
+
+<Code code={awsCe} lang="hcl" title="terraform/aws_ce.tf" />
+
+<Code code={awsXc} lang="hcl" title="terraform/aws_xc.tf" />
+
+## KVM Customer Edge
+
+`variables_kvm.tf` defines the F5 image and local network inputs. `kvm.tf` creates the supported CE
+domain, FRR peer, and client. `onprem_kvm.tf` creates the matching F5 site and BGP objects.
+
+<Code code={variablesKvm} lang="hcl" title="terraform/variables_kvm.tf" />
+
+<Code code={kvm} lang="hcl" title="terraform/kvm.tf" />
+
+<Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />

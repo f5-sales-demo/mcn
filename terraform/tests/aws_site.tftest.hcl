@@ -7,6 +7,7 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
+  kvm_ce_image_path   = "/tmp/f5xc-ce.qcow2"
   site_prefix         = null
   lb_name             = null
   origin_pool_name    = null
@@ -47,9 +48,34 @@ run "aws_site_and_resources" {
   }
 
   assert {
-    condition     = output.aws_vip == "10.150.0.10"
-    error_message = "AWS VIP should be 10.150.0.10."
+    condition     = output.aws_vip == "198.51.100.10"
+    error_message = "AWS VIP must be outside the VPC CIDR."
   }
+
+  assert {
+    condition     = length(output.aws_site_names) == 3 && length(toset(values(output.aws_site_names))) == 3
+    error_message = "AWS must create three independently named Secure Mesh sites."
+  }
+
+  assert {
+    condition     = length(aws_vpc_route_server_endpoint.aws) == 2 && length(aws_vpc_route_server_peer.ce) == 3
+    error_message = "AWS Route Server must expose two endpoints and peer with every CE."
+  }
+
+  assert {
+    condition     = length(aws_vpc_route_server_propagation.aws) == 2 && length(aws_instance.test_client) == 1
+    error_message = "AWS must propagate learned routes and provide a test client."
+  }
+}
+
+run "aws_vip_inside_vpc_is_rejected" {
+  command = plan
+
+  variables {
+    aws_vip = "10.150.0.10"
+  }
+
+  expect_failures = [check.aws_vip_outside_vpc_cidr]
 }
 
 run "aws_disabled_plans_no_aws_resources" {

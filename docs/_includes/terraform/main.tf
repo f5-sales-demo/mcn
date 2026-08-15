@@ -71,6 +71,20 @@ check "ca_vip_outside_vnet_cidrs" {
   }
 }
 
+check "aws_vip_outside_vpc_cidr" {
+  assert {
+    condition     = !var.enable_aws || cidrhost(var.aws_vpc_cidr, 0) != cidrhost("${var.aws_vip}/${split("/", var.aws_vpc_cidr)[1]}", 0)
+    error_message = "aws_vip ${var.aws_vip} must be OUTSIDE aws_vpc_cidr ${var.aws_vpc_cidr}."
+  }
+}
+
+check "kvm_vip_outside_local_network" {
+  assert {
+    condition     = !var.enable_kvm || cidrhost(var.kvm_network_cidr, 0) != cidrhost("${var.kvm_vip}/${split("/", var.kvm_network_cidr)[1]}", 0)
+    error_message = "kvm_vip ${var.kvm_vip} must be OUTSIDE kvm_network_cidr ${var.kvm_network_cidr}."
+  }
+}
+
 # Tenant-scoped, reusable site registration token. The provider now ships
 # xcsh_token with a Computed `uid` (system_metadata.uid) — the token VALUE a CE
 # feeds to VPM at registration (the resource `id` is the token NAME, not the

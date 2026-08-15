@@ -1,0 +1,22 @@
+---
+title: Verify the full showcase
+description: Capture health, routing, failover, and traffic evidence for every showcase path.
+sidebar:
+  order: 23
+---
+
+Verify each path before presenting it. Read deployment-specific values from Terraform outputs.
+
+```bash
+terraform -chdir=terraform output -json aws_site_names
+terraform -chdir=terraform output -json aws_route_server_peer_ids
+terraform -chdir=terraform output -raw kvm_frr_container_name
+```
+
+- Confirm Azure and Canadian sites are online, advertise the VIP, and install multiple ECMP paths. Remove one authorized lab path and confirm traffic continues.
+- Confirm the Canadian ILB reports healthy backends, then stop one authorized backend and confirm the frontend continues serving.
+- Confirm Amazon VPC Route Server has three peers and propagation reaches the test-client route table. Send a request from the AWS test client, then remove one authorized peer path and confirm withdrawal.
+- Confirm the KVM site is online, FRR learns `kvm_vip`, and the macvlan client reaches the service.
+
+Use [BGP diagnostics](../../customer-edge/workflows/bgp-diagnostics/) and
+[data-plane diagnostics](../../customer-edge/workflows/dataplane-diagnostics/) for symptom-led commands.

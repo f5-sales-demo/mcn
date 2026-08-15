@@ -9,3 +9,15 @@ sidebar:
   hidden: true
   order: 0
 ---
+
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+import { CardGrid } from "@astrojs/starlight/components";
+
+Use this guide to understand, run, and operate the complete Multi-Cloud Networking showcase.
+
+<CardGrid>
+  <LinkCard title="Understand the architecture" description="Choose the routing and availability story." href="./architecture/" />
+  <LinkCard title="Run the full showcase" description="Prepare, deploy, verify, present, and clean up." href="./showcase/" />
+  <LinkCard title="Operate Customer Edge" description="Access a CE and diagnose common symptoms." href="./customer-edge/" />
+  <LinkCard title="Reference" description="Find Terraform source and command catalogs." href="./reference/" />
+</CardGrid>

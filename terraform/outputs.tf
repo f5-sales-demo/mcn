@@ -236,12 +236,12 @@ output "aws_vpc_id" {
 
 output "aws_ce_instance_ids" {
   description = "EC2 instance IDs of the AWS Customer Edge nodes."
-  value       = aws_instance.ce[*].id
+  value       = { for key, ce in aws_instance.ce : key => ce.id }
 }
 
 output "aws_ce_public_ips" {
   description = "Elastic IPs assigned to the AWS Customer Edge nodes."
-  value       = aws_eip.ce[*].public_ip
+  value       = { for key, address in aws_eip.ce : key => address.public_ip }
 }
 
 output "aws_lb_domain" {
@@ -264,3 +264,71 @@ output "aws_vip" {
   value       = var.aws_vip
 }
 
+output "aws_route_server_id" {
+  description = "AWS VPC Route Server identifier."
+  value       = try(aws_vpc_route_server.aws[0].route_server_id, null)
+}
+
+output "aws_route_server_endpoint_addresses" {
+  description = "AWS Route Server endpoint addresses used by the CE BGP sessions."
+  value       = [for endpoint in aws_vpc_route_server_endpoint.aws : endpoint.eni_address]
+}
+
+output "aws_route_server_peer_ids" {
+  description = "Route Server peer ID for each independent AWS CE site."
+  value       = { for key, peer in aws_vpc_route_server_peer.ce : key => peer.route_server_peer_id }
+}
+
+output "aws_route_server_propagated_route_tables" {
+  description = "Route tables where Route Server learned routes, including the AWS VIP, are propagated."
+  value       = { for key, propagation in aws_vpc_route_server_propagation.aws : key => propagation.route_table_id }
+}
+
+output "aws_site_names" {
+  description = "Three independent AWS Secure Mesh site names."
+  value       = { for key, site in xcsh_securemesh_site_v2.aws : key => site.name }
+}
+
+output "aws_test_client_instance_id" {
+  description = "AWS test-client instance ID for VIP traffic checks."
+  value       = try(aws_instance.test_client[0].id, null)
+}
+
+output "aws_test_client_public_ip" {
+  description = "Public IP of the AWS test client."
+  value       = try(aws_instance.test_client[0].public_ip, null)
+}
+
+# ---------------------------------------------------------
+# KVM outputs
+# ---------------------------------------------------------
+
+output "kvm_site_name" {
+  description = "KVM Secure Mesh site name."
+  value       = try(xcsh_securemesh_site_v2.kvm[0].name, null)
+}
+
+output "kvm_domain_name" {
+  description = "Libvirt domain that runs the KVM Customer Edge."
+  value       = var.enable_kvm ? var.kvm_domain_name : null
+}
+
+output "kvm_frr_container_name" {
+  description = "FRR container paired with the KVM CE for BGP verification."
+  value       = try(docker_container.kvm_frr[0].name, null)
+}
+
+output "kvm_client_container_name" {
+  description = "Local curl test-client container name."
+  value       = try(docker_container.kvm_client[0].name, null)
+}
+
+output "kvm_network_name" {
+  description = "Libvirt network used by the KVM CE, FRR, and client."
+  value       = var.enable_kvm ? var.kvm_network_name : null
+}
+
+output "kvm_vip" {
+  description = "External VIP advertised by the KVM CE to FRR."
+  value       = var.kvm_vip
+}

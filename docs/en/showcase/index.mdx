@@ -1,0 +1,20 @@
+---
+title: Run the full showcase
+description: Prepare, deploy, verify, present, and clean up the complete MCN showcase.
+sidebar:
+  order: 20
+---
+
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+import { CardGrid } from "@astrojs/starlight/components";
+
+The default Terraform graph includes Azure Rest of World, Canadian BGP and ILB comparison paths,
+AWS Route Server, and one KVM Customer Edge. Azure Bastion remains opt-in.
+
+<CardGrid>
+  <LinkCard title="Prepare" description="Collect access, costs, inputs, and the F5 KVM image." href="./prepare/" />
+  <LinkCard title="Deploy" description="Plan and apply the complete graph." href="./deploy/" />
+  <LinkCard title="Verify" description="Collect routing, health, and traffic evidence." href="./verify/" />
+  <LinkCard title="Present" description="Tell the availability story using verified evidence." href="./present/" />
+  <LinkCard title="Clean up" description="Destroy the stack and check every environment." href="./clean-up/" />
+</CardGrid>

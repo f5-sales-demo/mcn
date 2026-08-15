@@ -3,9 +3,9 @@
 # ---------------------------------------------------------
 
 variable "enable_aws" {
-  description = "Enable deployment of the AWS Customer Edge site, VPC, EC2 instances, and XC resources."
+  description = "Enable the AWS Route Server showcase: VPC, three independent Customer Edge sites, Route Server peers, route propagation, and a test client."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "aws_location" {
@@ -33,14 +33,38 @@ variable "aws_instance_type" {
 }
 
 variable "aws_vip" {
-  description = "HA VIP for AWS CEs advertised as a /32 via eBGP."
+  description = "VIP advertised as a /32 by every AWS Customer Edge. It must be outside aws_vpc_cidr so the Route Server can install it dynamically."
   type        = string
-  default     = "10.150.0.10"
+  default     = "198.51.100.10"
 
   validation {
     condition     = can(cidrhost("${var.aws_vip}/32", 0))
     error_message = "aws_vip must be a valid IPv4 address."
   }
+}
+
+variable "aws_route_server_asn" {
+  description = "Amazon-side ASN for the VPC Route Server."
+  type        = number
+  default     = 64513
+}
+
+variable "aws_ce_asn" {
+  description = "ASN used by the independent AWS Customer Edge sites."
+  type        = number
+  default     = 64512
+}
+
+variable "aws_site_prefix" {
+  description = "Prefix for AWS single-node F5 site names. Each CE receives <aws_site_prefix>-01, -02, or -03."
+  type        = string
+  default     = null
+}
+
+variable "aws_test_client_instance_type" {
+  description = "EC2 instance type for the AWS HTTP test client."
+  type        = string
+  default     = "t3.micro"
 }
 
 variable "aws_lb_domain" {

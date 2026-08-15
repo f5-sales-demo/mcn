@@ -58,6 +58,21 @@ resource "aws_subnet" "private_sli" {
   })
 }
 
+# Route Server endpoints are AWS-managed ENIs. Keeping them in dedicated
+# subnets makes the peering boundary obvious and leaves the CE SLO subnets for
+# appliances only.
+resource "aws_subnet" "route_server" {
+  count = var.enable_aws ? 2 : 0
+
+  vpc_id            = aws_vpc.aws[0].id
+  cidr_block        = cidrsubnet(var.aws_vpc_cidr, 8, count.index + 21)
+  availability_zone = try(data.aws_availability_zones.available[0].names[count.index], "${var.aws_location}${element(["a", "b"], count.index)}")
+
+  tags = merge(local.tags, {
+    Name = "${var.component}-aws-route-server-${count.index + 1}"
+  })
+}
+
 resource "aws_route_table" "public" {
   count = var.enable_aws ? 1 : 0
 
@@ -100,6 +115,41 @@ resource "aws_route_table_association" "private" {
 
   subnet_id      = aws_subnet.private_sli[count.index].id
   route_table_id = aws_route_table.private[0].id
+}
+
+resource "aws_vpc_route_server" "aws" {
+  count           = var.enable_aws ? 1 : 0
+  amazon_side_asn = var.aws_route_server_asn
+  tags            = merge(local.tags, { Name = "${var.component}-aws-route-server" })
+}
+
+resource "aws_vpc_route_server_vpc_association" "aws" {
+  count           = var.enable_aws ? 1 : 0
+  route_server_id = aws_vpc_route_server.aws[0].route_server_id
+  vpc_id          = aws_vpc.aws[0].id
+}
+
+resource "aws_vpc_route_server_endpoint" "aws" {
+  count           = var.enable_aws ? 2 : 0
+  route_server_id = aws_vpc_route_server.aws[0].route_server_id
+  subnet_id       = aws_subnet.route_server[count.index].id
+  tags            = merge(local.tags, { Name = "${var.component}-aws-rs-endpoint-${count.index + 1}" })
+
+  depends_on = [aws_vpc_route_server_vpc_association.aws]
+}
+
+# Dynamic route installation is explicit. Without propagation the Route Server
+# can learn the VIP but the test client never receives a usable VPC route.
+resource "aws_vpc_route_server_propagation" "aws" {
+  for_each = var.enable_aws ? {
+    public  = aws_route_table.public[0].id
+    private = aws_route_table.private[0].id
+  } : {}
+
+  route_server_id = aws_vpc_route_server.aws[0].route_server_id
+  route_table_id  = each.value
+
+  depends_on = [aws_vpc_route_server_vpc_association.aws]
 }
 
 resource "aws_security_group" "ce" {
@@ -160,4 +210,29 @@ resource "aws_security_group" "ce" {
   tags = merge(local.tags, {
     Name = "${var.component}-aws-ce-sg"
   })
+}
+
+resource "aws_security_group" "test_client" {
+  count       = var.enable_aws ? 1 : 0
+  name        = "${var.component}-aws-client-sg"
+  description = "Security group for the AWS Route Server test client"
+  vpc_id      = aws_vpc.aws[0].id
+
+  ingress {
+    description = "Operator SSH access"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "HTTP and Route Server verification traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.tags, { Name = "${var.component}-aws-client-sg" })
 }

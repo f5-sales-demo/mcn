@@ -1,0 +1,21 @@
+---
+title: Prepare the full showcase
+description: Gather the access, inputs, capacity, and F5 KVM image required for a full showcase.
+sidebar:
+  order: 21
+---
+
+Before you deploy, confirm that the Azure, AWS, F5 Distributed Cloud, libvirt, and Docker targets
+are authorized lab environments. Supply `origin_ip` and `lb_domain`, cloud credentials, an F5 XC
+credential, and an existing F5 XC application namespace.
+
+Download the F5 CE QCOW2 image after creating the KVM site and set `kvm_ce_image_path` to its
+absolute path on the libvirt host. KVM requires at least 8 vCPUs, 32 GB RAM, and 80 GB disk. Do
+not substitute a generic cloud image.
+
+```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+```
+
+Review the cost of all enabled cloud paths before applying. Set `enable_aws`, `enable_kvm`,
+`enable_canada`, or `enable_canada_ilb` to `false` only for a focused lab run.

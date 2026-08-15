@@ -17,8 +17,9 @@ mock_provider "random" {
 }
 
 variables {
-  lb_domain = "mcn.example.com"
-  origin_ip = "198.51.100.10"
+  kvm_ce_image_path = "/tmp/f5xc-ce.qcow2"
+  lb_domain         = "mcn.example.com"
+  origin_ip         = "198.51.100.10"
 }
 
 run "site_console_password_is_applied_on_the_ce_host" {

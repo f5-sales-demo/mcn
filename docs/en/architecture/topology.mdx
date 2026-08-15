@@ -1,0 +1,16 @@
+---
+title: Showcase topology
+description: The Azure, Canada, AWS, and KVM paths that make up the full MCN showcase.
+sidebar:
+  order: 11
+---
+
+The default deployment creates four comparison paths:
+
+- Azure Rest of World uses three independent CE sites and Azure Route Server ECMP.
+- Canada uses the same BGP model and keeps an Azure Internal Load Balancer path for comparison.
+- AWS uses three independent single-node F5 sites, Amazon VPC Route Server endpoints, and dynamic route propagation to an AWS test client.
+- KVM uses one F5 QCOW2-based CE, a local FRR peer, and a macvlan-attached cURL client.
+
+Every advertised VIP is outside the relevant VNet or VPC CIDR. This lets routing infrastructure
+install and withdraw the route rather than preferring a local system route.

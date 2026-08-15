@@ -14,7 +14,7 @@ terraform {
     }
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.60"
     }
     azuread = {
       source  = "hashicorp/azuread"
@@ -31,6 +31,10 @@ terraform {
     libvirt = {
       source  = "dmacvicar/libvirt"
       version = "~> 0.8.0"
+    }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 4.5"
     }
   }
 }

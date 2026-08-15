@@ -72,6 +72,8 @@ locals {
   ca_re_vsite_name       = coalesce(var.ca_re_vsite_name, "${var.component}-ca-re-vsite")
   ca_ce_vsite_name       = coalesce(var.ca_ce_vsite_name, "${var.component}-ca-ce-vsite")
 
+  aws_site_prefix = coalesce(var.aws_site_prefix, "${var.component}-aws")
+
   # --- Standard tags (applied to every Azure resource) ---
   standard_tags = {
     component   = var.component
