@@ -129,7 +129,6 @@ interface_list {
 
   ethernet_interface {
     device = "eth0"
-    mac    = var.mgmt_nic_mac
   }
 
   # Site Local Outside (SLO) — required on every site; BGP peers from here.
@@ -141,6 +140,8 @@ interface_list {
 }
 ```
 
+The Azure site does not copy the NIC's MAC into this block. Its site-scoped cloud-init associates
+the VM with the site, and the explicit interface name gives the BGP object a stable bind target.
 `site_local_network {}` is SLO. So:
 
 | In this deployment | What it actually is |

@@ -85,7 +85,7 @@ resource "azurerm_linux_virtual_machine" "this" {
     public_key = var.ssh_public_key
   }
 
-  # eth0 first = mgmt/SLO NIC (BGP local + MAC-bound to the XC site interface).
+  # eth0 first = mgmt/SLO NIC and the BGP local address.
   network_interface_ids = [
     azurerm_network_interface.mgmt.id,
     azurerm_network_interface.external.id,

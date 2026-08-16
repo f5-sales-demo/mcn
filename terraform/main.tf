@@ -155,8 +155,8 @@ resource "random_password" "site_console_admin" {
 
 }
 
-# One XC SMSv2 site + bgp object per node. The MAC is wired from the mgmt NIC so
-# a NIC recreate updates the site binding automatically.
+# One XC SMSv2 site and BGP object per node. The explicit eth0 SLO interface is
+# the BGP bind target; the issued cloud-init associates the VM with the site.
 module "xc_site" {
   source   = "./modules/xc-site"
   for_each = module.ce_topology.ce_nodes
