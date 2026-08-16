@@ -17,7 +17,13 @@ mock_provider "xcsh" {
 }
 mock_provider "aws" {}
 mock_provider "libvirt" {}
-mock_provider "docker" {}
+mock_provider "docker" {
+  mock_resource "docker_image" {
+    defaults = {
+      image_id = "sha256:mock-container-image"
+    }
+  }
+}
 mock_provider "random" {
   mock_resource "random_password" {
     defaults = { result = "MockSitePassword-42!" }
@@ -35,6 +41,22 @@ variables {
 
 run "default_kvm_contract" {
   command = plan
+
+  override_resource {
+    target          = docker_image.kvm_frr[0]
+    override_during = plan
+    values = {
+      image_id = "sha256:mock-frr-image"
+    }
+  }
+
+  override_resource {
+    target          = docker_image.kvm_client[0]
+    override_during = plan
+    values = {
+      image_id = "sha256:mock-client-image"
+    }
+  }
 
   override_resource {
     target          = xcsh_site_cloud_init.kvm[0]
@@ -85,12 +107,18 @@ run "default_kvm_contract" {
 
   assert {
     condition = (
+      length(docker_image.kvm_frr) == 1 &&
+      docker_image.kvm_frr[0].name == "quay.io/frrouting/frr:10.7.0@sha256:65e5967b922572c0565d968388fb06af69d7e9b3b3eea40ad7e3810687667f68" &&
+      docker_image.kvm_frr[0].keep_locally == false &&
       length(docker_container.kvm_frr) == 1 &&
-      docker_container.kvm_frr[0].image == "quay.io/frrouting/frr:10.7.0@sha256:65e5967b922572c0565d968388fb06af69d7e9b3b3eea40ad7e3810687667f68" &&
+      docker_container.kvm_frr[0].image == docker_image.kvm_frr[0].image_id &&
       docker_container.kvm_frr[0].sysctls["net.ipv4.ip_forward"] == "1" &&
       strcontains(join(" ", docker_container.kvm_frr[0].command), "bgpd=yes") &&
+      length(docker_image.kvm_client) == 1 &&
+      docker_image.kvm_client[0].name == "alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1" &&
+      docker_image.kvm_client[0].keep_locally == false &&
       length(docker_container.kvm_client) == 1 &&
-      docker_container.kvm_client[0].image == "alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1" &&
+      docker_container.kvm_client[0].image == docker_image.kvm_client[0].image_id &&
       docker_container.kvm_client[0].user == "0" &&
       strcontains(join(" ", docker_container.kvm_client[0].command), "ip route replace 198.51.100.20/32 via 172.30.10.2") &&
       length(docker_network.kvm) == 1
@@ -130,6 +158,8 @@ run "kvm_disabled_has_no_local_resources" {
       length(random_password.site_console_admin_kvm) == 0 &&
       length(xcsh_site_cloud_init.kvm) == 0 &&
       length(docker_network.kvm) == 0 &&
+      length(docker_image.kvm_frr) == 0 &&
+      length(docker_image.kvm_client) == 0 &&
       length(docker_container.kvm_frr) == 0 &&
       length(docker_container.kvm_client) == 0 &&
       output.kvm_site_name == null &&

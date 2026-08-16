@@ -46,6 +46,11 @@ grep -qF 'alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045
   exit 1
 }
 
+if [ "$(grep -cF 'keep_locally = false' "$terraform_root/kvm.tf")" -ne 2 ]; then
+  echo "Terraform must own and remove both KVM container images" >&2
+  exit 1
+fi
+
 if rg -n 'image[[:space:]]*=[[:space:]]*"frrouting/frr:|image[[:space:]]*=[[:space:]]*"[^"@]+:[^"@]+"' "$terraform_root/kvm.tf"; then
   echo "KVM must not use the unavailable Docker Hub FRR image or mutable container tags" >&2
   exit 1

@@ -187,10 +187,22 @@ resource "docker_network" "kvm" {
   }
 }
 
+resource "docker_image" "kvm_frr" {
+  count        = var.enable_kvm ? 1 : 0
+  name         = "quay.io/frrouting/frr:10.7.0@sha256:65e5967b922572c0565d968388fb06af69d7e9b3b3eea40ad7e3810687667f68"
+  keep_locally = false
+}
+
+resource "docker_image" "kvm_client" {
+  count        = var.enable_kvm ? 1 : 0
+  name         = "alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1"
+  keep_locally = false
+}
+
 resource "docker_container" "kvm_frr" {
   count = var.enable_kvm ? 1 : 0
   name  = "${var.component}-kvm-frr"
-  image = "quay.io/frrouting/frr:10.7.0@sha256:65e5967b922572c0565d968388fb06af69d7e9b3b3eea40ad7e3810687667f68"
+  image = docker_image.kvm_frr[0].image_id
   capabilities { add = ["NET_ADMIN", "NET_RAW"] }
   sysctls = {
     "net.ipv4.ip_forward" = "1"
@@ -213,7 +225,7 @@ resource "docker_container" "kvm_frr" {
 resource "docker_container" "kvm_client" {
   count = var.enable_kvm ? 1 : 0
   name  = "${var.component}-kvm-client"
-  image = "alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1"
+  image = docker_image.kvm_client[0].image_id
   user  = "0"
   capabilities { add = ["NET_ADMIN"] }
   command = ["sh", "-ec", "apk add --no-cache curl iproute2 >/dev/null; ip route replace ${var.kvm_vip}/32 via ${var.kvm_frr_address}; trap : TERM INT; sleep infinity & wait"]
