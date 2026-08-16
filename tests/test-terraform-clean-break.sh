@@ -36,6 +36,16 @@ if rg -n 'azure[[:space:]]*\{' "$terraform_root/onprem_kvm.tf"; then
   exit 1
 fi
 
+if rg -n 'variable[[:space:]]+"aws_ce_count"|var\.aws_ce_count' "$terraform_root" --glob '*.tf'; then
+  echo "AWS is one supported three-site topology, not a legacy variable-width interface" >&2
+  exit 1
+fi
+
+grep -qF 'for index in range(3)' "$terraform_root/aws_ce.tf" || {
+  echo "AWS must model exactly three independent Customer Edge sites" >&2
+  exit 1
+}
+
 grep -qF 'quay.io/frrouting/frr:10.7.0@sha256:65e5967b922572c0565d968388fb06af69d7e9b3b3eea40ad7e3810687667f68' "$terraform_root/kvm.tf" || {
   echo "KVM must use the verified immutable FRR image from the supported upstream registry" >&2
   exit 1

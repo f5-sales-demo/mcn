@@ -3,7 +3,7 @@
 # cluster. The SLO ENI is the Route Server peer address.
 locals {
   aws_sites = var.enable_aws ? {
-    for index in range(var.aws_ce_count) : format("%02d", index + 1) => {
+    for index in range(3) : format("%02d", index + 1) => {
       index     = index
       site_name = "${local.aws_site_prefix}-${format("%02d", index + 1)}"
     }

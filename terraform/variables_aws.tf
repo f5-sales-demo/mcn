@@ -20,12 +20,6 @@ variable "aws_vpc_cidr" {
   default     = "10.150.0.0/16"
 }
 
-variable "aws_ce_count" {
-  description = "Number of Customer Edge EC2 nodes to deploy in AWS."
-  type        = number
-  default     = 3
-}
-
 variable "aws_instance_type" {
   description = "EC2 instance size for the Customer Edge nodes."
   type        = string

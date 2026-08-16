@@ -25,7 +25,7 @@ variable "kvm_network_cidr" {
 }
 
 variable "kvm_ce_address" {
-  description = "Static SLO IPv4 address for the KVM Customer Edge."
+  description = "SLO IPv4 address reserved for the KVM Customer Edge by libvirt DHCP."
   type        = string
   default     = "172.30.10.10"
 }
