@@ -58,24 +58,16 @@ registers.
 
 ## Why this repository does not use them
 
-These are the manual path, and this deployment takes the automated one. Registration is
-written by cloud-init at first boot — `terraform/cloud-init/ce-node.yaml` writes
-`/etc/vpm/config.yaml` with the cluster name, token and certified-hardware endpoint — so a
-node comes up already configured and `configure` has nothing to do.
+These are the manual path, and this deployment takes the automated one. The generated
+`xcsh_site_cloud_init` resource asks F5 Distributed Cloud for the complete site-scoped
+cloud-init document. Terraform passes that response to the VM unchanged, so a node comes up
+with its one-time token and platform configuration already present.
 
 That matters for two reasons beyond tidiness:
 
 - **Reproducibility.** A node configured by wizard is configured differently each time
   somebody does it. A node configured by cloud-init is configured identically every time,
   which is what makes the demo redeployable.
-- **They are the recovery path, not the deployment path.** Reach for `configure` when a node
-  needs to be re-pointed and Terraform is not an option — a node that never registered, over
-  the [serial console](../../../access/serial-console/), where nothing else can reach it.
-
-<Aside type="note" title="Registration is state, and replacing a node used to strand it">
-Re-registering is not purely a node-side operation: the tenant holds a registration object
-keyed on `(tenant, cluster_name, hostname)`. Replacing a CE while keeping its name once
-wedged the deployment permanently, because the destroyed node's registration still held that
-key. That is fixed — see the [registration workflow](../../../workflows/registration/) — but
-it is why `configure` alone is not always enough to bring a rebuilt node back.
-</Aside>
+- **They are for support-directed recovery, not deployment.** If the generated first-boot
+  configuration fails, diagnose the cause and replace the issuance resource and node together.
+  Don't hand-edit a Terraform-managed node into a configuration that Terraform can't reproduce.

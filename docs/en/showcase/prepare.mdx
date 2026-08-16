@@ -1,21 +1,102 @@
 ---
 title: Prepare the full showcase
-description: Gather the access, inputs, capacity, and F5 KVM image required for a full showcase.
+description: Gather authorized access, remote state, inputs, host capacity, time, and cost approval.
 sidebar:
   order: 21
 ---
 
-Before you deploy, confirm that the Azure, AWS, F5 Distributed Cloud, libvirt, and Docker targets
-are authorized lab environments. Supply `origin_ip` and `lb_domain`, cloud credentials, an F5 XC
-credential, and an existing F5 XC application namespace.
+import { Aside, Steps } from "@astrojs/starlight/components";
 
-Download the F5 CE QCOW2 image after creating the KVM site and set `kvm_ce_image_path` to its
-absolute path on the libvirt host. KVM requires at least 8 vCPUs, 32 GB RAM, and 80 GB disk. Do
-not substitute a generic cloud image.
+Prepare every target before planning. The default graph writes to Azure, AWS, F5 Distributed Cloud,
+the local system libvirt daemon, and the local Docker daemon.
 
-```bash
-cp terraform/terraform.tfvars.example terraform/terraform.tfvars
-```
+## Requirements
 
-Review the cost of all enabled cloud paths before applying. Set `enable_aws`, `enable_kvm`,
-`enable_canada`, or `enable_canada_ilb` to `false` only for a focused lab run.
+- Terraform 1.10 or later.
+- Azure CLI access to the target subscription and the Azure Blob state account.
+- AWS CLI access to the target account and region.
+- An F5 Distributed Cloud credential for the configured tenant, with access to manage Secure Mesh
+  v2 sites, BGP, virtual sites, origin pools, and HTTP load balancers; read the KVM image URL; and
+  issue site node cloud-init.
+- An existing F5 Distributed Cloud application namespace.
+- A Linux KVM host with system libvirt, QEMU, Docker, at least 8 available vCPUs, 32 GB available
+  memory, and space for an 80 GB CE overlay.
+- Marketplace access to the F5 Customer Edge images used by Azure and AWS.
+
+The AWS configuration resolves the current Marketplace AMI from AWS Systems Manager parameter
+`/aws/service/marketplace/prod-wrwzhcymymama/latest`. The KVM configuration retrieves F5's signed
+QCOW2 URL through `xcsh_site_image`; it accepts neither a caller-supplied image path nor a generic
+cloud image.
+
+## Protect credentials and state
+
+The `xcsh_site_cloud_init` resource issues full cloud-init containing a site-scoped one-time node
+token. It stores the create-time response in Terraform state and never calls the issuance API from
+Read. Treat the backend as a secret store.
+
+Set credentials with your approved shell credential helper or secret manager. Don't put tokens,
+storage keys, certificates, or private keys in `terraform.tfvars`, `backend.hcl`, a saved plan, shell
+history, or documentation.
+
+<Aside type="danger" title="Use a newly issued F5 credential">
+If an API token has appeared in chat, logs, or a command argument, revoke it and issue another
+before deployment. A token for a different tenant must not be reused.
+</Aside>
+
+## Configure the deployment
+
+<Steps>
+
+1. **Confirm each local session.**
+
+   ```bash
+   az account show --output table
+   aws sts get-caller-identity
+   virsh -c qemu:///system list --all
+   docker info --format '{{.ServerVersion}}'
+   ```
+
+2. **Create the ignored backend configuration.**
+
+   ```bash
+   cp terraform/backend.hcl.example terraform/backend.hcl
+   ```
+
+   The resource group, storage account, and container in that file must already exist. Authenticate
+   the `azurerm` backend through `ARM_ACCESS_KEY`. Keep `mcn-nextgen.tfstate` as a new state key;
+   don't migrate an experimental state into the clean-break deployment.
+
+3. **Create the ignored input file.**
+
+   ```bash
+   cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+   ```
+
+4. **Set deployment-specific values.**
+
+   At minimum, set the Azure subscription, authorized origin address, Rest-of-World domain, AWS and
+   KVM domains, and existing F5 application namespace. Change `component` when another disposable
+   stack could use the same accounts.
+
+5. **Confirm the target F5 tenant.**
+
+   `expected_xc_tenant` is configuration. The provider URL is derived from it. If your shell also
+   exports `XCSH_API_URL`, its tenant label must match or the plan fails.
+
+6. **Review enabled paths.**
+
+   `enable_aws`, `enable_kvm`, `enable_canada`, and `enable_canada_ilb` default to `true`.
+   `enable_bastion` defaults to `false`. Use an opt-out only for a focused run; an opt-out is not the
+   full showcase.
+
+</Steps>
+
+## Budget time and cost
+
+Allow time for cloud provisioning and F5 site convergence before the presentation window. A new CE
+can remain in provisioning after its VM is running, so don't schedule the demonstration immediately
+after apply.
+
+Review the current Azure and AWS estimates for Route Servers, CE instances, public addresses,
+disks, and test clients. Review local KVM capacity. Azure Bastion adds a standing charge and remains
+opt-in. Destroy the disposable stack after verification unless it has an approved retention window.

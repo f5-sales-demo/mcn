@@ -11,18 +11,15 @@ run "site_and_interface_binding" {
   }
 
   variables {
-    site_name         = "mcn-ce-ha-eastus01"
-    hostname          = "f5-xc-ce-vm-01"
-    interface_name    = "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
-    mgmt_nic_mac      = "7c:1e:52:18:c1:77"
-    ce_vm_instance_id = "89e6c538-6bc2-4c2c-a37e-d6149c1708ce"
-    rs_peer_ips       = ["10.0.4.4", "10.0.4.5"]
-    ce_asn            = 64512
-    rs_asn            = 65515
-    # enable_bgp left at its true default. It used to be forced false because the real
-    # 71-char interface name asserted below exceeded the provider's object-ref name cap;
-    # v3.74.0 relaxed that cap, so the real name now validates as an INPUT, not merely as
-    # an (unvalidated) output. See modules/xc-site/main.tf.
+    site_name      = "mcn-ce-ha-eastus01"
+    hostname       = "f5-xc-ce-vm-01"
+    interface_name = "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    rs_peer_ips    = ["10.0.4.4", "10.0.4.5"]
+    ce_asn         = 64512
+    rs_asn         = 65515
+    admin_password = "MockSitePassword-42!"
+    ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
+    # enable_bgp remains at its true default.
   }
 
   assert {
@@ -36,8 +33,16 @@ run "site_and_interface_binding" {
   }
 
   assert {
-    condition     = one(xcsh_securemesh_site_v2.this).namespace == "system"
+    condition     = xcsh_securemesh_site_v2.this.namespace == "system"
     error_message = "The site must be created in the system namespace."
+  }
+
+  assert {
+    condition = (
+      xcsh_securemesh_site_v2.this.admin_user_credentials.ssh_key == var.ssh_public_key &&
+      xcsh_securemesh_site_v2.this.admin_user_credentials.admin_password.clear_secret_info.url == "string:///TW9ja1NpdGVQYXNzd29yZC00MiE="
+    )
+    error_message = "The site must configure its node-local admin credential through the supported Base64 secret URL."
   }
 
   # Provider v3.80.0 gave perf_mode_l7_enhanced a {jumbo_disabled | jumbo_enabled}
@@ -54,14 +59,14 @@ run "site_and_interface_binding" {
   # which would change the data path.
   assert {
     condition = (
-      one(xcsh_securemesh_site_v2.this).performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_disabled != null
+      xcsh_securemesh_site_v2.this.performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_disabled != null
     )
     error_message = "perf_mode_l7_enhanced must declare the jumbo_disabled arm."
   }
 
   assert {
     condition = (
-      one(xcsh_securemesh_site_v2.this).performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_enabled == null
+      xcsh_securemesh_site_v2.this.performance_enhancement_mode.perf_mode_l7_enhanced.jumbo_enabled == null
     )
     error_message = "perf_mode_l7_enhanced must NOT select jumbo_enabled: jumbo_disabled is the arm F5 materialises, and switching arms changes the CE data path."
   }

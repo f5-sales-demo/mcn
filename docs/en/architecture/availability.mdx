@@ -1,13 +1,69 @@
 ---
 title: Choose an availability path
-description: Compare BGP ECMP and the Canadian Azure Internal Load Balancer path.
+description: Compare independent Customer Edge sites with BGP ECMP, a multi-node site, and the Canadian Azure Internal Load Balancer path.
 sidebar:
   order: 12
 ---
 
-Use BGP ECMP when you want the routing fabric to learn one external VIP from independent Customer
-Edges and remove a path when a peer fails. Use the Canadian ILB path when you need to show an Azure
-frontend with health-probed backends.
+import { Aside } from "@astrojs/starlight/components";
 
-The two Canadian addresses are intentionally different: `ca_vip` is the BGP-advertised VIP; the
-ILB frontend is a private Azure address. Do not use one as evidence for the other.
+The showcase uses independent single-node Customer Edge sites. Azure Route Server and Amazon VPC
+Route Server learn the same service VIP from multiple sites and install equal-cost paths. The
+Canadian Azure Internal Load Balancer runs at the same time as a separate comparison path.
+
+## Choose the failure boundary
+
+| Design | Failure unit | Traffic distribution | Showcase use |
+| --- | --- | --- | --- |
+| Independent sites with BGP ECMP | One site | The upstream route server selects equal-cost next hops | Default Azure, Canada, AWS, and KVM routing model |
+| One multi-node site | One node inside a site | The site cluster owns local forwarding and supported local redundancy | Architecture option; not deployed here |
+| Azure Internal Load Balancer | One probed backend | Azure selects a healthy backend behind a private frontend | Canadian comparison path |
+
+A Virtual Site groups sites for policy and service selection. It does not turn independent sites
+into one cluster. A multi-node cluster groups nodes inside one site; it does not make an upstream
+router distribute traffic across separate sites.
+
+## Use BGP ECMP for route withdrawal
+
+Each site advertises the service VIP as a `/32`. Keep that VIP outside every connected VNet, VPC,
+and local subnet so the routing fabric learns it from BGP instead of preferring a connected route.
+
+An established BGP session provides next-hop liveness. When a peer closes or its hold timer expires,
+the route server removes the learned path after convergence. BGP reachability does not prove the
+application behind that path is healthy, so verify service traffic separately.
+
+The route server also controls ECMP fan-out. Confirm both the BGP candidates and the paths installed
+in its forwarding table. See [routing and affinity](../routing/) for the path-specific evidence.
+
+<Aside type="danger" title="Don't substitute untracked static routes">
+A static ECMP next hop remains eligible after its CE fails unless a supported health mechanism
+removes it. That can blackhole part of the traffic while other paths remain healthy.
+</Aside>
+
+## Use the Canadian ILB as a separate comparison
+
+The Canadian BGP and ILB paths are simultaneous, not alternatives selected by one switch:
+
+- `ca_vip` is the external VIP advertised by every Canadian CE through BGP.
+- The ILB frontend is a private address allocated from the Canadian internal subnet.
+- BGP evidence is route installation and withdrawal.
+- ILB evidence is backend-probe health and continued service after one backend stops.
+
+Never use the ILB frontend address as evidence that the BGP VIP is installed, or the BGP VIP as
+evidence that the ILB probe is healthy.
+
+## Verify the decision
+
+For each service VIP, verify that every intended site advertises it, the route server installs the
+expected number of paths, independent connections reach the service, and removing one path removes
+that next hop while the remaining paths continue serving. For the ILB, verify healthy backends and
+repeat the service check after stopping one backend.
+
+Use the [BGP diagnostic workflow](../../customer-edge/workflows/bgp-diagnostics/) when the advertised
+and installed routes disagree.
+
+## Standards references
+
+- [RFC 4271](https://www.rfc-editor.org/rfc/rfc4271.html) defines BGP route withdrawal and hold timers.
+- [RFC 2992](https://www.rfc-editor.org/rfc/rfc2992.html) describes one ECMP flow-distribution model.
+- [RFC 5798](https://www.rfc-editor.org/rfc/rfc5798.html) defines VRRP for supported multi-node local redundancy.

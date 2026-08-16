@@ -1,21 +1,9 @@
-# KVM Customer Edge showcase. The CE image is intentionally required whenever
-# KVM is enabled: F5 issues this QCOW2 image for the created site; substituting a
-# generic cloud image cannot produce a supported Customer Edge.
+# KVM Customer Edge showcase. The generated xcsh_site_image data source owns the
+# F5 QCOW2 lookup, so this interface contains no caller-supplied image path.
 variable "enable_kvm" {
   description = "Enable one KVM Customer Edge, its FRR BGP peer, and a local test client."
   type        = bool
   default     = true
-}
-
-variable "kvm_ce_image_path" {
-  description = "Absolute path on the libvirt host to the F5 Distributed Cloud CE QCOW2 image downloaded for this site. Required when enable_kvm is true."
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = !var.enable_kvm || trimspace(var.kvm_ce_image_path) != ""
-    error_message = "kvm_ce_image_path is required when enable_kvm is true; download the F5 CE QCOW2 image for the KVM site first."
-  }
 }
 
 variable "kvm_domain_name" {
@@ -45,7 +33,7 @@ variable "kvm_ce_address" {
 variable "kvm_frr_address" {
   description = "Static IPv4 address of the local FRR BGP peer."
   type        = string
-  default     = "172.30.10.1"
+  default     = "172.30.10.2"
 }
 
 variable "kvm_client_address" {
@@ -58,6 +46,22 @@ variable "kvm_vip" {
   description = "External VIP advertised by the KVM Customer Edge to FRR."
   type        = string
   default     = "198.51.100.20"
+
+  validation {
+    condition     = can(cidrhost("${var.kvm_vip}/32", 0))
+    error_message = "kvm_vip must be a valid IPv4 address."
+  }
+}
+
+variable "kvm_lb_domain" {
+  description = "Domain name for the HTTP load balancer advertised on the KVM VIP."
+  type        = string
+  default     = "kvm.mcn-ce-ha.f5-sales-demo.com"
+
+  validation {
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.kvm_lb_domain))
+    error_message = "kvm_lb_domain must be a fully-qualified lowercase domain name (for example kvm.mcn-ce-ha.f5-sales-demo.com)."
+  }
 }
 
 variable "kvm_ce_asn" {

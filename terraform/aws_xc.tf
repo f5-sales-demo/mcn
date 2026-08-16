@@ -1,13 +1,51 @@
 # Independent AWS Secure Mesh sites and their BGP sessions. AWS Route Server
 # peers with each EC2 SLO address; the F5 object records the matching session.
+resource "random_password" "site_console_admin_aws" {
+  for_each = local.aws_sites
+
+  length           = 32
+  min_lower        = 1
+  min_numeric      = 1
+  min_special      = 1
+  min_upper        = 1
+  override_special = "!#%*+-=?@^_~"
+}
+
 resource "xcsh_securemesh_site_v2" "aws" {
   for_each    = local.aws_sites
   name        = each.value.site_name
   namespace   = "system"
   description = "AWS single-node Customer Edge ${each.key}"
 
+  admin_user_credentials {
+    ssh_key = local.ssh_public_key
+    admin_password {
+      clear_secret_info {
+        url = "string:///${base64encode(random_password.site_console_admin_aws[each.key].result)}"
+      }
+    }
+  }
+
   aws {
-    not_managed {}
+    not_managed {
+      node_list {
+        hostname  = each.value.site_name
+        type      = "Control"
+        public_ip = aws_eip.ce[each.key].public_ip
+
+        interface_list {
+          name = "eth0"
+          ethernet_interface {
+            device = "eth0"
+            mac    = aws_network_interface.slo[each.key].mac_address
+          }
+          network_option {
+            site_local_network {}
+          }
+          dhcp_client {}
+        }
+      }
+    }
   }
   disable_ha {}
   block_all_services {}
@@ -72,7 +110,7 @@ resource "xcsh_origin_pool" "aws" {
   description = "AWS Route Server showcase origin pool"
   port        = var.origin_port
   origin_servers {
-    labels {}
+    labels = {}
     public_ip { ip = var.origin_ip }
   }
   no_tls {}
@@ -88,8 +126,9 @@ resource "xcsh_http_loadbalancer" "aws" {
   http { port = 80 }
   advertise_custom {
     advertise_where {
-      virtual_site {
-        network = "SITE_NETWORK_INSIDE_AND_OUTSIDE"
+      virtual_site_with_vip {
+        ip      = var.aws_vip
+        network = "SITE_NETWORK_SPECIFIED_VIP_OUTSIDE"
         virtual_site {
           name      = xcsh_virtual_site.aws[0].name
           namespace = data.xcsh_namespace.mcn.name

@@ -9,9 +9,8 @@ sidebar:
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-A Customer Edge (CE) is the F5 Distributed Cloud node this repository provisions into
-Azure — `terraform/modules/ce-node`, built from the
-`volterraedgeservices/volterra-node` marketplace image.
+A Customer Edge (CE) is an F5 Distributed Cloud node. This showcase provisions independent
+single-node sites in Azure, AWS, and KVM.
 
 It runs the data plane (Argo), the control plane (Vega), an Envoy proxy, a Kubernetes
 stack, and `vpm`, the agent that registers the node and manages everything else on
@@ -21,7 +20,7 @@ When a CE misbehaves, the Site CLI is the instrument. The first decision is whic
 access path applies, and getting it wrong wastes time in a way that looks like a
 broken node.
 
-## Four access paths, and they are not interchangeable
+## Three access paths, and they are not interchangeable
 
 <CardGrid>
   <LinkCard
@@ -33,11 +32,6 @@ broken node.
     title="Site Console"
     description="F5's own per-node troubleshooting UI, over an Azure Bastion tunnel. No SSH key, no jump host."
     href="./access/site-console/"
-  />
-  <LinkCard
-    title="SSH"
-    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
-    href="./access/ssh/"
   />
   <LinkCard
     title="Serial console"
@@ -55,22 +49,14 @@ A node that failed to register — bad cloud-init, an expired token, no route to
 exactly the case the API cannot serve.
 
 [Site Console](./access/site-console/) is the one to try first when you want F5's own
-troubleshooting UI rather than specific commands. It asks least of you — no key, no jump
-host, no public IP on the node — because who may connect becomes an Azure RBAC decision, and
-it answers whether or not the site has registered. It needs Azure Bastion, which this
+troubleshooting UI rather than specific commands. It needs no inbound public management rule or
+jump host because who may connect becomes an Azure RBAC decision, and it answers whether or not
+the site has registered. It needs Azure Bastion, which this
 deployment gates behind `enable_bastion` and which is not deployed by default.
-
-[SSH](./access/ssh/) is the only route that reaches the appliance's full command surface —
-the debug API exposes 43 commands and the node itself offers many more. Two things constrain
-it. `sshd` answers on the node's internal (SLI) address only, so it needs a host inside the
-VNet; and the key is written by cloud-init at first boot, because the `ssh_key` field on the
-site object is inert — `vpm` skips the `admin` user and never applies it. Enabling it on
-running nodes therefore replaces them.
 
 So: if the site is `ONLINE` and the debug catalog is enough, use the debug API. For a UI, or for a
 node that never registered but still has a network path, use Site Console. If you need the
-rest of the command surface and can reach the VNet, use SSH. If the node has no working
-network path at all, serial console is the only way in.
+on-box command surface or the node has no working network path, use serial console.
 
 <Aside type="caution" title="Check the site state first — and check you are asking the right tenant">
 One request tells you which path you are on:
@@ -117,10 +103,8 @@ tier and transport; the [workflows](./workflows/) chain them into the sequences 
 actually use when something is wrong.
 
 The on-box reference separately records the six top-level commands and 89 `execcli`
-subcommands exposed by the same build. `scripts/sitecli_ssh_harvest.py` drives the appliance's
-completion menu over [SSH](./access/ssh/) and records the description the appliance gives for
-each command, so the surface is measured rather than guessed at. Its execution is
-default-denied: it enumerates everything and runs only an allow-list.
+subcommands exposed by the captured build. The command index owns operator syntax and cautions;
+contributor capture details live in `sitecli/README.md`.
 
 Alongside the command surface, [the interface model](./interface-model/) covers what the
 three network interface cards on each node actually are: why the Site Local Outside (SLO)
@@ -128,6 +112,6 @@ interface is the one reserved for reaching F5, what the Secure Mesh Site v2 mana
 network is and the constraints that decide whether you can use it, and why the `mgmt` NIC
 here is not an out-of-band management interface.
 
-For architecture rather than diagnostics, [Customer Edge high availability](./high-availability/)
-separates multi-node clustering from several independent sites joined by BGP and ECMP, then
-explains route withdrawal, path limits, flow affinity, and application persistence.
+For architecture rather than diagnostics, [Choose an availability path](../architecture/availability/)
+separates multi-node clustering from independent sites joined by BGP and ECMP, and distinguishes
+the Canadian ILB comparison path.

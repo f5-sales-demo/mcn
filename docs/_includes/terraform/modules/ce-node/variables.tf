@@ -66,30 +66,15 @@ variable "tags" {
   default     = {}
 }
 
-# Sized from measurement, not from a rule of thumb. Issue #714 ran one disposable
-# single-node Azure Secure Mesh v2 site per size, all from marketplace image 0.9.2,
-# installing the pair the tenant advertises (crt-20260201-0179 + OS 9.2026.14):
-#
-#     31 GiB (the image default)   FAIL — voucher DaemonSet 0/1, site stuck
-#                                  PROVISIONING with nothing installed
-#     33 GB                        PASS
-#     36 / 40 / 48 / 64 GB         PASS
-#
-# The default below is deliberately NOT the measured 33 GB floor. 33 works for that
-# pair on that image today; a build with a marginally larger payload would fail there
-# with no configuration change and no obvious cause — exactly the position the image
-# default is in now.
-#
-# Do NOT size this from F5's documented "20 GB plus 15% of capacity" pre-upgrade
-# figure. That check gates Console UI upgrades only and does not apply to the API
-# path; applied here it predicts 48 GB would fail, and 48 GB installs cleanly.
+# The explicit default preserves capacity headroom above the smallest disk that
+# installed the advertised software pair during disposable-site validation.
 variable "os_disk_size_gb" {
-  description = "CE OS disk size in GB. The marketplace image default of 31 GiB is measured to FAIL the version pair F5 advertises (#714); 33 GB is the smallest size that works and this default carries headroom above it."
+  description = "CE OS disk size in GB. The 64 GB default preserves headroom for current platform payloads."
   type        = number
   default     = 64
 
   validation {
     condition     = var.os_disk_size_gb >= 40
-    error_message = "os_disk_size_gb must be at least 40 GB. The image default of 31 GiB fails the advertised version pair, and 33 GB — the measured minimum — leaves no margin for a larger future payload (#714)."
+    error_message = "os_disk_size_gb must be at least 40 GB."
   }
 }

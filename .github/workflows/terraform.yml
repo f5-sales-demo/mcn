@@ -19,6 +19,7 @@ on:
       - 'docs/_includes/terraform/**'
       - 'scripts/sync-terraform-includes.sh'
       - 'tests/test-terraform-includes.sh'
+      - 'tests/test-terraform-clean-break.sh'
       - 'tests/test-terraform-version-policy.sh'
       - '.github/workflows/terraform.yml'
   push:
@@ -29,6 +30,7 @@ on:
       - 'docs/_includes/terraform/**'
       - 'scripts/sync-terraform-includes.sh'
       - 'tests/test-terraform-includes.sh'
+      - 'tests/test-terraform-clean-break.sh'
       - 'tests/test-terraform-version-policy.sh'
       - '.github/workflows/terraform.yml'
 
@@ -54,6 +56,10 @@ jobs:
       - name: Terraform documentation include sync
         working-directory: .
         run: bash scripts/sync-terraform-includes.sh --check
+
+      - name: Terraform clean-break contract
+        working-directory: .
+        run: bash tests/test-terraform-clean-break.sh
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1

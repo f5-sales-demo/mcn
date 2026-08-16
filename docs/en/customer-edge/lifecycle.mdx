@@ -1,218 +1,73 @@
 ---
-title: Software versions and rebuilds
-description: How ce_sw_version and ce_os_version select the latest Customer Edge software at creation, why Terraform cannot change an installed version, and why the deployment gives the operating-system disk explicit headroom.
+title: Rebuild Customer Edge
+description: Select Customer Edge versions at creation and rebuild nodes without reusing one-time credentials.
 sidebar:
   order: 50
-  label: Versions and rebuilds
+  label: Rebuilds
 ---
 
-import { Aside } from "@astrojs/starlight/components";
+import { Aside, Steps } from "@astrojs/starlight/components";
 
-Two Terraform variables select a Customer Edge's software: `ce_os_version` for the operating
-system and `ce_sw_version` for the F5 Distributed Cloud build. Empty values deliberately select
-the newest versions that the service advertises. That is this deployment's normal policy; a
-concrete value is only for reproducing an older build.
+Treat each showcase Customer Edge as disposable. Terraform creates its site, issues site-scoped
+cloud-init once, and boots the node. Rebuild from configuration instead of preserving changes made
+on the appliance.
 
-Verified 2026-08-03 in a from-zero rebuild: with both values empty, all three 64 GB nodes
-selected software `crt-20260201-0179` and operating system `9.2026.14`, reached `ONLINE`, and
-left a clean Terraform plan.
+## Select software at creation
 
-## What the version fields do, in two phases
+`ce_os_version` and `ce_sw_version` select the Azure and Canadian Customer Edge versions. Empty
+values ask F5 Distributed Cloud for its current advertised versions. A concrete value pins a new
+node at creation.
 
-Separating the phases is the whole subject. Conflated, the behaviour reads as
-self-contradictory.
+The version fields are create-time inputs for this deployment. Don't use an ordinary update to
+change an installed node. Rebuild the disposable stack and verify the resulting version and site
+state.
 
-**On first boot, a node installs the selected destination.**
-`terraform/modules/ce-node` deploys the marketplace image with `version = "latest"`, so the
-build a node arrives with is whatever that image currently ships — and that moves over time.
-`ce_sw_version` chooses the **destination**, not whether anything happens, and leaving it
-empty means the server selects its newest advertised build. The same holds for
-`ce_os_version`. You cannot leave one side unchanged by leaving it empty: the server selects a
-destination for both fields.
+## Keep enough disk capacity
 
-**Latest requires capacity headroom.** On 2026-07-29, the advertised pair failed on the
-marketplace image's 31 GiB disk and installed on every tested size from 33 GB through 64 GB.
-The deployment therefore sets an explicit 64 GB default and rejects values below 40 GB. With
-that prerequisite enforced, leaving the version values empty is both intentional and verified.
+The Azure CE module provisions a 64 GB operating-system disk and rejects values below 40 GB. This
+avoids the marketplace image's smaller default, which was insufficient for the advertised software
+pair during validation. The KVM CE uses an 80 GB overlay as required by the KVM showcase contract.
 
-**After first boot, nothing upgrades on its own.** F5 Distributed Cloud advertises a newer
-build and waits. That is where "the node stays where it landed" holds — after the create, not
-during it.
-
-Both phases are visible on the site object. During the clean rebuild on 2026-08-03, each site
-selected:
-
-```text
-volterra_software_status.available_version   crt-20260201-0179
-operating_system_status.available_version    9.2026.14
-```
-
-After installation, `last_installed_version` matched those selected values on all three sites.
-The site does not move again merely because a later version becomes available.
-
-## Terraform cannot change a version. The API can
-
-These are two separate facts, and conflating them produces the wrong plan.
-
-**Terraform cannot.** `ce_os_version` and `ce_sw_version` are effectively create-time only.
-Change either and apply, and the API rejects the update with
-`[BAD_REQUEST] Invalid request parameters`. `Observed 2026-07-29` on disposable sites, in all
-three directions — pinning **forward** to a newer build, pinning **backward** to an older one,
-and **un-pinning** by clearing both fields. Forward is not a special case.
-
-**The API can.** F5 Distributed Cloud exposes a dedicated upgrade action per site, which
-starts the change in place — no rebuild, and no Terraform involvement:
-
-```bash
-# software build
-curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/json' \
-  --data '{"version": "<software-version>"}' \
-  "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_sw"
-
-# operating system
-curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/json' \
-  --data '{"version": "<os-version>"}' \
-  "$API_URL/api/config/namespaces/system/sites/<site-name>/upgrade_os"
-```
-
-`Observed 2026-07-29`: the software call returned `200`, the site moved to `UPGRADING` with
-`deployment_state.phase` `UPGRADE_IN_PROGRESS`, and the site object's requested version changed
-to the one posted. Omitting the field returns `400` with `version empty in the request`, which
-is how the field name was confirmed.
-
-**Budget hours, not minutes, and do not panic at a failure.** On a default-disk node the
-upgrade to `crt-20260201-0179` ran for roughly an hour, reported `UPGRADE_FAILED` with
-`result` `Failed` part-way through, and then **completed successfully** on the new build. The
-platform retries.
-
-That has a direct consequence for anyone watching an upgrade, or scripting one: a `Failed`
-result is a state to wait through, not a verdict. Treating the first one as final reports a
-failure for an upgrade that is going to succeed.
-
-Note the group in that path: these live under **`config`**, not `operate`. The same paths under
-`operate` return `404 API Group could not be determined`, which is a routing message and not a
-statement that no upgrade exists — a distinction that cost this project a wrong conclusion.
-
-<Aside type="caution" title="An API upgrade is outside Terraform's control">
-Terraform does not drive the upgrade actions or reconcile their result. Treat an API upgrade as
-a deliberate operational change, then verify the installed version independently. A subsequent
-from-zero deployment with empty version values selects whatever is newest at that later time.
+<Aside type="caution" title="Don't reduce the disk to a measured floor">
+Payload sizes change between software builds. Keep capacity headroom and validate a new version on
+a disposable node before using it in a presentation.
 </Aside>
 
-<Aside type="note" title="Two earlier claims on this page, withdrawn">
-This page previously said that moving a CE to a different version means recreating the site,
-and that a rejected update "still clears the field on the server" leaving Terraform proposing a
-failing change forever. Neither survived testing: the API upgrade above starts a version change in
-place, without recreating anything, and after each of the three rejected updates the site's spec
-was **unchanged** and the site stayed `ONLINE`. The divergence described in provider issue `xcsh#1387` was observed on a
-site that had already auto-upgraded past its pin, so it may need that divergent starting state;
-it was not reproduced on a site whose spec matched its pin.
-</Aside>
+## Rebuild safely
 
-If you do rebuild rather than upgrade, every consequence of replacing a CE applies.
+<Steps>
 
-<Aside type="danger" title="Every consequence of replacing a CE applies">
-New SSH host keys, reassigned internal addresses, a fresh registration, and the loss of
-anything that lived only on the node. Cloud-init runs again on the new VM, so SSH access
-configured that way survives — but it runs *only* on first boot, so anything added to the old
-node by hand is gone.
+1. **Save and review the plan.**
 
-Read [SSH](../access/ssh/) on the host-key and address consequences before scheduling this.
-</Aside>
+   Confirm that the CE node and its `xcsh_site_cloud_init` issuance are replaced together. A node
+   must never boot with a token already consumed by an earlier instance.
 
-## An undersized disk can make installation fail
+2. **Remove the node from service.**
 
-Accepting the pin is not the same as installing it. On a freshly created single-node Azure
-Secure Mesh v2 Customer Edge pinned to `crt-20260201-0179`, the site object reported the
-pinned version immediately — and the install then failed:
+   Verify that the remaining BGP or ILB paths continue serving traffic before replacement.
 
-```text
-site_state        PROVISIONING
-phase             UPGRADE_FAILED
-result            Failed
-last_installed    (empty)
-message           stage: 10, app: voucher obj: voucher objKind: DaemonSet failed ...
-                  required replicas: 1, current replicas: 0
-```
+3. **Apply the reviewed replacement.**
 
-Observed 2026-07-28, and reproduced twice on 2026-07-29. The **operating system** selection
-installed normally in the same run (`9.2024.6` to `9.2026.14`, `UPGRADE_COMPLETED`); only the
-software install failed. The site never reached `ONLINE` and `last_installed_version` stayed
-empty, so nothing rolled back to a working build — there was no earlier successful install to
-roll back to.
+   Terraform removes the dependent node state before issuing new cloud-init for its site.
 
-**A failure at create is not like a failure during an upgrade.** The two behave differently and
-the difference matters when you are deciding whether to intervene:
+4. **Wait for the site to report `ONLINE`.**
 
-| | at create | during an API upgrade |
-| --- | --- | --- |
-| does it retry into success? | no — held `Failed` for over 20 minutes, twice | yes — recovered and completed |
-| where does the node end up? | `PROVISIONING`, nothing installed | `ONLINE` on a working build |
-| is it safe to leave? | no, it is stuck | yes, it recovers or keeps the old build |
+   Confirm the installed operating-system and software versions from the site status or node health
+   output.
 
-So a create-time failure needs a rebuild with a bigger disk, while an upgrade reporting `Failed`
-should be left alone for a while before you conclude anything.
+5. **Verify routing and application traffic.**
 
-**The cause was the disk, not the version.** A matrix of software × OS × disk size, one
-disposable single-node Azure Secure Mesh v2 site per combination and all from the same
-marketplace image, isolates it. `Observed 2026-07-29`:
+   Restore the path only after the route and service evidence matches the
+   [verification procedure](../workflows/).
 
-| software | OS `9.2024.6` (what the image ships) | OS `9.2026.14` |
-| --- | --- | --- |
-| `crt-20250613-3382` | installs | installs |
-| `crt-20260201-0179` | installs | **fails**, on the default disk only |
+6. **Run a clean plan.**
 
-Neither version fails on its own. Only the pair does, and only on the image's default disk —
-the same pair installs on **33 GB** and every larger size tested. So the newer build is not
-unsupported here, and neither is the newer operating system; together they need slightly more
-disk than a default node has.
+   A clean plan proves the issued cloud-init remained in state and was not refreshed into another
+   one-time credential.
 
-`terraform/modules/ce-node` now sets `disk_size_gb` explicitly. The variable defaults to
-64 GB and rejects values below 40 GB, so a normal deployment cannot fall back to the failing
-image default.
+</Steps>
 
-The margin is the surprising part, and it is why this looked like a version problem for so long.
-The default is **31 GiB** (the `health` command reports `size_gb: 31`, and `/var` is 29 G with
-3.5 G free on a node in the failing state). **33 GB installs cleanly.** So the default is short
-by roughly two gigabytes, not by a wide margin.
-
-<Aside type="caution" title="Do not set the measured minimum">
-33 GB is the smallest size observed to work — for this version pair, on this image, today. A
-build with a slightly larger payload would fail again at 33 GB with no configuration change and
-no obvious cause, exactly as the default does now. Choose headroom over the floor: the sizes
-verified here are 33, 36, 40, 48 and 64 GB, and the cost of the larger ones is a few gigabytes of
-managed disk.
-</Aside>
-
-Test a future version change on a disposable site when possible: a fleet that fails this way
-is stuck in `PROVISIONING` with recreation as the only exit.
-
-<Aside type="caution" title="Do not size the disk from F5's pre-upgrade figure">
-F5's documented pre-upgrade check wants 20 GB plus 15% of capacity free. That check gates
-**Console UI** upgrades and explicitly does not apply to API-initiated ones, so it does not
-describe this failure. Applied here it predicts a 48 GB disk would fail; 48 GB installs
-cleanly. Size from the measured outcomes above, not from that formula.
-</Aside>
-
-<Aside type="note" title="An explanation this page previously offered, now withdrawn">
-An earlier version of this page suggested the install failed because the requested build was
-older than the image's — that the node was asked to move backwards. That is wrong. This
-fleet was created from the same image with a pin **thirteen months** older and installed
-normally, and `crt-20260201-0179` installs too when the OS pin is left at the image's own
-version. Direction of travel is not the variable.
-</Aside>
-
-## Which build the documentation describes
-
-The command reference describes the current deployment's software build,
-`crt-20260201-0179`. On 2026-08-03, that build exposed 43 debug API commands and 89 on-box
-`execcli` commands. The catalogs record the build and capture timestamp so a later surface
-change is detected rather than silently described as current. See
-[the command reference](../commands/) and [on-box commands](../commands/on-box/).
-
-<Aside type="note" title="Latest was verified from zero">
-The previous deployment used an older software and operating-system pair. The 2026-08-03
-rebuild left both version variables empty, selected the advertised pair, brought all three
-sites `ONLINE`, and finished with a clean Terraform plan. The earlier installation failures
-were reproduced only on the undersized marketplace disk described above.
+<Aside type="danger" title="Replacing a CE discards node-local state">
+A replacement loses anything changed only on the appliance. Keep supported configuration in
+Terraform and use the on-box configuration commands only when F5 support directs you.
 </Aside>

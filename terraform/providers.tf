@@ -6,15 +6,9 @@
 #   P12 auth:    XCSH_P12_FILE + XCSH_P12_PASSWORD
 #   PEM auth:    XCSH_CERT + XCSH_KEY
 #
-# api_url is set here, from var.expected_xc_tenant, and deliberately overrides any
-# XCSH_API_URL in the environment. The tenant is not an ambient property of the
-# operator's shell: it is which deployment this is, it belongs in version control
-# next to the state key, and it is the one thing a credential file must not be
-# able to change silently. It once did — see the guard in main.tf and issue #696.
-#
-# A credential minted for a different tenant now fails against this URL instead of
-# succeeding somewhere unintended. The plan-level tests mock this provider, so no
-# XC credentials are needed to run `terraform test`.
+# api_url is derived from var.expected_xc_tenant and overrides an ambient
+# XCSH_API_URL. A credential minted for another tenant fails against this explicit
+# URL. Plan tests mock the provider and require no XC credential.
 provider "xcsh" {
   api_url = local.xc_api_url
 }

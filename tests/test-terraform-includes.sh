@@ -146,7 +146,7 @@ fi
 # it silently incomplete — the drift gate above would pass, because the copy really
 # does match its source.
 echo "9. every synced Terraform file is actually imported by the page that shows them"
-PAGE="${REPO_ROOT}/docs/en/demo/terraform.mdx"
+PAGE="${REPO_ROOT}/docs/en/reference/terraform.mdx"
 if [ ! -f "$PAGE" ]; then
   bad "missing ${PAGE}"
 else

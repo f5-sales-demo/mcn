@@ -1,13 +1,51 @@
 # The F5 site is KVM, not Azure: this is a single-node KVM site paired with the
 # FRR container on the local libvirt segment.
+resource "random_password" "site_console_admin_kvm" {
+  count = var.enable_kvm ? 1 : 0
+
+  length           = 32
+  min_lower        = 1
+  min_numeric      = 1
+  min_special      = 1
+  min_upper        = 1
+  override_special = "!#%*+-=?@^_~"
+}
+
 resource "xcsh_securemesh_site_v2" "kvm" {
   count       = var.enable_kvm ? 1 : 0
   name        = "${var.component}-kvm-site"
   namespace   = "system"
   description = "KVM single-node Customer Edge showcase"
 
+  admin_user_credentials {
+    ssh_key = local.ssh_public_key
+    admin_password {
+      clear_secret_info {
+        url = "string:///${base64encode(random_password.site_console_admin_kvm[0].result)}"
+      }
+    }
+  }
+
   kvm {
-    not_managed {}
+    not_managed {
+      node_list {
+        hostname  = var.kvm_domain_name
+        type      = "Control"
+        public_ip = ""
+
+        interface_list {
+          name = "eth0"
+          ethernet_interface {
+            device = "eth0"
+            mac    = local.kvm_ce_mac_address
+          }
+          network_option {
+            site_local_network {}
+          }
+          dhcp_client {}
+        }
+      }
+    }
   }
   disable_ha {}
   block_all_services {}
@@ -57,22 +95,6 @@ resource "xcsh_bgp" "kvm" {
   }
 }
 
-data "xcsh_site_registration" "kvm" {
-  count     = var.enable_kvm ? 1 : 0
-  site_name = xcsh_securemesh_site_v2.kvm[0].name
-  namespace = "system"
-}
-
-resource "xcsh_registration_approval" "kvm" {
-  # Registration is created by a booted CE, so the name is unknown at the first
-  # plan. Keep the resource shape input-driven (and therefore plan-safe); a
-  # second apply after the CE registers resolves the r-<uuid> value.
-  count     = var.enable_kvm && var.approve_registration ? 1 : 0
-  namespace = "system"
-  name      = data.xcsh_site_registration.kvm[0].name
-  state     = "APPROVED"
-}
-
 resource "xcsh_virtual_site" "kvm" {
   count     = var.enable_kvm ? 1 : 0
   name      = "${var.component}-kvm-vsite"
@@ -88,7 +110,7 @@ resource "xcsh_origin_pool" "kvm" {
   description = "KVM Customer Edge showcase origin pool"
   port        = var.origin_port
   origin_servers {
-    labels {}
+    labels = {}
     public_ip { ip = var.origin_ip }
   }
   no_tls {}
@@ -100,12 +122,13 @@ resource "xcsh_http_loadbalancer" "kvm" {
   count     = var.enable_kvm ? 1 : 0
   name      = "${var.component}-kvm-lb"
   namespace = data.xcsh_namespace.mcn.name
-  domains   = ["kvm.${var.aws_lb_domain}"]
+  domains   = [var.kvm_lb_domain]
   http { port = 80 }
   advertise_custom {
     advertise_where {
-      virtual_site {
-        network = "SITE_NETWORK_INSIDE_AND_OUTSIDE"
+      virtual_site_with_vip {
+        ip      = var.kvm_vip
+        network = "SITE_NETWORK_SPECIFIED_VIP_OUTSIDE"
         virtual_site {
           name      = xcsh_virtual_site.kvm[0].name
           namespace = data.xcsh_namespace.mcn.name

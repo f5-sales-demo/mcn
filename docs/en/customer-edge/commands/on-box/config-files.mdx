@@ -42,9 +42,8 @@ execcli edit-certified-hardware
 Also flagged support-only by the appliance. This is the configuration that decides whether
 `vpm` believes it is running on hardware F5 certifies — and getting it wrong is not
 theoretical. Without a valid `CertifiedHardwareEndpoint`, `vpmd` exits with *"fail to match
-certified hardware"* and the node never registers. That is why this repository's cloud-init
-sets the endpoint explicitly rather than relying on a default; see
-`terraform/cloud-init/ce-node.yaml`.
+certified hardware"* and the node never registers. The deployment consumes the complete
+cloud-init response issued by F5 Distributed Cloud and doesn't synthesize this file locally.
 
 ## `edit-azure-client-id-secret`
 

@@ -1,40 +1,7 @@
-# Simple Ubuntu test client in snet-hub-internal. Used to generate HTTP traffic
-# to the VIP and to read the VNet effective route table (ECMP proof).
-
-resource "azurerm_public_ip" "this" {
-  name                = "${var.name}PublicIP"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  tags                = var.tags
-}
-
-resource "azurerm_network_security_group" "this" {
-  #checkov:skip=CKV_AZURE_10:Lab NSG - SSH open for demo access
-  #checkov:skip=CKV_AZURE_160:Lab NSG - HTTP port 80 required for traffic
-  #checkov:skip=CKV_AZURE_220:Lab NSG - SSH open for demo access
-  name                = "${var.name}NSG"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-
-  security_rule {
-    name                       = "SSH"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  tags = var.tags
-}
+# Private Ubuntu test client in snet-hub-internal. Azure Run Command generates
+# traffic without a public address, inbound management rule, or private key.
 
 resource "azurerm_network_interface" "this" {
-  #checkov:skip=CKV_AZURE_119:Lab NIC - public IP required for demo access
   name                = "${var.name}VMNic"
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -43,15 +10,9 @@ resource "azurerm_network_interface" "this" {
     name                          = "ipconfig1"
     subnet_id                     = var.subnet_id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.this.id
   }
 
   tags = var.tags
-}
-
-resource "azurerm_network_interface_security_group_association" "this" {
-  network_interface_id      = azurerm_network_interface.this.id
-  network_security_group_id = azurerm_network_security_group.this.id
 }
 
 resource "azurerm_linux_virtual_machine" "this" {
@@ -88,11 +49,6 @@ resource "azurerm_linux_virtual_machine" "this" {
   custom_data = var.custom_data != "" ? var.custom_data : null
 
   tags = var.tags
-}
-
-output "public_ip" {
-  description = "Public IP of the test client."
-  value       = azurerm_public_ip.this.ip_address
 }
 
 output "private_ip" {

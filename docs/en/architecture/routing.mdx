@@ -1,12 +1,40 @@
 ---
 title: Understand routing and affinity
-description: Understand route learning, withdrawal, ECMP, and application affinity in the showcase.
+description: Follow service routes from Customer Edge advertisements to installed paths and application traffic.
 sidebar:
   order: 13
 ---
 
-Each BGP path advertises the load-balancer VIP from a separate site. Route Server selects and
-installs usable paths; removing a peer withdraws that path while traffic can continue on the
-remaining paths. Existing flows can stay pinned while new flows use the remaining ECMP set.
+Each BGP-enabled Customer Edge advertises its path's service VIP as a `/32`. The upstream route
+server accepts the advertisements, selects usable paths, and propagates or installs them where the
+test client can use them.
+
+| Path | Route evidence |
+| --- | --- |
+| Azure and Canada | Azure Route Server learned routes and the test-client NIC effective routes |
+| AWS | VPC Route Server peer state and the propagated client route table |
+| KVM | FRR BGP and kernel routing tables |
+
+Keep every BGP VIP outside connected address spaces. A connected VNet, VPC, or local-subnet route
+can take precedence and hide whether BGP is working.
+
+## Withdraw a failed path
+
+When a BGP peer closes or its hold timer expires, the upstream removes routes learned from that
+peer after convergence. Existing flows through the failed CE do not survive. New flows can use the
+remaining ECMP set.
+
+BGP proves peer reachability, not application health. Verify both route withdrawal and successful
+HTTP traffic. The Canadian ILB is separate: its health probe, not BGP, removes an unhealthy backend.
+
+## Distinguish affinity from persistence
+
+ECMP selects a path from network and transport fields. The same flow normally remains on one path
+while the path set is stable, but a new connection or path-set change can select another CE. That is
+flow affinity, not user-session persistence or state replication.
+
+Use application-layer persistence or external session state when the application requires it.
+Measure multiple independent connections and per-path counters instead of inferring distribution
+from one successful request.
 
 For operator evidence and commands, use [BGP diagnostics](../../customer-edge/workflows/bgp-diagnostics/).

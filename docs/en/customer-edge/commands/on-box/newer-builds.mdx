@@ -8,9 +8,8 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
-The from-zero rebuild selected `crt-20260201-0179`. On 2026-08-03, that build exposed
-43 commands through the debug application programming interface (API) and 89 through the
-on-box `execcli` menu. The older fleet exposed 34 and 82 respectively.
+The captured `crt-20260201-0179` build exposed 43 commands through the debug application
+programming interface (API) and 89 through the on-box `execcli` menu.
 
 Nine commands were added to the debug API. Seven of those were also the seven-command
 difference in the on-box menu; `systemctl-restart-crio` and
@@ -18,24 +17,23 @@ difference in the on-box menu; `systemctl-restart-crio` and
 debug API.
 
 <Aside type="caution" title="Catalog presence is not permission to run a command">
-The capture harness refuses every command that the live catalog classifies as `Exec`. It
-also requires an explicit manifest entry before running a newly discovered `ExecUser`
-command. A tier and a harmless-looking name do not prove that a command only reads.
+An `Exec` tier and a harmless-looking name don't prove that a command only reads. Run a
+maintenance command only when its documented effect is acceptable.
 </Aside>
 
 ## Safety classification
 
-| Command | Debug API tier | Capture policy |
+| Command | Debug API tier | Operator action |
 | --- | --- | --- |
-| `collect-database-stats` | `ExecUser` | Skip: performs writes |
-| `iptables-lv` | `ExecUser` | Capture: read-only |
-| `marker-exists-NetworkManager` | `Exec` | Never execute through the API |
-| `marker-exists-crio` | `Exec` | Never execute through the API |
-| `marker-exists-kubelet` | `Exec` | Never execute through the API |
-| `systemctl-restart-NetworkManager` | `Exec` | Never execute |
-| `systemctl-restart-crio` | `Exec` | Never execute |
-| `systemctl-restart-kubelet` | `Exec` | Never execute |
-| `systemctl-start-crio-prune` | `Exec` | Never execute |
+| `collect-database-stats` | `ExecUser` | Support-directed; performs writes |
+| `iptables-lv` | `ExecUser` | Read filter tables |
+| `marker-exists-NetworkManager` | `Exec` | Support-directed |
+| `marker-exists-crio` | `Exec` | Support-directed |
+| `marker-exists-kubelet` | `Exec` | Support-directed |
+| `systemctl-restart-NetworkManager` | `Exec` | Disrupts networking |
+| `systemctl-restart-crio` | `Exec` | Disrupts workloads |
+| `systemctl-restart-kubelet` | `Exec` | Disrupts workloads |
+| `systemctl-start-crio-prune` | `Exec` | Changes image storage |
 
 ## `marker-exists-crio`
 
@@ -43,10 +41,6 @@ Checks whether the CRI-O restart marker exists. The current API classifies it as
 
 ```json
 {"category":"System Troubleshooting","tier":"Exec"}
-```
-
-```text
-Capture policy: never execute through the API
 ```
 
 ## `marker-exists-kubelet`
@@ -57,10 +51,6 @@ Checks whether the kubelet restart marker exists. The current API classifies it 
 {"category":"System Troubleshooting","tier":"Exec"}
 ```
 
-```text
-Capture policy: never execute through the API
-```
-
 ## `marker-exists-NetworkManager`
 
 Checks whether the NetworkManager restart marker exists. The current API classifies it as
@@ -69,17 +59,6 @@ privileged:
 ```json
 {"category":"System Troubleshooting","tier":"Exec"}
 ```
-
-```text
-Capture policy: never execute through the API
-```
-
-<Aside type="note" title="The stale marker captures were removed">
-The repository previously carried `missing` captures for all three commands from a
-disposable older build. They were removed when the live catalog classified the commands as
-`Exec`; retaining them would contradict the enforced rule that privileged API commands are
-never captured.
-</Aside>
 
 ## `iptables-lv`
 
@@ -120,22 +99,12 @@ support requests a disk test and the node can tolerate competing input/output (I
 capture harness records an explicit skip reason and never executes it.
 </Aside>
 
-Captured 2026-07-28 on a disposable CE. The current fleet was not used to repeat a write
-benchmark whose behavior was already established by its own output.
-
 ```bash
 execcli collect-database-stats
 ```
 
 ```text file=../../../../_data/sitecli-collect-database-stats.txt
 ```
-
-<Aside type="note" title="The evidence changed the capture policy">
-This command was initially treated as read-only because its name and appliance description
-say that it collects statistics. Its captured output revealed the writes. A test now scans
-committed evidence for write markers and fails if such a command appears on the read-only
-allow-list.
-</Aside>
 
 ## `systemctl-restart-NetworkManager`
 
@@ -170,15 +139,8 @@ The current on-box catalog describes this as `start crio image prune service`. T
 classifies it as privileged `Exec`. A prune changes container-image storage, so the capture
 harness never executes it.
 
-<Aside type="caution" title="Mutating commands stay off the allow-list">
-`scripts/sitecli_ssh_harvest.py` enumerates these commands and refuses to execute them. Tests
-assert that restart, prune, write-benchmark, packet-capture, and other mutating commands stay
-off the allow-list.
-</Aside>
-
 <Aside type="note" title="What was verified">
-The debug API catalog and on-box completion menu were both refreshed on 2026-08-03 against
-software build `crt-20260201-0179`. The API exposed 43 commands and the on-box menu exposed
-89 `execcli` commands. The capture run captured 34, skipped nine, and failed none. The on-box
-node reported `PROVISIONED` when its catalog was captured.
+The command names, tiers, and on-box descriptions were captured from software build
+`crt-20260201-0179`. The `iptables-lv` output was read from a provisioned node. The database
+output demonstrates its write behavior; don't repeat that benchmark on a serving node.
 </Aside>

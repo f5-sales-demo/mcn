@@ -7,7 +7,7 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
-  kvm_ce_image_path      = "/tmp/f5xc-ce.qcow2"
+  subscription_id        = uuidv5("dns", "example.com")
   site_prefix            = null
   ca_site_prefix         = null
   lb_name                = null
@@ -47,6 +47,11 @@ run "canadian_ilb_plans_successfully" {
   }
 
   assert {
+    condition     = output.ca_ilb_rule_name == "ha-ports-rule"
+    error_message = "Canada must expose the ILB rule used by the supported backend-health API."
+  }
+
+  assert {
     condition     = length(azurerm_lb.ca_ilb) == 1
     error_message = "When enable_canada = true and enable_canada_ilb = true, exactly one Canadian ILB should be created."
   }
@@ -70,7 +75,7 @@ run "canadian_ilb_disabled_plans_no_ilb_resources" {
   }
 
   assert {
-    condition     = output.ca_ilb_id == null
-    error_message = "When enable_canada_ilb = false, ca_ilb_id output must be null."
+    condition     = output.ca_ilb_id == null && output.ca_ilb_rule_name == null
+    error_message = "When enable_canada_ilb = false, Canadian ILB verification outputs must be null."
   }
 }

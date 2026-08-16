@@ -1,12 +1,12 @@
 # Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
 #
-# Only TWO variables have no default and must be supplied: origin_ip and
-# lb_domain. Everything else has a working default, and every OBJECT NAME derives
+# Three variables have no default and must be supplied: subscription_id,
+# origin_ip, and lb_domain. Everything else has a working default, and every object name derives
 # from var.component — so you get mcn-ce-ha-eastus01/02/03, mcn-ce-ha-f5se,
 # mcn-ce-ha-pool, mcn-ce-ha-rs, mcn-ce-ha-bastion and rg-mcn-ce-ha-<you> without
 # naming any of them here. Change component once and all of them follow.
 
-# --- REQUIRED: no defaults, deliberately ---
+# --- REQUIRED: no defaults ---
 # origin_ip has no default because any default is one specific machine, and a
 # stale one silently sends this deployment's traffic to somebody else's host
 # instead of failing. lb_domain has none because the load balancer matches on
@@ -18,8 +18,8 @@ lb_domain = "mcn-ce-ha.example.com"
 # --- Azure ---
 subscription_id = "<AZURE_SUBSCRIPTION_ID>"
 location        = "eastus"
-# resource_group_name: defaults to rg-<component>-<deployer>, where the deployer is
-# resolved from Azure AD. Set it only to adopt a group that already exists.
+# resource_group_name defaults to rg-<component>-<deployer>, where the deployer is
+# resolved from Azure AD. Set it when the deployment requires a specific name.
 # resource_group_name = "rg-mcn-ce-ha-yourname"
 
 # --- Scaling / topology ---
@@ -41,13 +41,8 @@ route_server_subnet_prefix = "10.0.4.0/27"
 bastion_subnet_prefix      = "10.0.5.0/26" # only used when enable_bastion = true
 
 # --- Object names: all derived, all overridable ---
-# Left unset, each of these becomes <component>-<suffix>. Override one only to
-# adopt an object that already exists under a different name.
-#
-# ⚠️ site_prefix is the exception that bites. It feeds ClusterName in cloud-init,
-# and cloud-init only runs on a CE's first boot — so changing it REPLACES every CE
-# VM and its XC site, followed by roughly 45 minutes of VIP convergence. Pin it to
-# the current value when you need existing sites to stay exactly where they are.
+# Left unset, each of these becomes <component>-<suffix>. Changing a site name
+# replaces its one-time cloud-init issuance and CE node.
 #
 # site_prefix       = "mcn-ce-ha"   # -> sites mcn-ce-ha-eastus01 / 02 / 03
 # lb_name           = "mcn-ce-ha-f5se"
@@ -103,18 +98,14 @@ xc_app_namespace = "demo-app"
 origin_port      = 80
 vip              = "10.250.0.10"
 
-# --- Site registration token ---
-# Leave unset: the deployment mints its own tenant-scoped token (xcsh_token.ce) and
-# feeds its value to cloud-init. Set this only to inject an externally-minted token.
-# registration_token = "..."
-
 # --- Full-showcase extensions ---
-# AWS, Canadian BGP/ILB, and one KVM CE are enabled by default. The KVM CE needs
-# the F5-issued QCOW2 image downloaded after the KVM site is created; this is the
-# only additional required input for the complete default graph.
+# AWS, Canadian BGP/ILB, and one KVM CE are enabled by default. Terraform reads
+# the signed F5 QCOW2 URL from xcsh_site_image; no image path input is accepted.
 enable_aws = true
 enable_kvm = true
-kvm_ce_image_path = "/absolute/path/to/f5xc-ce.qcow2"
+
+aws_lb_domain = "aws.mcn-ce-ha.example.com"
+kvm_lb_domain = "kvm.mcn-ce-ha.example.com"
 
 # Use these opt-outs only for focused lab runs.
 # enable_aws        = false

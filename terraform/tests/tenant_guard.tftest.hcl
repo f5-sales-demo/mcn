@@ -1,10 +1,6 @@
-# Tenant guard (issue #696).
-#
-# The F5 XC tenant used to be decided entirely by XCSH_API_URL in the operator's
-# shell. When that value drifted, the whole demo silently rebuilt itself in another
-# tenant and every plan in between was clean. The tenant is now config:
-# var.expected_xc_tenant names it, providers.tf derives the xcsh api_url from it,
-# and data.external.xc_env_tenant fails the plan when the environment disagrees.
+# Tenant guard. var.expected_xc_tenant names the target, providers.tf derives the
+# xcsh api_url from it, and data.external.xc_env_tenant fails the plan when the
+# environment disagrees.
 #
 # What is asserted here is the part that is deterministic on any machine: the
 # variable's own validation, and the endpoint derived from it. The mismatch branch
@@ -23,7 +19,7 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
-  kvm_ce_image_path = "/tmp/f5xc-ce.qcow2"
+  subscription_id = uuidv5("dns", "example.com")
   # Explicitly null so these assert the DERIVED names no matter what a local
   # terraform.tfvars pins — `terraform test` reads that file too, so without this a
   # deployment holding older names steady would turn this suite red on the

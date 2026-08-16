@@ -14,22 +14,20 @@ CE, FRR peer, and local client appear alongside the Azure and Canadian resources
    terraform -chdir=terraform init -backend-config=backend.hcl
    ```
 
-2. Review the complete plan.
+2. Save and review the complete plan.
 
    ```bash
-   terraform -chdir=terraform plan
+   terraform -chdir=terraform plan -out=showcase.tfplan
    ```
 
 3. Apply the approved plan.
 
    ```bash
-   terraform -chdir=terraform apply
+   terraform -chdir=terraform apply showcase.tfplan
    ```
 
-4. Apply again after newly booted CEs register so Terraform can approve their registrations.
-
-   ```bash
-   terraform -chdir=terraform apply
-   ```
+Terraform creates each Secure Mesh v2 site, issues one site-scoped cloud-init credential, and then
+boots its node. Registration proceeds automatically. A second apply is not part of the deployment
+contract.
 
 If a KVM image is unavailable, stop. Do not present an incomplete full showcase.

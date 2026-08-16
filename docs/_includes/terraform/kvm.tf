@@ -1,76 +1,176 @@
-# One supported KVM CE site. F5's KVM contract requires the F5-supplied QCOW2
-# image and at least 8 vCPUs, 32 GB RAM, and 80 GB disk; a generic cloud image
-# is deliberately not an option in this topology.
+# One supported KVM CE site. The generated XC data source retrieves F5's signed
+# QCOW2 URL; a caller-supplied path or generic cloud image is deliberately not
+# part of this clean-break contract.
+data "xcsh_site_image" "kvm" {
+  count        = var.enable_kvm ? 1 : 0
+  provider_ref = "KVM"
+}
+
+locals {
+  kvm_bridge_name     = "virbr-mcn-kvm"
+  kvm_gateway_address = cidrhost(var.kvm_network_cidr, 1)
+  kvm_ce_mac_address = join(":", concat(
+    ["52", "54"],
+    [for offset in [0, 2, 4, 6] : substr(md5(var.component), offset, 2)]
+  ))
+}
+
+resource "xcsh_site_cloud_init" "kvm" {
+  count        = var.enable_kvm ? 1 : 0
+  provider_ref = "kvm"
+  site_name    = xcsh_securemesh_site_v2.kvm[0].name
+}
+
 resource "libvirt_network" "kvm" {
-  count     = var.enable_kvm ? 1 : 0
-  name      = var.kvm_network_name
-  mode      = "nat"
-  domain    = "kvm.mcn.local"
-  addresses = [var.kvm_network_cidr]
-  bridge    = "virbr-mcn-kvm"
+  count = var.enable_kvm ? 1 : 0
+  name  = var.kvm_network_name
+
   autostart = true
-  dhcp { enabled = false }
-  dns { enabled = true }
+
+  forward = {
+    mode = "nat"
+  }
+  bridge = {
+    name = local.kvm_bridge_name
+  }
+  domain = {
+    name = "kvm.mcn.local"
+  }
+  ips = [
+    {
+      address = local.kvm_gateway_address
+      netmask = cidrnetmask(var.kvm_network_cidr)
+      dhcp = {
+        hosts = [{
+          mac  = local.kvm_ce_mac_address
+          name = var.kvm_domain_name
+          ip   = var.kvm_ce_address
+        }]
+      }
+    }
+  ]
+}
+
+resource "libvirt_volume" "kvm_ce_base" {
+  count = var.enable_kvm ? 1 : 0
+  name  = "${var.kvm_domain_name}-base.qcow2"
+  pool  = "default"
+
+  target = {
+    format = {
+      type = "qcow2"
+    }
+  }
+  create = {
+    content = {
+      url = data.xcsh_site_image.kvm[0].image_download_url
+    }
+  }
 }
 
 resource "libvirt_volume" "kvm_ce" {
-  count  = var.enable_kvm ? 1 : 0
-  name   = "${var.kvm_domain_name}.qcow2"
-  pool   = "default"
-  source = var.kvm_ce_image_path
-  format = "qcow2"
-  size   = 85899345920
+  count    = var.enable_kvm ? 1 : 0
+  name     = "${var.kvm_domain_name}.qcow2"
+  pool     = "default"
+  capacity = 85899345920
+
+  target = {
+    format = {
+      type = "qcow2"
+    }
+  }
+  backing_store = {
+    path = libvirt_volume.kvm_ce_base[0].path
+    format = {
+      type = "qcow2"
+    }
+  }
 }
 
 resource "libvirt_cloudinit_disk" "kvm_ce" {
-  count     = var.enable_kvm ? 1 : 0
-  name      = "${var.kvm_domain_name}-cloudinit.iso"
-  pool      = "default"
-  user_data = <<-CLOUD_INIT
-    #cloud-config
-    write_files:
-      - path: /etc/vpm/user_data
-        owner: root:root
-        permissions: '0644'
-        content: |
-          token: ${local.ce_registration_token}
-          slo_ip: ${var.kvm_ce_address}/${split("/", var.kvm_network_cidr)[1]}
-          slo_gateway: ${var.kvm_frr_address}
-          slo_dns: ${var.kvm_frr_address}
-  CLOUD_INIT
+  count = var.enable_kvm ? 1 : 0
+  name  = "${var.kvm_domain_name}-cloudinit"
+
+  user_data = xcsh_site_cloud_init.kvm[0].cloud_init_config
   meta_data = "instance-id: ${var.kvm_domain_name}\nlocal-hostname: ${var.kvm_domain_name}\n"
 }
 
-resource "libvirt_domain" "kvm_ce" {
-  count     = var.enable_kvm ? 1 : 0
-  name      = var.kvm_domain_name
-  memory    = 32768
-  vcpu      = 8
-  autostart = true
-  cloudinit = libvirt_cloudinit_disk.kvm_ce[0].id
+resource "libvirt_volume" "kvm_ce_cloudinit" {
+  count = var.enable_kvm ? 1 : 0
+  name  = "${var.kvm_domain_name}-cloudinit.iso"
+  pool  = "default"
 
-  network_interface {
-    network_id     = libvirt_network.kvm[0].id
-    addresses      = [var.kvm_ce_address]
-    wait_for_lease = false
-  }
-  disk { volume_id = libvirt_volume.kvm_ce[0].id }
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
-  }
-  graphics {
-    type        = "vnc"
-    listen_type = "address"
-    autoport    = true
-  }
-
-  lifecycle {
-    precondition {
-      condition     = var.kvm_ce_image_path != ""
-      error_message = "The KVM CE VM needs the F5-provided QCOW2 image path."
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.kvm_ce[0].path
     }
+  }
+}
+
+resource "libvirt_domain" "kvm_ce" {
+  count       = var.enable_kvm ? 1 : 0
+  name        = var.kvm_domain_name
+  type        = "kvm"
+  memory      = 32768
+  memory_unit = "MiB"
+  vcpu        = 8
+  autostart   = true
+  running     = true
+
+  os = {
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot_devices = [{ dev = "hd" }]
+  }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.kvm_ce[0].pool
+            volume = libvirt_volume.kvm_ce[0].name
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+        driver = {
+          type = "qcow2"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.kvm_ce_cloudinit[0].pool
+            volume = libvirt_volume.kvm_ce_cloudinit[0].name
+          }
+        }
+        target = {
+          dev = "sda"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        mac = {
+          address = local.kvm_ce_mac_address
+        }
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = libvirt_network.kvm[0].name
+          }
+        }
+      }
+    ]
   }
 }
 
@@ -80,19 +180,23 @@ resource "docker_network" "kvm" {
   count   = var.enable_kvm ? 1 : 0
   name    = "${var.kvm_network_name}-macvlan"
   driver  = "macvlan"
-  options = { parent = libvirt_network.kvm[0].bridge }
+  options = { parent = libvirt_network.kvm[0].bridge.name }
   ipam_config {
     subnet  = var.kvm_network_cidr
-    gateway = var.kvm_frr_address
+    gateway = local.kvm_gateway_address
   }
 }
 
 resource "docker_container" "kvm_frr" {
   count = var.enable_kvm ? 1 : 0
   name  = "${var.component}-kvm-frr"
-  image = "frrouting/frr:10.2.1"
+  image = "quay.io/frrouting/frr:10.7.0@sha256:65e5967b922572c0565d968388fb06af69d7e9b3b3eea40ad7e3810687667f68"
   capabilities { add = ["NET_ADMIN", "NET_RAW"] }
+  sysctls = {
+    "net.ipv4.ip_forward" = "1"
+  }
   command = ["sh", "-ec", <<-SCRIPT
+    sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
     printf '%s\\n' 'frr defaults traditional' 'hostname kvm-frr' 'service integrated-vtysh-config' 'router bgp ${var.kvm_frr_asn}' ' bgp router-id ${var.kvm_frr_address}' ' neighbor ${var.kvm_ce_address} remote-as ${var.kvm_ce_asn}' ' !' ' address-family ipv4 unicast' '  neighbor ${var.kvm_ce_address} activate' ' exit-address-family' > /etc/frr/frr.conf
     chown frr:frr /etc/frr/frr.conf
     /usr/lib/frr/frrinit.sh start
@@ -107,10 +211,12 @@ resource "docker_container" "kvm_frr" {
 }
 
 resource "docker_container" "kvm_client" {
-  count   = var.enable_kvm ? 1 : 0
-  name    = "${var.component}-kvm-client"
-  image   = "curlimages/curl:8.12.1"
-  command = ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+  count = var.enable_kvm ? 1 : 0
+  name  = "${var.component}-kvm-client"
+  image = "alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1"
+  user  = "0"
+  capabilities { add = ["NET_ADMIN"] }
+  command = ["sh", "-ec", "apk add --no-cache curl iproute2 >/dev/null; ip route replace ${var.kvm_vip}/32 via ${var.kvm_frr_address}; trap : TERM INT; sleep infinity & wait"]
   networks_advanced {
     name         = docker_network.kvm[0].name
     ipv4_address = var.kvm_client_address

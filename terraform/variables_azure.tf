@@ -5,8 +5,11 @@
 variable "subscription_id" {
   description = "Azure subscription ID used by the azurerm provider."
   type        = string
-  # Default = the <AZURE_SUBSCRIPTION_ID> subscription the lab was built in.
-  default = "00000000-0000-0000-0000-000000000000"
+
+  validation {
+    condition     = can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.subscription_id))
+    error_message = "subscription_id must be an Azure subscription UUID."
+  }
 }
 
 variable "resource_group_name" {
@@ -207,7 +210,7 @@ variable "enable_bastion" {
 }
 
 variable "client_vm_name" {
-  description = "Test client VM name, and the stem of its public IP, NSG and NIC. Leave null (the default) to derive `<component>-client`. Set it only to hold an existing client VM steady: the name is also its computer_name, which forces a VM replacement when it changes."
+  description = "Private test-client VM name and NIC stem. Leave null to derive `<component>-client`. Changing it replaces the VM."
   type        = string
   default     = null
 }

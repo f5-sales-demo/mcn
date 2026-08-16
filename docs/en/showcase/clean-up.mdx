@@ -1,17 +1,103 @@
 ---
 title: Clean up the full showcase
-description: Restore tests, destroy the stack, and confirm no showcase resources remain.
+description: Restore tests, destroy the disposable stack, and prove that every owned resource is gone.
 sidebar:
   order: 25
 ---
 
-Restore any stopped test node before teardown. Confirm routing converges and save only sanitized
-evidence. Then destroy the lab stack:
+import { Aside, Steps } from "@astrojs/starlight/components";
 
-```bash
-terraform -chdir=terraform destroy
-```
+Destroy only the disposable stack represented by the current backend state. Preserve sanitized
+evidence outside the repository, then prove cleanup in F5 Distributed Cloud, Azure, AWS, libvirt,
+Docker, and Terraform state.
 
-After destroy, confirm that Azure resources, AWS Route Server resources, F5 site and application
-objects, libvirt domains and volumes, and Docker containers and networks no longer exist. A clean
-backendless plan is the final configuration check.
+## Prerequisites
+
+- Restore every VM stopped during [Verify](../verify/).
+- Confirm all sites and BGP peers have reconverged.
+- Run `terraform plan -detailed-exitcode` and require exit code `0`.
+- Review the destroy plan before approving any deletion.
+
+<Steps>
+
+1. **Capture cleanup identifiers.**
+
+   ```bash
+   cd terraform
+   terraform output -json | jq '{
+     resource_group_name, ca_resource_group_name, aws_vpc_id,
+     xc_site_names, ca_site_names, aws_site_names, kvm_site_name,
+     loadbalancer_name, ca_loadbalancer_name, aws_loadbalancer_name,
+     kvm_domain_name, kvm_network_name,
+     kvm_frr_container_name, kvm_client_container_name
+   }' > /tmp/mcn-cleanup-outputs.json
+   terraform state list > /tmp/mcn-cleanup-state.txt
+   ```
+
+   These files contain deployment identifiers but exclude sensitive outputs. Delete them after
+   cleanup is proved.
+
+2. **Review the destroy plan.**
+
+   ```bash
+   terraform plan -destroy -out=/tmp/mcn-destroy.tfplan
+   terraform show /tmp/mcn-destroy.tfplan
+   ```
+
+   Confirm every planned deletion belongs to this stack. Shared namespaces and unrelated sites
+   must not appear.
+
+3. **Destroy the stack.**
+
+   ```bash
+   terraform apply /tmp/mcn-destroy.tfplan
+   ```
+
+4. **Confirm Terraform state is empty.**
+
+   ```bash
+   test -z "$(terraform state list)"
+   ```
+
+5. **Confirm cloud and local resources are gone.**
+
+   ```bash
+   AZURE_RG=$(jq -r '.resource_group_name.value' /tmp/mcn-cleanup-outputs.json)
+   CA_RG=$(jq -r '.ca_resource_group_name.value' /tmp/mcn-cleanup-outputs.json)
+   AWS_VPC=$(jq -r '.aws_vpc_id.value' /tmp/mcn-cleanup-outputs.json)
+   KVM_DOMAIN=$(jq -r '.kvm_domain_name.value' /tmp/mcn-cleanup-outputs.json)
+   KVM_NETWORK=$(jq -r '.kvm_network_name.value' /tmp/mcn-cleanup-outputs.json)
+   KVM_FRR=$(jq -r '.kvm_frr_container_name.value' /tmp/mcn-cleanup-outputs.json)
+   KVM_CLIENT=$(jq -r '.kvm_client_container_name.value' /tmp/mcn-cleanup-outputs.json)
+
+   test "$(az group exists --name "$AZURE_RG")" = false
+   test "$(az group exists --name "$CA_RG")" = false
+   test "$(aws ec2 describe-vpcs --filters Name=vpc-id,Values="$AWS_VPC" --query 'length(Vpcs)' --output text)" = 0
+   ! virsh list --all --name | grep -Fx "$KVM_DOMAIN"
+   ! virsh net-list --all --name | grep -Fx "$KVM_NETWORK"
+   test "$(docker ps -a --filter "name=^/${KVM_FRR}$" --format '{{.Names}}')" = ""
+   test "$(docker ps -a --filter "name=^/${KVM_CLIENT}$" --format '{{.Names}}')" = ""
+   ```
+
+   Query each saved F5 site and application object by its exact name and require `404`. Each exact
+   lookup must return absent. Don't use a prefix-wide delete or sweep command.
+
+6. **Delete local evidence containing deployment identifiers.**
+
+   ```bash
+   rm /tmp/mcn-cleanup-outputs.json /tmp/mcn-cleanup-state.txt /tmp/mcn-destroy.tfplan
+   ```
+
+</Steps>
+
+## Verify repeatability
+
+To prove deployment idempotency, run [Deploy](../deploy/) again with the same reviewed inputs,
+repeat [Verify](../verify/), require a zero-change plan, and complete this cleanup procedure a
+second time. A successful first destroy does not prove that a fresh issuance and fresh nodes can
+register.
+
+<Aside type="caution" title="Don't reuse issued cloud-init">
+The `xcsh_site_cloud_init` response contains a one-time node token. A new deployment issues new
+cloud-init after it creates each new site. Don't copy an old response into a variable or disk.
+</Aside>

@@ -9,17 +9,72 @@ import { Code } from "@astrojs/starlight/components";
 import awsVpc from "../../_includes/terraform/aws_vpc.tf?raw";
 import awsCe from "../../_includes/terraform/aws_ce.tf?raw";
 import awsXc from "../../_includes/terraform/aws_xc.tf?raw";
+import backend from "../../_includes/terraform/backend.tf?raw";
+import caIlb from "../../_includes/terraform/ca_ilb.tf?raw";
+import data from "../../_includes/terraform/data.tf?raw";
 import kvm from "../../_includes/terraform/kvm.tf?raw";
+import locals from "../../_includes/terraform/locals.tf?raw";
+import main from "../../_includes/terraform/main.tf?raw";
 import onpremKvm from "../../_includes/terraform/onprem_kvm.tf?raw";
+import outputs from "../../_includes/terraform/outputs.tf?raw";
+import providers from "../../_includes/terraform/providers.tf?raw";
+import providersLibvirt from "../../_includes/terraform/providers_libvirt.tf?raw";
+import variables from "../../_includes/terraform/variables.tf?raw";
+import variablesAws from "../../_includes/terraform/variables_aws.tf?raw";
+import variablesAzure from "../../_includes/terraform/variables_azure.tf?raw";
+import variablesCe from "../../_includes/terraform/variables_ce.tf?raw";
 import variablesKvm from "../../_includes/terraform/variables_kvm.tf?raw";
+import variablesXc from "../../_includes/terraform/variables_xc.tf?raw";
+import versions from "../../_includes/terraform/versions.tf?raw";
+import modulesAzureHubMain from "../../_includes/terraform/modules/azure-hub/main.tf?raw";
+import modulesAzureHubOutputs from "../../_includes/terraform/modules/azure-hub/outputs.tf?raw";
+import modulesAzureHubVariables from "../../_includes/terraform/modules/azure-hub/variables.tf?raw";
+import modulesAzureHubVersions from "../../_includes/terraform/modules/azure-hub/versions.tf?raw";
+import modulesAzureRouteServerBgpMain from "../../_includes/terraform/modules/azure-route-server-bgp/main.tf?raw";
+import modulesAzureRouteServerBgpVersions from "../../_includes/terraform/modules/azure-route-server-bgp/versions.tf?raw";
+import modulesCeNodeMain from "../../_includes/terraform/modules/ce-node/main.tf?raw";
+import modulesCeNodeOutputs from "../../_includes/terraform/modules/ce-node/outputs.tf?raw";
+import modulesCeNodeVariables from "../../_includes/terraform/modules/ce-node/variables.tf?raw";
+import modulesCeNodeVersions from "../../_includes/terraform/modules/ce-node/versions.tf?raw";
+import modulesCeTopologyMain from "../../_includes/terraform/modules/ce-topology/main.tf?raw";
+import modulesClientVmMain from "../../_includes/terraform/modules/client-vm/main.tf?raw";
+import modulesClientVmVariables from "../../_includes/terraform/modules/client-vm/variables.tf?raw";
+import modulesClientVmVersions from "../../_includes/terraform/modules/client-vm/versions.tf?raw";
+import modulesXcSiteMain from "../../_includes/terraform/modules/xc-site/main.tf?raw";
+import modulesXcSiteOutputs from "../../_includes/terraform/modules/xc-site/outputs.tf?raw";
+import modulesXcSiteVariables from "../../_includes/terraform/modules/xc-site/variables.tf?raw";
+import modulesXcSiteVersions from "../../_includes/terraform/modules/xc-site/versions.tf?raw";
 
-The Terraform source is the implementation authority. The documentation imports its tracked files
-from `docs/_includes/terraform`; do not copy resource definitions into prose.
+The Terraform source is the implementation authority. This page imports every tracked `.tf` file
+from `docs/_includes/terraform`. A CI check fails if an import differs from its deployment source.
 
-## AWS Route Server
+## Root module
 
-`aws_vpc.tf` creates the VPC association, endpoints, and route propagation. `aws_ce.tf` creates the
-three independent CE peers and test client. `aws_xc.tf` creates their F5 site and application path.
+<Code code={backend} lang="hcl" title="terraform/backend.tf" />
+
+<Code code={versions} lang="hcl" title="terraform/versions.tf" />
+
+<Code code={providers} lang="hcl" title="terraform/providers.tf" />
+
+<Code code={providersLibvirt} lang="hcl" title="terraform/providers_libvirt.tf" />
+
+<Code code={data} lang="hcl" title="terraform/data.tf" />
+
+<Code code={variables} lang="hcl" title="terraform/variables.tf" />
+
+<Code code={variablesAzure} lang="hcl" title="terraform/variables_azure.tf" />
+
+<Code code={variablesAws} lang="hcl" title="terraform/variables_aws.tf" />
+
+<Code code={variablesCe} lang="hcl" title="terraform/variables_ce.tf" />
+
+<Code code={variablesKvm} lang="hcl" title="terraform/variables_kvm.tf" />
+
+<Code code={variablesXc} lang="hcl" title="terraform/variables_xc.tf" />
+
+<Code code={locals} lang="hcl" title="terraform/locals.tf" />
+
+<Code code={main} lang="hcl" title="terraform/main.tf" />
 
 <Code code={awsVpc} lang="hcl" title="terraform/aws_vpc.tf" />
 
@@ -27,13 +82,48 @@ three independent CE peers and test client. `aws_xc.tf` creates their F5 site an
 
 <Code code={awsXc} lang="hcl" title="terraform/aws_xc.tf" />
 
-## KVM Customer Edge
+<Code code={caIlb} lang="hcl" title="terraform/ca_ilb.tf" />
 
-`variables_kvm.tf` defines the F5 image and local network inputs. `kvm.tf` creates the supported CE
-domain, FRR peer, and client. `onprem_kvm.tf` creates the matching F5 site and BGP objects.
-
-<Code code={variablesKvm} lang="hcl" title="terraform/variables_kvm.tf" />
+<Code code={outputs} lang="hcl" title="terraform/outputs.tf" />
 
 <Code code={kvm} lang="hcl" title="terraform/kvm.tf" />
 
 <Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
+
+## Modules
+
+<Code code={modulesAzureHubMain} lang="hcl" title="terraform/modules/azure-hub/main.tf" />
+
+<Code code={modulesAzureHubOutputs} lang="hcl" title="terraform/modules/azure-hub/outputs.tf" />
+
+<Code code={modulesAzureHubVariables} lang="hcl" title="terraform/modules/azure-hub/variables.tf" />
+
+<Code code={modulesAzureHubVersions} lang="hcl" title="terraform/modules/azure-hub/versions.tf" />
+
+<Code code={modulesAzureRouteServerBgpMain} lang="hcl" title="terraform/modules/azure-route-server-bgp/main.tf" />
+
+<Code code={modulesAzureRouteServerBgpVersions} lang="hcl" title="terraform/modules/azure-route-server-bgp/versions.tf" />
+
+<Code code={modulesCeNodeMain} lang="hcl" title="terraform/modules/ce-node/main.tf" />
+
+<Code code={modulesCeNodeOutputs} lang="hcl" title="terraform/modules/ce-node/outputs.tf" />
+
+<Code code={modulesCeNodeVariables} lang="hcl" title="terraform/modules/ce-node/variables.tf" />
+
+<Code code={modulesCeNodeVersions} lang="hcl" title="terraform/modules/ce-node/versions.tf" />
+
+<Code code={modulesCeTopologyMain} lang="hcl" title="terraform/modules/ce-topology/main.tf" />
+
+<Code code={modulesClientVmMain} lang="hcl" title="terraform/modules/client-vm/main.tf" />
+
+<Code code={modulesClientVmVariables} lang="hcl" title="terraform/modules/client-vm/variables.tf" />
+
+<Code code={modulesClientVmVersions} lang="hcl" title="terraform/modules/client-vm/versions.tf" />
+
+<Code code={modulesXcSiteMain} lang="hcl" title="terraform/modules/xc-site/main.tf" />
+
+<Code code={modulesXcSiteOutputs} lang="hcl" title="terraform/modules/xc-site/outputs.tf" />
+
+<Code code={modulesXcSiteVariables} lang="hcl" title="terraform/modules/xc-site/variables.tf" />
+
+<Code code={modulesXcSiteVersions} lang="hcl" title="terraform/modules/xc-site/versions.tf" />

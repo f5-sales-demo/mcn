@@ -1,10 +1,26 @@
 ---
 title: Understand Customer Edge interfaces
-description: Learn which Customer Edge interfaces carry site-local and service traffic.
+description: Map the explicit site interfaces to Azure, AWS, and KVM networking.
 sidebar:
   order: 14
 ---
 
-The first KVM interface must have IPv4 Internet reachability so the CE can register with F5
-Distributed Cloud. In the cloud paths, the Site Local Outside address is the BGP-facing address.
-Use the [interface model](../../customer-edge/interface-model/) for the complete CE interpretation.
+Each Secure Mesh v2 site declares the node and its `eth0` Site Local Outside (SLO) interface. That
+explicit interface is the bind target for the site's BGP peer.
+
+| Platform | `eth0` attachment | Addressing | BGP neighbor |
+| --- | --- | --- | --- |
+| Azure | First CE NIC on the management/SLO subnet | Static private SLO address plus public address | Azure Route Server virtual-router addresses |
+| AWS | SLO elastic network interface | DHCP private address plus Elastic IP | VPC Route Server endpoint address |
+| KVM | Virtio NIC on the libvirt network | DHCP reservation for the deterministic MAC | FRR container address |
+
+The first KVM interface must have IPv4 Internet reachability so the node can register with F5
+Distributed Cloud. Docker attaches FRR and the local client to a macvlan on the libvirt bridge so
+they are ordinary peers on the CE LAN.
+
+Azure CEs also have external and internal NICs. The SLO interface remains the site-registration and
+BGP-facing interface; an Azure NIC variable named `mgmt` is not a separate out-of-band management
+plane.
+
+Use the [operator interface model](../../customer-edge/interface-model/) when interpreting on-box
+interface names and addresses.

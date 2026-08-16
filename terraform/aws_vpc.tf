@@ -160,22 +160,6 @@ resource "aws_security_group" "ce" {
   vpc_id      = aws_vpc.aws[0].id
 
   ingress {
-    description = "SSH access"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "Site Console Local UI"
-    from_port   = 65500
-    to_port     = 65500
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
     description = "BGP peering"
     from_port   = 179
     to_port     = 179
@@ -188,6 +172,14 @@ resource "aws_security_group" "ce" {
     from_port   = -1
     to_port     = -1
     protocol    = "icmp"
+    cidr_blocks = [var.aws_vpc_cidr]
+  }
+
+  ingress {
+    description = "Advertised HTTP VIP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
     cidr_blocks = [var.aws_vpc_cidr]
   }
 
@@ -217,14 +209,6 @@ resource "aws_security_group" "test_client" {
   name        = "${var.component}-aws-client-sg"
   description = "Security group for the AWS Route Server test client"
   vpc_id      = aws_vpc.aws[0].id
-
-  ingress {
-    description = "Operator SSH access"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   egress {
     description = "HTTP and Route Server verification traffic"

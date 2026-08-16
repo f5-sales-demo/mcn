@@ -9,7 +9,8 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
-  kvm_ce_image_path = "/tmp/f5xc-ce.qcow2"
+  subscription_id = uuidv5("dns", "example.com")
+  component       = "mcn-ce-ha"
   # Explicitly null so these assert the DERIVED names no matter what a local
   # terraform.tfvars pins — `terraform test` reads that file too, so without this a
   # deployment holding older names steady would turn this suite red on the
@@ -31,9 +32,7 @@ variables {
   lb_domain = "mcn-ce-ha.f5-sales-demo.com"
   origin_ip = "203.0.113.10"
   deployer  = "tester"
-  # enable_bgp left at its true default; the LB/advertise/origin-pool under test are
-  # independent of bgp either way. It used to be forced false only to dodge the provider's
-  # object-ref name length cap, relaxed in v3.74.0.
+  # enable_bgp remains at its true default so this plans the supported graph.
   ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   # Pinned rather than inherited: `terraform test` also reads the gitignored
   # terraform.tfvars, so an assertion against a hard-coded namespace literal would

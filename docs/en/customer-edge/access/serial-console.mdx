@@ -1,6 +1,6 @@
 ---
 title: Serial console
-description: The break-glass route into a Customer Edge that never registered, where the debug API cannot reach. Covers the boot diagnostics prerequisite, how to check availability from a script, and two failures that look like outages but are not.
+description: Reach an Azure Customer Edge when registration or node networking prevents remote access.
 sidebar:
   order: 30
   label: Serial console
@@ -8,211 +8,96 @@ sidebar:
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 
-Captured 2026-07-28 from one CE of this deployment. `sitecli/capture-manifest.json`
-records which node, and `scripts/capture-sitecli.sh --check` re-verifies the command
-surface against a live CE.
+Use Azure Serial Console when the CE has no working network path. It attaches through the
+Azure platform, so it does not depend on F5 registration, the CE data plane, or an inbound
+management rule.
 
-Azure Serial Console attaches to the node's emulated serial port through the Azure
-platform. It does not traverse the F5 Distributed Cloud control plane, the node's
-data plane, or any network path the node controls — which is exactly why it works
-when nothing else does.
+Try [Site Console](../site-console/) first when node networking still works. Use the
+[debug API](../debug-api/) after the site becomes `ONLINE`.
 
-Reach for it when a CE **never came up**: registration failed, the site is absent
-from the tenant, or the node is up but has no route out. In all of those cases the
-[debug API](../debug-api/) has no tunnel to relay through. [SSH](../ssh/) survives a
-failed registration, but only if its key was already written at first boot and you can
-reach the node's internal address from inside the VNet — neither of which is true of a
-node you are meeting for the first time.
+## Confirm the prerequisite
 
-Try [Site Console](../site-console/) before this one if the node has *any* working network
-path: it also survives a failed registration, needs no key, and does not evict the person
-already looking at the node. Serial console is what is left when the network path is the
-thing that is broken.
-
-## Prerequisite: boot diagnostics
-
-Azure requires boot diagnostics on the VM before it will attach a serial console.
-This is enabled by `terraform/modules/ce-node`:
+The CE module enables Azure-managed boot diagnostics:
 
 ```hcl
 boot_diagnostics {}
 ```
 
-An empty block selects Azure-managed storage, so there is no diagnostics storage
-account, lifecycle policy or access key to own. Confirm it on a node:
+Confirm it before attaching:
 
 ```bash
-az vm show -g <resource-group> -n <vm-name> --query diagnosticsProfile
+az vm show \
+  --resource-group <resource-group> \
+  --name <vm-name> \
+  --query diagnosticsProfile.bootDiagnostics.enabled \
+  --output tsv
 ```
 
-```json
-{ "bootDiagnostics": { "enabled": true } }
-```
+The command must return `true`.
 
-<Aside type="caution" title="Enabling it is not retroactive">
-Boot diagnostics captures the serial log **at boot**. Turning it on for a VM that
-is already running does not produce a log for the boot that already happened, so
-`az vm boot-diagnostics get-boot-log` answers:
-
-```text
-<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
-```
-
-That is expected, not a fault. A boot log exists after the node next reboots. Live
-console attach, however, works immediately — it does not depend on the log.
+<Aside type="note" title="Boot logs start after diagnostics is enabled">
+If diagnostics was enabled after a VM booted, the earlier boot has no stored log. Reboot
+the node only when that disruption is part of the diagnostic procedure.
 </Aside>
 
-## Checking availability without a terminal
-
-Attaching needs an interactive session, but whether it *would* attach is two API
-calls. Both are useful in a health check.
-
-The service must be enabled for the subscription — an administrator can disable it
-tenant-wide:
-
-```bash
-az rest --method get --url \
-  "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.SerialConsole/consoleServices/default?api-version=2018-05-01"
-```
-
-```json
-{ "properties": { "disabled": false } }
-```
-
-Then ask for a connection to a specific node's serial port:
-
-```bash
-az rest --method post \
-  --headers "Content-Type=application/json" --body '{}' --url \
-  "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<vm>/providers/Microsoft.SerialConsole/serialPorts/0/connect?api-version=2018-05-01"
-```
-
-A `connectionString` beginning `wss://` — on this deployment
-`eastus.gateway.serialconsole.azure.com` — means the console is attachable right
-now. Before boot diagnostics was enabled, this call had nothing to attach to.
-
-<Aside type="danger" title="That connection string is a credential">
-It is a short-lived bearer token embedded in a URL. Do not log it, paste it into a
-ticket, or commit it. Print only the host when you are demonstrating that the call
-worked.
-</Aside>
-
-## Attaching
+## Attach to the node
 
 <Steps>
 
-1. Install the extension once:
+1. Install the Azure CLI extension.
 
    ```bash
    az extension add --name serial-console
    ```
 
-2. Attach:
+2. Read the resource group and available VM names.
 
    ```bash
-   az serial-console connect -g <resource-group> -n <vm-name>
+   terraform -chdir=terraform output -raw resource_group_name
+   terraform -chdir=terraform output -json ce_vm_names | jq -r 'to_entries[] | "\(.key)\t\(.value)"'
    ```
 
-3. You land at the node's own login prompt, not a shell, behind the appliance's audit
-   banner. Serial console proves the *channel* works; it does not bypass authentication.
+3. Attach from an interactive terminal.
 
-   <Aside type="caution" title="Which credential the serial login accepts is not verified">
-   Nobody has completed a login over serial console on this deployment, so this page does
-   not say what to type. `admin` is the appliance account whose shell is the Site CLI, and
-   the same account authenticates over
-   [Site Console](../site-console/) with a password — but that a password works over the
-   serial console login has not been shown, and `sshd` is key-only for `admin`, so the two
-   are demonstrably not the same credential path.
-   </Aside>
+   ```bash
+   az serial-console connect \
+     --resource-group <resource-group> \
+     --name <vm-name>
+   ```
+
+4. Sign in at the node prompt with the site-managed `admin` credential.
+
+   Read the matching site name from `xc_site_names`, then read that key from the sensitive
+   `site_console_admin_passwords` output. Keep the value out of logs and documentation.
+
+5. Collect only the evidence needed to diagnose boot, cloud-init, registration, or routing.
+
+6. Exit the shell and close the console when you finish.
 
 </Steps>
 
-Captured from `f5-xc-ce-vm-01`, elided in the middle where the systemd unit output
-adds nothing:
+## Read the boot log without attaching
 
-```text file=../../../_data/serial-console-boot.txt
+Use the stored boot log when you only need startup evidence:
+
+```bash
+az vm boot-diagnostics get-boot-log \
+  --resource-group <resource-group> \
+  --name <vm-name>
 ```
 
-Four things in that transcript are worth noticing, because they answer questions the
-debug API cannot:
+Look for cloud-init completion, container runtime startup, VPM startup, and registration
+errors. The log can explain a failure that occurred before the debug API was available.
 
-- **cloud-init completed** — `Datasource DataSourceAzure`, finished at 22.37 seconds.
-  A node that never registers usually failed here, and this is where you see it.
-- **Both container runtimes started.** `Container Runtime Interface for OCI (CRI-O)`
-  and `Docker Application Container Engine` are each `[ OK ]`, which is the boot-time
-  proof of the dual-runtime behaviour that surprises people in
-  [crictl](../../commands/system/crictl/) and [Docker](../../commands/system/docker/).
-- **`VP Manager image load` and `Argo Watch service`** — `vpm` and Argo coming up.
-- **The prompt is the node's own**, behind its audit banner. Serial console gets you a
-  login prompt, not a session.
+## Troubleshoot serial access
 
-<Aside type="caution" title="Attaching interactively needs a real terminal — but it can be scripted">
-`az serial-console connect` puts the terminal into raw mode, so it cannot run from a
-pipeline or any context without a TTY. It fails client-side, before contacting Azure:
+| Symptom | Cause | Action |
+| --- | --- | --- |
+| `BlobNotFound` from the boot-log command | No boot occurred after diagnostics was enabled | Use live console or perform an approved reboot |
+| Terminal raw-mode error | The command is not running in a real TTY | Run it from an interactive terminal |
+| Another operator disconnects | Azure allows one serial session per VM | Coordinate ownership of the session |
+| A long paste stalls or fails | Azure limits console paste length | Send short commands individually |
+| Login fails | The wrong site's password was selected | Map the VM key through `xc_site_names` before reading the password |
 
-```text
-ERROR: (19, 'Operation not supported by device')
-  File ".../azext_serialconsole/custom.py", line 633, in connect_serialconsole
-    GV.serial_console_instance.launch_console()
-```
-
-That traceback is terminal handling, not a serial console outage.
-
-The attach itself, however, **is** automatable — drive the websocket directly instead
-of the CLI. The transcript above was captured that way, with no TTY. See
-`scripts/serial_console_capture.py`, which is how you would collect boot evidence from
-a node that failed to register without a human sitting at a terminal.
-</Aside>
-
-<Aside type="caution" title="Expect to retry: the gateway refuses roughly every other attempt">
-The gateway's first frame is a challenge, not output, and the client answers it with a
-bearer token. Even when that is done correctly the socket often closes immediately:
-
-```text
-[close] code=1011 reason=Connection not trusted
-```
-
-Observed behaviour: it succeeds intermittently, and under sustained use every node in
-the resource group refuses — including nodes that worked minutes earlier.
-`scripts/serial_console_capture.py` retries by default because retrying often works.
-
-**The cause is not established.** What has been ruled out, because each is a plausible
-guess that wastes time:
-
-| Not this | How to confirm |
-| --- | --- |
-| ARM/compute throttling | That returns HTTP `429` on ARM calls. This is a websocket close on a separate data channel. |
-| TLS interception by a proxy | `openssl s_client -connect <region>.gateway.serialconsole.azure.com:443 \| openssl x509 -noout -issuer`. A genuine `O=Microsoft Corporation` issuer rules it out; a proxy vendor as issuer confirms it, and the fix is to allow-list `*.serialconsole.azure.com`. |
-| Boot diagnostics disabled | `az vm show -g <rg> -n <vm> --query diagnosticsProfile` reporting `enabled: true`. |
-| Token mismatch between grant and challenge | Using one token for both is correct practice, but does not prevent the close. |
-
-What *is* documented Azure behaviour: **one serial console session per VM, and a second
-successful request evicts the first.** The evicted user is disconnected but not logged
-out, so the shell session survives. Two people debugging one node will displace each
-other repeatedly.
-
-For bulk work prefer the [debug API](../debug-api/) or [SSH](../ssh/), neither of which
-has these limits. SSH in particular has no paste cap and no single-session restriction,
-so it is the better choice whenever the node is reachable from inside the VNet.
-</Aside>
-
-<Aside type="caution" title="Paste is capped at 2,048 characters">
-Azure limits serial console paste length to 2,048 characters, to avoid overloading the
-serial port. Sending a long command — or a batch of commands in one write — fails in a
-way that reads as a hang or a throttle rather than as a length limit.
-
-Send commands individually. This is a real constraint on any bulk collection over serial
-console, and another reason to prefer the [debug API](../debug-api/) for that work.
-</Aside>
-
-## What you can see here that the API cannot show you
-
-- **cloud-init** running, failing, or never starting — the usual cause of a node
-  that never registers.
-- **Registration attempts** against `register.ves.volterra.io`, including a
-  configuration error or a token the tenant rejected.
-- **Kernel and boot messages** from before any agent was running.
-- The node when it has **no working network path**, which defeats every other route.
-
-For a node that *is* `ONLINE`, prefer the debug API: it is scriptable, it produces
-evidence you can re-run, and it does not occupy the single serial port.
+Serial console is a break-glass path, not a bulk collection interface. Return to the debug
+API after registration and connectivity recover.

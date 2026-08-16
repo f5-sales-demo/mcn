@@ -1,16 +1,41 @@
 ---
 title: Showcase topology
-description: The Azure, Canada, AWS, and KVM paths that make up the full MCN showcase.
+description: Understand the sites, routers, clients, service addresses, and comparison paths in the default deployment.
 sidebar:
   order: 11
 ---
 
-The default deployment creates four comparison paths:
+The default deployment creates four independently verifiable paths. Every F5 site is a single-node
+Secure Mesh v2 site; no three nodes are modeled as one cluster.
 
-- Azure Rest of World uses three independent CE sites and Azure Route Server ECMP.
-- Canada uses the same BGP model and keeps an Azure Internal Load Balancer path for comparison.
-- AWS uses three independent single-node F5 sites, Amazon VPC Route Server endpoints, and dynamic route propagation to an AWS test client.
-- KVM uses one F5 QCOW2-based CE, a local FRR peer, and a macvlan-attached cURL client.
+| Path | F5 sites | Upstream | Test client | Service address |
+| --- | ---: | --- | --- | --- |
+| Azure Rest of World | 3 | Azure Route Server with one eBGP connection per CE | Azure VM on the internal subnet | `vip`, advertised as `/32` |
+| Canada | 3 | Canadian Azure Route Server plus a simultaneous Azure ILB | Canadian Azure VM | `ca_vip` for BGP; `ca_ilb_frontend_ip` for ILB |
+| AWS | 3 | Amazon VPC Route Server with two endpoints, one peer per CE, and propagated route tables | EC2 test client | `aws_vip`, advertised as `/32` |
+| KVM | 1 | FRR container on the libvirt network | cURL container on the same macvlan | `kvm_vip`, advertised as `/32` |
 
-Every advertised VIP is outside the relevant VNet or VPC CIDR. This lets routing infrastructure
-install and withdraw the route rather than preferring a local system route.
+Each path has its own HTTP load-balancer domain and Virtual Site selection. The origin server is
+shared so the demonstration can compare routing behavior without changing the application target.
+
+## Registration order
+
+Terraform creates a site before asking F5 Distributed Cloud to issue that site's cloud-init. The
+issuance response contains a one-time node token. The VM or libvirt domain depends on that response,
+which gives every path the same order:
+
+```text
+site -> issued cloud-init -> node -> registration -> BGP convergence -> service traffic
+```
+
+Normal refresh retains the create-time cloud-init in state. Replacing the issuance forces the
+dependent node to receive a new token.
+
+## Address ownership
+
+The BGP service VIPs are outside the connected VNet, VPC, and libvirt CIDRs. This lets the route
+servers and FRR learn the host routes dynamically. The Canadian ILB frontend is different: Azure
+allocates it from the Canadian internal subnet and owns backend health probing.
+
+The Terraform outputs are the source for deployment-specific names and addresses. Don't copy a
+value from this architecture page into an operator command.

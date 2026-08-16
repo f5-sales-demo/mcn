@@ -10,7 +10,8 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
-  kvm_ce_image_path = "/tmp/f5xc-ce.qcow2"
+  subscription_id = uuidv5("dns", "example.com")
+  component       = "mcn-ce-ha"
   # Explicitly null so these assert the DERIVED names no matter what a local
   # terraform.tfvars pins — `terraform test` reads that file too, so without this a
   # deployment holding older names steady would turn this suite red on the
@@ -43,9 +44,8 @@ run "root_plans_end_to_end" {
     # so relying on the default here would make the run's result depend on whether
     # the workstation has Bastion switched on locally.
     enable_bastion = false
-    # enable_bgp is left at its true default so the root integration test plans the WHOLE
-    # graph, bgp objects included. It used to be forced false only to dodge the provider's
-    # object-ref name length cap, relaxed in v3.74.0 (see modules/xc-site/main.tf).
+    # enable_bgp remains at its true default so the root integration test plans
+    # the complete supported graph.
     ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   }
 
@@ -102,19 +102,15 @@ run "root_plans_end_to_end" {
     error_message = "Bastion is opt-in: with enable_bastion = false the root must deploy none."
   }
 
-  # Every CE site is coupled to its own node instance (issue #674): exactly one
-  # binding per node, keyed by that node. The VALUES cannot be checked here —
-  # virtual_machine_id is computed, so at plan time each binding is
-  # known-after-apply — but the SHAPE can, and a binding that is fleet-wide
-  # rather than per-node would show up as a key set that does not match
-  # ce_nodes. That the bound value is the instance id and not the (name-derived,
-  # replacement-stable) ARM resource id is pinned in ce_node.tftest.hcl.
   assert {
     condition = (
-      length(output.ce_bound_instance_ids) == length(output.ce_nodes) &&
-      alltrue([for k in keys(output.ce_nodes) : contains(keys(output.ce_bound_instance_ids), k)])
+      length(xcsh_site_cloud_init.azure) == length(output.ce_nodes) &&
+      alltrue([
+        for key, issued in xcsh_site_cloud_init.azure :
+        issued.provider_ref == "azure" && issued.site_name == output.xc_site_names[key]
+      ])
     )
-    error_message = "Every CE node must contribute exactly one site-to-instance binding, keyed by that node."
+    error_message = "Every Azure CE site must issue one site-scoped node cloud-init value."
   }
 
   assert {
@@ -122,7 +118,7 @@ run "root_plans_end_to_end" {
       length(random_password.site_console_admin) == length(output.ce_nodes) &&
       alltrue([for k in keys(output.ce_nodes) : contains(keys(random_password.site_console_admin), k)])
     )
-    error_message = "Every CE node must receive its own generated Site Console admin password."
+    error_message = "Every Azure CE site must receive its own generated node-local admin password."
   }
 }
 

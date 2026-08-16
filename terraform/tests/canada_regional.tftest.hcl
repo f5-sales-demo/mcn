@@ -7,7 +7,8 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
-  kvm_ce_image_path      = "/tmp/f5xc-ce.qcow2"
+  subscription_id        = uuidv5("dns", "example.com")
+  component              = "mcn-ce-ha"
   site_prefix            = null
   ca_site_prefix         = null
   lb_name                = null
@@ -70,6 +71,22 @@ run "canada_regional_virtual_sites_and_lb" {
     condition     = output.ca_vip == "10.250.1.10"
     error_message = "Canada VIP should be 10.250.1.10."
   }
+
+  assert {
+    condition = (
+      output.ca_client_nic_name == "mcn-ce-ha-ca-clientVMNic" &&
+      length(output.ca_ce_mgmt_private_ips) == 3
+    )
+    error_message = "Canada must expose its client NIC and every CE next hop for live ECMP verification."
+  }
+
+  assert {
+    condition = length(xcsh_site_cloud_init.canada) == 3 && alltrue([
+      for key, issued in xcsh_site_cloud_init.canada :
+      issued.provider_ref == "azure" && issued.site_name == module.xc_site_ca[key].site_name
+    ])
+    error_message = "Every Canadian Azure CE site must issue one site-scoped node cloud-init value."
+  }
 }
 
 run "canada_disabled_plans_no_canada_resources" {
@@ -90,7 +107,17 @@ run "canada_disabled_plans_no_canada_resources" {
   }
 
   assert {
+    condition     = length(xcsh_site_cloud_init.canada) == 0
+    error_message = "With enable_canada = false, no Canadian node credential should be issued."
+  }
+
+  assert {
     condition     = output.ca_re_virtual_site_name == null
     error_message = "With enable_canada = false, ca_re_virtual_site_name output must be null."
+  }
+
+  assert {
+    condition     = output.ca_client_nic_name == null && length(output.ca_ce_mgmt_private_ips) == 0
+    error_message = "With enable_canada = false, Canada verification outputs must be empty."
   }
 }

@@ -1,13 +1,33 @@
 ---
 title: Present the full showcase
-description: Present availability claims using the verification evidence you collected.
+description: Present availability decisions using evidence captured from the deployed stack.
 sidebar:
   order: 24
 ---
 
-Lead with the decision: independent Customer Edges advertise a VIP through BGP, and routing
-withdraws a failed path without making the application unavailable. Then show the equivalent
-Canadian ILB health-check story as a comparison, not as BGP evidence.
+## Prerequisites
 
-Show only evidence you collected in [Verify](../verify/): site health, peer state, installed or
-propagated routes, and a successful request before and after one controlled path removal.
+- Complete every applicable step in [Verify](../verify/).
+- Remove tenant identifiers, account identifiers, signed URLs, tokens, and public addresses from
+  screenshots and command output.
+- Keep the restored stack online while you present it.
+
+Lead with the decision: independent Customer Edges advertise one service VIP, upstream routing
+selects the available paths, and withdrawal of one path doesn't make the application unavailable.
+
+Present the evidence in this order:
+
+1. Show the Terraform outputs that identify the sites, peers, test client, domain, and VIP.
+2. Show every F5 site in `ONLINE` state.
+3. Show established BGP peers and the same VIP learned from the expected independent sites.
+4. Show a successful request from the path-local test client.
+5. Show one controlled path removal, route withdrawal, and a request that still succeeds.
+6. Show the restored peer and a zero-change Terraform plan.
+
+For Canada, present two separate decisions. The BGP path uses `ca_vip` and Azure Route Server. The
+Azure Internal Load Balancer path uses `ca_ilb_frontend_ip` and its health probe. The ILB result is
+a comparison, not evidence that BGP converged.
+
+End with the KVM path: the site is `ONLINE`, FRR learns `kvm_vip`, and the macvlan test client
+reaches the service through FRR. Describe only results captured from the current deployment; don't
+substitute screenshots or timings from an earlier stack.

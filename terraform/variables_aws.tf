@@ -32,6 +32,17 @@ variable "aws_instance_type" {
   default     = "m5.2xlarge"
 }
 
+variable "aws_root_volume_size_gb" {
+  description = "Encrypted gp3 root volume size for each AWS Customer Edge. F5 requires at least 80 GB; the marketplace snapshot is only 79 GiB."
+  type        = number
+  default     = 80
+
+  validation {
+    condition     = var.aws_root_volume_size_gb >= 80
+    error_message = "aws_root_volume_size_gb must be at least 80 GB for a supported Customer Edge."
+  }
+}
+
 variable "aws_vip" {
   description = "VIP advertised as a /32 by every AWS Customer Edge. It must be outside aws_vpc_cidr so the Route Server can install it dynamically."
   type        = string
@@ -71,4 +82,9 @@ variable "aws_lb_domain" {
   description = "Domain name for the HTTP Load Balancer serving the AWS CE site."
   type        = string
   default     = "aws.mcn-ce-ha.f5-sales-demo.com"
+
+  validation {
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.aws_lb_domain))
+    error_message = "aws_lb_domain must be a fully-qualified lowercase domain name (for example aws.mcn-ce-ha.f5-sales-demo.com)."
+  }
 }

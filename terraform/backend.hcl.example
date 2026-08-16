@@ -4,4 +4,4 @@
 resource_group_name  = "f5-sales-demo-tfstate"
 storage_account_name = "f5salesdemotfstate"
 container_name       = "tfstate"
-key                  = "mcn.tfstate"
+key                  = "mcn-nextgen.tfstate"

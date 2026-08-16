@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Hermetic acceptance tests for scripts/verify-deployment.sh. Terraform, Azure,
-# and XC are stubbed so the aggregate gates are exercised without credentials or
-# network access.
+# Hermetic acceptance tests for the complete-showcase deployment verifier.
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -23,35 +21,50 @@ cat >"${WORK}/bin/terraform" <<'EOF'
 set -euo pipefail
 if [ "${1:-}" = "-chdir=terraform" ]; then shift; fi
 case "${1:-} ${2:-} ${3:-}" in
-"version -json ")
-  printf '{"terraform_version":"1.15.8","provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"3.88.1"}}\n'
-  ;;
-"output -json xc_site_names")
-  printf '{"eastus01":"site-01","eastus02":"site-02","eastus03":"site-03"}\n'
-  ;;
-"output -json ce_mgmt_private_ips")
-  printf '{"eastus01":"10.0.1.4","eastus02":"10.0.1.5","eastus03":"10.0.1.6"}\n'
-  ;;
-"output -json ce_vm_names")
-  printf '{"eastus01":"ce-01","eastus02":"ce-02","eastus03":"ce-03"}\n'
-  ;;
-"output -json ce_vm_ids")
-  printf '{"eastus01":"/subscriptions/000/resourceGroups/rg-example/providers/Microsoft.Compute/virtualMachines/ce-01","eastus02":"/subscriptions/000/resourceGroups/rg-example/providers/Microsoft.Compute/virtualMachines/ce-02","eastus03":"/subscriptions/000/resourceGroups/rg-example/providers/Microsoft.Compute/virtualMachines/ce-03"}\n'
-  ;;
-"output -json site_console_admin_passwords")
-  printf '{"eastus01":"<GENERATED_PASSWORD_01>","eastus02":"<GENERATED_PASSWORD_02>","eastus03":"<GENERATED_PASSWORD_03>"}\n'
-  ;;
-"output -json ")
-  printf '{"xc_site_names":{"sensitive":false,"value":{"eastus01":"site-01","eastus02":"site-02","eastus03":"site-03"}}}\n'
-  ;;
-"output -raw resource_group_name") printf 'rg-example\n' ;;
-"output -raw route_server_name") printf 'route-server-example\n' ;;
-"output -raw client_vm_name") printf 'client-example\n' ;;
-"output -raw client_nic_name") printf 'client-nic-example\n' ;;
-"output -raw lb_domain") printf 'mcn.example.com\n' ;;
+"version -json ") printf '{"terraform_version":"1.15.8"}\n' ;;
+"output -json ") printf '{"xc_site_names":{"sensitive":false,"value":{"row01":"row-site-01","row02":"row-site-02"}}}\n' ;;
+"output -json xc_site_names") printf '{"row01":"row-site-01","row02":"row-site-02"}\n' ;;
+"output -json ca_site_names") printf '{"ca01":"ca-site-01","ca02":"ca-site-02"}\n' ;;
+"output -json aws_site_names") printf '{"01":"aws-site-01","02":"aws-site-02","03":"aws-site-03"}\n' ;;
+"output -json ce_mgmt_private_ips") printf '{"row01":"10.0.1.4","row02":"10.0.1.5"}\n' ;;
+"output -json ce_vm_names") printf '{"row01":"row-ce-01","row02":"row-ce-02"}\n' ;;
+"output -json route_server_bgp_connection_names") printf '{"row01":"row01-bgp","row02":"row02-bgp"}\n' ;;
+"output -json ca_ce_mgmt_private_ips") printf '{"ca01":"10.200.1.4","ca02":"10.200.1.5"}\n' ;;
+"output -json ca_ce_vm_names") printf '{"ca01":"ca-ce-01","ca02":"ca-ce-02"}\n' ;;
+"output -json ca_route_server_bgp_connection_names") printf '{"ca01":"ca01-bgp","ca02":"ca02-bgp"}\n' ;;
+"output -json aws_route_server_peer_ids") printf '{"01":"rsp-01","02":"rsp-02","03":"rsp-03"}\n' ;;
+"output -json aws_route_server_propagated_route_tables") printf '{"private":"rtb-private","public":"rtb-public"}\n' ;;
+"output -raw kvm_site_name") printf 'kvm-site\n' ;;
+"output -raw xc_api_url") printf 'https://example.console.ves.volterra.io\n' ;;
+"output -raw resource_group_name") printf 'row-rg\n' ;;
+"output -raw route_server_name") printf 'row-rs\n' ;;
+"output -raw client_vm_name") printf 'row-client\n' ;;
+"output -raw client_nic_name") printf 'row-client-nic\n' ;;
+"output -raw lb_domain") printf 'row.example.com\n' ;;
 "output -raw vip") printf '10.250.0.10\n' ;;
-"output -raw origin_ip") printf '198.51.100.10\n' ;;
-"output -raw bastion_name") printf 'bastion-example\n' ;;
+"output -raw ca_resource_group_name") printf 'ca-rg\n' ;;
+"output -raw ca_route_server_name") printf 'ca-rs\n' ;;
+"output -raw ca_client_vm_name") printf 'ca-client\n' ;;
+"output -raw ca_client_nic_name") printf 'ca-client-nic\n' ;;
+"output -raw ca_lb_domain") printf 'ca.example.com\n' ;;
+"output -raw ca_vip") printf '10.250.1.10\n' ;;
+"output -raw ca_ilb_id") printf '/subscriptions/000/resourceGroups/ca-rg/providers/Microsoft.Network/loadBalancers/ca-ilb\n' ;;
+"output -raw ca_ilb_rule_name") printf 'ha-ports-rule\n' ;;
+"output -raw ca_ilb_frontend_ip") printf '10.200.1.10\n' ;;
+"output -raw aws_region") printf 'us-east-2\n' ;;
+"output -raw aws_route_server_id") printf 'rs-aws\n' ;;
+"output -raw aws_vip") printf '198.51.100.10\n' ;;
+"output -raw aws_lb_domain") printf 'aws.example.com\n' ;;
+"output -raw aws_test_client_instance_id") printf 'i-client\n' ;;
+"output -raw kvm_domain_name") printf 'kvm-ce\n' ;;
+"output -raw kvm_frr_container_name") printf 'kvm-frr\n' ;;
+"output -raw kvm_client_container_name") printf 'kvm-client\n' ;;
+"output -raw kvm_vip") printf '198.51.100.20\n' ;;
+"output -raw kvm_lb_domain") printf 'kvm.example.com\n' ;;
+"plan -detailed-exitcode -no-color")
+  [ "${TF_PLAN_MODE:-clean}" = clean ] && exit 0
+  exit 2
+  ;;
 *) printf 'unexpected terraform call: %s\n' "$*" >&2; exit 2 ;;
 esac
 EOF
@@ -59,20 +72,42 @@ EOF
 cat >"${WORK}/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "$*" == *"%{http_code}"* ]]; then
-  header=$(cat)
-  factory=$(printf 'admin:%s' '<FACTORY_SITE_CONSOLE_PASSWORD>' | base64)
-  if grep -qF "$factory" <<<"$header"; then
-    printf '401'
+headers_file=""
+output_file=""
+method="GET"
+url=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+  -D) headers_file=$2; shift 2 ;;
+  -o) output_file=$2; shift 2 ;;
+  -X) method=$2; shift 2 ;;
+  -H | --max-time | -w) shift 2 ;;
+  -*) shift ;;
+  *) url=$1; shift ;;
+  esac
+done
+cat >/dev/null
+case "$url:$method" in
+*"/api/config/namespaces/system/sites/"*:GET)
+  if [ "${XC_SITE_MODE:-online}" = offline ] && [[ "$url" == *"row-site-02" ]]; then
+    printf '{"object":{"status":{"site_state":"REGISTERING"}}}\n'
   else
-    printf '200'
+    printf '{"object":{"status":{"site_state":"ONLINE"}}}\n'
   fi
-elif [[ "$*" == *"127.0.0.1"* ]]; then
-  exit 0
-else
-  cat >/dev/null
-  printf '{"spec":{"site_state":"ONLINE"}}\n'
-fi
+  ;;
+*"/loadBalancingRules/"*"/health?"*:POST)
+  printf 'HTTP/2 202\r\nLocation: https://management.azure.com/operationResults/health-01\r\n\r\n' >"$headers_file"
+  ;;
+*"/operationResults/health-01":GET)
+  if [ "${AZ_ILB_MODE:-healthy}" = unhealthy ]; then
+    printf '{"up":1,"down":1,"loadBalancerBackendAddresses":[{"state":"Up"},{"state":"Down"}]}' >"$output_file"
+  else
+    printf '{"up":2,"down":0,"loadBalancerBackendAddresses":[{"state":"Up"},{"state":"Up"}]}' >"$output_file"
+  fi
+  printf '200'
+  ;;
+*) printf 'unexpected curl URL: %s\n' "$url" >&2; exit 2 ;;
+esac
 EOF
 
 cat >"${WORK}/bin/az" <<'EOF'
@@ -80,177 +115,194 @@ cat >"${WORK}/bin/az" <<'EOF'
 set -euo pipefail
 case "$*" in
 *"vm get-instance-view"*)
-  vm_name=""
+  vm=""
   while [ "$#" -gt 0 ]; do
-    if [ "$1" = "--name" ]; then vm_name=$2; break; fi
+    if [ "$1" = "--name" ]; then vm=$2; break; fi
     shift
   done
-  if [ "${AZ_VM_MODE:-ok}" = "stuck" ] && [ "$vm_name" = "ce-03" ]; then
-    printf '{"provisioningState":"Updating","powerState":"PowerState/starting"}\n'
+  if [ "${AZ_VM_MODE:-running}" = stopped ] && [ "$vm" = row-ce-02 ]; then
+    printf '{"provisioningState":"Succeeded","powerState":"PowerState/deallocated"}\n'
   else
     printf '{"provisioningState":"Succeeded","powerState":"PowerState/running"}\n'
   fi
   ;;
-*"vm extension show"*)
-  vm_name=""
-  while [ "$#" -gt 0 ]; do
-    if [ "$1" = "--vm-name" ]; then vm_name=$2; break; fi
-    shift
-  done
-  if [ "${AZ_EXTENSION_MODE:-ok}" = "stuck" ] && [ "$vm_name" = "ce-03" ]; then
-    printf 'Creating\n'
-  else
-    printf 'Succeeded\n'
-  fi
-  ;;
 *"routeserver peering list-learned-routes"*)
-  key=""
+  peer=""
   while [ "$#" -gt 0 ]; do
-    if [ "$1" = "--name" ]; then key=${2%-bgp}; break; fi
+    if [ "$1" = "--name" ]; then peer=$2; break; fi
     shift
   done
-  case "$key" in
-  eastus01) hop=10.0.1.4 ;;
-  eastus02) hop=10.0.1.5 ;;
-  eastus03) hop=10.0.1.6 ;;
+  case "$peer" in
+  row01-bgp) prefix=10.250.0.10; hop=10.0.1.4 ;;
+  row02-bgp) prefix=10.250.0.10; hop=10.0.1.5 ;;
+  ca01-bgp) prefix=10.250.1.10; hop=10.200.1.4 ;;
+  ca02-bgp) prefix=10.250.1.10; hop=10.200.1.5 ;;
   *) exit 2 ;;
   esac
-  if [ "${AZ_ROUTE_MODE:-ok}" = "missing" ] && [ "$key" = "eastus03" ]; then
+  if [ "${AZ_ROUTE_MODE:-complete}" = missing ] && [ "$peer" = row02-bgp ]; then
     printf '[]\n'
   else
-    printf '[{"network":"10.250.0.10/32","nextHop":"%s"}]\n' "$hop"
+    printf '[{"network":"%s/32","nextHop":"%s"}]\n' "$prefix" "$hop"
   fi
   ;;
 *"network nic show-effective-route-table"*)
-  printf '{"value":[{"addressPrefix":["10.250.0.10/32"],"nextHopIpAddress":["10.0.1.6","10.0.1.4","10.0.1.5"],"state":"Active"}]}\n'
+  nic=""
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = "--name" ]; then nic=$2; break; fi
+    shift
+  done
+  if [ "$nic" = row-client-nic ]; then
+    printf '{"value":[{"addressPrefix":["10.250.0.10/32"],"nextHopIpAddress":["10.0.1.5","10.0.1.4"],"state":"Active"}]}\n'
+  else
+    printf '{"value":[{"addressPrefix":["10.250.1.10/32"],"nextHopIpAddress":["10.200.1.5","10.200.1.4"],"state":"Active"}]}\n'
+  fi
   ;;
 *"vm run-command invoke"*)
-  if [ "${AZ_RUN_COMMAND_MODE:-ok}" = "conflict-once" ] &&
-    [ ! -e "${AZ_RUN_COMMAND_COUNT_FILE:?}" ]; then
-    : >"$AZ_RUN_COMMAND_COUNT_FILE"
-    printf '%s\n' 'ERROR: (Conflict) Run command extension execution is in progress. Please wait for completion before invoking a run command.' >&2
-    exit 1
+  if [ "${AZ_TRAFFIC_MODE:-ok}" = fail ]; then
+    printf 'curl failed\n'
+  elif [[ "$*" == *"MCN_ILB_OK"* ]]; then
+    printf 'MCN_ILB_OK\n'
+  else
+    printf 'MCN_HTTP_OK\n'
   fi
-  printf 'MCN_UAT vip_ok=50 vip_fail=0 origin_ok=25 origin_fail=0\n'
   ;;
-*"network bastion tunnel"*)
-  sleep 30
-  ;;
+*"account get-access-token"*) printf '<AZURE_ACCESS_TOKEN>\n' ;;
 *) printf 'unexpected az call: %s\n' "$*" >&2; exit 2 ;;
 esac
 EOF
-chmod +x "${WORK}/bin/terraform" "${WORK}/bin/curl" "${WORK}/bin/az"
+
+cat >"${WORK}/bin/aws" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-} ${2:-}" in
+"ec2 describe-route-server-peers")
+  status=up
+  [ "${AWS_PEER_MODE:-up}" = up ] || status=down
+  printf '{"RouteServerPeers":[{"State":"available","BgpStatus":{"Status":"%s"}},{"State":"available","BgpStatus":{"Status":"up"}},{"State":"available","BgpStatus":{"Status":"up"}}]}\n' "$status"
+  ;;
+"ec2 get-route-server-routing-database")
+  install=installed
+  [ "${AWS_ROUTE_MODE:-installed}" = installed ] || install=rejected
+  printf '{"Routes":['
+  separator=""
+  for peer in rsp-01 rsp-02 rsp-03; do
+    printf '%s{"RouteServerPeerId":"%s","Prefix":"198.51.100.10/32","RouteStatus":"in-fib","RouteInstallationDetails":[{"RouteTableId":"rtb-private","RouteInstallationStatus":"%s"},{"RouteTableId":"rtb-public","RouteInstallationStatus":"%s"}]}' "$separator" "$peer" "$install" "$install"
+    separator=,
+  done
+  printf ']}\n'
+  ;;
+"ssm send-command") printf 'cmd-01\n' ;;
+"ssm wait") [ "${AWS_TRAFFIC_MODE:-ok}" = ok ] ;;
+"ssm get-command-invocation")
+  [ "${AWS_TRAFFIC_MODE:-ok}" = ok ] && printf 'Success\n' || printf 'Failed\n'
+  ;;
+*) printf 'unexpected aws call: %s\n' "$*" >&2; exit 2 ;;
+esac
+EOF
+
+cat >"${WORK}/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+inspect) printf 'true\n' ;;
+exec)
+  if [[ "$*" == *"show ip bgp summary json"* ]]; then
+    printf '{"ipv4Unicast":{"peers":{"172.30.10.10":{"state":"Established"}}}}\n'
+  elif [[ "$*" == *"show ip bgp 198.51.100.20/32 json"* ]]; then
+    if [ "${KVM_ROUTE_MODE:-learned}" = learned ]; then
+      printf '{"paths":[{"valid":true}]}\n'
+    else
+      printf '{"paths":[]}\n'
+    fi
+  elif [ "${KVM_TRAFFIC_MODE:-ok}" != ok ]; then
+    exit 1
+  fi
+  ;;
+*) exit 2 ;;
+esac
+EOF
+
+cat >"${WORK}/bin/virsh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "${KVM_VM_MODE:-running}" = running ] && printf 'running\n' || printf 'shut off\n'
+EOF
+
+chmod +x "${WORK}/bin/terraform" "${WORK}/bin/curl" "${WORK}/bin/az" "${WORK}/bin/aws" "${WORK}/bin/docker" "${WORK}/bin/virsh"
 
 run_uat() {
   PATH="${WORK}/bin:${PATH}" \
-    XCSH_API_URL="https://example.invalid" \
     XCSH_API_TOKEN="<XC_API_TOKEN>" \
-    MCN_UAT_TEST_MODE=1 \
     bash "$SCRIPT" \
     --terraform-dir terraform \
-    --evidence-dir "${WORK}/evidence-$1" \
-    --samples-per-batch 50 \
-    --max-batches 3 \
-    --batch-interval 0 \
-    --skip-console
+    --evidence-dir "${WORK}/evidence-$1"
 }
 
-echo "1. healthy deployment passes every aggregate gate"
+echo "1. a healthy complete showcase passes every aggregate gate"
 if OUT=$(run_uat healthy 2>&1); then
-  for expected in 'sites_online=3/3' 'azure_vms_running=3/3' 'password_extensions_succeeded=3/3' 'peerings_with_vip=3/3' 'effective_next_hops=3/3' 'vip_samples=150' 'origin_failures=0' 'converged=yes'; do
+  for expected in \
+    'sites_online=8/8' \
+    'azure_vms_running=4' \
+    'azure_peerings_with_vip=4' \
+    'azure_effective_next_hops=4' \
+    'azure_traffic_paths=2/2' \
+    'canada_ilb_backends_up=2/2' \
+    'canada_ilb_traffic=ok' \
+    'aws_bgp_peers_up=3/3' \
+    'aws_vip_routes_installed=3/3' \
+    'aws_client_traffic=ok' \
+    'kvm_bgp_peer=established' \
+    'kvm_vip_route=learned' \
+    'kvm_client_traffic=ok' \
+    'terraform_plan=clean' \
+    'full_showcase_verified=yes'; do
     if grep -qF "$expected" <<<"$OUT"; then
       ok "reported ${expected}"
     else
-      bad "missing ${expected} from output"
+      bad "missing ${expected}"
     fi
   done
-  if jq -e '.sites_online == 3 and .azure_vms_running == 3 and .password_extensions_succeeded == 3 and .peerings_with_vip == 3 and .vip_samples == 150 and .converged == true' "${WORK}/evidence-healthy/summary.json" >/dev/null; then
-    ok "wrote a machine-readable aggregate summary"
+  if jq -e '.site_count == 8 and .canada_ilb_backends_up == 2 and .aws_bgp_peers_up == 3 and .kvm_vip_route == "learned" and .terraform_plan == "clean"' \
+    "${WORK}/evidence-healthy/summary.json" >/dev/null; then
+    ok "wrote a machine-readable complete-showcase summary"
   else
     bad "aggregate summary is missing or incorrect"
-  fi
-  if jq -e '.xc_site_names.value | length == 3' "${WORK}/evidence-healthy/terraform-output.json" >/dev/null; then
-    ok "wrote the private Terraform output snapshot"
-  else
-    bad "Terraform output snapshot is missing"
   fi
 else
   bad "healthy UAT failed: ${OUT}"
 fi
 
-echo "2. a CE stuck in Azure provisioning fails the UAT"
-if AZ_VM_MODE=stuck run_uat stuck-vm >/dev/null 2>&1; then
-  bad "UAT passed with one CE still starting in Azure"
-else
-  ok "rejected the stuck Azure VM"
-fi
-
-echo "3. a stuck password-rotation extension fails the UAT"
-if AZ_EXTENSION_MODE=stuck run_uat stuck-extension >/dev/null 2>&1; then
-  bad "UAT passed with one password extension still creating"
-else
-  ok "rejected the stuck Azure VM extension"
-fi
-
-echo "4. a missing per-peering VIP route fails the UAT"
-if AZ_ROUTE_MODE=missing run_uat missing-route >/dev/null 2>&1; then
-  bad "UAT passed with one peering missing its VIP route"
-else
-  ok "rejected the missing per-peering route"
-fi
-
-echo "5. fewer than 100 possible samples is rejected before any API call"
-if PATH="${WORK}/bin:${PATH}" MCN_UAT_TEST_MODE=1 bash "$SCRIPT" \
-  --terraform-dir terraform \
-  --evidence-dir "${WORK}/evidence-too-small" \
-  --samples-per-batch 30 \
-  --max-batches 3 \
-  --batch-interval 0 \
-  --skip-console >/dev/null 2>&1; then
-  bad "accepted a run capped below 100 samples"
-else
-  ok "enforced the 100-sample minimum"
-fi
-
-echo "6. a transient Azure Run Command conflict is retried"
-if OUT=$(AZ_RUN_COMMAND_MODE=conflict-once \
-  AZ_RUN_COMMAND_COUNT_FILE="${WORK}/run-command-conflict-seen" \
-  run_uat transient-conflict 2>&1); then
-  if grep -qF 'converged=yes' <<<"$OUT"; then
-    ok "recovered from the transient Azure conflict"
+expect_failure() {
+  local label=$1 mode=$2 value=$3
+  echo "$label"
+  export "$mode=$value"
+  if run_uat "failure-${mode}" >/dev/null 2>&1; then
+    unset "$mode"
+    bad "accepted ${mode}=${value}"
   else
-    bad "retry run completed without convergence evidence"
+    unset "$mode"
+    ok "rejected ${mode}=${value}"
   fi
-else
-  bad "transient Azure conflict aborted the UAT: ${OUT}"
-fi
+}
 
-echo "7. factory credentials fail and generated credentials pass on every console"
-if OUT=$(PATH="${WORK}/bin:${PATH}" \
-  XCSH_API_URL="https://example.invalid" \
-  XCSH_API_TOKEN="<XC_API_TOKEN>" \
-  MCN_FACTORY_PASSWORD="<FACTORY_SITE_CONSOLE_PASSWORD>" \
-  MCN_UAT_TEST_MODE=1 \
-  bash "$SCRIPT" \
-  --terraform-dir terraform \
-  --evidence-dir "${WORK}/evidence-console" \
-  --samples-per-batch 50 \
-  --max-batches 3 \
-  --batch-interval 0 2>&1); then
-  for expected in 'console_factory_rejected=3/3' 'console_generated_accepted=3/3'; do
-    if grep -qF "$expected" <<<"$OUT"; then
-      ok "reported ${expected}"
-    else
-      bad "missing ${expected} from output"
-    fi
-  done
+expect_failure "2. an offline F5 site fails verification" XC_SITE_MODE offline
+expect_failure "3. a stopped Azure CE fails verification" AZ_VM_MODE stopped
+expect_failure "4. a missing Azure VIP route fails verification" AZ_ROUTE_MODE missing
+expect_failure "5. unhealthy Canadian ILB backends fail verification" AZ_ILB_MODE unhealthy
+expect_failure "6. a down AWS BGP peer fails verification" AWS_PEER_MODE down
+expect_failure "7. a rejected AWS propagated route fails verification" AWS_ROUTE_MODE rejected
+expect_failure "8. a missing KVM VIP route fails verification" KVM_ROUTE_MODE missing
+expect_failure "9. Terraform drift fails verification" TF_PLAN_MODE drift
+
+if rg -n 'virtual_machine_extension|password[_-]extension|registration_approval|xcsh_token' "$SCRIPT"; then
+  bad "the verifier contains a removed legacy deployment path"
 else
-  bad "Site Console UAT failed: ${OUT}"
+  ok "the verifier contains no legacy registration or VM-extension path"
 fi
 
 if [ "$FAIL" -eq 0 ]; then
-  echo "PASS: deployment UAT harness"
+  echo "PASS: complete-showcase deployment verifier"
 else
-  echo "FAIL: deployment UAT harness"
+  echo "FAIL: complete-showcase deployment verifier"
 fi
 exit "$FAIL"

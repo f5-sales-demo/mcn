@@ -4,17 +4,8 @@
 # via eBGP (ASN 64512) to Azure Route Server (ASN 65515). Equal-cost advertisements
 # from multiple CEs program ECMP (active/active) into the hub VNet.
 #
-# Deploy-time ordering: Azure (VNet/subnets/RS/NICs/VMs) -> XC site (explicit
-# interface) -> token -> CE cloud-init boot -> CE registers -> registration
-# approval -> CE ONLINE -> xcsh_bgp + RS bgpConnection -> LB advertise.
-#
-# Approval is automated, but the deploy is inherently TWO-PHASE, not a single
-# hands-off apply: a CE's registration is named r-<uuid> and only exists after
-# the node has booted and registered. The xc-site module resolves that name with
-# the xcsh_site_registration data source and approves it with
-# xcsh_registration_approval, gated on found — so the first apply plans no
-# approval, and a re-apply once the CEs have registered creates them. The bgp/LB
-# objects can be applied before ONLINE; they converge once the CE is up.
+# Deploy-time ordering: F5 site -> one-time node cloud-init -> infrastructure ->
+# CE boot and registration -> CE ONLINE -> BGP and advertised service converge.
 
 # Guard: the F5 XC tenant in the environment MUST be the one this deployment
 # belongs to.
@@ -25,12 +16,6 @@
 # that is a bare 401 from the first API call, which reads like an expired
 # credential and not like "you are pointed at the wrong tenant". This turns it
 # into a sentence that says so.
-#
-# It is not hypothetical. The MCN demo was built in f5-sales-demo; the credential
-# file later started exporting an f5-amer-ent XCSH_API_URL; subsequent applies
-# minted an f5-amer-ent token, the CE VMs re-registered there, and their
-# f5-sales-demo registrations were abandoned. Every plan in between was clean,
-# because nothing in the configuration had an opinion about the tenant (#696).
 #
 # The external program reads the environment and nothing else — no credential, no
 # network call — which is what keeps `terraform test` and CI's
@@ -45,7 +30,7 @@ data "external" "xc_env_tenant" {
   lifecycle {
     postcondition {
       condition     = contains(["", var.expected_xc_tenant], self.result.tenant)
-      error_message = "Wrong F5 XC tenant. XCSH_API_URL in this environment names tenant '${self.result.tenant}', but this deployment belongs to '${var.expected_xc_tenant}' (state key mcn.tfstate). Source the credential file for '${var.expected_xc_tenant}', or — if you really do mean to act on '${self.result.tenant}' — say so explicitly with -var expected_xc_tenant=${self.result.tenant} and a state key of its own."
+      error_message = "Wrong F5 XC tenant. XCSH_API_URL names tenant '${self.result.tenant}', but this deployment belongs to '${var.expected_xc_tenant}'. Use credentials for '${var.expected_xc_tenant}', or explicitly set expected_xc_tenant for a separately named deployment."
     }
   }
 }
@@ -85,18 +70,24 @@ check "kvm_vip_outside_local_network" {
   }
 }
 
-# Tenant-scoped, reusable site registration token. The provider now ships
-# xcsh_token with a Computed `uid` (system_metadata.uid) — the token VALUE a CE
-# feeds to VPM at registration (the resource `id` is the token NAME, not the
-# value). The spec is empty; only metadata is needed and namespace defaults to
-# system. This replaces the manual var.registration_token prerequisite (#1205).
-# The console approval step (#1206 / #1210) is likewise gone: each CE's runtime
-# registration is resolved by site name and approved in the post-registration
-# phase (see modules/xc-site/main.tf and the deploy ordering above).
-resource "xcsh_token" "ce" {
-  name        = "mcn-ce-registration"
-  namespace   = "system"
-  description = "MCN CE-HA registration token (tenant-scoped, reusable across CE sites)"
+check "kvm_addresses_are_valid" {
+  assert {
+    condition = !var.enable_kvm || alltrue([
+      cidrhost(var.kvm_network_cidr, 0) == cidrhost("${var.kvm_ce_address}/${split("/", var.kvm_network_cidr)[1]}", 0),
+      cidrhost(var.kvm_network_cidr, 0) == cidrhost("${var.kvm_frr_address}/${split("/", var.kvm_network_cidr)[1]}", 0),
+      cidrhost(var.kvm_network_cidr, 0) == cidrhost("${var.kvm_client_address}/${split("/", var.kvm_network_cidr)[1]}", 0),
+    ])
+    error_message = "kvm_ce_address, kvm_frr_address, and kvm_client_address must be inside kvm_network_cidr."
+  }
+  assert {
+    condition = !var.enable_kvm || length(distinct([
+      local.kvm_gateway_address,
+      var.kvm_ce_address,
+      var.kvm_frr_address,
+      var.kvm_client_address,
+    ])) == 4
+    error_message = "The KVM gateway, CE, FRR, and client addresses must be distinct."
+  }
 }
 
 # Pure expansion of ce_count into the per-CE node map (hostname, site_name,
@@ -145,15 +136,13 @@ module "ce_node" {
   admin_username      = var.admin_username
   ssh_public_key      = local.ssh_public_key
 
-  custom_data = base64encode(local.ce_cloud_init[each.key])
+  custom_data = base64encode(xcsh_site_cloud_init.azure[each.key].cloud_init_config)
 
   tags = local.tags
 }
 
-# Generate a distinct Site Console admin password for every CE. Binding the
-# password lifecycle to the VM instance rotates it automatically whenever that
-# node is rebuilt, while keeping the value only in the encrypted remote state
-# and sensitive Terraform output.
+# Generate a distinct node-local admin password for every CE site. The site
+# object blindfold-encrypts this value before sending it to F5XC.
 resource "random_password" "site_console_admin" {
   for_each = module.ce_topology.ce_nodes
 
@@ -164,42 +153,6 @@ resource "random_password" "site_console_admin" {
   min_upper        = 1
   override_special = "!#%*+-=?@^_~"
 
-  keepers = {
-    ce_vm_instance_id = module.ce_node[each.key].vm_instance_id
-  }
-}
-
-# Site Console Basic Auth delegates password verification to VPM on the CE host.
-# The XC site's admin_user_credentials field is accepted by the API but VPM
-# deliberately skips the built-in admin user, so it does not rotate this
-# credential. Apply the generated value on the node as root instead.
-#
-# The Custom Script extension receives only an encrypted protected setting. Its
-# inline script keeps the password out of command arguments and produces no
-# output. The password resource is keyed by Azure's per-instance VM id, so a VM
-# replacement generates a new value and updates this extension even though the
-# name-derived ARM resource id stays the same.
-resource "azurerm_virtual_machine_extension" "site_console_password" {
-  for_each = module.ce_topology.ce_nodes
-
-  name                       = "site-console-admin-password"
-  virtual_machine_id         = module.ce_node[each.key].vm_id
-  publisher                  = "Microsoft.Azure.Extensions"
-  type                       = "CustomScript"
-  type_handler_version       = "2.1"
-  auto_upgrade_minor_version = true
-
-  protected_settings = jsonencode({
-    script = base64encode(<<-SCRIPT
-      #!/usr/bin/env bash
-      set -euo pipefail
-      password_b64='${base64encode(random_password.site_console_admin[each.key].result)}'
-      password=$(printf '%s' "$password_b64" | base64 --decode)
-      printf 'admin:%s\n' "$password" | chpasswd
-      unset password password_b64
-    SCRIPT
-    )
-  })
 }
 
 # One XC SMSv2 site + bgp object per node. The MAC is wired from the mgmt NIC so
@@ -211,19 +164,20 @@ module "xc_site" {
   site_name      = each.value.site_name
   hostname       = each.value.hostname
   interface_name = each.value.interface_name
-  mgmt_nic_mac   = module.ce_node[each.key].mgmt_nic_mac
-  # Couples the site object's lifecycle to the CE VM INSTANCE (issue #674):
-  # replacing the VM replaces the site, which takes the registration bound to the
-  # destroyed instance with it. Must be virtual_machine_id, not the ARM resource
-  # id — the latter is name-derived and identical after a replacement.
-  ce_vm_instance_id    = module.ce_node[each.key].vm_instance_id
-  rs_peer_ips          = module.azure_hub.rs_peer_ips
-  ce_asn               = var.ce_asn
-  rs_asn               = var.rs_asn
-  os_version           = var.ce_os_version
-  sw_version           = var.ce_sw_version
-  enable_bgp           = var.enable_bgp
-  approve_registration = var.approve_registration
+  rs_peer_ips    = module.azure_hub.rs_peer_ips
+  ce_asn         = var.ce_asn
+  rs_asn         = var.rs_asn
+  os_version     = var.ce_os_version
+  sw_version     = var.ce_sw_version
+  enable_bgp     = var.enable_bgp
+  admin_password = random_password.site_console_admin[each.key].result
+  ssh_public_key = local.ssh_public_key
+}
+
+resource "xcsh_site_cloud_init" "azure" {
+  for_each     = module.ce_topology.ce_nodes
+  provider_ref = "azure"
+  site_name    = module.xc_site[each.key].site_name
 }
 
 # The Azure side of each eBGP session (Route Server -> CE eth0/SLO IP).
@@ -284,7 +238,7 @@ resource "xcsh_origin_pool" "this" {
   port = var.origin_port
 
   origin_servers {
-    labels {}
+    labels = {}
     public_ip {
       ip = var.origin_ip
     }
@@ -416,7 +370,7 @@ module "ce_node_ca" {
   admin_username      = var.admin_username
   ssh_public_key      = local.ssh_public_key
 
-  custom_data = base64encode(local.ca_ce_cloud_init[each.key])
+  custom_data = base64encode(xcsh_site_cloud_init.canada[each.key].cloud_init_config)
 
   tags = local.tags
 }
@@ -431,32 +385,6 @@ resource "random_password" "site_console_admin_ca" {
   min_upper        = 1
   override_special = "!#%*+-=?@^_~"
 
-  keepers = {
-    ce_vm_instance_id = module.ce_node_ca[each.key].vm_instance_id
-  }
-}
-
-resource "azurerm_virtual_machine_extension" "site_console_password_ca" {
-  for_each = try(module.ce_topology_ca[0].ce_nodes, {})
-
-  name                       = "site-console-admin-password"
-  virtual_machine_id         = module.ce_node_ca[each.key].vm_id
-  publisher                  = "Microsoft.Azure.Extensions"
-  type                       = "CustomScript"
-  type_handler_version       = "2.1"
-  auto_upgrade_minor_version = true
-
-  protected_settings = jsonencode({
-    script = base64encode(<<-SCRIPT
-      #!/usr/bin/env bash
-      set -euo pipefail
-      password_b64='${base64encode(random_password.site_console_admin_ca[each.key].result)}'
-      password=$(printf '%s' "$password_b64" | base64 --decode)
-      printf 'admin:%s\n' "$password" | chpasswd
-      unset password password_b64
-    SCRIPT
-    )
-  })
 }
 
 # Canadian XC SMSv2 site + BGP object per node.
@@ -464,19 +392,23 @@ module "xc_site_ca" {
   for_each = try(module.ce_topology_ca[0].ce_nodes, {})
   source   = "./modules/xc-site"
 
-  create_site          = false
-  site_name            = each.value.site_name
-  hostname             = each.value.hostname
-  interface_name       = each.value.interface_name
-  mgmt_nic_mac         = module.ce_node_ca[each.key].mgmt_nic_mac
-  ce_vm_instance_id    = module.ce_node_ca[each.key].vm_instance_id
-  rs_peer_ips          = try(module.azure_hub_ca[0].rs_peer_ips, [])
-  ce_asn               = var.ce_asn
-  rs_asn               = var.rs_asn
-  os_version           = var.ce_os_version
-  sw_version           = var.ce_sw_version
-  enable_bgp           = var.enable_bgp
-  approve_registration = var.approve_registration
+  site_name      = each.value.site_name
+  hostname       = each.value.hostname
+  interface_name = each.value.interface_name
+  rs_peer_ips    = try(module.azure_hub_ca[0].rs_peer_ips, [])
+  ce_asn         = var.ce_asn
+  rs_asn         = var.rs_asn
+  os_version     = var.ce_os_version
+  sw_version     = var.ce_sw_version
+  enable_bgp     = var.enable_bgp
+  admin_password = random_password.site_console_admin_ca[each.key].result
+  ssh_public_key = local.ssh_public_key
+}
+
+resource "xcsh_site_cloud_init" "canada" {
+  for_each     = try(module.ce_topology_ca[0].ce_nodes, {})
+  provider_ref = "azure"
+  site_name    = module.xc_site_ca[each.key].site_name
 }
 
 # Azure Route Server eBGP session for Canadian CEs.
@@ -538,7 +470,7 @@ resource "xcsh_origin_pool" "canada" {
   port = var.origin_port
 
   origin_servers {
-    labels {}
+    labels = {}
     public_ip {
       ip = var.origin_ip
     }

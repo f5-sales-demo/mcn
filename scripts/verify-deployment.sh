@@ -1,23 +1,18 @@
 #!/usr/bin/env bash
-# Verify the rebuilt MCN deployment and write private, aggregate evidence.
+# Verify the complete MCN showcase and write private, aggregate evidence.
 #
-# Run from the repository root after the second Terraform apply:
+# Run from the repository root after Terraform has converged:
 #
 #   bash scripts/verify-deployment.sh --evidence-dir /private/path/mcn-evidence
 #
-# The default run verifies the rotated Site Console credentials as well as XC,
-# Azure routing, and traffic. Set MCN_FACTORY_PASSWORD in the environment; the
-# value is read from stdin by curl and never enters a command line or output.
+# The verifier requires the default Azure, Canada, AWS, and KVM paths. It reads
+# deployment identifiers from Terraform output and never accepts copied names,
+# addresses, API URLs, or signed image URLs as command-line inputs.
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TERRAFORM_DIR="terraform"
 EVIDENCE_DIR=""
-SAMPLES_PER_BATCH=40
-MAX_BATCHES=12
-BATCH_INTERVAL=300
-CHECK_CONSOLE=1
-CONTEXT="${XCSH_CONTEXT:-f5-sales-demo}"
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -25,7 +20,7 @@ die() {
 }
 
 usage() {
-  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -39,43 +34,14 @@ while [ "$#" -gt 0 ]; do
     EVIDENCE_DIR="${2:?--evidence-dir needs a value}"
     shift 2
     ;;
-  --samples-per-batch)
-    SAMPLES_PER_BATCH="${2:?--samples-per-batch needs a value}"
-    shift 2
-    ;;
-  --max-batches)
-    MAX_BATCHES="${2:?--max-batches needs a value}"
-    shift 2
-    ;;
-  --batch-interval)
-    BATCH_INTERVAL="${2:?--batch-interval needs a value}"
-    shift 2
-    ;;
-  --context)
-    CONTEXT="${2:?--context needs a value}"
-    shift 2
-    ;;
-  --skip-console)
-    CHECK_CONSOLE=0
-    shift
-    ;;
   -h | --help) usage ;;
   *) die "unknown argument: $1" ;;
   esac
 done
 
 [ -n "$EVIDENCE_DIR" ] || die "--evidence-dir is required"
-case "$SAMPLES_PER_BATCH:$MAX_BATCHES:$BATCH_INTERVAL" in
-*[!0-9:]* | *::* | :* | *:) die "sample and interval values must be non-negative integers" ;;
-esac
-[ "$SAMPLES_PER_BATCH" -gt 0 ] || die "--samples-per-batch must be greater than zero"
-[ "$MAX_BATCHES" -ge 3 ] || die "--max-batches must allow at least three time-separated batches"
-[ $((SAMPLES_PER_BATCH * MAX_BATCHES)) -ge 100 ] || die "the configured run cannot reach the required 100 VIP samples"
-if [ "$BATCH_INTERVAL" -eq 0 ] && [ "${MCN_UAT_TEST_MODE:-0}" != "1" ]; then
-  die "--batch-interval 0 is test-only; live evidence must be time-separated"
-fi
-
-for command_name in terraform jq curl az; do
+[ -n "${XCSH_API_TOKEN:-}" ] || die "XCSH_API_TOKEN must contain a current, private credential"
+for command_name in terraform jq curl az aws docker virsh; do
   command -v "$command_name" >/dev/null 2>&1 || die "$command_name is required"
 done
 
@@ -94,288 +60,289 @@ TF=(terraform "-chdir=${TERRAFORM_DIR}")
 tf_raw() { "${TF[@]}" output -raw "$1"; }
 tf_json() { "${TF[@]}" output -json "$1"; }
 
-# Resolve the XC credential exactly as the capture harness does. A token on the
-# command line is intentionally unsupported because it would enter shell history
-# and process listings.
-API_URL="${XCSH_API_URL:-}"
-API_TOKEN="${XCSH_API_TOKEN:-}"
-if [ -z "$API_URL" ] || [ -z "$API_TOKEN" ]; then
-  context_file="${HOME}/.config/xcsh/contexts/${CONTEXT}.json"
-  [ -f "$context_file" ] || die "no XC environment credential and no context at $context_file"
-  [ -n "$API_URL" ] || API_URL=$(jq -r '.apiUrl // empty' "$context_file")
-  [ -n "$API_TOKEN" ] || API_TOKEN=$(jq -r '.apiToken // empty' "$context_file")
-fi
-[ -n "$API_URL" ] || die "could not resolve the XC API URL"
-[ -n "$API_TOKEN" ] || die "could not resolve the XC API token"
-
-api_get() {
-  local url=$1
-  printf 'Authorization: APIToken %s\n' "$API_TOKEN" |
-    curl -fsS --max-time 120 -H @- "$url"
+require_name() {
+  [[ "$2" =~ ^[A-Za-z0-9._:/-]+$ ]] || die "$1 contains unsupported characters"
 }
 
-# Azure serializes Run Command executions per VM. A preceding command can be
-# complete from the caller's perspective while the extension still reports a
-# short-lived Conflict. Retry only that exact transient; authentication,
-# validation, and script failures remain immediate hard failures.
-az_vm_run_command() {
-  local attempt=1 max_attempts=20 retry_delay=15 output stderr_file
-  stderr_file=$(mktemp)
-  if [ "${MCN_UAT_TEST_MODE:-0}" = "1" ]; then retry_delay=0; fi
-  while true; do
-    if output=$(az vm run-command invoke --only-show-errors "$@" 2>"$stderr_file"); then
-      rm -f "$stderr_file"
-      printf '%s\n' "$output"
-      return 0
-    fi
-    if ! grep -qF 'Run command extension execution is in progress' "$stderr_file" ||
-      [ "$attempt" -ge "$max_attempts" ]; then
-      cat "$stderr_file" >&2
-      rm -f "$stderr_file"
-      return 1
-    fi
-    printf 'Azure Run Command busy; retrying (%s/%s)\n' "$attempt" "$max_attempts" >&2
-    attempt=$((attempt + 1))
-    sleep "$retry_delay"
-  done
+require_domain() {
+  [[ "$2" =~ ^[A-Za-z0-9.-]+$ ]] || die "$1 is not a domain name"
+}
+
+require_ipv4() {
+  [[ "$2" =~ ^[0-9.]+$ ]] || die "$1 is not an IPv4 address"
 }
 
 STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 "${TF[@]}" version -json >"${EVIDENCE_DIR}/terraform-version.json"
 "${TF[@]}" output -json >"${EVIDENCE_DIR}/terraform-output.json"
 
-SITES=$(tf_json xc_site_names)
-CE_IPS=$(tf_json ce_mgmt_private_ips)
-SITE_COUNT=$(jq 'length' <<<"$SITES")
-[ "$SITE_COUNT" -eq 3 ] || die "expected three XC sites, found $SITE_COUNT"
-[ "$(jq 'length' <<<"$CE_IPS")" -eq "$SITE_COUNT" ] || die "site and CE address maps differ in size"
+ROW_SITES=$(tf_json xc_site_names)
+CA_SITES=$(tf_json ca_site_names)
+AWS_SITES=$(tf_json aws_site_names)
+KVM_SITE=$(tf_raw kvm_site_name)
+for site_map in "$ROW_SITES" "$CA_SITES" "$AWS_SITES"; do
+  [ "$(jq 'length' <<<"$site_map")" -gt 0 ] || die "the complete showcase requires every cloud site group"
+done
+[ -n "$KVM_SITE" ] && [ "$KVM_SITE" != "null" ] || die "the complete showcase requires the KVM site"
+
+ALL_SITES=$(jq -cn \
+  --argjson row "$ROW_SITES" \
+  --argjson canada "$CA_SITES" \
+  --argjson aws "$AWS_SITES" \
+  --arg kvm "$KVM_SITE" \
+  '$row + $canada + $aws + {kvm: $kvm}')
+SITE_COUNT=$(jq 'length' <<<"$ALL_SITES")
+[ "$(jq '[.[]] | unique | length' <<<"$ALL_SITES")" -eq "$SITE_COUNT" ] || die "site names must be unique"
+
+API_URL=$(tf_raw xc_api_url)
+[[ "$API_URL" =~ ^https://[a-z0-9-]+\.console\.ves\.volterra\.io$ ]] || die "xc_api_url is not a supported tenant endpoint"
+
+api_get() {
+  local url=$1
+  printf 'Authorization: APIToken %s\n' "$XCSH_API_TOKEN" |
+    curl -fsS --max-time 120 -H @- "$url"
+}
 
 sites_online=0
-while IFS= read -r key; do
-  site=$(jq -r --arg key "$key" '.[$key]' <<<"$SITES")
-  state=$(api_get "${API_URL}/api/config/namespaces/system/sites/${site}" | jq -r '.spec.site_state // .get_spec.site_state // empty')
-  [ "$state" = "ONLINE" ] || die "one or more XC sites are not ONLINE"
+while IFS= read -r site; do
+  require_name "site name" "$site"
+  state=$(api_get "${API_URL}/api/config/namespaces/system/sites/${site}" |
+    jq -r '.object.status.site_state // .status.site_state // .spec.site_state // .get_spec.site_state // empty')
+  [ "$state" = "ONLINE" ] || die "site ${site} is not ONLINE"
   sites_online=$((sites_online + 1))
-done < <(jq -r 'keys[]' <<<"$SITES")
+done < <(jq -r '.[]' <<<"$ALL_SITES")
 printf 'sites_online=%s/%s\n' "$sites_online" "$SITE_COUNT"
 
-RG=$(tf_raw resource_group_name)
-RS=$(tf_raw route_server_name)
-CLIENT=$(tf_raw client_vm_name)
-NIC=$(tf_raw client_nic_name)
-DOMAIN=$(tf_raw lb_domain)
-VIP=$(tf_raw vip)
-ORIGIN=$(tf_raw origin_ip)
-CE_VM_NAMES=$(tf_json ce_vm_names)
-[[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "lb_domain contains characters unsafe for the remote verifier"
-[[ "$VIP" =~ ^[0-9.]+$ ]] || die "vip is not an IPv4 literal"
-[[ "$ORIGIN" =~ ^[0-9.]+$ ]] || die "origin_ip is not an IPv4 literal"
-[ "$(jq 'length' <<<"$CE_VM_NAMES")" -eq "$SITE_COUNT" ] || die "site and CE VM name maps differ in size"
-
-# Terraform and the XC API can both become ready while Azure still reports a VM
-# or extension transition. Query Azure directly so a stuck control-plane
-# operation cannot be mistaken for a healthy deployment.
 azure_vms_running=0
-password_extensions_succeeded=0
-while IFS= read -r key; do
-  vm_name=$(jq -r --arg key "$key" '.[$key]' <<<"$CE_VM_NAMES")
-  instance_view=$(az vm get-instance-view \
-    --resource-group "$RG" \
-    --name "$vm_name" \
-    --query '{provisioningState:provisioningState,powerState:instanceView.statuses[?starts_with(code, `PowerState/`)].code | [0]}' \
-    --output json)
-  provisioning_state=$(jq -r '.provisioningState // empty' <<<"$instance_view")
-  power_state=$(jq -r '.powerState // empty' <<<"$instance_view")
-  if [ "$provisioning_state" != "Succeeded" ] || [ "$power_state" != "PowerState/running" ]; then
-    die "one CE VM is not fully running in Azure (provisioning=${provisioning_state:-unknown}, power=${power_state:-unknown})"
-  fi
-  azure_vms_running=$((azure_vms_running + 1))
+azure_peerings_with_vip=0
+azure_effective_next_hops=0
+azure_traffic_paths=0
 
-  extension_state=$(az vm extension show \
-    --resource-group "$RG" \
-    --vm-name "$vm_name" \
-    --name site-console-admin-password \
-    --query provisioningState \
-    --output tsv)
-  [ "$extension_state" = "Succeeded" ] ||
-    die "one Site Console password extension is not complete in Azure (provisioning=${extension_state:-unknown})"
-  password_extensions_succeeded=$((password_extensions_succeeded + 1))
-done < <(jq -r 'keys[]' <<<"$SITES")
-printf 'azure_vms_running=%s/%s\n' "$azure_vms_running" "$SITE_COUNT"
-printf 'password_extensions_succeeded=%s/%s\n' "$password_extensions_succeeded" "$SITE_COUNT"
+verify_azure_path() {
+  local label=$1 resource_group=$2 route_server=$3 client_vm=$4 client_nic=$5 domain=$6 vip=$7
+  local sites=$8 ce_ips=$9 ce_vms=${10} peer_names=${11}
+  local expected_count key vm_name view provisioning power peer expected_hop routes actual_hop
+  local learned_hops effective_raw effective_routes effective_hops expected_hops message
 
-peerings_with_vip=0
-learned_hops='[]'
-while IFS= read -r key; do
-  expected_hop=$(jq -r --arg key "$key" '.[$key]' <<<"$CE_IPS")
-  routes=$(az network routeserver peering list-learned-routes \
-    --name "${key}-bgp" \
-    --routeserver "$RS" \
-    --resource-group "$RG" \
-    --query "RouteServiceRole_IN_0[?network=='${VIP}/32']" \
-    --output json)
-  route_count=$(jq 'length' <<<"$routes")
-  [ "$route_count" -eq 1 ] || die "one Route Server peering does not expose exactly one VIP route"
-  actual_hop=$(jq -r '.[0].nextHop // empty' <<<"$routes")
-  [ "$actual_hop" = "$expected_hop" ] || die "one Route Server peering exposes the wrong VIP next hop"
-  learned_hops=$(jq -c --arg hop "$actual_hop" '. + [$hop]' <<<"$learned_hops")
-  peerings_with_vip=$((peerings_with_vip + 1))
-done < <(jq -r 'keys[]' <<<"$SITES")
-[ "$(jq 'unique | length' <<<"$learned_hops")" -eq "$SITE_COUNT" ] || die "per-peering VIP next hops are not distinct"
-printf 'peerings_with_vip=%s/%s\n' "$peerings_with_vip" "$SITE_COUNT"
+  require_name "${label} resource group" "$resource_group"
+  require_name "${label} Route Server" "$route_server"
+  require_name "${label} client VM" "$client_vm"
+  require_name "${label} client NIC" "$client_nic"
+  require_domain "${label} load-balancer domain" "$domain"
+  require_ipv4 "${label} VIP" "$vip"
 
-effective_raw=$(az network nic show-effective-route-table \
-  --resource-group "$RG" \
-  --name "$NIC" \
-  --query "value[?addressPrefix[0]=='${VIP}/32']" \
-  --output json)
-effective_routes=$(jq -c 'if type == "array" then . else (.value // []) end' <<<"$effective_raw")
-effective_hops=$(jq -c --arg prefix "${VIP}/32" '[.[] | select((.addressPrefix[0] // "") == $prefix and (.state // "Active") == "Active") | .nextHopIpAddress[]?] | unique | sort' <<<"$effective_routes")
-expected_hops=$(jq -c '[.[]] | unique | sort' <<<"$CE_IPS")
-[ "$effective_hops" = "$expected_hops" ] || die "the client effective route does not contain every CE next hop"
-printf 'effective_next_hops=%s/%s\n' "$(jq 'length' <<<"$effective_hops")" "$SITE_COUNT"
+  expected_count=$(jq 'length' <<<"$sites")
+  [ "$(jq 'length' <<<"$ce_ips")" -eq "$expected_count" ] || die "${label} site and CE address maps differ"
+  [ "$(jq 'length' <<<"$ce_vms")" -eq "$expected_count" ] || die "${label} site and VM maps differ"
+  [ "$(jq 'length' <<<"$peer_names")" -eq "$expected_count" ] || die "${label} site and peering maps differ"
 
-vip_ok=0
-vip_fail=0
-origin_ok=0
-origin_fail=0
-zero_streak=0
-batches=0
-converged=false
-origin_samples=$((SAMPLES_PER_BATCH / 2))
-[ "$origin_samples" -ge 20 ] || origin_samples=20
-
-while [ "$batches" -lt "$MAX_BATCHES" ]; do
-  batches=$((batches + 1))
-  remote_script=$(printf '%s' \
-    "vip_ok=0; vip_fail=0; origin_ok=0; origin_fail=0; " \
-    "for i in \$(seq 1 ${SAMPLES_PER_BATCH}); do code=\$(curl -sS -o /dev/null -m 10 -w '%{http_code}' -H 'Host: ${DOMAIN}' 'http://${VIP}/' || true); if [ \"\$code\" = 200 ]; then vip_ok=\$((vip_ok+1)); else vip_fail=\$((vip_fail+1)); fi; done; " \
-    "for i in \$(seq 1 ${origin_samples}); do code=\$(curl -sS -o /dev/null -m 10 -w '%{http_code}' 'http://${ORIGIN}/' || true); if [ \"\$code\" = 200 ]; then origin_ok=\$((origin_ok+1)); else origin_fail=\$((origin_fail+1)); fi; done; " \
-    "echo MCN_UAT vip_ok=\$vip_ok vip_fail=\$vip_fail origin_ok=\$origin_ok origin_fail=\$origin_fail")
-  message=$(az_vm_run_command \
-    --resource-group "$RG" \
-    --name "$CLIENT" \
-    --command-id RunShellScript \
-    --query 'value[0].message' \
-    --output tsv \
-    --scripts "$remote_script")
-  result=$(grep -Eo 'MCN_UAT vip_ok=[0-9]+ vip_fail=[0-9]+ origin_ok=[0-9]+ origin_fail=[0-9]+' <<<"$message" | tail -n 1)
-  [ -n "$result" ] || die "client traffic verifier returned no aggregate result"
-  batch_vip_ok=$(sed -E 's/.*vip_ok=([0-9]+).*/\1/' <<<"$result")
-  batch_vip_fail=$(sed -E 's/.*vip_fail=([0-9]+).*/\1/' <<<"$result")
-  batch_origin_ok=$(sed -E 's/.*origin_ok=([0-9]+).*/\1/' <<<"$result")
-  batch_origin_fail=$(sed -E 's/.*origin_fail=([0-9]+).*/\1/' <<<"$result")
-  [ $((batch_vip_ok + batch_vip_fail)) -eq "$SAMPLES_PER_BATCH" ] || die "VIP batch returned the wrong sample count"
-  [ $((batch_origin_ok + batch_origin_fail)) -eq "$origin_samples" ] || die "origin batch returned the wrong sample count"
-  [ "$batch_origin_fail" -eq 0 ] || die "origin control failed; VIP results are not attributable"
-  vip_ok=$((vip_ok + batch_vip_ok))
-  vip_fail=$((vip_fail + batch_vip_fail))
-  origin_ok=$((origin_ok + batch_origin_ok))
-  origin_fail=$((origin_fail + batch_origin_fail))
-  if [ "$batch_vip_fail" -eq 0 ]; then
-    zero_streak=$((zero_streak + 1))
-  else
-    zero_streak=0
-  fi
-  printf 'batch=%s vip_ok=%s vip_fail=%s origin_ok=%s origin_fail=%s\n' \
-    "$batches" "$batch_vip_ok" "$batch_vip_fail" "$batch_origin_ok" "$batch_origin_fail"
-  if [ $((vip_ok + vip_fail)) -ge 100 ] && [ "$batches" -ge 3 ] && [ "$zero_streak" -ge 2 ]; then
-    converged=true
-    break
-  fi
-  [ "$batches" -ge "$MAX_BATCHES" ] || sleep "$BATCH_INTERVAL"
-done
-
-console_factory_rejected=0
-console_generated_accepted=0
-if [ "$CHECK_CONSOLE" -eq 1 ]; then
-  [ -n "${MCN_FACTORY_PASSWORD:-}" ] || die "MCN_FACTORY_PASSWORD is required unless --skip-console is explicit"
-  BASTION=$(tf_raw bastion_name)
-  [ -n "$BASTION" ] && [ "$BASTION" != "null" ] || die "Azure Bastion must be enabled for Site Console verification"
-  VM_IDS=$(tf_json ce_vm_ids)
-  GENERATED_PASSWORDS=$(tf_json site_console_admin_passwords)
-  index=0
   while IFS= read -r key; do
-    port=$((65500 + index))
-    vm_id=$(jq -r --arg key "$key" '.[$key]' <<<"$VM_IDS")
-    generated_password=$(jq -r --arg key "$key" '.[$key]' <<<"$GENERATED_PASSWORDS")
-    az network bastion tunnel \
-      --name "$BASTION" \
-      --resource-group "$RG" \
-      --target-resource-id "$vm_id" \
-      --resource-port 65500 \
-      --port "$port" >"${EVIDENCE_DIR}/bastion-tunnel-${index}.log" 2>&1 &
-    tunnel_pid=$!
-    ready=0
-    for _ in $(seq 1 60); do
-      if curl -ksS --max-time 2 -o /dev/null "https://127.0.0.1:${port}/"; then
-        ready=1
-        break
-      fi
-      sleep 2
-    done
-    if [ "$ready" -ne 1 ]; then
-      kill "$tunnel_pid" 2>/dev/null || true
-      wait "$tunnel_pid" 2>/dev/null || true
-      die "one Site Console tunnel did not become ready"
-    fi
-    factory_auth=$(printf 'Authorization: Basic %s\n' "$(printf 'admin:%s' "$MCN_FACTORY_PASSWORD" | base64)" |
-      curl -ksS --max-time 10 -o /dev/null -w '%{http_code}' -H @- "https://127.0.0.1:${port}/")
-    generated_auth=$(printf 'Authorization: Basic %s\n' "$(printf 'admin:%s' "$generated_password" | base64)" |
-      curl -ksS --max-time 10 -o /dev/null -w '%{http_code}' -H @- "https://127.0.0.1:${port}/")
-    kill "$tunnel_pid" 2>/dev/null || true
-    wait "$tunnel_pid" 2>/dev/null || true
-    [ "$factory_auth" != "200" ] || die "the factory Site Console credential still authenticates"
-    [ "$generated_auth" = "200" ] || die "a generated Site Console credential does not authenticate"
-    console_factory_rejected=$((console_factory_rejected + 1))
-    console_generated_accepted=$((console_generated_accepted + 1))
-    generated_password=""
-    index=$((index + 1))
-  done < <(jq -r 'keys[]' <<<"$SITES")
-  printf 'console_factory_rejected=%s/%s\n' "$console_factory_rejected" "$SITE_COUNT"
-  printf 'console_generated_accepted=%s/%s\n' "$console_generated_accepted" "$SITE_COUNT"
-fi
+    vm_name=$(jq -r --arg key "$key" '.[$key]' <<<"$ce_vms")
+    view=$(az vm get-instance-view --only-show-errors --resource-group "$resource_group" --name "$vm_name" \
+      --query '{provisioningState:provisioningState,powerState:instanceView.statuses[?starts_with(code, `PowerState/`)].code | [0]}' --output json)
+    provisioning=$(jq -r '.provisioningState // empty' <<<"$view")
+    power=$(jq -r '.powerState // empty' <<<"$view")
+    [ "$provisioning" = "Succeeded" ] && [ "$power" = "PowerState/running" ] ||
+      die "one ${label} CE VM is not fully running"
+    azure_vms_running=$((azure_vms_running + 1))
+
+    peer=$(jq -r --arg key "$key" '.[$key]' <<<"$peer_names")
+    expected_hop=$(jq -r --arg key "$key" '.[$key]' <<<"$ce_ips")
+    routes=$(az network routeserver peering list-learned-routes --only-show-errors \
+      --name "$peer" --routeserver "$route_server" --resource-group "$resource_group" \
+      --query "RouteServiceRole_IN_0[?network=='${vip}/32']" --output json)
+    [ "$(jq 'length' <<<"$routes")" -eq 1 ] || die "one ${label} peering is missing its VIP route"
+    actual_hop=$(jq -r '.[0].nextHop // empty' <<<"$routes")
+    [ "$actual_hop" = "$expected_hop" ] || die "one ${label} peering has the wrong VIP next hop"
+    learned_hops=$(jq -cn --argjson current "${learned_hops:-[]}" --arg hop "$actual_hop" '$current + [$hop]')
+    azure_peerings_with_vip=$((azure_peerings_with_vip + 1))
+  done < <(jq -r 'keys[]' <<<"$sites")
+
+  [ "$(jq 'unique | length' <<<"$learned_hops")" -eq "$expected_count" ] || die "${label} VIP next hops are not distinct"
+  effective_raw=$(az network nic show-effective-route-table --only-show-errors \
+    --resource-group "$resource_group" --name "$client_nic" --output json)
+  effective_routes=$(jq -c 'if type == "array" then . else (.value // []) end' <<<"$effective_raw")
+  effective_hops=$(jq -c --arg prefix "${vip}/32" \
+    '[.[] | select((.addressPrefix[0] // "") == $prefix and (.state // "Active") == "Active") | .nextHopIpAddress[]?] | unique | sort' <<<"$effective_routes")
+  expected_hops=$(jq -c '[.[]] | unique | sort' <<<"$ce_ips")
+  [ "$effective_hops" = "$expected_hops" ] || die "${label} client does not have every active ECMP next hop"
+  azure_effective_next_hops=$((azure_effective_next_hops + expected_count))
+
+  message=$(az vm run-command invoke --only-show-errors --resource-group "$resource_group" --name "$client_vm" \
+    --command-id RunShellScript --query 'value[0].message' --output tsv \
+    --scripts "curl -fsS -H 'Host: ${domain}' 'http://${vip}/' >/dev/null && echo MCN_HTTP_OK")
+  grep -qF 'MCN_HTTP_OK' <<<"$message" || die "${label} client traffic failed"
+  azure_traffic_paths=$((azure_traffic_paths + 1))
+}
+
+verify_azure_path \
+  "Azure Rest-of-World" \
+  "$(tf_raw resource_group_name)" "$(tf_raw route_server_name)" "$(tf_raw client_vm_name)" "$(tf_raw client_nic_name)" \
+  "$(tf_raw lb_domain)" "$(tf_raw vip)" "$ROW_SITES" "$(tf_json ce_mgmt_private_ips)" "$(tf_json ce_vm_names)" \
+  "$(tf_json route_server_bgp_connection_names)"
+
+verify_azure_path \
+  "Azure Canada" \
+  "$(tf_raw ca_resource_group_name)" "$(tf_raw ca_route_server_name)" "$(tf_raw ca_client_vm_name)" "$(tf_raw ca_client_nic_name)" \
+  "$(tf_raw ca_lb_domain)" "$(tf_raw ca_vip)" "$CA_SITES" "$(tf_json ca_ce_mgmt_private_ips)" "$(tf_json ca_ce_vm_names)" \
+  "$(tf_json ca_route_server_bgp_connection_names)"
+
+printf 'azure_vms_running=%s\n' "$azure_vms_running"
+printf 'azure_peerings_with_vip=%s\n' "$azure_peerings_with_vip"
+printf 'azure_effective_next_hops=%s\n' "$azure_effective_next_hops"
+printf 'azure_traffic_paths=%s/2\n' "$azure_traffic_paths"
+
+CA_ILB_ID=$(tf_raw ca_ilb_id)
+CA_ILB_RULE=$(tf_raw ca_ilb_rule_name)
+CA_ILB_IP=$(tf_raw ca_ilb_frontend_ip)
+CA_CLIENT=$(tf_raw ca_client_vm_name)
+CA_RG=$(tf_raw ca_resource_group_name)
+require_name "Canadian ILB ID" "$CA_ILB_ID"
+require_name "Canadian ILB rule" "$CA_ILB_RULE"
+require_ipv4 "Canadian ILB frontend" "$CA_ILB_IP"
+
+AZURE_ACCESS_TOKEN=$(az account get-access-token --resource https://management.azure.com/ --query accessToken --output tsv)
+[ -n "$AZURE_ACCESS_TOKEN" ] || die "Azure did not issue a management API token"
+health_headers=$(mktemp)
+health_body=$(mktemp)
+trap 'rm -f "$health_headers" "$health_body"' EXIT
+health_url="https://management.azure.com${CA_ILB_ID}/loadBalancingRules/${CA_ILB_RULE}/health?api-version=2025-07-01&preserve-view=true"
+printf 'Authorization: Bearer %s\n' "$AZURE_ACCESS_TOKEN" |
+  curl -fsS -D "$health_headers" -o /dev/null -X POST -H @- "$health_url"
+health_location=$(awk 'tolower($1) == "location:" {sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit}' "$health_headers")
+[ -n "$health_location" ] || die "Azure Load Balancer health request returned no operation location"
+
+health_status=0
+for _ in $(seq 1 24); do
+  health_status=$(printf 'Authorization: Bearer %s\n' "$AZURE_ACCESS_TOKEN" |
+    curl -sS -o "$health_body" -w '%{http_code}' -H @- "$health_location")
+  [ "$health_status" = 200 ] && break
+  [ "$health_status" = 202 ] || die "Azure Load Balancer health operation failed"
+  sleep 5
+done
+[ "$health_status" = 200 ] || die "Azure Load Balancer health operation did not complete"
+ca_expected=$(jq 'length' <<<"$CA_SITES")
+jq -e --argjson expected "$ca_expected" \
+  '.up == $expected and .down == 0 and (.loadBalancerBackendAddresses | length) == $expected and all(.loadBalancerBackendAddresses[]; .state == "Up")' \
+  "$health_body" >/dev/null || die "Canadian ILB does not report every backend healthy"
+printf 'canada_ilb_backends_up=%s/%s\n' "$ca_expected" "$ca_expected"
+
+ilb_message=$(az vm run-command invoke --only-show-errors --resource-group "$CA_RG" --name "$CA_CLIENT" \
+  --command-id RunShellScript --query 'value[0].message' --output tsv \
+  --scripts "curl -skf 'https://${CA_ILB_IP}:65500/' >/dev/null && echo MCN_ILB_OK")
+grep -qF 'MCN_ILB_OK' <<<"$ilb_message" || die "Canadian ILB frontend traffic failed"
+printf 'canada_ilb_traffic=ok\n'
+
+AWS_REGION=$(tf_raw aws_region)
+AWS_RS=$(tf_raw aws_route_server_id)
+AWS_VIP=$(tf_raw aws_vip)
+AWS_DOMAIN=$(tf_raw aws_lb_domain)
+AWS_CLIENT=$(tf_raw aws_test_client_instance_id)
+AWS_PEER_IDS=$(tf_json aws_route_server_peer_ids)
+AWS_ROUTE_TABLES=$(tf_json aws_route_server_propagated_route_tables)
+require_name "AWS region" "$AWS_REGION"
+require_name "AWS Route Server ID" "$AWS_RS"
+require_ipv4 "AWS VIP" "$AWS_VIP"
+require_domain "AWS load-balancer domain" "$AWS_DOMAIN"
+require_name "AWS client instance ID" "$AWS_CLIENT"
+
+aws_peer_args=()
+while IFS= read -r peer_id; do
+  require_name "AWS Route Server peer ID" "$peer_id"
+  aws_peer_args+=("$peer_id")
+done < <(jq -r '.[]' <<<"$AWS_PEER_IDS")
+AWS_PEER_COUNT=${#aws_peer_args[@]}
+[ "$AWS_PEER_COUNT" -eq "$(jq 'length' <<<"$AWS_SITES")" ] || die "AWS site and Route Server peer counts differ"
+
+aws_peers=$(aws ec2 describe-route-server-peers --region "$AWS_REGION" --route-server-peer-ids "${aws_peer_args[@]}" --output json)
+jq -e --argjson expected "$AWS_PEER_COUNT" \
+  '(.RouteServerPeers | length) == $expected and all(.RouteServerPeers[]; .State == "available" and .BgpStatus.Status == "up")' \
+  <<<"$aws_peers" >/dev/null || die "not every AWS Route Server BGP peer is up"
+printf 'aws_bgp_peers_up=%s/%s\n' "$AWS_PEER_COUNT" "$AWS_PEER_COUNT"
+
+aws_routes=$(aws ec2 get-route-server-routing-database --region "$AWS_REGION" --route-server-id "$AWS_RS" --output json)
+propagated_count=$(jq 'length' <<<"$AWS_ROUTE_TABLES")
+jq -e --arg prefix "${AWS_VIP}/32" --argjson peers "$AWS_PEER_COUNT" --argjson tables "$propagated_count" \
+  '[.Routes[] | select(.Prefix == $prefix)] as $routes |
+   ($routes | length) == $peers and
+   all($routes[]; .RouteStatus == "in-fib" and
+     ([.RouteInstallationDetails[] | select(.RouteInstallationStatus == "installed")] | length) == $tables)' \
+  <<<"$aws_routes" >/dev/null || die "AWS VIP is not installed from every peer in every propagated route table"
+printf 'aws_vip_routes_installed=%s/%s\n' "$AWS_PEER_COUNT" "$AWS_PEER_COUNT"
+
+aws_command=$(aws ssm send-command --region "$AWS_REGION" --instance-ids "$AWS_CLIENT" \
+  --document-name AWS-RunShellScript \
+  --parameters "commands=curl -fsS -H 'Host: ${AWS_DOMAIN}' 'http://${AWS_VIP}/' >/dev/null" \
+  --query 'Command.CommandId' --output text)
+require_name "AWS Systems Manager command ID" "$aws_command"
+aws ssm wait command-executed --region "$AWS_REGION" --command-id "$aws_command" --instance-id "$AWS_CLIENT"
+aws_status=$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$aws_command" --instance-id "$AWS_CLIENT" --query Status --output text)
+[ "$aws_status" = "Success" ] || die "AWS test-client traffic failed"
+printf 'aws_client_traffic=ok\n'
+
+KVM_DOMAIN=$(tf_raw kvm_domain_name)
+KVM_FRR=$(tf_raw kvm_frr_container_name)
+KVM_CLIENT=$(tf_raw kvm_client_container_name)
+KVM_VIP=$(tf_raw kvm_vip)
+KVM_LB_DOMAIN=$(tf_raw kvm_lb_domain)
+require_name "KVM domain" "$KVM_DOMAIN"
+require_name "KVM FRR container" "$KVM_FRR"
+require_name "KVM client container" "$KVM_CLIENT"
+require_ipv4 "KVM VIP" "$KVM_VIP"
+require_domain "KVM load-balancer domain" "$KVM_LB_DOMAIN"
+
+[ "$(virsh -c qemu:///system domstate "$KVM_DOMAIN" | tr -d '[:space:]')" = "running" ] || die "KVM CE domain is not running"
+[ "$(docker inspect --format '{{.State.Running}}' "$KVM_FRR")" = "true" ] || die "KVM FRR container is not running"
+[ "$(docker inspect --format '{{.State.Running}}' "$KVM_CLIENT")" = "true" ] || die "KVM client container is not running"
+kvm_summary=$(docker exec "$KVM_FRR" vtysh -c 'show ip bgp summary json')
+jq -e '[.. | objects | .peers? // empty | to_entries[] | select(.value.state == "Established")] | length == 1' \
+  <<<"$kvm_summary" >/dev/null || die "KVM FRR does not have exactly one established CE peer"
+kvm_route=$(docker exec "$KVM_FRR" vtysh -c "show ip bgp ${KVM_VIP}/32 json")
+jq -e '(.paths | length) > 0 and any(.paths[]; .valid == true)' <<<"$kvm_route" >/dev/null ||
+  die "KVM FRR has not learned a valid VIP route"
+docker exec "$KVM_CLIENT" curl -fsS -H "Host: ${KVM_LB_DOMAIN}" "http://${KVM_VIP}/" >/dev/null ||
+  die "KVM client traffic failed"
+printf 'kvm_bgp_peer=established\n'
+printf 'kvm_vip_route=learned\n'
+printf 'kvm_client_traffic=ok\n'
+
+set +e
+"${TF[@]}" plan -detailed-exitcode -no-color >"${EVIDENCE_DIR}/terraform-plan.txt" 2>&1
+plan_exit=$?
+set -e
+[ "$plan_exit" -eq 0 ] || die "Terraform has not converged to a clean plan"
+printf 'terraform_plan=clean\n'
 
 FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 jq -n \
   --arg started_at "$STARTED_AT" \
   --arg finished_at "$FINISHED_AT" \
   --argjson sites_online "$sites_online" \
+  --argjson site_count "$SITE_COUNT" \
   --argjson azure_vms_running "$azure_vms_running" \
-  --argjson password_extensions_succeeded "$password_extensions_succeeded" \
-  --argjson peerings_with_vip "$peerings_with_vip" \
-  --argjson effective_next_hops "$(jq 'length' <<<"$effective_hops")" \
-  --argjson batches "$batches" \
-  --argjson vip_samples "$((vip_ok + vip_fail))" \
-  --argjson vip_failures "$vip_fail" \
-  --argjson origin_samples "$((origin_ok + origin_fail))" \
-  --argjson origin_failures "$origin_fail" \
-  --argjson console_factory_rejected "$console_factory_rejected" \
-  --argjson console_generated_accepted "$console_generated_accepted" \
-  --argjson converged "$converged" \
+  --argjson azure_peerings_with_vip "$azure_peerings_with_vip" \
+  --argjson azure_effective_next_hops "$azure_effective_next_hops" \
+  --argjson canada_ilb_backends_up "$ca_expected" \
+  --argjson aws_bgp_peers_up "$AWS_PEER_COUNT" \
+  --argjson aws_vip_routes_installed "$AWS_PEER_COUNT" \
   '{
     started_at: $started_at,
     finished_at: $finished_at,
     sites_online: $sites_online,
+    site_count: $site_count,
     azure_vms_running: $azure_vms_running,
-    password_extensions_succeeded: $password_extensions_succeeded,
-    peerings_with_vip: $peerings_with_vip,
-    effective_next_hops: $effective_next_hops,
-    batches: $batches,
-    vip_samples: $vip_samples,
-    vip_failures: $vip_failures,
-    origin_samples: $origin_samples,
-    origin_failures: $origin_failures,
-    console_factory_rejected: $console_factory_rejected,
-    console_generated_accepted: $console_generated_accepted,
-    converged: $converged
+    azure_peerings_with_vip: $azure_peerings_with_vip,
+    azure_effective_next_hops: $azure_effective_next_hops,
+    azure_traffic_paths: 2,
+    canada_ilb_backends_up: $canada_ilb_backends_up,
+    canada_ilb_traffic: "ok",
+    aws_bgp_peers_up: $aws_bgp_peers_up,
+    aws_vip_routes_installed: $aws_vip_routes_installed,
+    aws_client_traffic: "ok",
+    kvm_bgp_peer: "established",
+    kvm_vip_route: "learned",
+    kvm_client_traffic: "ok",
+    terraform_plan: "clean"
   }' >"${EVIDENCE_DIR}/summary.json"
 
-printf 'vip_samples=%s vip_failures=%s\n' "$((vip_ok + vip_fail))" "$vip_fail"
-printf 'origin_samples=%s origin_failures=%s\n' "$((origin_ok + origin_fail))" "$origin_fail"
-if [ "$converged" = true ]; then
-  echo 'converged=yes'
-else
-  echo 'converged=no'
-  exit 1
-fi
+echo 'full_showcase_verified=yes'

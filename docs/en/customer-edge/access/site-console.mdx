@@ -1,323 +1,137 @@
 ---
 title: Site Console
-description: F5's per-node Site Console, served on TCP 65500 and reached through an Azure Bastion tunnel. Needs no SSH key, no jump host and no public IP — access is an Azure RBAC decision, and it answers even when the site has failed to register. Covers the exact commands and their real output, the certificate you will be warned about, why the tunnel must target the VM resource id, and how the admin credential should be handled.
+description: Reach an Azure Customer Edge Site Console on TCP 65500 through an Azure Bastion tunnel.
 sidebar:
   order: 22
   label: Site Console
 ---
 
-import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
-import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
+import { Aside, Steps } from "@astrojs/starlight/components";
 
-The transport and certificate examples on this page were captured 2026-07-28. Observed 2026-08-03
-after the deployment was destroyed and rebuilt from zero: the generated credential posture
-described below held on all three nodes.
+Use Site Console when the node has a working Azure network path but the F5 control-plane
+debug API is unavailable. The console runs on the node-local HTTPS service on TCP `65500`.
 
-Every Customer Edge serves F5's Site Console on `https://<sli-ip>:65500`. On this
-deployment it is usually the route to try first.
-
-It asks least of you: no SSH key to distribute, no jump host to maintain, no public IP on
-the node, and no VM replacement to enable it. Who may connect becomes an **Azure RBAC
-decision**. And it does not need the site to be registered: this page was first captured
-while all three sites were reporting `site_state: FAILED`, and re-verified unchanged against
-the same nodes once they were `ONLINE`.
-
-The catch is that the Site Console answers only on the node's internal (SLI) address,
-reachable only from inside the VNet. Azure Bastion closes that gap without putting
-anything else on the network.
-
-<Aside type="note" title="What is verified here, and what is not">
-Every command and every output on this page was run against `f5-xc-ce-vm-01` in this
-deployment and is reproduced verbatim, including the failures.
-
-**Authentication is verified**: on 2026-08-03, each generated per-node `admin` credential
-returned `200` through its tunnel, and the factory credential was rejected on all three
-nodes. What is *not* exercised is the console itself — nothing below describes what you can
-see or do once you are inside.
-
-**Azure RBAC is not verified.** Every run was as the subscription owner, so the Reader
-requirement in step 2 is Microsoft's documented requirement rather than something measured
-here.
-</Aside>
-
-<Aside type="caution" title="Bastion is opt-in, and is not deployed by default">
-`enable_bastion` defaults to `false`, so on a default `terraform apply` there is no Bastion
-host and `terraform output -raw bastion_name` is `null`. Set `enable_bastion = true` in
-`terraform/terraform.tfvars` — it is `true` on this deployment.
-
-The reason it is opt-in is cost, not risk: a Standard-SKU host bills an hourly standing
-charge from the moment it is provisioned, whether or not anyone opens a tunnel — USD
-0.29/hour in `eastus` for the two included scale units (retail, 2026-07), roughly USD 212 a
-month. Turn it off again when the demo does not need console access.
-</Aside>
+The default showcase does not expose an inbound public management rule. An optional Azure
+Bastion host reaches the service through the CE virtual machine resource ID.
 
 ## Before you start
 
+You need Azure access to the CE virtual machine, its network interface, and the Bastion
+host. You also need Azure CLI, Terraform, and `jq`.
+
+<Aside type="caution" title="Bastion is opt-in">
+`enable_bastion` defaults to `false` because Azure Bastion has a standing cost. Set it to
+`true` and follow [Deploy the showcase](../../../showcase/deploy/) before using this procedure.
+</Aside>
+
 <Steps>
 
-1. Sign in to Azure and add the Bastion extension. Tunneling is a native-client feature
-   and the extension is not installed by default.
+1. Sign in to Azure.
 
    ```bash
    az login
    az extension add --name bastion
    ```
 
-2. Hold **Reader** on the CE virtual machine, its network interface, and the Bastion host.
-   This is Microsoft's documented requirement and is **unverified here** — every run in this
-   deployment was as the subscription owner, so no lesser role has been shown to be
-   sufficient or insufficient.
-
-3. Confirm Bastion is deployed and capable. Basic SKU supports neither tunneling nor
-   IP-based connection, so `Standard` and `True` here are both load-bearing.
+2. Confirm that Terraform created a Standard Bastion with tunneling enabled.
 
    ```bash
-   az network bastion list -g "$(terraform output -raw resource_group_name)" \
-     --query "[].{name:name, sku:sku.name, tunneling:enableTunneling}" -o table
-   ```
-
-   ```text
-   Name               Sku       Tunneling
-   -----------------  --------  -----------
-   mcn-ce-ha-bastion  Standard  True
+   az network bastion list \
+     --resource-group "$(terraform -chdir=terraform output -raw resource_group_name)" \
+     --query "[].{name:name, sku:sku.name, tunneling:enableTunneling}" \
+     --output table
    ```
 
 </Steps>
 
 ## Open the tunnel
 
-Take the values from `terraform output` rather than typing them — the resource id is not
-something to assemble by hand.
+Use Terraform outputs for every deployment-specific value.
 
 <Steps>
 
-1. Read the name of the Bastion host, the resource group, and the target CE's VM resource id.
+1. Choose an Azure CE key.
 
    ```bash
-   cd terraform
-   BASTION=$(terraform output -raw bastion_name)
-   RG=$(terraform output -raw resource_group_name)
-   VM_ID=$(terraform output -json ce_vm_ids | jq -r '.eastus01')
+   terraform -chdir=terraform output -json ce_vm_ids | jq -r 'keys[]'
+   export CE_KEY=eastus01
    ```
 
-   ```text
-   mcn-ce-ha-bastion
-   rg-mcn-ce-ha-<deployer>
-   /subscriptions/…/providers/Microsoft.Compute/virtualMachines/f5-xc-ce-vm-01
-   ```
-
-   The resource group name ends in the deployer, resolved by
-   `local.deployer`, so yours will differ. It is elided here for the same reason
-   the subscription is.
-
-   <Aside type="caution" title="The map is keyed by site, not by VM name">
-   `ce_vm_ids` keys are `eastus01`, `eastus02`, `eastus03` — **not** the VM names. A
-   filter like `jq -r '."f5-xc-ce-vm-01"'` returns `null`, and the tunnel then fails on an
-   empty resource id. List them if unsure:
+2. Read the Bastion, resource group, and CE resource ID.
 
    ```bash
-   terraform output -json ce_vm_ids | jq -r 'keys | join(", ")'
+   export BASTION=$(terraform -chdir=terraform output -raw bastion_name)
+   export RESOURCE_GROUP=$(terraform -chdir=terraform output -raw resource_group_name)
+   export CE_VM_ID=$(terraform -chdir=terraform output -json ce_vm_ids | jq -r --arg key "$CE_KEY" '.[$key]')
    ```
 
-   ```text
-   eastus01, eastus02, eastus03
-   ```
-
-   </Aside>
-
-2. Start the tunnel. It holds the port open until stopped, so background it or use a
-   second terminal.
+3. Start the tunnel in a dedicated terminal.
 
    ```bash
    az network bastion tunnel \
      --name "$BASTION" \
-     --resource-group "$RG" \
-     --target-resource-id "$VM_ID" \
+     --resource-group "$RESOURCE_GROUP" \
+     --target-resource-id "$CE_VM_ID" \
      --resource-port 65500 \
-     --port 65500 &
+     --port 65500
    ```
 
-   ```text
-   WARNING: Opening tunnel on port: 65500
-   WARNING: Tunnel is ready, connect on port 65500
-   WARNING: Ctrl + C to close
-   ```
-
-   All three lines are prefixed `WARNING:`. That is the Azure CLI writing progress to
-   stderr, not a problem. Wait for `Tunnel is ready` before connecting.
-
-3. Confirm the listener is local, on loopback:
+4. Confirm that Site Console challenges for authentication.
 
    ```bash
-   lsof -nP -iTCP:65500 -sTCP:LISTEN
+   curl --insecure --head https://localhost:65500/
    ```
 
-   ```text
-   COMMAND   PID  USER  FD  TYPE  DEVICE  SIZE/OFF  NODE  NAME
-   Python  41648  you   7u  IPv4  …            0t0   TCP  127.0.0.1:65500 (LISTEN)
-   ```
+   A healthy unauthenticated service returns `401 Unauthorized` and the
+   `Volterra Site Console` Basic authentication realm.
 
-4. Open the console. The tunnel makes it local, so the address is `localhost` — not the
-   node's address.
+5. Read the CE site name that corresponds to the selected node.
 
    ```bash
-   open https://localhost:65500/          # macOS
-   xdg-open https://localhost:65500/      # Linux
+   export SITE_NAME=$(terraform -chdir=terraform output -json xc_site_names | jq -r --arg key "$CE_KEY" '.[$key]')
    ```
 
-5. Stop the tunnel when you are finished — `Ctrl-C`, or `kill %1` if you backgrounded it.
-   Leaving it open holds local port 65500 and the Bastion session.
+6. Read the site-managed password locally.
+
+   ```bash
+   terraform -chdir=terraform output -json site_console_admin_passwords | jq -r --arg site "$SITE_NAME" '.[$site]'
+   ```
+
+   Do not paste this value into a ticket, terminal transcript, or documentation.
+
+7. Verify the credential without placing it on the command line.
+
+   ```bash
+   curl --insecure --user admin --output /dev/null --write-out '%{http_code}\n' https://localhost:65500/
+   ```
+
+   Enter the password when `curl` prompts. A working credential returns `200`.
+
+8. Open `https://localhost:65500/` in a browser and sign in as `admin`.
+
+9. Stop the tunnel with `Ctrl+C` when you finish.
 
 </Steps>
 
-## What you will see
+## How Terraform manages the credential
 
-**A credential dialog, not a login page.** The console uses HTTP Basic authentication, so
-the browser raises its own username and password prompt. There is no form to look at:
+Terraform generates one password for each Secure Mesh v2 site and sets it through the
+site's supported `admin_user_credentials.admin_password` field. The API receives the
+Base64 value through its `string:///` secret contract over authenticated HTTPS. No cloud
+extension or post-boot script modifies the CE operating system.
 
-```bash
-curl -skI https://localhost:65500/
-```
+The sensitive output is redacted from ordinary `terraform output`, but the password still
+exists in Terraform state. Protect the Azure backend as a secret store.
 
-```text
-HTTP/1.1 401 Unauthorized
-WWW-Authenticate: Basic realm="Volterra Site Console"
-Content-Type: text/html; charset=utf-8
-Content-Length: 0
-```
+## Troubleshoot the tunnel
 
-A `401` with that realm is the console working correctly. It is what an unauthenticated
-request is supposed to get — and supplying the `admin` credential to the same URL answers
-`200`, which is how you confirm the credential before opening a browser:
-
-```bash
-curl -sk -u admin -o /dev/null -w '%{http_code}\n' https://localhost:65500/
-```
-
-```text
-Enter host password for user 'admin':
-200
-```
-
-`-u admin` with no colon makes `curl` prompt for the password rather than take it from the
-command line, where it would land in shell history and in the process list.
-
-**A certificate warning, for three reasons at once.** Checking the certificate directly:
-
-```bash
-openssl s_client -connect localhost:65500 -servername localhost </dev/null 2>/dev/null \
-  | openssl x509 -noout -subject -issuer -dates
-```
-
-```text
-subject=C=US, ST=California, L=Santa Clara, O=Volterra, OU=Volterra Edge Services, CN=site-local.volterra.io
-issuer=C=US, ST=California, L=Santa Clara, O=Volterra, OU=Volterra Edge Services, CN=site-local.volterra.io
-notBefore=Oct 25 04:51:31 2024 GMT
-notAfter=Oct 25 04:51:31 2025 GMT
-```
-
-Subject equals issuer, so it is self-signed. The name is `site-local.volterra.io` while
-you are connecting to `localhost`, so it will not match. In the 2026-07-28 capture above,
-the certificate had also expired on 25 October 2025. The appliance supplied that
-certificate; this repository did not.
-
-Expect a blunt browser warning, and expect it every time. The subject line above is the
-useful part: it is how you confirm you reached the appliance rather than something else
-listening on local port 65500.
-
-## The admin credential
-
-Sign in as `admin`. **This documentation does not publish the password, and should not.**
-
-<Aside type="note" title="Terraform rotates this credential during deployment">
-Terraform generates a distinct 32-character password for every CE and applies it to the
-host's built-in `admin` account with an Azure Custom Script extension. The password reaches
-Azure only through the extension's encrypted `protected_settings`; it is not a normal
-setting, command argument, or published value.
-
-Verified 2026-08-03 after a from-zero rebuild: all three extensions reported `Succeeded`,
-all three generated credentials returned `200`, and the factory credential returned a
-non-`200` response on all three nodes.
-</Aside>
-
-Two reasons not publishing it matters more here than it might look:
-
-- This documentation is public. Printing the fleet's current console password would turn
-  "holds Reader on the Bastion" into full appliance access for anyone who reads the page.
-- A password published in documentation is wrong the moment somebody rotates it, and
-  wrong in the most misleading way — the reader concludes their access is broken rather
-  than that the page is stale.
-
-Read the active node's value only when you need it with
-`terraform -chdir=terraform output -json site_console_admin_passwords`; select the site key
-locally and do not record the result.
-
-The output is sensitive and Terraform redacts it from the ordinary output listing. It still
-exists in Terraform state, so protect the state backend as a secret store and do not paste
-the value into logs or documentation.
-
-<Aside type="caution" title="The site object's password field does not rotate this account">
-`admin_user_credentials.admin_password` on the site object looks like the declarative way
-to set this credential. Testing showed that `vpm` deliberately skips the built-in `admin`
-user, so the field does not rotate the host account. That is why this deployment uses the
-per-VM Azure extension instead.
-</Aside>
-
-## Why the tunnel must target the resource id
-
-`--target-resource-id` is required. Targeting the node's address instead is refused —
-whatever address you use, so there is deliberately no real one printed here:
-
-```bash
-az network bastion tunnel --name "$BASTION" -g "$RG" \
-  --target-ip-address <any-sli-address> --resource-port 65500 --port 65501
-```
-
-```text
-ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.
-```
-
-The reason is **not** that IP-based connection is disabled — on this Bastion
-`ip_connect_enabled` is `true`. Microsoft does not support custom ports over IP-based
-native-client connections regardless of that setting
-([Azure docs](https://learn.microsoft.com/azure/bastion/connect-ip-address)), and 65500 is
-a custom port. Inspecting the Bastion configuration here leads nowhere; use the resource
-id.
-
-## When it does not work
-
-| Symptom | Cause | Fix |
+| Symptom | Cause | Action |
 | --- | --- | --- |
-| `ERROR: Custom ports are not allowed. Allowed ports for Tunnel with IP connect is 22, 3389.` | Used `--target-ip-address` | Use `--target-resource-id` |
-| `ERROR: Defined port is currently unavailable` | Another tunnel already holds that local port | Stop the other tunnel, or pass a different `--port`; `--resource-port` stays 65500 |
-| `terraform output -raw bastion_name` is `null` or empty | Bastion is not deployed | Set `enable_bastion = true` and apply |
-| Tunnel starts but the resource id is empty | `jq` filter used the VM name instead of the site key | Key on `eastus01`/`02`/`03` |
-| `401 Unauthorized`, realm `Volterra Site Console` | Not a fault — unauthenticated request | Supply the `admin` credential |
-| Browser refuses the certificate | Self-signed and name-mismatched; the 2026-07-28 capture was also expired | Confirm the subject is `CN=site-local.volterra.io`, inspect the dates, and apply your certificate policy |
+| `bastion_name` is `null` | Bastion is disabled | Set `enable_bastion = true`, plan, and apply |
+| `Defined port is currently unavailable` | Another process owns local port `65500` | Stop it or choose another local `--port` |
+| `Custom ports are not allowed` | The tunnel used a target IP | Use `--target-resource-id`; keep `--resource-port 65500` |
+| `401 Unauthorized` | The request has no valid credential | Sign in as `admin` with the password for that site name |
+| Browser rejects the certificate | The node-local certificate is not trusted for `localhost` | Inspect the certificate and follow your certificate policy |
 
-<Aside type="note" title="Authorization failures were not reproduced">
-Insufficient RBAC is the other obvious way this fails, but reproducing it would mean
-removing role assignments from a shared deployment, so it is not documented here with a
-verbatim error. If the tunnel fails at start with an authorization error, check Reader on
-all three of the VM, its NIC, and the Bastion host.
-</Aside>
-
-## The other routes
-
-<CardGrid>
-  <LinkCard
-    title="Debug API"
-    description="Scripted and repeatable, needs no VNet access. A 43-command catalog, and the site must be <code>ONLINE</code>."
-    href="../debug-api/"
-  />
-  <LinkCard
-    title="SSH"
-    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
-    href="../ssh/"
-  />
-  <LinkCard
-    title="Serial console"
-    description="For a node with no working network path at all. One session per VM, 2,048-character paste cap."
-    href="../serial-console/"
-  />
-</CardGrid>
+Use [serial console](../serial-console/) if the node has no working network path. Use the
+[debug API](../debug-api/) for repeatable collection after the site becomes `ONLINE`.

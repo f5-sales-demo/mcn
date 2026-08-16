@@ -23,8 +23,8 @@ For a site that is `ONLINE` — if it is not, start with
    [`ip-link-show`](../../commands/network/ip/), then confirm reachability to the
    peer address.
    - **On Azure**: Peers are Azure Route Server instances (`az network routeserver peering list-learned-routes`).
-   - **On AWS**: Peers are the AWS VPC Router / gateway interface (`10.150.0.1`).
-   - **On-Premise KVM**: Peers are the containerized FRR ToR BGP router (`docker exec frr-router vtysh -c "show ip bgp summary"`).
+   - **On AWS**: Peers are Amazon VPC Route Server endpoint addresses. Read them from `terraform output -json aws_route_server_endpoint_addresses`.
+   - **On-premises KVM**: The peer is the containerized FRRouting router. Read its container name from `terraform output -raw kvm_frr_container_name`.
 
 3. **If the session is up but the VIP is unreachable**, check what the node is
    actually advertising with
@@ -54,4 +54,4 @@ topology VRF 2 is the populated inet4 table.
 
 This workflow diagnoses a CE. It does not prove how many equal-cost paths the upstream
 router installed or whether a static path survived a failed CE. For those design and
-verification boundaries, see [Routing and failover](../../high-availability/routing-and-failover/).
+verification boundaries, see [Choose an availability path](../../../architecture/availability/).

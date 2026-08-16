@@ -1,22 +1,185 @@
 ---
 title: Verify the full showcase
-description: Capture health, routing, failover, and traffic evidence for every showcase path.
+description: Prove site health, routing, failover, traffic, restoration, and Terraform convergence.
 sidebar:
   order: 23
 ---
 
-Verify each path before presenting it. Read deployment-specific values from Terraform outputs.
+import { Aside, Steps } from "@astrojs/starlight/components";
 
-```bash
-terraform -chdir=terraform output -json aws_site_names
-terraform -chdir=terraform output -json aws_route_server_peer_ids
-terraform -chdir=terraform output -raw kvm_frr_container_name
-```
+Verify every enabled path before you present the showcase. First capture the complete steady-state
+contract. Then remove one authorized lab path at a time, prove that traffic continues, and restore
+the path.
 
-- Confirm Azure and Canadian sites are online, advertise the VIP, and install multiple ECMP paths. Remove one authorized lab path and confirm traffic continues.
-- Confirm the Canadian ILB reports healthy backends, then stop one authorized backend and confirm the frontend continues serving.
-- Confirm Amazon VPC Route Server has three peers and propagation reaches the test-client route table. Send a request from the AWS test client, then remove one authorized peer path and confirm withdrawal.
-- Confirm the KVM site is online, FRR learns `kvm_vip`, and the macvlan client reaches the service.
+## Prerequisites
+
+- Keep the Azure CLI, AWS CLI, Docker, libvirt, `curl`, and `jq` sessions from
+  [Prepare](../prepare/) active.
+- Export a newly issued `XCSH_API_TOKEN` for the tenant reported by
+  `terraform output -raw xc_tenant`.
+- Run these commands only against the disposable stack named by this Terraform state.
+- Keep evidence outside the repository. Don't publish tokens, signed image URLs, tenant
+  identifiers, account identifiers, resource identifiers, or unfiltered API responses.
+
+<Steps>
+
+1. **Capture the complete steady state.**
+
+   From the repository root, choose a new private directory and run the verifier.
+
+   ```bash
+   EVIDENCE_DIR=$(mktemp -d /tmp/mcn-evidence.XXXXXX)
+   bash scripts/verify-deployment.sh --evidence-dir "$EVIDENCE_DIR"
+   jq . "$EVIDENCE_DIR/summary.json"
+   ```
+
+   The command must end with `full_showcase_verified=yes`. It fails unless all of these statements
+   are true:
+
+   - Every Azure, AWS, Canadian, and KVM F5 site is `ONLINE`.
+   - Every Azure Customer Edge VM is running, each Route Server peer contributes its VIP `/32`,
+     each client has every ECMP next hop, and both clients reach their advertised service.
+   - Azure reports every Canadian ILB backend as healthy, and its frontend serves traffic.
+   - All three Amazon VPC Route Server peers are available and `up`. Every AWS VIP path is in the
+     forwarding database and installed in every propagated route table, and the Systems Manager
+     client reaches the service.
+   - The KVM domain and containers run, FRR has one established peer and a valid VIP route, and the
+     local client reaches the service.
+   - `terraform plan -detailed-exitcode` exits with `0`.
+
+2. **Remove one Rest-of-World Azure path.**
+
+   ```bash
+   cd terraform
+   AZURE_RG=$(terraform output -raw resource_group_name)
+   AZURE_CLIENT=$(terraform output -raw client_vm_name)
+   AZURE_NIC=$(terraform output -raw client_nic_name)
+   AZURE_VIP=$(terraform output -raw vip)
+   AZURE_DOMAIN=$(terraform output -raw lb_domain)
+   AZURE_FAILED_VM=$(terraform output -json ce_vm_names | jq -r 'to_entries[0].value')
+
+   az vm deallocate --resource-group "$AZURE_RG" --name "$AZURE_FAILED_VM"
+   az vm wait --resource-group "$AZURE_RG" --name "$AZURE_FAILED_VM" --deallocated
+
+   az network nic show-effective-route-table \
+     --resource-group "$AZURE_RG" --name "$AZURE_NIC" \
+     --query "value[?addressPrefix[0]=='$AZURE_VIP/32']" --output json \
+     > "$EVIDENCE_DIR/azure-path-removed.json"
+
+   az vm run-command invoke --resource-group "$AZURE_RG" --name "$AZURE_CLIENT" \
+     --command-id RunShellScript \
+     --scripts "curl -fsS -H 'Host: $AZURE_DOMAIN' http://$AZURE_VIP/" \
+     --query 'value[0].message' --output tsv
+
+   az vm start --resource-group "$AZURE_RG" --name "$AZURE_FAILED_VM"
+   ```
+
+   The effective route must lose one next hop while the request continues to succeed.
+
+3. **Remove one Canadian Azure path.**
+
+   ```bash
+   CA_RG=$(terraform output -raw ca_resource_group_name)
+   CA_CLIENT=$(terraform output -raw ca_client_vm_name)
+   CA_NIC=$(terraform output -raw ca_client_nic_name)
+   CA_VIP=$(terraform output -raw ca_vip)
+   CA_DOMAIN=$(terraform output -raw ca_lb_domain)
+   CA_ILB=$(terraform output -raw ca_ilb_frontend_ip)
+   CA_FAILED_VM=$(terraform output -json ca_ce_vm_names | jq -r 'to_entries[0].value')
+
+   az vm deallocate --resource-group "$CA_RG" --name "$CA_FAILED_VM"
+   az vm wait --resource-group "$CA_RG" --name "$CA_FAILED_VM" --deallocated
+
+   az network nic show-effective-route-table \
+     --resource-group "$CA_RG" --name "$CA_NIC" \
+     --query "value[?addressPrefix[0]=='$CA_VIP/32']" --output json \
+     > "$EVIDENCE_DIR/canada-path-removed.json"
+
+   az vm run-command invoke --resource-group "$CA_RG" --name "$CA_CLIENT" \
+     --command-id RunShellScript \
+     --scripts "curl -fsS -H 'Host: $CA_DOMAIN' http://$CA_VIP/; curl -skf https://$CA_ILB:65500/ >/dev/null" \
+     --query 'value[0].message' --output tsv
+
+   az vm start --resource-group "$CA_RG" --name "$CA_FAILED_VM"
+   ```
+
+   This test covers two distinct paths. The BGP result owns `ca_vip`; the ILB result owns
+   `ca_ilb_frontend_ip`. The initial verifier run captures the supported Azure
+   [load-balancing-rule health status](https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-manage-health-status)
+   before the failure. During the failure, the route must lose one BGP next hop and both requests
+   must continue to succeed.
+
+4. **Remove one AWS path.**
+
+   ```bash
+   AWS_REGION=$(terraform output -raw aws_region)
+   AWS_RS=$(terraform output -raw aws_route_server_id)
+   AWS_CLIENT=$(terraform output -raw aws_test_client_instance_id)
+   AWS_VIP=$(terraform output -raw aws_vip)
+   AWS_DOMAIN=$(terraform output -raw aws_lb_domain)
+   AWS_FAILED_VM=$(terraform output -json aws_ce_instance_ids | jq -r 'to_entries[0].value')
+
+   aws ec2 stop-instances --region "$AWS_REGION" --instance-ids "$AWS_FAILED_VM"
+   aws ec2 wait instance-stopped --region "$AWS_REGION" --instance-ids "$AWS_FAILED_VM"
+
+   aws ec2 get-route-server-routing-database --region "$AWS_REGION" \
+     --route-server-id "$AWS_RS" \
+     --query "Routes[?Prefix=='$AWS_VIP/32']" --output json \
+     > "$EVIDENCE_DIR/aws-path-removed.json"
+
+   AWS_COMMAND=$(aws ssm send-command --region "$AWS_REGION" --instance-ids "$AWS_CLIENT" \
+     --document-name AWS-RunShellScript \
+     --parameters "commands=curl -fsS -H 'Host: $AWS_DOMAIN' http://$AWS_VIP/" \
+     --query 'Command.CommandId' --output text)
+   aws ssm wait command-executed --region "$AWS_REGION" \
+     --command-id "$AWS_COMMAND" --instance-id "$AWS_CLIENT"
+   aws ssm get-command-invocation --region "$AWS_REGION" \
+     --command-id "$AWS_COMMAND" --instance-id "$AWS_CLIENT" \
+     --query Status --output text
+
+   aws ec2 start-instances --region "$AWS_REGION" --instance-ids "$AWS_FAILED_VM"
+   aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$AWS_FAILED_VM"
+   ```
+
+   The routing database must lose the stopped peer's VIP path, and the Systems Manager command
+   must report `Success` through the remaining sites.
+
+5. **Prove KVM routing directly.**
+
+   ```bash
+   KVM_FRR=$(terraform output -raw kvm_frr_container_name)
+   KVM_CLIENT=$(terraform output -raw kvm_client_container_name)
+   KVM_VIP=$(terraform output -raw kvm_vip)
+   KVM_DOMAIN=$(terraform output -raw kvm_lb_domain)
+
+   docker exec "$KVM_FRR" vtysh -c 'show ip bgp summary' -c "show ip bgp $KVM_VIP/32"
+   docker exec "$KVM_CLIENT" curl -fsS -H "Host: $KVM_DOMAIN" "http://$KVM_VIP/"
+   ```
+
+   FRR must show one established CE peer and a selected VIP `/32`. The client request must succeed
+   through FRR.
+
+6. **Capture the restored state.**
+
+   Wait for every restored CE and BGP session to converge. Then return to the repository root and
+   run the complete verifier with a new evidence directory.
+
+   ```bash
+   cd ..
+   RESTORED_EVIDENCE_DIR=$(mktemp -d /tmp/mcn-restored-evidence.XXXXXX)
+   bash scripts/verify-deployment.sh --evidence-dir "$RESTORED_EVIDENCE_DIR"
+   jq . "$RESTORED_EVIDENCE_DIR/summary.json"
+   ```
+
+   Don't present or destroy the stack until this second run ends with
+   `full_showcase_verified=yes`.
+
+</Steps>
+
+<Aside type="caution" title="A successful request is not enough">
+Keep the peer state and route evidence with each traffic result. A request can succeed through a
+different path while the path you intended to demonstrate is absent.
+</Aside>
 
 Use [BGP diagnostics](../../customer-edge/workflows/bgp-diagnostics/) and
-[data-plane diagnostics](../../customer-edge/workflows/dataplane-diagnostics/) for symptom-led commands.
+[data-plane diagnostics](../../customer-edge/workflows/dataplane-diagnostics/) when a check fails.
