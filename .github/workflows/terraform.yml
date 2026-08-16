@@ -1,15 +1,14 @@
 ---
 name: Terraform
 
-# Config-validity + plan-test gate. This is a MULTI-PROVIDER plan (F5 XC + Azure),
-# but CI runs entirely WITHOUT Azure or XC credentials and does NOT perform a live
-# plan/apply:
+# Config-validity + plan-test gate for the complete XC, Azure, AWS, libvirt, and
+# Docker showcase. CI runs without live credentials and does not perform an apply:
 #
 #   - The Azure providers (azurerm/azuread) require a service principal, which the
 #     F5 corporate Entra tenant does not permit provisioning. A live plan/apply
 #     against Azure is therefore a local/VPN operation (see CONTRIBUTING.md).
-#   - The plan-level tests (tests/*.tftest.hcl) MOCK all three providers, so they
-#     need no credentials of any kind. They are command = plan (no live API call).
+#   - The plan-level tests (tests/*.tftest.hcl) mock every external provider, so
+#     they need no credentials. They use command = plan and make no live API call.
 on:
   pull_request:
     branches: [main]

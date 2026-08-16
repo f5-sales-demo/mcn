@@ -1,7 +1,6 @@
-# Root integration plan test. Mocks all three providers so the whole graph
-# (hub -> CE VMs -> XC sites/bgp -> RS bgp connections -> client -> origin pool +
-# HTTP LB) plans with no Azure or XC credentials. Passing ssh_public_key material
-# means the root never reads a key file.
+# Root integration plan test. Mocks the external providers so the full Azure,
+# Canada, AWS, and KVM graph plans without credentials. Passing ssh_public_key
+# material means the root never reads a key file.
 
 mock_provider "azurerm" {}
 mock_provider "azuread" {}

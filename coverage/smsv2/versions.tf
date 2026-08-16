@@ -10,9 +10,8 @@ terraform {
 
 # 3.80.0 is the floor because it is the first release carrying the `x-f5xc-wire-name` contract
 # (specs v2.1.194): `blocked_services` cannot round-trip on anything older (provider #1257).
-# It stays 3.80.0 rather than tracking the newest release because that is the honest MINIMUM at
-# which every arm in this probe works — the root terraform/versions.tf floor is higher (>= 3.81.1)
-# because the deployment, unlike this probe, declares xcsh_registration_approval.
+# It stays 3.80.0 rather than tracking the deployment release because this isolated probe verifies
+# the minimum provider contract that first exposed every Secure Mesh v2 arm it exercises.
 #
 # This floor is the ONLY TRACKED place a provider version is pinned (`.terraform.lock.hcl` also
 # pins one at runtime, but it is gitignored, so it cannot be a source of truth for a reader). Do
