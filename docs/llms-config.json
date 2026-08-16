@@ -1,3 +1,4 @@
 {
+  "promote": ["customer-edge/automation-contract*"],
   "demote": ["**/customer-edge/commands/**"]
 }
