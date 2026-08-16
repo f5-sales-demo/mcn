@@ -15,6 +15,8 @@ the local system libvirt daemon, and the local Docker daemon.
 - Terraform 1.10 or later.
 - Azure CLI access to the target subscription and the Azure Blob state account.
 - AWS CLI access to the target account and region.
+- AWS quota and regional capacity for three `m5.2xlarge` Customer Edge instances with 80 GB
+  encrypted gp3 root volumes, plus one `t3.micro` test client.
 - An F5 Distributed Cloud credential for the configured tenant, with access to manage Secure Mesh
   v2 sites, BGP, virtual sites, origin pools, and HTTP load balancers; read the KVM image URL; and
   issue site node cloud-init.
@@ -24,9 +26,9 @@ the local system libvirt daemon, and the local Docker daemon.
 - Marketplace access to the F5 Customer Edge images used by Azure and AWS.
 
 The AWS configuration resolves the current Marketplace AMI from AWS Systems Manager parameter
-`/aws/service/marketplace/prod-wrwzhcymymama/latest`. The KVM configuration retrieves F5's signed
-QCOW2 URL through `xcsh_site_image`; it accepts neither a caller-supplied image path nor a generic
-cloud image.
+`/aws/service/marketplace/prod-wrwzhcymymama/latest` and expands each CE root volume to the required
+80 GB minimum. The KVM configuration retrieves F5's signed QCOW2 URL through `xcsh_site_image`; it
+accepts neither a caller-supplied image path nor a generic cloud image.
 
 ## Protect credentials and state
 

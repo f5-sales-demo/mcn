@@ -104,8 +104,10 @@ vip              = "10.250.0.10"
 enable_aws = true
 enable_kvm = true
 
-aws_lb_domain = "aws.mcn-ce-ha.example.com"
-kvm_lb_domain = "kvm.mcn-ce-ha.example.com"
+ca_lb_domain             = "ca.mcn-ce-ha.example.com"
+aws_lb_domain            = "aws.mcn-ce-ha.example.com"
+aws_root_volume_size_gb  = 80
+kvm_lb_domain            = "kvm.mcn-ce-ha.example.com"
 
 # Use these opt-outs only for focused lab runs.
 # enable_aws        = false
