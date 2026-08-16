@@ -1,0 +1,150 @@
+---
+title: Customer Edge automation contract
+description: Provider-neutral safety, planning, approval, lifecycle, and evidence requirements for Secure Mesh Site v2 automation.
+sidebar:
+  order: 5
+  label: Automation contract
+---
+
+This document is the canonical provider-neutral contract for automating an F5 Distributed Cloud
+Customer Edge (CE) as a **Secure Mesh Site v2**. Provider integrations must retrieve this exact
+document before planning, validate the receipt below, and bind its normalized content digest into
+every plan.
+
+```yaml
+contract_id: f5xc-ce-automation
+contract_version: v1
+```
+
+The combined contract identity is `f5xc-ce-automation/v1`. A missing document, an unknown identity
+or version, or a digest that changes after planning is a fail-closed condition. This document guides
+automation, but it does not grant permissions, approve changes, or weaken executable validation.
+
+## Research and immutable plans
+
+Recommendations must begin with current, authoritative F5 and provider sources. Record the source
+URL, retrieval time, normalized SHA-256 digest, and any version or capability evidence used. Do not
+plan from remembered product behaviour when a current source can be checked.
+
+A plan is a canonical, immutable, secret-free description of the intended result and the exact
+ordered actions needed to reach it. It records an observation fingerprint over every fact that can
+change the safety or outcome of apply, including identity, capabilities, inventory, policy,
+capacity, routing, health, and source receipts. Identical intent and observations must produce
+byte-identical plans, hashes, ownership inventories, and commands. Apply must reject a changed
+fingerprint or source digest and require rediscovery and replanning.
+
+Plans may contain opaque references to session-owned secret material. They must never contain a
+bootstrap token, rendered user data, credential, private key, or another reusable secret. Plan
+files, logs, diagnostics, command traces, and test artifacts must remain safe to retain.
+
+## Topology, interfaces, and routing domains
+
+The supported site topology is exactly one node with High Availability disabled or exactly three
+nodes with High Availability enabled. Automation must not reinterpret several independent
+single-node sites as a three-node site.
+
+Interfaces are an ordered contract. Each node in a three-node site has the same interface count,
+role order, routing-domain assignment, and addressing model. The Site Local Outside interface and
+every additional interface must be represented explicitly; an out-of-band management interface,
+when the current platform supports it, also occupies its documented position. An interface or
+Virtual Routing and Forwarding (VRF) change that breaks ordering or symmetry is replacement work,
+not an in-place convenience edit.
+
+Routing intent must name every peer, route domain, advertised and accepted prefix, and health gate.
+Provider integrations choose the concrete network resources, but may not hide asymmetric or
+implicit routing behind a generic profile name.
+
+## Ownership and brownfield boundaries
+
+Every mutable object is either created and tagged by the deployment, or is pre-existing brownfield
+state named in an explicit allowlist. Discovery records stable identifiers and the complete
+before-state for every allowlisted object. Apply may mutate only the approved inventory. A name,
+tag, subnet, route table, or account discovered near the requested site is not implicit permission
+to modify it.
+
+Owned objects must carry a deployment identifier and the plan digest in addition to the
+provider-specific ownership marker. Reconcile and teardown refuse unowned, ambiguously owned, or
+cross-scope objects. Brownfield mutations must be reversible: restoration recreates the exact
+recorded routes, associations, propagations, registrations, priorities, and other relationships
+before owned dependencies are removed.
+
+## Bootstrap material
+
+Bootstrap credentials are opaque, expiring, one-use values. Store them only in a directory owned
+by the current session, with directory mode `0700` and file mode `0600`. An opaque reference binds
+the credential to its digest, expiry, owner, deployment, plan, and permitted operation without
+revealing its value.
+
+Immediately before use, validate every binding and materialize user data only in a session-owned
+`0600` file. Pass the file path to the provider command, never the rendered contents. Consume the
+credential once and delete the materialized file immediately, including on failure. Reject expired,
+reused, wrong-owner, wrong-plan, and wrong-operation references. Do not place bootstrap material in
+arguments, environment snapshots, process output, provider audit-oriented command strings, plans,
+logs, or artifacts.
+
+## Separate approvals
+
+Approval is specific and non-transitive. Automation keeps these decisions separate:
+
+1. **Mutation approval** authorizes the exact persisted plan and ownership inventory.
+2. **Legal approval** records that a human accepted provider Marketplace terms; automation must not
+   perform initial legal acceptance.
+3. **Active-diagnostic approval** authorizes named probes that create traffic, load, or state.
+4. **Destruction approval** authorizes the exact teardown inventory after restoration is planned.
+
+Interactive confirmation and headless gates must fail closed. Research and discovery are read-only.
+Planning does not authorize apply, legal acceptance, an active probe, or deletion. A plan must list
+all billable resources before mutation approval is requested.
+
+## Apply, health, and routing gates
+
+Apply executes only structured argument arrays already present in the persisted plan. Revalidate the
+contract receipt, provider and F5 sources, observation fingerprint, identity, permissions,
+capabilities, capacity, images or artifacts, ownership, tags, and complete routing state immediately
+before the first mutation and again at the relevant action boundary.
+
+Creation is not success. Progress through explicit gates:
+
+1. provider resource health;
+2. node registration with the intended F5 tenant and site;
+3. F5 node and site health;
+4. peer-session and route convergence;
+5. provider load-balancing or routing health, when present;
+6. authorized traffic evidence.
+
+Stop on failed or ambiguous evidence. In a three-node site, lifecycle work proceeds one node at a
+time and must pass every applicable gate before the next node changes. Disruptive single-node work
+requires an explicit maintenance warning because no sibling can carry traffic.
+
+## Resume and lifecycle
+
+The durable journal records the plan digest, action state, provider identifiers, ownership evidence,
+rollback data, and sanitized gate results after every action. Resume reloads the exact plan, repeats
+all drift and authorization checks, and continues only from a provably completed boundary. It must
+never infer completion from a resource name alone or silently regenerate a changed plan.
+
+Deploy, reconcile, start, stop, resize, network updates, node replacement, repair, and teardown all
+use the same discovery-plan-approve-apply contract. Lifecycle recommendations require current-source
+research because supported transitions and maintenance requirements can change. Replacement preserves
+topology and interface symmetry and uses the same registration, health, routing, and traffic gates
+as initial deployment.
+
+## Teardown, restoration, and evidence
+
+Teardown first freezes the approved inventory and compares it with live state. Drain or withdraw
+traffic through the provider-supported mechanism, restore every brownfield object exactly, prove the
+restored relationships, and only then delete owned resources in reverse dependency order. If exact
+restoration cannot be proven, stop before deleting the evidence or dependencies needed to repair it.
+
+Completion evidence includes the contract and source receipts, plan and observation digests,
+identity and scope, sanitized command results, ownership inventory, registration and health states,
+routing and traffic gates, restoration comparison, and a final inventory proving that no owned
+resource remains. Evidence must be deterministic, redactable, and continuously scanned for secrets.
+No mutation outside the approved inventory and no secret disclosure are acceptable outcomes.
+
+## Provider boundary
+
+Provider integrations own Marketplace identifiers, commands, resource models, quotas, addressing,
+concrete routing implementation, and provider diagnostics. They must enforce every safety property
+above in executable code. They may add stricter validation, but remote documentation, model
+reasoning, or provider defaults may never relax this contract or authorize an action.
