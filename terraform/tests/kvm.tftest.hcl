@@ -17,13 +17,7 @@ mock_provider "xcsh" {
 }
 mock_provider "aws" {}
 mock_provider "libvirt" {}
-mock_provider "docker" {
-  mock_resource "docker_image" {
-    defaults = {
-      image_id = "sha256:mock-container-image"
-    }
-  }
-}
+mock_provider "docker" {}
 mock_provider "random" {
   mock_resource "random_password" {
     defaults = { result = "MockSitePassword-42!" }
