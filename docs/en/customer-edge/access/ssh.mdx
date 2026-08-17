@@ -1,6 +1,6 @@
 ---
 title: SSH
-description: Operator SSH to the Customer Edge admin account, whose login shell is the Site CLI. Covers why the API field that looks like it enables this does nothing, why sshd answers on the internal address only, the terminal mechanics the Site CLI requires, and what enabling it costs on a running deployment.
+description: Connect to the Customer Edge admin account over SSH to access the full on-box Site CLI. Explains key injection via cloud-init, network listener behavior on the internal interface, and interactive terminal requirements.
 sidebar:
   order: 25
   label: SSH
@@ -300,7 +300,7 @@ never came online has usually already told you why here — before
 </Steps>
 
 <Aside type="note" title="The VM's own admin_ssh_key is a different thing">
-`azurerm_linux_virtual_machine.admin_ssh_key` in `modules/ce-node` authorises the Azure
+`azurerm_linux_virtual_machine.admin_ssh_key` in `modules/ce-node` authorizes the Azure
 VM administrator, not the appliance `admin` account. It grants no Site CLI access, and
 having it set is not evidence that CE SSH is configured.
 </Aside>
@@ -343,7 +343,7 @@ as "not configured" rather than "not reported".
   />
   <LinkCard
     title="Serial console"
-    description="For a node that never registered, or has no working network path. Needs a terminal, or the websocket harness."
+    description="For a node that never registered, or has no working network path. Needs a terminal, or the WebSocket harness."
     href="../serial-console/"
   />
 </CardGrid>

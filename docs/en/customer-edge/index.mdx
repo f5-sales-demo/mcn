@@ -1,6 +1,6 @@
 ---
 title: Customer Edge diagnostics
-description: Read this tier first when a Customer Edge misbehaves. Establishes which of the four access paths applies, because the wrong one silently returns nothing.
+description: Review this tier first when troubleshooting a Customer Edge to determine the appropriate access path, as an incorrect path yields no diagnostic output.
 sidebar:
   order: 10
   label: Customer Edge
@@ -9,71 +9,68 @@ sidebar:
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-A Customer Edge (CE) is the F5 Distributed Cloud node this repository provisions into
-Azure — `terraform/modules/ce-node`, built from the
-`volterraedgeservices/volterra-node` marketplace image.
+A Customer Edge (CE) is an F5 Distributed Cloud node provisioned in Azure via
+`terraform/modules/ce-node`, built from the `volterraedgeservices/volterra-node` marketplace image.
 
-It runs the data plane (Argo), the control plane (Vega), an Envoy proxy, a Kubernetes
-stack, and `vpm`, the agent that registers the node and manages everything else on
-it.
+Each node runs the Argo data plane, the Vega control plane, an Envoy proxy, a Kubernetes stack,
+and `vpm` (the agent that handles node registration and process management).
 
-When a CE misbehaves, the Site CLI is the instrument. The first decision is which
-access path applies, and getting it wrong wastes time in a way that looks like a
-broken node.
+When troubleshooting a CE, the Site CLI is the primary diagnostic tool. Selecting the correct
+access path is essential, as choosing the wrong path produces no output and can easily be
+mistaken for an unresponsive node.
 
 ## Four access paths, and they are not interchangeable
 
 <CardGrid>
   <LinkCard
     title="Debug API"
-    description="For a node that is <code>ONLINE</code>. Scriptable, with a 43-command catalog and an enforced capture allow-list."
+    description="For a node that is <code>ONLINE</code>. Scriptable, with a 43-command catalog and an enforced capture allowlist."
     href="./access/debug-api/"
   />
   <LinkCard
     title="Site Console"
-    description="F5's own per-node troubleshooting UI, over an Azure Bastion tunnel. No SSH key, no jump host."
+    description="F5 built-in per-node troubleshooting UI over an Azure Bastion tunnel. Requires no SSH key or jump host."
     href="./access/site-console/"
   />
   <LinkCard
     title="SSH"
-    description="The full on-box Site CLI. Needs a key present from first boot and a host inside the VNet."
+    description="The complete on-box Site CLI. Requires a public key injected at first boot and network access within the VNet."
     href="./access/ssh/"
   />
   <LinkCard
     title="Serial console"
-    description="For a node that never registered. The only route when the node has no network path."
+    description="For an unregistered node. The only remaining path when the node has no network connectivity."
     href="./access/serial-console/"
   />
 </CardGrid>
 
-The debug API reaches the node **through the F5 Distributed Cloud control plane**.
-That is the whole reason the split matters: the API can only answer once the node has
-registered and reports `ONLINE`.
+The debug API communicates with the node **through the F5 Distributed Cloud control plane**.
+Consequently, the API responds only after the node successfully registers and transitions to
+`ONLINE`. If a node fails to register (for example, due to a cloud-init failure, an expired token,
+or an unreachable route to `register.ves.volterra.io`), the debug API cannot serve diagnostics.
 
-A node that failed to register — bad cloud-init, an expired token, no route to
-`register.ves.volterra.io` — is exactly the case where you need diagnostics, and
-exactly the case the API cannot serve.
+[Site Console](./access/site-console/) provides F5's built-in troubleshooting user interface rather
+than individual command execution. It requires minimal prerequisites—no SSH keys, jump hosts, or
+public IP addresses on the node—relying instead on Azure Role-Based Access Control (RBAC). It
+remains accessible whether or not the site has registered. However, it requires an Azure Bastion
+host, which is controlled by `enable_bastion` and disabled by default.
 
-[Site Console](./access/site-console/) is the one to try first when you want F5's own
-troubleshooting UI rather than specific commands. It asks least of you — no key, no jump
-host, no public IP on the node — because who may connect becomes an Azure RBAC decision, and
-it answers whether or not the site has registered. It needs Azure Bastion, which this
-deployment gates behind `enable_bastion` and which is not deployed by default.
+[SSH](./access/ssh/) provides access to the appliance's complete command surface (exceeding the 43
+commands exposed via the debug API). SSH access has two key requirements: `sshd` listens
+exclusively on the node's internal Site Local Inside (SLI) address (requiring connectivity within the
+virtual network (VNet)), and SSH public keys must be injected via cloud-init during initial boot.
+Because `vpm` ignores the `admin` user's `ssh_key` field on the site object after creation, enabling
+SSH on existing nodes requires node recreation.
 
-[SSH](./access/ssh/) is the only route that reaches the appliance's full command surface —
-the debug API exposes 43 commands and the node itself offers many more. Two things constrain
-it. `sshd` answers on the node's internal (SLI) address only, so it needs a host inside the
-VNet; and the key is written by cloud-init at first boot, because the `ssh_key` field on the
-site object is inert — `vpm` skips the `admin` user and never applies it. Enabling it on
-running nodes therefore replaces them.
+In summary:
 
-So: if the site is `ONLINE` and the debug catalog is enough, use the debug API. For a UI, or for a
-node that never registered but still has a network path, use Site Console. If you need the
-rest of the command surface and can reach the VNet, use SSH. If the node has no working
-network path at all, serial console is the only way in.
+- **Debug API**: Use when the site is `ONLINE` and the standard debug catalog is sufficient.
+- **Site Console**: Use for graphical troubleshooting or when a node has network reachability but failed registration.
+- **SSH**: Use when full on-box command access is required from within the VNet.
+- **Serial console**: Use as the last resort when the node has no network connectivity.
 
 <Aside type="caution" title="Check the site state first — and check you are asking the right tenant">
-One request tells you which path you are on:
+One request identifies the current site state:
 
 ```bash
 curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
@@ -81,53 +78,47 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
   | jq -r '.spec.site_state'
 ```
 
-`ONLINE` means the debug API will work. Anything else means Site Console or serial console.
+`ONLINE` indicates that the debug API is operational. Any other state requires the Site Console or serial console.
 
-A site that **does not exist** has a second explanation before "it never registered": you
-are pointed at the wrong tenant. The tenant this deployment belongs to is pinned by
-`var.expected_xc_tenant`, and `cd terraform && terraform output -raw xc_tenant` reports it
-without touching anything; its console is `https://<XC_TENANT>.console.ves.volterra.io`. A
-credential minted for another tenant returns a bare `401`, which reads as an expired token.
+If a site **does not exist**, verify the target tenant before assuming a registration failure. The
+expected tenant is defined by `var.expected_xc_tenant` and can be inspected via
+`cd terraform && terraform output -raw xc_tenant`; its console is hosted at
+`https://<XC_TENANT>.console.ves.volterra.io`. A credential minted for a different tenant returns an
+HTTP `401` Unauthorized error, which can be easily misinterpreted as an expired token.
 </Aside>
 
 ## Safety rules
 
-These hold for every command on every page below.
+These rules apply to all commands across the diagnostics suite:
 
-- **Read-only unless you are certain.** The command surface is split into two
-  privilege tiers, and the `Exec` tier either mutates the node or reads a state
-  marker. Nothing on these pages runs an `Exec` command, and neither does the
-  capture harness.
-- **Never assume a command is safe from its name.** `ip-link-set` reads like a
-  query and takes an interface down. `systemctl-restart-crio` restarts the
-  container runtime under a live data plane.
-- **Prefer the narrowest command that answers the question.** `health` and
-  `diagnosis` summarise the node cheaply; `flow-l` dumps every live flow, and
-  `flow-l-match` answers the same question about one connection.
-- **A CE serves live traffic.** These are shared demo environments. Assume someone
-  is presenting from the site you are debugging.
+- **Read-only by default.** The command surface is split into two privilege tiers. The `Exec` tier
+  either mutates node configuration or modifies state markers. The documentation and capture harnesses
+  never execute `Exec` commands.
+- **Never assume safety from a command name.** For example, `ip-link-set` resembles a query command
+  but brings an interface down. Similarly, `systemctl-restart-crio` restarts the container runtime
+  under an active data plane.
+- **Prefer the narrowest command that answers the question.** `health` and `diagnosis` summarize
+  node state efficiently; `flow-l` dumps all active flows, whereas `flow-l-match` targets a single
+  connection.
+- **Customer Edges serve live traffic.** In shared demonstration environments, always assume another
+  user is actively presenting through the site under investigation.
 
-## What is documented here
+## Documented surfaces
 
-Every command reachable through the debug API on the software build this tenant runs,
-each with output captured from a live node rather than transcribed from elsewhere.
+This documentation covers every command reachable through the debug API on the software build
+deployed in this tenant, with output captured directly from live nodes:
 
-The [command reference](./commands/) lists all of them with their category, privilege
-tier and transport; the [workflows](./workflows/) chain them into the sequences you
-actually use when something is wrong.
+- The [command reference](./commands/) catalogs all commands by category, privilege tier, and transport.
+- The [workflows](./workflows/) combine individual commands into operational troubleshooting sequences.
+- The on-box reference catalogs the six top-level commands and 89 `execcli` subcommands exposed by
+  the build. `scripts/sitecli_ssh_harvest.py` drives the interactive completion menu over [SSH](./access/ssh/)
+  and captures the appliance's built-in descriptions. Execution is default-denied, executing only an explicit allowlist.
 
-The on-box reference separately records the six top-level commands and 89 `execcli`
-subcommands exposed by the same build. `scripts/sitecli_ssh_harvest.py` drives the appliance's
-completion menu over [SSH](./access/ssh/) and records the description the appliance gives for
-each command, so the surface is measured rather than guessed at. Its execution is
-default-denied: it enumerates everything and runs only an allow-list.
+In addition to command references:
 
-Alongside the command surface, [the interface model](./interface-model/) covers what the
-three network interface cards on each node actually are: why the Site Local Outside (SLO)
-interface is the one reserved for reaching F5, what the Secure Mesh Site v2 management
-network is and the constraints that decide whether you can use it, and why the `mgmt` NIC
-here is not an out-of-band management interface.
-
-For architecture rather than diagnostics, [Customer Edge high availability](./high-availability/)
-separates multi-node clustering from several independent sites joined by BGP and ECMP, then
-explains route withdrawal, path limits, flow affinity, and application persistence.
+- The [interface model](./interface-model/) explains the three network interface cards (NICs) on each
+  node: the role of the Site Local Outside (SLO) interface, the constraints of the Secure Mesh Site v2
+  management network, and why the `mgmt` NIC is not an out-of-band interface.
+- The [high-availability guide](./high-availability/) contrasts multi-node clustering with independent
+  sites joined by Border Gateway Protocol (BGP) and Equal-Cost Multi-Path (ECMP), detailing route withdrawal,
+  path limits, flow affinity, and session persistence.

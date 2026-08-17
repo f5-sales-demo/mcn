@@ -1,6 +1,6 @@
 ---
 title: Packet capture
-description: The five vifdump commands that capture packets on a Customer Edge's virtual interfaces. Documented from verified catalog metadata and never run here, because they write capture files onto the node — including an account of what happened when one was invoked as a harmless-looking probe.
+description: Reference the five vifdump commands for capturing packet traces on Customer Edge virtual interfaces, including disk safety implications and harvest policies.
 sidebar:
   order: 30
   label: Packet capture
@@ -30,8 +30,8 @@ node that was still registering. Whether a capture started is unknown, because t
 destroyed and rebuilt before it could be checked.
 
 That is the whole argument for the harness's design: execution is **default-denied**, not
-deny-listed. `vifdump` was on no deny-list, because nobody had thought of it. Only an
-explicit allow-list refuses the command nobody thought of.
+denylisted. `vifdump` was on no denylist, because nobody had thought of it. Only an
+explicit allowlist refuses the command nobody thought of.
 
 ## `vifdump`
 

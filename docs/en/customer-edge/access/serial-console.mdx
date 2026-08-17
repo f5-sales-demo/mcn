@@ -1,6 +1,6 @@
 ---
 title: Serial console
-description: The break-glass route into a Customer Edge that never registered, where the debug API cannot reach. Covers the boot diagnostics prerequisite, how to check availability from a script, and two failures that look like outages but are not.
+description: Access an unregistered or network-isolated Customer Edge via Azure Serial Console. Covers boot diagnostics prerequisites, scripted connectivity verification, and troubleshooting common session disconnects.
 sidebar:
   order: 30
   label: Serial console
@@ -140,7 +140,7 @@ debug API cannot:
   A node that never registers usually failed here, and this is where you see it.
 - **Both container runtimes started.** `Container Runtime Interface for OCI (CRI-O)`
   and `Docker Application Container Engine` are each `[ OK ]`, which is the boot-time
-  proof of the dual-runtime behaviour that surprises people in
+  proof of the dual-runtime behavior that surprises people in
   [crictl](../../commands/system/crictl/) and [Docker](../../commands/system/docker/).
 - **`VP Manager image load` and `Argo Watch service`** — `vpm` and Argo coming up.
 - **The prompt is the node's own**, behind its audit banner. Serial console gets you a
@@ -158,7 +158,7 @@ ERROR: (19, 'Operation not supported by device')
 
 That traceback is terminal handling, not a serial console outage.
 
-The attach itself, however, **is** automatable — drive the websocket directly instead
+The attach itself, however, **is** automatable — drive the WebSocket directly instead
 of the CLI. The transcript above was captured that way, with no TTY. See
 `scripts/serial_console_capture.py`, which is how you would collect boot evidence from
 a node that failed to register without a human sitting at a terminal.
@@ -172,7 +172,7 @@ bearer token. Even when that is done correctly the socket often closes immediate
 [close] code=1011 reason=Connection not trusted
 ```
 
-Observed behaviour: it succeeds intermittently, and under sustained use every node in
+Observed behavior: it succeeds intermittently, and under sustained use every node in
 the resource group refuses — including nodes that worked minutes earlier.
 `scripts/serial_console_capture.py` retries by default because retrying often works.
 
@@ -181,12 +181,12 @@ guess that wastes time:
 
 | Not this | How to confirm |
 | --- | --- |
-| ARM/compute throttling | That returns HTTP `429` on ARM calls. This is a websocket close on a separate data channel. |
-| TLS interception by a proxy | `openssl s_client -connect <region>.gateway.serialconsole.azure.com:443 \| openssl x509 -noout -issuer`. A genuine `O=Microsoft Corporation` issuer rules it out; a proxy vendor as issuer confirms it, and the fix is to allow-list `*.serialconsole.azure.com`. |
+| ARM/compute throttling | That returns HTTP `429` on ARM calls. This is a WebSocket close on a separate data channel. |
+| TLS interception by a proxy | `openssl s_client -connect <region>.gateway.serialconsole.azure.com:443 \| openssl x509 -noout -issuer`. A genuine `O=Microsoft Corporation` issuer rules it out; a proxy vendor as issuer confirms it, and the fix is to allowlist `*.serialconsole.azure.com`. |
 | Boot diagnostics disabled | `az vm show -g <rg> -n <vm> --query diagnosticsProfile` reporting `enabled: true`. |
 | Token mismatch between grant and challenge | Using one token for both is correct practice, but does not prevent the close. |
 
-What *is* documented Azure behaviour: **one serial console session per VM, and a second
+What *is* documented Azure behavior: **one serial console session per VM, and a second
 successful request evicts the first.** The evicted user is disconnected but not logged
 out, so the shell session survives. Two people debugging one node will displace each
 other repeatedly.

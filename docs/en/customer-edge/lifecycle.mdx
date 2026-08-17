@@ -19,16 +19,14 @@ left a clean Terraform plan.
 
 ## What the version fields do, in two phases
 
-Separating the phases is the whole subject. Conflated, the behaviour reads as
-self-contradictory.
+Separating these phases is critical; conflating them makes the operational behavior seem contradictory.
 
 **On first boot, a node installs the selected destination.**
 `terraform/modules/ce-node` deploys the marketplace image with `version = "latest"`, so the
-build a node arrives with is whatever that image currently ships — and that moves over time.
-`ce_sw_version` chooses the **destination**, not whether anything happens, and leaving it
-empty means the server selects its newest advertised build. The same holds for
-`ce_os_version`. You cannot leave one side unchanged by leaving it empty: the server selects a
-destination for both fields.
+initial build on the node reflects the current marketplace image release (which changes over time).
+`ce_sw_version` specifies the target build version; leaving it empty instructs the platform to select
+the newest advertised build. The same applies to `ce_os_version`. Leaving either variable empty does not
+preserve existing versions on new deployments; the server automatically selects target versions for both.
 
 **Latest requires capacity headroom.** On 2026-07-29, the advertised pair failed on the
 marketplace image's 31 GiB disk and installed on every tested size from 33 GB through 64 GB.
@@ -80,14 +78,11 @@ curl -X POST -H "Authorization: APIToken $TOKEN" -H 'Content-Type: application/j
 to the one posted. Omitting the field returns `400` with `version empty in the request`, which
 is how the field name was confirmed.
 
-**Budget hours, not minutes, and do not panic at a failure.** On a default-disk node the
-upgrade to `crt-20260201-0179` ran for roughly an hour, reported `UPGRADE_FAILED` with
-`result` `Failed` part-way through, and then **completed successfully** on the new build. The
-platform retries.
-
-That has a direct consequence for anyone watching an upgrade, or scripting one: a `Failed`
-result is a state to wait through, not a verdict. Treating the first one as final reports a
-failure for an upgrade that is going to succeed.
+**Plan for hours rather than minutes, and allow retries to resolve.** On a default-disk node,
+the upgrade to `crt-20260201-0179` took roughly an hour, briefly reporting `UPGRADE_FAILED` with
+`result` `Failed` before recovering and completing successfully on the target build. The platform
+retries failed steps automatically. Consequently, monitoring and automation scripts should treat
+initial failure reports as transient states rather than final verdicts.
 
 Note the group in that path: these live under **`config`**, not `operate`. The same paths under
 `operate` return `404 API Group could not be determined`, which is a routing message and not a
@@ -150,8 +145,8 @@ the difference matters when you are deciding whether to intervene:
 | where does the node end up? | `PROVISIONING`, nothing installed | `ONLINE` on a working build |
 | is it safe to leave? | no, it is stuck | yes, it recovers or keeps the old build |
 
-So a create-time failure needs a rebuild with a bigger disk, while an upgrade reporting `Failed`
-should be left alone for a while before you conclude anything.
+A create-time failure requires rebuilding the node with increased disk capacity, whereas an upgrade
+reporting `Failed` should be allowed time to retry before intervening.
 
 **The cause was the disk, not the version.** A matrix of software × OS × disk size, one
 disposable single-node Azure Secure Mesh v2 site per combination and all from the same

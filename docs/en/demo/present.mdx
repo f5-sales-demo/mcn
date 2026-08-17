@@ -1,6 +1,6 @@
 ---
 title: Present the demo
-description: What this deployment can demonstrate and how to show it in one command — equal-cost multipath programmed by the routing fabric rather than a load balancer — plus the three things it cannot yet show, stated plainly so a rehearsal does not discover them in front of an audience.
+description: Walk through the demo presentation structure, highlighting routing fabric ECMP next hops, traffic localization, and operational boundaries.
 sidebar:
   order: 40
   label: Present
@@ -18,7 +18,7 @@ Run [the four health checks](../verify/) first. Everything below assumes they pa
 
 ## The one command that makes it visible
 
-Effective routes are the strongest single artefact: they are what Azure actually programmed,
+Effective routes are the strongest single artifact: they are what Azure actually programmed,
 not what the CEs claim.
 
 ```bash
@@ -118,7 +118,7 @@ to explain the intended mechanism without presenting it as an observed result fr
   next hops, and this topology gives no per-node HTTP listener to attribute them with. If
   asked "is it even?", the honest answer is that it has not been measured here.
 - **The cause of the fresh-build convergence transient is not established.** It is
-  characterised — when it happens, for how long, and that the origin is clean throughout —
+  characterized — when it happens, for how long, and that the origin is clean throughout —
   and not explained.
 
 <Aside type="note" title="If you are presenting on a freshly built stack, wait">

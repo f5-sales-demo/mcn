@@ -24,17 +24,17 @@ automation, but it does not grant permissions, approve changes, or weaken execut
 
 Recommendations must begin with current, authoritative F5 and provider sources. Record the source
 URL, retrieval time, normalized SHA-256 digest, and any version or capability evidence used. Do not
-plan from remembered product behaviour when a current source can be checked.
+plan from remembered product behavior when a current source can be checked.
 
 A plan is a canonical, immutable, secret-free description of the intended result and the exact
-ordered actions needed to reach it. It records an observation fingerprint over every fact that can
-change the safety or outcome of apply, including identity, capabilities, inventory, policy,
-capacity, routing, health, and source receipts. Identical intent and observations must produce
-byte-identical plans, hashes, ownership inventories, and commands. Apply must reject a changed
-fingerprint or source digest and require rediscovery and replanning.
+ordered actions needed to reach it. It records an observation fingerprint of every fact that can
+influence the safety or outcome of an apply operation, including identity, capabilities, inventory,
+policy, capacity, routing, health, and source receipts. Identical intent and observations must
+produce byte-identical plans, hashes, ownership inventories, and commands. Apply operations must reject
+a changed fingerprint or source digest, requiring rediscovery and replanning.
 
 Plans may contain opaque references to session-owned secret material. They must never contain a
-bootstrap token, rendered user data, credential, private key, or another reusable secret. Plan
+bootstrap token, rendered user data, credential, private key, or any other reusable secret. Plan
 files, logs, diagnostics, command traces, and test artifacts must remain safe to retain.
 
 ## Topology, interfaces, and routing domains
