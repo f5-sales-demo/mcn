@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "textlint-rule-terminology": "^5.2.16"
+  }
+}
