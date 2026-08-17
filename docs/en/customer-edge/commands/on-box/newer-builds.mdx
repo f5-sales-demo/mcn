@@ -134,7 +134,7 @@ execcli collect-database-stats
 This command was initially treated as read-only because its name and appliance description
 say that it collects statistics. Its captured output revealed the writes. A test now scans
 committed evidence for write markers and fails if such a command appears on the read-only
-allow-list.
+allowlist.
 </Aside>
 
 ## `systemctl-restart-NetworkManager`
@@ -170,10 +170,10 @@ The current on-box catalog describes this as `start crio image prune service`. T
 classifies it as privileged `Exec`. A prune changes container-image storage, so the capture
 harness never executes it.
 
-<Aside type="caution" title="Mutating commands stay off the allow-list">
+<Aside type="caution" title="Mutating commands stay off the allowlist">
 `scripts/sitecli_ssh_harvest.py` enumerates these commands and refuses to execute them. Tests
 assert that restart, prune, write-benchmark, packet-capture, and other mutating commands stay
-off the allow-list.
+off the allowlist.
 </Aside>
 
 <Aside type="note" title="What was verified">

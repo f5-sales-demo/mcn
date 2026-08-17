@@ -1,6 +1,6 @@
 ---
 title: Deploy the demo
-description: Prerequisites, the two variables that have no default and why, how the tenant is pinned by configuration rather than by your shell, why the first apply plans no registration approval and a second one creates them, and how to tear the deployment down.
+description: Deploy the F5 XC multi-cloud networking demo on Azure using Terraform, configure variables, handle two-phase registration, and manage teardown.
 sidebar:
   order: 10
   label: Deploy
@@ -93,7 +93,7 @@ was clean, because nothing in the configuration had an opinion about the tenant
 [PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). Recovering it meant destroying the
 stack in the wrong tenant and rebuilding it in the right one.
 
-The symptom to recognise, because it is not self-describing: a token minted for another
+The symptom to recognize, because it is not self-describing: a token minted for another
 tenant fails the pinned endpoint with a bare `401`, which reads exactly like an expired
 credential. If a credential you believe is good returns `401`, compare the two outputs
 above before you mint another token.
@@ -103,7 +103,7 @@ above before you mint another token.
 
 <Steps>
 
-1. **Initialise.** The backend config is not committed; supply your own.
+1. **Initialize.** The backend config is not committed; supply your own.
 
    ```bash
    terraform init -upgrade -backend-config=backend.hcl

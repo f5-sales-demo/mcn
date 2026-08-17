@@ -1,6 +1,6 @@
 ---
 title: Site Console
-description: F5's per-node Site Console, served on TCP 65500 and reached through an Azure Bastion tunnel. Needs no SSH key, no jump host and no public IP — access is an Azure RBAC decision, and it answers even when the site has failed to register. Covers the exact commands and their real output, the certificate you will be warned about, why the tunnel must target the VM resource id, and how the admin credential should be handled.
+description: Connect to F5's per-node Site Console on TCP 65500 via Azure Bastion tunneling without public IP addresses or jump hosts. Covers tunnel configuration, certificate behavior, and credential management.
 sidebar:
   order: 22
   label: Site Console
@@ -16,11 +16,10 @@ described below held on all three nodes.
 Every Customer Edge serves F5's Site Console on `https://<sli-ip>:65500`. On this
 deployment it is usually the route to try first.
 
-It asks least of you: no SSH key to distribute, no jump host to maintain, no public IP on
-the node, and no VM replacement to enable it. Who may connect becomes an **Azure RBAC
-decision**. And it does not need the site to be registered: this page was first captured
-while all three sites were reporting `site_state: FAILED`, and re-verified unchanged against
-the same nodes once they were `ONLINE`.
+Site Console requires minimal setup: no SSH key distribution, no jump host maintenance, no public
+IP addresses on nodes, and no VM replacement. Access control relies entirely on **Azure RBAC**.
+Furthermore, it functions independently of site registration state: diagnostics remain accessible
+even when a node reports `site_state: FAILED`.
 
 The catch is that the Site Console answers only on the node's internal (SLI) address,
 reachable only from inside the VNet. Azure Bastion closes that gap without putting

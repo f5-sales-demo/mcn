@@ -1,6 +1,6 @@
 ---
 title: Envoy
-description: The four wrappers around Envoy's admin interface on a Customer Edge — listeners, clusters and two config dumps. Explains why every one of them starts with a curl progress meter, and what the listener output tells you about the advertised VIP.
+description: Inspect Envoy listeners, clusters, and configuration dumps via Site CLI admin interface wrappers to verify advertised VIPs and proxy configuration.
 sidebar:
   order: 20
   label: Envoy
@@ -99,5 +99,5 @@ execcli envoy-hc-config-dump
 
 **What to look for.** On this deployment it returns a **single byte** — visible as `100 1`
 in the `curl` meter — meaning no health-check configuration is installed. That is the expected
-state for a CE with no health-checked origin pools, and it is worth recognising: an empty
+state for a CE with no health-checked origin pools, and it is worth recognizing: an empty
 result here is not a failed query.

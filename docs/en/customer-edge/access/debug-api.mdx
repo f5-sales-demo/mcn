@@ -1,6 +1,6 @@
 ---
 title: Debug API
-description: How to run a Site CLI command on an ONLINE node over HTTP, including the tier-to-endpoint rule that decides which of three transports a command needs and the discovery call that lists them.
+description: Learn how to execute Site CLI commands on an ONLINE Customer Edge via HTTP, understand tier-to-endpoint routing rules, and discover supported commands dynamically.
 sidebar:
   order: 20
   label: Debug API
@@ -144,7 +144,7 @@ curl -sS -H "Authorization: APIToken $XCSH_API_TOKEN" \
 ["", "f5-xc-ce-vm-01"]
 ```
 
-Some services report an empty node name, so an empty string in that list is an artefact of
+Some services report an empty node name, so an empty string in that list is an artifact of
 the response rather than a second node. `list-service` is also not in the 43-command catalog:
 it is a `global` endpoint the catalog does not advertise, which is why it is documented here
 and not in the [command reference](../../commands/).
@@ -188,7 +188,7 @@ it were complete.
 <Aside type="danger" title="Capturing from a customer node: check the redaction profile">
 Command output carries infrastructure identity — internal addressing, MAC addresses,
 AS numbers, hostnames — and for a customer that is identifying information about the
-organisation.
+organization.
 
 The scrub filter therefore defaults to a **strict** profile that removes all of it.
 This repository declares `lab` in `sitecli/capture-manifest.json`, which keeps that
@@ -199,7 +199,7 @@ infrastructure.
 identifier, object UUIDs, email addresses and home directory paths are removed under
 both profiles.
 
-One limitation is worth knowing: a BGP neighbour table prints the AS as a bare column
+One limitation is worth knowing: a BGP neighbor table prints the AS as a bare column
 with no label to anchor a pattern on, so ASNs are matched by value against the
 private ranges. A **public** ASN there survives strict, and needs a manual review of
 `show-ip-bgp*` output before you publish it.

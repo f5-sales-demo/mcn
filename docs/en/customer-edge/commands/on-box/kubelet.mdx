@@ -1,6 +1,6 @@
 ---
 title: Kubelet parameters
-description: The three commands that read, add and remove custom kubelet parameters on a Customer Edge. Includes the verified finding that the read command cannot be used from the admin Site CLI at all, because the parameter file is not readable by that account.
+description: Inspect and manage custom kubelet parameters on a Customer Edge, including permission constraints and parameter persistence.
 sidebar:
   order: 40
   label: Kubelet params
@@ -80,9 +80,9 @@ execcli kubelet-remove-param <parameter>
 
 **No captured output**, for the same reason.
 
-<Aside type="caution" title="Neither write command is on the read-only allow-list">
+<Aside type="caution" title="Neither write command is on the read-only allowlist">
 `scripts/sitecli_ssh_harvest.py` refuses to execute `kubelet-add-param` and
-`kubelet-remove-param`: only names on its explicit read-only allow-list may run, and
-anything else is enumerated and never executed. That is deliberate — a deny-list only stops
+`kubelet-remove-param`: only names on its explicit read-only allowlist may run, and
+anything else is enumerated and never executed. That is deliberate — a denylist only stops
 what somebody thought to list.
 </Aside>

@@ -1,6 +1,6 @@
 ---
 title: Interface model and out-of-band management
-description: Why the Site Local Outside interface is special and effectively the management path, what the Secure Mesh Site v2 management network is and the three constraints that decide whether you can use it, and how both map onto the three network interface cards this deployment gives each Customer Edge.
+description: Understand why the Site Local Outside interface serves as the primary management path, how the Secure Mesh Site v2 management network operates with its associated constraints, and how these concepts map to the three network interface cards provisioned per Customer Edge.
 sidebar:
   order: 15
   label: Interface model
@@ -8,14 +8,12 @@ sidebar:
 
 import { Aside } from "@astrojs/starlight/components";
 
-A Customer Edge (CE) has no local management plane worth the name. Bootstrap configuration
-and diagnostics aside, everything that manages a CE is driven from the F5 Distributed Cloud
-control plane, and the node reaches that control plane over one specific interface. That
-single fact decides the whole interface model, and getting it wrong is the most common way a
-CE deployment ends up architecturally wrong rather than broken.
+A Customer Edge (CE) relies primarily on centralized management. Aside from initial bootstrap
+configuration and localized diagnostics, all management operations are driven directly from the F5
+Distributed Cloud control plane. The node communicates with the control plane over a dedicated
+interface. This architectural model dictates interface assignments across the deployment.
 
-This page separates two things that share the word "management" and are not the same
-construct:
+This page distinguishes two concepts that share the term "management" but serve distinct architectural roles:
 
 | | What it is |
 | --- | --- |
@@ -210,7 +208,7 @@ an interface with application traffic, plan on three: SLO for the control plane,
 least two data-plane interfaces. This deployment uses that shape — SLO, external, internal.
 
 <Aside type="note" title="Provenance">
-Every platform behaviour on this page is drawn from current F5 product documentation:
+Every platform behavior on this page is drawn from current F5 product documentation:
 [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)
 (Step 4 for SLO and SLI, Step 8.4 for the management network) and the
 [Secure Mesh Site v2 FAQs](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs).
