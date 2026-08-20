@@ -23,5 +23,5 @@ run "tgw_connect_is_rejected_before_aws_mutation" {
     enable_aws_tgw_connect = true
   }
 
-  expect_failures = [var.enable_aws_tgw_connect]
+  expect_failures = [terraform_data.aws_tgw_connect_gate[0]]
 }

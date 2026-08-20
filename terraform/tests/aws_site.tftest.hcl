@@ -21,6 +21,7 @@ variables {
   deployer            = "tester"
   ssh_public_key      = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   xc_app_namespace    = "multi-cloud-networking"
+  aws_ce_ami_id       = "ami-0123456789abcdef0"
   enable_aws          = true
 }
 
@@ -50,6 +51,26 @@ run "aws_site_and_resources" {
     condition     = output.aws_vip == "10.150.0.10"
     error_message = "AWS VIP should be 10.150.0.10."
   }
+
+  assert {
+    condition     = aws_instance.ce[0].ami == "ami-0123456789abcdef0"
+    error_message = "AWS CE instances must use the explicitly approved AMI, not a dynamic discovery result."
+  }
+
+  assert {
+    condition     = aws_instance.ce[0].root_block_device[0].volume_size == 100
+    error_message = "AWS CE instances must plan a 100-GiB root volume."
+  }
+}
+
+run "aws_requires_an_explicit_ami_before_any_instance_plan" {
+  command = plan
+
+  variables {
+    aws_ce_ami_id = null
+  }
+
+  expect_failures = [aws_instance.ce]
 }
 
 run "aws_disabled_plans_no_aws_resources" {

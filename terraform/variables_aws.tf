@@ -8,14 +8,32 @@ variable "enable_aws" {
   default     = false
 }
 
+variable "aws_ce_ami_id" {
+  description = "Explicit approved AWS Marketplace AMI ID for Customer Edge instances. A deployment must not select the most-recent image dynamically."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.aws_ce_ami_id == null || can(regex("^ami-[0-9a-f]+$", var.aws_ce_ami_id))
+    error_message = "aws_ce_ami_id must be an AWS AMI ID such as ami-0123456789abcdef0."
+  }
+}
+
 variable "enable_aws_tgw_connect" {
   description = "Request AWS Transit Gateway Connect BGP. This is unavailable until an immutable F5 SMSv2 telemetry contract and matching live capability response attest the required runtime semantics."
   type        = bool
   default     = false
+}
+
+variable "smsv2_contract_release" {
+  description = "Immutable stable SMSv2 contract release to verify before an AWS TGW Connect request."
+  type        = string
+  default     = "v2.1.222"
 
   validation {
-    condition     = !var.enable_aws_tgw_connect
-    error_message = "AWS Transit Gateway Connect BGP is unavailable: the verified F5 SMSv2 contract does not attest TGW Connect runtime telemetry, GRE, BGP, MTU, or routing semantics."
+    condition     = can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+$", var.smsv2_contract_release))
+    error_message = "smsv2_contract_release must be a stable vX.Y.Z release tag."
   }
 }
 

@@ -133,13 +133,13 @@ AWS VPC, public SLO subnets, private SLI subnets, internet gateway, route tables
 
 ### `terraform/aws_ce.tf`
 
-AWS Customer Edge EC2 nodes, IAM role/profile, key pair, dual network interfaces, Elastic IPs, cloud-init user_data, site registration lookup, and automatic registration approval.
+AWS Customer Edge EC2 nodes, IAM role/profile, key pair, ordered dual network interfaces, Elastic IPs, and an explicit 100-GiB Marketplace AMI root volume. Registration is a supervised interactive-console step; Terraform neither writes bootstrap material nor queries or approves runtime registration.
 
 <Code code={awsCe} lang="hcl" title="terraform/aws_ce.tf" />
 
 ### `terraform/aws_xc.tf`
 
-AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), eBGP peering (`xcsh_bgp.aws_ebgp`), virtual site (`xcsh_virtual_site.aws`), origin pool (`xcsh_origin_pool.aws`), and HTTP load balancer (`xcsh_http_loadbalancer.aws`).
+AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), virtual site (`xcsh_virtual_site.aws`), origin pool (`xcsh_origin_pool.aws`), and HTTP load balancer (`xcsh_http_loadbalancer.aws`). AWS Transit Gateway Connect BGP remains unavailable until F5 publishes a telemetry-capable immutable SMSv2 contract and matching live capability response.
 
 <Code code={awsXc} lang="hcl" title="terraform/aws_xc.tf" />
 

@@ -1,17 +1,6 @@
 # ---------------------------------------------------------
-# AWS Customer Edge (EC2 instances, IAM, dual-NIC, registration)
+# AWS Customer Edge (EC2 instances, IAM, and ordered dual NICs)
 # ---------------------------------------------------------
-
-data "aws_ami" "f5_xc" {
-  count       = var.enable_aws ? 1 : 0
-  most_recent = true
-  owners      = ["679593333241", "434481986642", "aws-marketplace"]
-
-  filter {
-    name   = "name"
-    values = ["f5xc-ce-*", "f5-xc-*", "f5-volterra-*"]
-  }
-}
 
 resource "aws_key_pair" "ce" {
   count      = var.enable_aws ? 1 : 0
@@ -108,7 +97,7 @@ resource "aws_eip" "ce" {
 resource "aws_instance" "ce" {
   count = var.enable_aws ? var.aws_ce_count : 0
 
-  ami                  = data.aws_ami.f5_xc[0].id
+  ami                  = var.aws_ce_ami_id
   instance_type        = var.aws_instance_type
   iam_instance_profile = aws_iam_instance_profile.ce[0].name
   key_name             = aws_key_pair.ce[0].key_name
@@ -123,42 +112,23 @@ resource "aws_instance" "ce" {
     device_index         = 1
   }
 
-  user_data = <<-EOF
-    #cloud-config
-    hostname: ${var.component}-aws-ce-${count.index + 1}
-    fqdn: ${var.component}-aws-ce-${count.index + 1}.us-east-2.compute.internal
-    write_files:
-      - path: /etc/vpm/config.yaml
-        permissions: '0644'
-        content: |
-          Vpm:
-            ClusterName: aws-site
-            ClusterHeader: ""
-            Token: ${local.ce_registration_token}
-            Latitude: 0
-            Longitude: 0
-            CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/aws.yml
-    ssh_authorized_keys:
-      - ${chomp(local.ssh_public_key)}
-  EOF
+  root_block_device {
+    delete_on_termination = true
+    encrypted             = true
+    volume_size           = 100
+    volume_type           = "gp3"
+  }
 
   tags = merge(local.tags, {
     Name                             = "${var.component}-aws-ce-${count.index + 1}"
     "ves-io-site-name"               = "aws-site"
     "kubernetes.io/cluster/aws-site" = "owned"
   })
-}
 
-# Site registration lookup & automatic approval
-data "xcsh_site_registration" "aws" {
-  count     = var.enable_aws ? var.aws_ce_count : 0
-  site_name = "aws-site"
-  namespace = "system"
-}
-
-resource "xcsh_registration_approval" "aws" {
-  count     = var.enable_aws && length(data.xcsh_site_registration.aws) > 0 && try(data.xcsh_site_registration.aws[0].found, false) ? var.aws_ce_count : 0
-  namespace = "system"
-  name      = data.xcsh_site_registration.aws[count.index].name
-  state     = "APPROVED"
+  lifecycle {
+    precondition {
+      condition     = var.aws_ce_ami_id != null
+      error_message = "AWS CE deployment requires an explicit approved aws_ce_ami_id; dynamic AMI selection is not allowed."
+    }
+  }
 }

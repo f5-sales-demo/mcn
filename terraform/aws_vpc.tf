@@ -126,14 +126,6 @@ resource "aws_security_group" "ce" {
   }
 
   ingress {
-    description = "BGP peering"
-    from_port   = 179
-    to_port     = 179
-    protocol    = "tcp"
-    cidr_blocks = [var.aws_vpc_cidr]
-  }
-
-  ingress {
     description = "ICMP"
     from_port   = -1
     to_port     = -1
