@@ -8,6 +8,17 @@ variable "enable_aws" {
   default     = false
 }
 
+variable "enable_aws_tgw_connect" {
+  description = "Request AWS Transit Gateway Connect BGP. This is unavailable until an immutable F5 SMSv2 telemetry contract and matching live capability response attest the required runtime semantics."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_aws_tgw_connect
+    error_message = "AWS Transit Gateway Connect BGP is unavailable: the verified F5 SMSv2 contract does not attest TGW Connect runtime telemetry, GRE, BGP, MTU, or routing semantics."
+  }
+}
+
 variable "aws_location" {
   description = "AWS region for all AWS resources."
   type        = string

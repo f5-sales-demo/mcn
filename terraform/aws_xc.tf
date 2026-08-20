@@ -1,5 +1,5 @@
 # ---------------------------------------------------------
-# F5 XC SecureMesh v2 Site, BGP, Virtual Site, Origin Pool & LB for AWS
+# F5 XC SecureMesh v2 Site, Virtual Site, Origin Pool & LB for AWS
 # ---------------------------------------------------------
 
 resource "xcsh_securemesh_site_v2" "aws" {
@@ -25,48 +25,6 @@ resource "xcsh_securemesh_site_v2" "aws" {
   disable_management_network {}
 }
 
-resource "xcsh_bgp" "aws_ebgp" {
-  count     = var.enable_aws ? 1 : 0
-  name      = "${var.component}-aws-ebgp"
-  namespace = "system"
-
-  where {
-    site {
-      network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
-      ref {
-        name      = xcsh_securemesh_site_v2.aws[0].name
-        namespace = "system"
-      }
-      disable_internet_vip {}
-    }
-  }
-
-  bgp_parameters {
-    asn = 64512
-    local_address {}
-  }
-
-  peers {
-    metadata {
-      name = "peer-aws-router"
-    }
-    external {
-      asn     = 65515
-      address = cidrhost(var.aws_vpc_cidr, 1)
-      port    = 179
-
-      interface {
-        name      = "eth0"
-        namespace = "system"
-      }
-
-      disable_v6 {}
-    }
-    passive_mode_disabled {}
-    bfd_disabled {}
-  }
-}
-
 resource "xcsh_virtual_site" "aws" {
   count     = var.enable_aws ? 1 : 0
   name      = "${var.component}-aws-vsite"
@@ -87,7 +45,7 @@ resource "xcsh_origin_pool" "aws" {
   port = var.origin_port
 
   origin_servers {
-    labels {}
+    labels = {}
     public_ip {
       ip = var.origin_ip
     }
