@@ -1,147 +1,147 @@
 [
   {
     "label": "terraform/backend.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/backend.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/backend.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/data.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/data.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/data.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/locals.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/locals.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/locals.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/main.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/main.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/outputs.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/outputs.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/outputs.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/providers.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/providers.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/providers.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/variables.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/variables.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/variables.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/variables_azure.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/variables_azure.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/variables_azure.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/variables_ce.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/variables_ce.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/variables_ce.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/variables_xc.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/variables_xc.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/variables_xc.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/versions.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/versions.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/versions.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/azure-hub/main.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/azure-hub/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/azure-hub/main.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/azure-hub/outputs.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/azure-hub/outputs.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/azure-hub/outputs.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/azure-hub/variables.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/azure-hub/variables.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/azure-hub/variables.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/azure-hub/versions.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/azure-hub/versions.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/azure-hub/versions.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/azure-route-server-bgp/main.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/azure-route-server-bgp/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/azure-route-server-bgp/main.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/azure-route-server-bgp/versions.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/azure-route-server-bgp/versions.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/azure-route-server-bgp/versions.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/ce-node/main.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/ce-node/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/ce-node/main.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/ce-node/outputs.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/ce-node/outputs.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/ce-node/outputs.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/ce-node/variables.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/ce-node/variables.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/ce-node/variables.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/ce-node/versions.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/ce-node/versions.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/ce-node/versions.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/ce-topology/main.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/ce-topology/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/ce-topology/main.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/client-vm/main.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/client-vm/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/client-vm/main.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/client-vm/variables.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/client-vm/variables.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/client-vm/variables.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/client-vm/versions.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/client-vm/versions.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/client-vm/versions.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/xc-site/main.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/xc-site/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/xc-site/main.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/xc-site/outputs.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/xc-site/outputs.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/xc-site/outputs.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/xc-site/variables.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/xc-site/variables.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/xc-site/variables.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   },
   {
     "label": "terraform/modules/xc-site/versions.tf",
-    "url": "https://f5-sales-demo.github.io/mcn/_includes/terraform/modules/xc-site/versions.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/xc-site/versions.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   }
 ]

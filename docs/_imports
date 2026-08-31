@@ -45,3 +45,42 @@ sitecli/captures/sitecli-vegactl-configuration-list.txt
 sitecli/captures/sitecli-vegactl-introspect-list-tracebuffers.txt
 sitecli/captures/sitecli-vegactl-introspect-show-election.txt
 sitecli/captures/sitecli-vif.txt
+
+# Terraform source, staged with paths preserved for documentation imports.
+terraform/aws_ce.tf -> terraform/aws_ce.tf
+terraform/aws_vpc.tf -> terraform/aws_vpc.tf
+terraform/aws_xc.tf -> terraform/aws_xc.tf
+terraform/backend.tf -> terraform/backend.tf
+terraform/ca_ilb.tf -> terraform/ca_ilb.tf
+terraform/data.tf -> terraform/data.tf
+terraform/kvm.tf -> terraform/kvm.tf
+terraform/locals.tf -> terraform/locals.tf
+terraform/main.tf -> terraform/main.tf
+terraform/modules/azure-hub/main.tf -> terraform/modules/azure-hub/main.tf
+terraform/modules/azure-hub/outputs.tf -> terraform/modules/azure-hub/outputs.tf
+terraform/modules/azure-hub/variables.tf -> terraform/modules/azure-hub/variables.tf
+terraform/modules/azure-hub/versions.tf -> terraform/modules/azure-hub/versions.tf
+terraform/modules/azure-route-server-bgp/main.tf -> terraform/modules/azure-route-server-bgp/main.tf
+terraform/modules/azure-route-server-bgp/versions.tf -> terraform/modules/azure-route-server-bgp/versions.tf
+terraform/modules/ce-node/main.tf -> terraform/modules/ce-node/main.tf
+terraform/modules/ce-node/outputs.tf -> terraform/modules/ce-node/outputs.tf
+terraform/modules/ce-node/variables.tf -> terraform/modules/ce-node/variables.tf
+terraform/modules/ce-node/versions.tf -> terraform/modules/ce-node/versions.tf
+terraform/modules/ce-topology/main.tf -> terraform/modules/ce-topology/main.tf
+terraform/modules/client-vm/main.tf -> terraform/modules/client-vm/main.tf
+terraform/modules/client-vm/variables.tf -> terraform/modules/client-vm/variables.tf
+terraform/modules/client-vm/versions.tf -> terraform/modules/client-vm/versions.tf
+terraform/modules/xc-site/main.tf -> terraform/modules/xc-site/main.tf
+terraform/modules/xc-site/outputs.tf -> terraform/modules/xc-site/outputs.tf
+terraform/modules/xc-site/variables.tf -> terraform/modules/xc-site/variables.tf
+terraform/modules/xc-site/versions.tf -> terraform/modules/xc-site/versions.tf
+terraform/onprem_kvm.tf -> terraform/onprem_kvm.tf
+terraform/outputs.tf -> terraform/outputs.tf
+terraform/providers.tf -> terraform/providers.tf
+terraform/providers_libvirt.tf -> terraform/providers_libvirt.tf
+terraform/variables.tf -> terraform/variables.tf
+terraform/variables_aws.tf -> terraform/variables_aws.tf
+terraform/variables_azure.tf -> terraform/variables_azure.tf
+terraform/variables_ce.tf -> terraform/variables_ce.tf
+terraform/variables_xc.tf -> terraform/variables_xc.tf
+terraform/versions.tf -> terraform/versions.tf
