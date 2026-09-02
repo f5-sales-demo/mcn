@@ -12,12 +12,11 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 class EvidenceError(RuntimeError):
@@ -44,7 +43,9 @@ def az_json(subscription: str | None, arguments: list[str]) -> Any:
         command.extend(["--subscription", subscription])
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode:
-        raise EvidenceError(f"Azure read failed for {' '.join(arguments[:3])}: {completed.stderr.strip()}")
+        raise EvidenceError(
+            f"Azure read failed for {' '.join(arguments[:3])}: {completed.stderr.strip()}"
+        )
     try:
         return json.loads(completed.stdout)
     except json.JSONDecodeError as error:
@@ -63,7 +64,9 @@ def load_control_plane_references(path: Path | None) -> dict[str, dict[str, str]
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise EvidenceError(f"cannot read sanitized control-plane references: {path}") from error
+        raise EvidenceError(
+            f"cannot read sanitized control-plane references: {path}"
+        ) from error
     if not isinstance(document, dict) or document.get("schema_version") != 1:
         raise EvidenceError("control-plane references must declare schema_version 1")
     nodes = document.get("nodes")
@@ -72,11 +75,18 @@ def load_control_plane_references(path: Path | None) -> dict[str, dict[str, str]
     references: dict[str, dict[str, str]] = {}
     for item in nodes:
         if not isinstance(item, dict) or set(item) != {
-            "node_hostname", "control_plane_interface_reference", "provenance"
+            "node_hostname",
+            "control_plane_interface_reference",
+            "provenance",
         }:
-            raise EvidenceError("control-plane reference records have an unsafe or incomplete shape")
+            raise EvidenceError(
+                "control-plane reference records have an unsafe or incomplete shape"
+            )
         hostname = require_string(item.get("node_hostname"), "node_hostname")
-        reference = require_string(item.get("control_plane_interface_reference"), "control_plane_interface_reference")
+        reference = require_string(
+            item.get("control_plane_interface_reference"),
+            "control_plane_interface_reference",
+        )
         provenance = require_string(item.get("provenance"), "provenance")
         if hostname in references:
             raise EvidenceError(f"duplicate control-plane reference for {hostname}")
@@ -84,10 +94,21 @@ def load_control_plane_references(path: Path | None) -> dict[str, dict[str, str]
     return references
 
 
-def vm_nic_attachments(subscription: str | None, resource_group: str, hostname: str) -> list[dict[str, Any]]:
+def vm_nic_attachments(
+    subscription: str | None, resource_group: str, hostname: str
+) -> list[dict[str, Any]]:
     attachments = az_json(
         subscription,
-        ["vm", "show", "--resource-group", resource_group, "--name", hostname, "--query", "networkProfile.networkInterfaces"],
+        [
+            "vm",
+            "show",
+            "--resource-group",
+            resource_group,
+            "--name",
+            hostname,
+            "--query",
+            "networkProfile.networkInterfaces",
+        ],
     )
     if not isinstance(attachments, list) or not attachments:
         raise EvidenceError(f"Azure VM {hostname} has no attached NICs")
@@ -111,23 +132,38 @@ def nic_inventory(subscription: str | None, resource_id: str) -> dict[str, Any]:
         raise EvidenceError(f"Azure NIC {resource_id} was not an object")
     return nic
 
-def normalize_ip_configurations(nic: dict[str, Any], hostname: str, position: int) -> list[dict[str, Any]]:
+
+def normalize_ip_configurations(
+    nic: dict[str, Any], hostname: str, position: int
+) -> list[dict[str, Any]]:
     configurations = nic.get("ip_configurations")
     if not isinstance(configurations, list) or not configurations:
-        raise EvidenceError(f"Azure NIC position {position} on {hostname} has no IP configurations")
+        raise EvidenceError(
+            f"Azure NIC position {position} on {hostname} has no IP configurations"
+        )
     result = []
     for configuration in configurations:
         if not isinstance(configuration, dict):
-            raise EvidenceError(f"Azure NIC position {position} on {hostname} has malformed IP configuration")
+            raise EvidenceError(
+                f"Azure NIC position {position} on {hostname} has malformed IP configuration"
+            )
         subnet = configuration.get("subnet")
         if not isinstance(subnet, dict):
-            raise EvidenceError(f"Azure NIC position {position} on {hostname} lacks a subnet identity")
+            raise EvidenceError(
+                f"Azure NIC position {position} on {hostname} lacks a subnet identity"
+            )
         result.append(
             {
-                "ip_configuration_name": require_string(configuration.get("name"), "ip configuration name"),
+                "ip_configuration_name": require_string(
+                    configuration.get("name"), "ip configuration name"
+                ),
                 "is_primary": bool(configuration.get("primary", False)),
-                "private_ip": require_string(configuration.get("privateIPAddress"), "private IP"),
-                "subnet_resource_id": require_string(subnet.get("id"), "subnet resource ID"),
+                "private_ip": require_string(
+                    configuration.get("privateIPAddress"), "private IP"
+                ),
+                "subnet_resource_id": require_string(
+                    subnet.get("id"), "subnet resource ID"
+                ),
             }
         )
     return result
@@ -140,7 +176,7 @@ def capture_node(
     references: dict[str, dict[str, str]],
 ) -> dict[str, Any]:
     attachments = vm_nic_attachments(subscription, resource_group, hostname)
-    nics = []
+    nics: list[dict[str, Any]] = []
     for position, attachment in enumerate(attachments, start=1):
         if not isinstance(attachment, dict):
             raise EvidenceError(f"Azure VM {hostname} has a malformed NIC attachment")
@@ -149,15 +185,23 @@ def capture_node(
         nics.append(
             {
                 "cloud_nic_position": position,
-                "azure_nic_resource_id": require_string(nic.get("id"), "Azure NIC resource ID"),
+                "azure_nic_resource_id": require_string(
+                    nic.get("id"), "Azure NIC resource ID"
+                ),
                 "azure_nic_name": require_string(nic.get("name"), "Azure NIC name"),
                 "is_primary_attachment": bool(attachment.get("primary", False)),
                 "nic_mac": require_string(nic.get("mac"), "Azure NIC MAC"),
-                "ip_configurations": normalize_ip_configurations(nic, hostname, position),
+                "ip_configurations": normalize_ip_configurations(
+                    nic, hostname, position
+                ),
             }
         )
     slo = nics[0]
-    first_primary_ip = next((item for item in slo["ip_configurations"] if item["is_primary"]), slo["ip_configurations"][0])
+    ip_configurations = cast("list[dict[str, Any]]", slo["ip_configurations"])
+    first_primary_ip = next(
+        (item for item in ip_configurations if item["is_primary"]),
+        ip_configurations[0],
+    )
     reference = references.get(hostname)
     return {
         "node_hostname": hostname,
@@ -169,22 +213,34 @@ def capture_node(
             "ip_configuration_name": first_primary_ip["ip_configuration_name"],
             "private_ip": first_primary_ip["private_ip"],
             "subnet_resource_id": first_primary_ip["subnet_resource_id"],
-            "control_plane_interface_reference": reference["reference"] if reference else None,
-            "control_plane_reference_provenance": reference["provenance"] if reference else None,
+            "control_plane_interface_reference": reference["reference"]
+            if reference
+            else None,
+            "control_plane_reference_provenance": reference["provenance"]
+            if reference
+            else None,
         },
         "optional_roles": {
-            "external": {"bindable": False, "reason": "requires future contract and authoritative evidence"},
-            "sli": {"bindable": False, "reason": "requires future contract and authoritative evidence"},
+            "external": {
+                "bindable": False,
+                "reason": "requires future contract and authoritative evidence",
+            },
+            "sli": {
+                "bindable": False,
+                "reason": "requires future contract and authoritative evidence",
+            },
         },
     }
 
 
 def atomic_write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as stream:
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, delete=False
+    ) as stream:
         stream.write(content)
         temporary = Path(stream.name)
-    os.replace(temporary, path)
+    temporary.replace(path)
 
 
 def matrix_markdown(document: dict[str, Any]) -> str:
@@ -202,15 +258,10 @@ def matrix_markdown(document: dict[str, Any]) -> str:
     for node in document["nodes"]:
         binding = node["slo_binding"]
         rows.append(
-            "| {node} | {position} | {mac} | {ipconfig} | {ip} | {subnet} | SLO | {reference} |".format(
-                node=node["node_hostname"],
-                position=binding["cloud_nic_position"],
-                mac=binding["nic_mac"],
-                ipconfig=binding["ip_configuration_name"],
-                ip=binding["private_ip"],
-                subnet=binding["subnet_resource_id"],
-                reference=binding["control_plane_interface_reference"] or "MISSING",
-            )
+            f"| {node['node_hostname']} | {binding['cloud_nic_position']} | "
+            f"{binding['nic_mac']} | {binding['ip_configuration_name']} | "
+            f"{binding['private_ip']} | {binding['subnet_resource_id']} | SLO | "
+            f"{binding['control_plane_interface_reference'] or 'MISSING'} |"
         )
     rows.extend(
         [
@@ -221,6 +272,7 @@ def matrix_markdown(document: dict[str, Any]) -> str:
     )
     return "\n".join(rows)
 
+
 def main() -> int:
     arguments = parse_args()
     hostnames = [require_string(value, "node hostname") for value in arguments.nodes]
@@ -229,13 +281,28 @@ def main() -> int:
     references = load_control_plane_references(arguments.control_plane_references)
     unexpected_references = sorted(set(references).difference(hostnames))
     if unexpected_references:
-        raise EvidenceError("control-plane references include unknown nodes: " + ", ".join(unexpected_references))
-    nodes = [capture_node(arguments.subscription, arguments.resource_group, hostname, references) for hostname in hostnames]
-    reference_complete = all(node["slo_binding"]["control_plane_interface_reference"] for node in nodes)
+        raise EvidenceError(
+            "control-plane references include unknown nodes: "
+            + ", ".join(unexpected_references)
+        )
+    nodes = [
+        capture_node(
+            arguments.subscription, arguments.resource_group, hostname, references
+        )
+        for hostname in hostnames
+    ]
+    reference_complete = all(
+        node["slo_binding"]["control_plane_interface_reference"] for node in nodes
+    )
     document = {
         "schema_version": 1,
-        "captured_at_utc": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "evidence_status": "slo_reference_complete" if reference_complete else "diagnostic_only",
+        "captured_at_utc": dt.datetime.now(dt.UTC)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "evidence_status": "slo_reference_complete"
+        if reference_complete
+        else "diagnostic_only",
         "source": {
             "kind": "azure_arm_readonly",
             "resource_group": arguments.resource_group,
@@ -249,8 +316,13 @@ def main() -> int:
         },
     }
     output_dir = arguments.output_dir.resolve()
-    atomic_write(output_dir / "securemesh-ce-interface-evidence.json", json.dumps(document, indent=2, sort_keys=True) + "\n")
-    atomic_write(output_dir / "securemesh-ce-interface-matrix.md", matrix_markdown(document))
+    atomic_write(
+        output_dir / "securemesh-ce-interface-evidence.json",
+        json.dumps(document, indent=2, sort_keys=True) + "\n",
+    )
+    atomic_write(
+        output_dir / "securemesh-ce-interface-matrix.md", matrix_markdown(document)
+    )
     print(f"Wrote sanitized evidence to {output_dir}")
     return 0
 
@@ -260,4 +332,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except EvidenceError as error:
         print(f"evidence capture failed: {error}", file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from error

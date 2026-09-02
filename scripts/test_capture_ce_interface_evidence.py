@@ -11,7 +11,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-
 SCRIPT = Path(__file__).with_name("capture_ce_interface_evidence.py")
 SPEC = importlib.util.spec_from_file_location("capture_ce_interface_evidence", SCRIPT)
 assert SPEC and SPEC.loader
@@ -30,35 +29,55 @@ class Completed:
 
 def fake_az(command: list[str], **_: object) -> Completed:
     if command[1:3] == ["vm", "show"]:
-        return Completed([
-            {"id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/ce01-mgmt", "primary": True},
-            {"id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/ce01-external", "primary": False},
-        ])
+        return Completed(
+            [
+                {
+                    "id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/ce01-mgmt",
+                    "primary": True,
+                },
+                {
+                    "id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/ce01-external",
+                    "primary": False,
+                },
+            ]
+        )
     nic_id = command[command.index("--ids") + 1]
     if nic_id.endswith("ce01-mgmt"):
-        return Completed({
-            "id": nic_id,
-            "name": "ce01-mgmt",
-            "mac": "00-11-22-33-44-55",
-            "ip_configurations": [{
-                "name": "ipconfig1",
-                "primary": True,
-                "privateIPAddress": "10.0.1.4",
-                "subnet": {"id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/hub/subnets/mgmt"},
-            }],
-        })
+        return Completed(
+            {
+                "id": nic_id,
+                "name": "ce01-mgmt",
+                "mac": "00-11-22-33-44-55",
+                "ip_configurations": [
+                    {
+                        "name": "ipconfig1",
+                        "primary": True,
+                        "privateIPAddress": "10.0.1.4",
+                        "subnet": {
+                            "id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/hub/subnets/mgmt"
+                        },
+                    }
+                ],
+            }
+        )
     if nic_id.endswith("ce01-external"):
-        return Completed({
-            "id": nic_id,
-            "name": "ce01-external",
-            "mac": "00-11-22-33-44-66",
-            "ip_configurations": [{
-                "name": "ipconfig1",
-                "primary": True,
-                "privateIPAddress": "10.0.2.4",
-                "subnet": {"id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/hub/subnets/external"},
-            }],
-        })
+        return Completed(
+            {
+                "id": nic_id,
+                "name": "ce01-external",
+                "mac": "00-11-22-33-44-66",
+                "ip_configurations": [
+                    {
+                        "name": "ipconfig1",
+                        "primary": True,
+                        "privateIPAddress": "10.0.2.4",
+                        "subnet": {
+                            "id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/hub/subnets/external"
+                        },
+                    }
+                ],
+            }
+        )
     raise AssertionError(command)
 
 
@@ -77,23 +96,38 @@ class CaptureEvidenceTests(unittest.TestCase):
     def test_references_reject_guest_device_fields(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "references.json"
-            path.write_text(json.dumps({
-                "schema_version": 1,
-                "nodes": [{
-                    "node_hostname": "ce01",
-                    "control_plane_interface_reference": "network-interface-ref-01",
-                    "provenance": "sanitized control-plane export",
-                    "guest_device": "eth0",
-                }],
-            }), encoding="utf-8")
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "nodes": [
+                            {
+                                "node_hostname": "ce01",
+                                "control_plane_interface_reference": "network-interface-ref-01",
+                                "provenance": "sanitized control-plane export",
+                                "guest_device": "eth0",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             with self.assertRaises(MODULE.EvidenceError):
                 MODULE.load_control_plane_references(path)
 
     @patch.object(MODULE.subprocess, "run", side_effect=fake_az)
     def test_matrix_omits_guest_names_and_public_addresses(self, _: object) -> None:
-        node = MODULE.capture_node(None, "rg", "ce01", {
-            "ce01": {"reference": "network-interface-ref-01", "provenance": "sanitized control-plane export"}
-        })
+        node = MODULE.capture_node(
+            None,
+            "rg",
+            "ce01",
+            {
+                "ce01": {
+                    "reference": "network-interface-ref-01",
+                    "provenance": "sanitized control-plane export",
+                }
+            },
+        )
         document = {
             "captured_at_utc": "2026-08-13T00:00:00Z",
             "evidence_status": "slo_reference_complete",
