@@ -24,7 +24,7 @@ set -euo pipefail
 if [ "${1:-}" = "-chdir=terraform" ]; then shift; fi
 case "${1:-} ${2:-} ${3:-}" in
 "version -json ")
-  printf '{"terraform_version":"1.15.8","provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"3.88.1"}}\n'
+  printf '{"terraform_version":"1.15.8","provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"6.0.0"}}\n'
   ;;
 "output -json xc_site_names")
   printf '{"eastus01":"site-01","eastus02":"site-02","eastus03":"site-03"}\n'

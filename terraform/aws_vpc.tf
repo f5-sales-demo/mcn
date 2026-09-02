@@ -68,6 +68,14 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.aws[0].id
   }
 
+  dynamic "route" {
+    for_each = var.enable_aws_tgw_connect ? [1] : []
+    content {
+      cidr_block         = var.aws_tgw_gre_cidr
+      transit_gateway_id = module.aws_tgw_connect[0].transit_gateway_id
+    }
+  }
+
   tags = merge(local.tags, {
     Name = "${var.component}-aws-public-rt"
   })
@@ -88,6 +96,14 @@ resource "aws_route_table" "private" {
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.aws[0].id
+  }
+
+  dynamic "route" {
+    for_each = var.enable_aws_tgw_connect ? [1] : []
+    content {
+      cidr_block         = var.aws_tgw_gre_cidr
+      transit_gateway_id = module.aws_tgw_connect[0].transit_gateway_id
+    }
   }
 
   tags = merge(local.tags, {
@@ -126,14 +142,6 @@ resource "aws_security_group" "ce" {
   }
 
   ingress {
-    description = "BGP peering"
-    from_port   = 179
-    to_port     = 179
-    protocol    = "tcp"
-    cidr_blocks = [var.aws_vpc_cidr]
-  }
-
-  ingress {
     description = "ICMP"
     from_port   = -1
     to_port     = -1
@@ -147,6 +155,17 @@ resource "aws_security_group" "ce" {
     to_port     = 0
     protocol    = "-1"
     self        = true
+  }
+
+  dynamic "ingress" {
+    for_each = var.enable_aws_tgw_connect ? [1] : []
+    content {
+      description = "GRE from the Transit Gateway Connect endpoint"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "47"
+      cidr_blocks = [var.aws_tgw_gre_cidr]
+    }
   }
 
   egress {

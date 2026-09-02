@@ -270,7 +270,7 @@ resource "xcsh_origin_pool" "this" {
   port = var.origin_port
 
   origin_servers {
-    labels {}
+    labels = {}
     public_ip {
       ip = var.origin_ip
     }
@@ -524,7 +524,7 @@ resource "xcsh_origin_pool" "canada" {
   port = var.origin_port
 
   origin_servers {
-    labels {}
+    labels = {}
     public_ip {
       ip = var.origin_ip
     }

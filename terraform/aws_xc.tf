@@ -1,5 +1,5 @@
 # ---------------------------------------------------------
-# F5 XC SecureMesh v2 Site, BGP, Virtual Site, Origin Pool & LB for AWS
+# F5 XC SecureMesh v2 Site, Virtual Site, Origin Pool & LB for AWS
 # ---------------------------------------------------------
 
 resource "xcsh_securemesh_site_v2" "aws" {
@@ -9,10 +9,43 @@ resource "xcsh_securemesh_site_v2" "aws" {
   description = "AWS Customer Edge SecureMesh Site v2"
 
   aws {
-    not_managed {}
+    not_managed {
+      dynamic "node_list" {
+        for_each = { for index in range(var.aws_ce_count) : tostring(index) => index }
+        content {
+          hostname  = aws_instance.ce[node_list.value].private_dns
+          type      = "Control"
+          public_ip = null
+
+          interface_list {
+            name = "slo"
+            mtu  = var.aws_smsv2_interface_mtu
+            ethernet_interface {
+              mac = aws_network_interface.slo[node_list.value].mac_address
+            }
+            network_option {
+              site_local_network {}
+            }
+            dhcp_client {}
+          }
+
+          interface_list {
+            name = "sli"
+            mtu  = var.aws_smsv2_interface_mtu
+            ethernet_interface {
+              mac = aws_network_interface.sli[node_list.value].mac_address
+            }
+            network_option {
+              site_local_inside_network {}
+            }
+            dhcp_client {}
+          }
+        }
+      }
+    }
   }
 
-  disable_ha {}
+  enable_ha {}
   block_all_services {}
   no_network_policy {}
   no_forward_proxy {}
@@ -23,48 +56,6 @@ resource "xcsh_securemesh_site_v2" "aws" {
   no_s2s_connectivity_slo {}
   disable_url_categorization {}
   disable_management_network {}
-}
-
-resource "xcsh_bgp" "aws_ebgp" {
-  count     = var.enable_aws ? 1 : 0
-  name      = "${var.component}-aws-ebgp"
-  namespace = "system"
-
-  where {
-    site {
-      network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
-      ref {
-        name      = xcsh_securemesh_site_v2.aws[0].name
-        namespace = "system"
-      }
-      disable_internet_vip {}
-    }
-  }
-
-  bgp_parameters {
-    asn = 64512
-    local_address {}
-  }
-
-  peers {
-    metadata {
-      name = "peer-aws-router"
-    }
-    external {
-      asn     = 65515
-      address = cidrhost(var.aws_vpc_cidr, 1)
-      port    = 179
-
-      interface {
-        name      = "eth0"
-        namespace = "system"
-      }
-
-      disable_v6 {}
-    }
-    passive_mode_disabled {}
-    bfd_disabled {}
-  }
 }
 
 resource "xcsh_virtual_site" "aws" {
@@ -87,7 +78,7 @@ resource "xcsh_origin_pool" "aws" {
   port = var.origin_port
 
   origin_servers {
-    labels {}
+    labels = {}
     public_ip {
       ip = var.origin_ip
     }

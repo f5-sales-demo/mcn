@@ -3,7 +3,7 @@
 #
 # Proves the SMSv2 numeric AND string validators both ACCEPT valid input and REJECT invalid
 # input, entirely credential-free (mock_provider fires the real schema validators at plan).
-# The version under test is whatever `terraform init` resolved against the floor in versions.tf
+# The version under test is whatever `terraform init` resolved at the exact clean-break version in versions.tf
 # (the lock file is gitignored) — deliberately NOT restated here, because the per-file copies of
 # it drifted across four releases before S8 removed them.
 #
@@ -51,7 +51,7 @@ reject_norm="$(printf '%s' "${reject_out}" | sed $'s/\x1b\\[[0-9;]*m//g' | tr '\
 # internal/validators (MAC/CIDR/IP) and the framework's stringvalidator.OneOf (node type).
 declare -a expected=(
   # S1 numeric
-  "must be at most 16384, got: 20000"
+  "Value 20000 must be in one of these inclusive ranges: 0, 512-16384."
   "must be between 0 and 255, got: 256"
   "must be between 1 and 4095, got: 4096"
   "must be between 0 and 65535, got: 70000"

@@ -40,7 +40,10 @@ resource "xcsh_securemesh_site_v2" "probe" {
           dynamic "bond_interface" {
             for_each = var.interface_arm == "bond" ? [1] : []
             content {
-              devices = var.bond_devices
+              devices               = var.bond_devices
+              name                  = "bond0"
+              link_polling_interval = 500
+              link_up_delay         = 0
               lacp {
                 rate = var.bond_lacp_rate
               }

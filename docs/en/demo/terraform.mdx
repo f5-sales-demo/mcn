@@ -25,6 +25,11 @@ import versions from "../../_data/terraform/versions.tf?raw";
 import awsCe from "../../_data/terraform/aws_ce.tf?raw";
 import awsVpc from "../../_data/terraform/aws_vpc.tf?raw";
 import awsXc from "../../_data/terraform/aws_xc.tf?raw";
+import awsTgwConnect from "../../_data/terraform/aws_tgw_connect.tf?raw";
+import modulesAwsTgwConnectMain from "../../_data/terraform/modules/aws-tgw-connect/main.tf?raw";
+import modulesAwsTgwConnectOutputs from "../../_data/terraform/modules/aws-tgw-connect/outputs.tf?raw";
+import modulesAwsTgwConnectVariables from "../../_data/terraform/modules/aws-tgw-connect/variables.tf?raw";
+import modulesAwsTgwConnectVersions from "../../_data/terraform/modules/aws-tgw-connect/versions.tf?raw";
 import variablesAws from "../../_data/terraform/variables_aws.tf?raw";
 import caIlb from "../../_data/terraform/ca_ilb.tf?raw";
 import modulesAzureHubMain from "../../_data/terraform/modules/azure-hub/main.tf?raw";
@@ -133,15 +138,21 @@ AWS VPC, public SLO subnets, private SLI subnets, internet gateway, route tables
 
 ### `terraform/aws_ce.tf`
 
-AWS Customer Edge EC2 nodes, IAM role/profile, key pair, dual network interfaces, Elastic IPs, cloud-init user_data, site registration lookup, and automatic registration approval.
+AWS Customer Edge EC2 nodes, IAM role/profile, key pair, ordered dual network interfaces, Elastic IPs, and an explicit 100-GiB Marketplace AMI root volume. Registration is a supervised interactive-console step; Terraform neither writes bootstrap material nor queries or approves runtime registration.
 
 <Code code={awsCe} lang="hcl" title="terraform/aws_ce.tf" />
 
 ### `terraform/aws_xc.tf`
 
-AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), eBGP peering (`xcsh_bgp.aws_ebgp`), virtual site (`xcsh_virtual_site.aws`), origin pool (`xcsh_origin_pool.aws`), and HTTP load balancer (`xcsh_http_loadbalancer.aws`).
+AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), virtual site (`xcsh_virtual_site.aws`), origin pool (`xcsh_origin_pool.aws`), and HTTP load balancer (`xcsh_http_loadbalancer.aws`). AWS Transit Gateway Connect uses provider v6 MAC-bound SMSv2 configuration and runtime observations with AWS-authoritative transport facts.
 
 <Code code={awsXc} lang="hcl" title="terraform/aws_xc.tf" />
+
+### `terraform/aws_tgw_connect.tf`
+
+Strict provider-v6 orchestration for the immutable SMSv2 contract, MAC-bound runtime health, AWS Transit Gateway Connect peers, F5 XC external connectors and BGP, and bounded route convergence.
+
+<Code code={awsTgwConnect} lang="hcl" title="terraform/aws_tgw_connect.tf" />
 
 ### `terraform/variables_azure.tf`
 
@@ -169,11 +180,23 @@ Tenant, app namespace, load balancer, origin pool and the VIP.
 
 ### `terraform/versions.tf`
 
-Terraform floor and provider constraints. The xcsh constraint is an open-ended floor, and the lock file is gitignored, so every init takes the latest published provider.
+Terraform floor and provider constraints. The xcsh provider is pinned exactly to the clean-break v6.0.0 release; the local lock file remains gitignored.
 
 <Code code={versions} lang="hcl" title="terraform/versions.tf" />
 
 ## Modules
+
+### `terraform/modules/aws-tgw-connect/`
+
+AWS-owned Transit Gateway, transport attachment, role-keyed Connect attachments, and explicit route-table associations and propagations.
+
+<Code code={modulesAwsTgwConnectMain} lang="hcl" title="terraform/modules/aws-tgw-connect/main.tf" />
+
+<Code code={modulesAwsTgwConnectOutputs} lang="hcl" title="terraform/modules/aws-tgw-connect/outputs.tf" />
+
+<Code code={modulesAwsTgwConnectVariables} lang="hcl" title="terraform/modules/aws-tgw-connect/variables.tf" />
+
+<Code code={modulesAwsTgwConnectVersions} lang="hcl" title="terraform/modules/aws-tgw-connect/versions.tf" />
 
 ### `terraform/modules/azure-hub/`
 
