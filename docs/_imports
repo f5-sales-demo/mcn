@@ -78,6 +78,7 @@ terraform/onprem_kvm.tf -> terraform/onprem_kvm.tf
 terraform/outputs.tf -> terraform/outputs.tf
 terraform/providers.tf -> terraform/providers.tf
 terraform/providers_libvirt.tf -> terraform/providers_libvirt.tf
+terraform/securemesh_interface_contract.tf -> terraform/securemesh_interface_contract.tf
 terraform/variables.tf -> terraform/variables.tf
 terraform/variables_aws.tf -> terraform/variables_aws.tf
 terraform/variables_azure.tf -> terraform/variables_azure.tf
