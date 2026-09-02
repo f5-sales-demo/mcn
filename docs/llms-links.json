@@ -143,5 +143,25 @@
     "label": "terraform/modules/xc-site/versions.tf",
     "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/xc-site/versions.tf",
     "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
+  },
+  {
+    "label": "terraform/aws_tgw_connect.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/aws_tgw_connect.tf",
+    "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
+  },
+  {
+    "label": "terraform/modules/aws-tgw-connect/main.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/aws-tgw-connect/main.tf",
+    "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
+  },
+  {
+    "label": "terraform/modules/aws-tgw-connect/outputs.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/aws-tgw-connect/outputs.tf",
+    "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
+  },
+  {
+    "label": "terraform/modules/aws-tgw-connect/variables.tf",
+    "url": "https://f5-sales-demo.github.io/mcn/_data/terraform/modules/aws-tgw-connect/variables.tf",
+    "description": "Terraform source that deploys this demo. Served verbatim: the pages render it through a component, so it is absent from the markdown variants of this site."
   }
 ]

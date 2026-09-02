@@ -141,6 +141,17 @@ resource "aws_security_group" "ce" {
     self        = true
   }
 
+  dynamic "ingress" {
+    for_each = var.enable_aws_tgw_connect ? [1] : []
+    content {
+      description = "GRE from the Transit Gateway Connect endpoint"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "47"
+      cidr_blocks = [var.aws_tgw_gre_cidr]
+    }
+  }
+
   egress {
     description = "Allow all outbound traffic"
     from_port   = 0

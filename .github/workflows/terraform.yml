@@ -79,8 +79,8 @@ jobs:
   # SMSv2 coverage-probe validation gate. Credential-free: the numeric-leaf tests mock the
   # xcsh provider, so the provider's own schema validators fire at plan with no XC API call.
   # This job resolves f5-sales-demo/xcsh from the public registry, so it only turns green once
-  # the provider version `coverage/smsv2/versions.tf` requires (>= 3.80.0, the
-  # release carrying the `x-f5xc-wire-name` contract) is published there. Locally the same tests run
+  # the exact clean-break provider version required by
+  # `coverage/smsv2/versions.tf` (`= 6.0.0`) is published in the registry. Locally the same tests run
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2

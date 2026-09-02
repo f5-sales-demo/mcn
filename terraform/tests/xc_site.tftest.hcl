@@ -40,7 +40,7 @@ run "site_and_interface_binding" {
     error_message = "The site must be created in the system namespace."
   }
 
-  # Provider v3.80.0 gave perf_mode_l7_enhanced a {jumbo_disabled | jumbo_enabled}
+  # The provider schema gives perf_mode_l7_enhanced a {jumbo_disabled | jumbo_enabled}
   # sub-oneof. F5 materialises jumbo_disabled server-side while a create stores null
   # for it, so leaving both members undeclared makes the site re-plan the marker as a
   # change on every plan after the create — it never reaches 0 changes.

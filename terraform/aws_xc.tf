@@ -9,10 +9,42 @@ resource "xcsh_securemesh_site_v2" "aws" {
   description = "AWS Customer Edge SecureMesh Site v2"
 
   aws {
-    not_managed {}
+    not_managed {
+      dynamic "node_list" {
+        for_each = { for index in range(var.aws_ce_count) : tostring(index) => index }
+        content {
+          hostname = aws_instance.ce[node_list.value].private_dns
+          type     = "Control"
+
+          interface_list {
+            name = "slo"
+            mtu  = var.aws_smsv2_interface_mtu
+            ethernet_interface {
+              mac = aws_network_interface.slo[node_list.value].mac_address
+            }
+            network_option {
+              site_local_network {}
+            }
+            dhcp_client {}
+          }
+
+          interface_list {
+            name = "sli"
+            mtu  = var.aws_smsv2_interface_mtu
+            ethernet_interface {
+              mac = aws_network_interface.sli[node_list.value].mac_address
+            }
+            network_option {
+              site_local_inside_network {}
+            }
+            dhcp_client {}
+          }
+        }
+      }
+    }
   }
 
-  disable_ha {}
+  enable_ha {}
   block_all_services {}
   no_network_policy {}
   no_forward_proxy {}

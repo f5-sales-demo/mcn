@@ -35,7 +35,7 @@ The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC)
 
 - **Terraform CLI**: `>= 1.10.0`
 - **Providers**:
-  - `f5-sales-demo/xcsh` (`>= 3.81.1`): `api_url` is dynamically derived from `var.expected_xc_tenant` (`https://${var.expected_xc_tenant}.console.ves.volterra.io`).
+  - `f5-sales-demo/xcsh` (`= 6.0.0`): `api_url` is dynamically derived from `var.expected_xc_tenant` (`https://${var.expected_xc_tenant}.console.ves.volterra.io`).
   - `hashicorp/azurerm` (`~> 4.0`): Declares `features {}` and `subscription_id = var.subscription_id`.
   - `hashicorp/aws` (`~> 5.0`): Configures AWS region `var.aws_location` (`us-east-2`).
   - `hashicorp/azuread` (`~> 3.0`): Resolves deployer identity for resource naming and tagging.

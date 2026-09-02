@@ -2,18 +2,15 @@ output "transit_gateway_id" {
   description = "Transit Gateway ID."
   value       = aws_ec2_transit_gateway.this.id
 }
-
-output "connect_attachment_id" {
-  description = "Transit Gateway Connect attachment ID."
-  value       = aws_ec2_transit_gateway_connect.this.id
+output "amazon_side_asn" {
+  description = "Amazon-side ASN configured on the Transit Gateway."
+  value       = aws_ec2_transit_gateway.this.amazon_side_asn
 }
-
-output "connect_peer_ids" {
-  description = "Connect peer IDs keyed by telemetry-attested CE interface."
-  value       = { for key, peer in aws_ec2_transit_gateway_connect_peer.this : key => peer.id }
+output "connect_attachment_ids" {
+  description = "Transit Gateway Connect attachment IDs keyed by SLO/SLI role."
+  value       = { for role, attachment in aws_ec2_transit_gateway_connect.role : role => attachment.id }
 }
-
-output "route_ids" {
-  description = "Transit Gateway route IDs keyed by destination CIDR."
-  value       = { for cidr, route in aws_ec2_transit_gateway_route.this : cidr => route.id }
+output "route_table_id" {
+  description = "Transit Gateway route table used by transport and Connect attachments."
+  value       = aws_ec2_transit_gateway_route_table.this.id
 }

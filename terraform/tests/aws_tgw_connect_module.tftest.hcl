@@ -1,8 +1,8 @@
-# The module models all TGW values from inputs; it never derives CE runtime state.
-
+# The module owns only AWS TGW transport. F5 runtime identity and BGP state are
+# intentionally absent and are composed by the root module.
 mock_provider "aws" {}
 
-run "plans_ordered_gre_bgp_peers_and_routes" {
+run "plans_two_role_connect_attachments_and_explicit_routing" {
   command = plan
 
   module {
@@ -10,51 +10,40 @@ run "plans_ordered_gre_bgp_peers_and_routes" {
   }
 
   variables {
-    vpc_id               = "vpc-plan-test"
-    amazon_side_asn      = 64520
-    transport_subnet_ids = ["subnet-plan-a", "subnet-plan-b"]
-    name_prefix          = "mcn-plan-test"
-    interfaces = {
-      ce01 = {
-        interface_order   = 1
-        gre_peer_address  = "192.0.2.10"
-        inside_cidr_block = "169.254.100.0/29"
-        bgp_local_asn     = 65010
-        bgp_remote_asn    = 64520
-        effective_mtu     = 1500
-      }
-      ce02 = {
-        interface_order   = 2
-        gre_peer_address  = "192.0.2.11"
-        inside_cidr_block = "169.254.101.0/29"
-        bgp_local_asn     = 65011
-        bgp_remote_asn    = 64520
-        effective_mtu     = 1500
-      }
-    }
-    routes = {
-      "10.60.0.0/16" = "ce01"
-      "10.61.0.0/16" = "ce02"
-    }
+    vpc_id                     = "vpc-plan-test"
+    amazon_side_asn            = 64520
+    transit_gateway_cidr_block = "100.64.0.0/24"
+    transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-b", "subnet-plan-c"]
+    name_prefix                = "mcn-plan-test"
   }
 
   assert {
-    condition     = length(aws_ec2_transit_gateway_connect_peer.this) == 2
-    error_message = "Each telemetry-attested CE interface must plan exactly one Connect peer."
+    condition     = length(aws_ec2_transit_gateway_connect.role) == 2
+    error_message = "The module must create exactly the SLO and SLI Connect attachments."
   }
 
   assert {
-    condition     = tonumber(aws_ec2_transit_gateway_connect_peer.this["ce01"].bgp_asn) == 65010
-    error_message = "The Connect peer must use the telemetry-attested CE local ASN."
+    condition     = toset(keys(aws_ec2_transit_gateway_connect.role)) == toset(["slo", "sli"])
+    error_message = "Connect attachments must be keyed strictly by the SLO and SLI roles."
   }
 
   assert {
-    condition     = aws_ec2_transit_gateway_route.this["10.60.0.0/16"].destination_cidr_block == "10.60.0.0/16"
-    error_message = "Each telemetry-attested route must be represented deterministically."
+    condition     = length(aws_ec2_transit_gateway_vpc_attachment.transport.subnet_ids) == 3
+    error_message = "The transport attachment must use exactly three availability-zone subnets."
+  }
+
+  assert {
+    condition     = length(aws_ec2_transit_gateway_route_table_association.connect) == 2 && length(aws_ec2_transit_gateway_route_table_propagation.connect) == 2
+    error_message = "Each role attachment must have an explicit association and propagation."
+  }
+
+  assert {
+    condition     = aws_ec2_transit_gateway.this.default_route_table_association == "disable" && aws_ec2_transit_gateway.this.default_route_table_propagation == "disable"
+    error_message = "The TGW must use explicit route-table associations and propagations only."
   }
 }
 
-run "rejects_unattested_remote_asn" {
+run "rejects_duplicate_or_incomplete_transport_subnets" {
   command = plan
 
   module {
@@ -62,22 +51,48 @@ run "rejects_unattested_remote_asn" {
   }
 
   variables {
-    vpc_id               = "vpc-plan-test"
-    amazon_side_asn      = 64520
-    transport_subnet_ids = ["subnet-plan-a"]
-    name_prefix          = "mcn-plan-test"
-    interfaces = {
-      ce01 = {
-        interface_order   = 1
-        gre_peer_address  = "192.0.2.10"
-        inside_cidr_block = "169.254.100.0/29"
-        bgp_local_asn     = 65010
-        bgp_remote_asn    = 64521
-        effective_mtu     = 1500
-      }
-    }
-    routes = { "10.60.0.0/16" = "ce01" }
+    vpc_id                     = "vpc-plan-test"
+    amazon_side_asn            = 64520
+    transit_gateway_cidr_block = "100.64.0.0/24"
+    transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-a", "subnet-plan-b"]
+    name_prefix                = "mcn-plan-test"
   }
 
-  expect_failures = [aws_ec2_transit_gateway_connect_peer.this]
+  expect_failures = [var.transport_subnet_ids]
+}
+
+run "rejects_invalid_amazon_side_asn" {
+  command = plan
+
+  module {
+    source = "./modules/aws-tgw-connect"
+  }
+
+  variables {
+    vpc_id                     = "vpc-plan-test"
+    amazon_side_asn            = 0
+    transit_gateway_cidr_block = "100.64.0.0/24"
+    transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-b", "subnet-plan-c"]
+    name_prefix                = "mcn-plan-test"
+  }
+
+  expect_failures = [var.amazon_side_asn]
+}
+
+run "rejects_invalid_tgw_cidr" {
+  command = plan
+
+  module {
+    source = "./modules/aws-tgw-connect"
+  }
+
+  variables {
+    vpc_id                     = "vpc-plan-test"
+    amazon_side_asn            = 64520
+    transit_gateway_cidr_block = "not-a-cidr"
+    transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-b", "subnet-plan-c"]
+    name_prefix                = "mcn-plan-test"
+  }
+
+  expect_failures = [var.transit_gateway_cidr_block]
 }

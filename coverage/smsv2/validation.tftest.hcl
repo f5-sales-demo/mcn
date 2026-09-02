@@ -2,8 +2,8 @@
 #
 # POSITIVE case: valid bounds AND valid mac/ip/CIDR/node-type plan cleanly through the REAL
 # provider schema. mock_provider means no XC credentials are needed — the schema (and its
-# numeric + string validators) come from whichever release `terraform init` resolved against the
-# floor in versions.tf, and fire during plan regardless of whether the API is contacted.
+# numeric + string validators) come from whichever release `terraform init` resolved at the exact clean-break version
+# in versions.tf, and fire during plan regardless of whether the API is contacted.
 # versions.tf is the only tracked pin: do not restate a version in prose here or in
 # reject-tests/, or the copies drift (they did, across four releases, until S8).
 #

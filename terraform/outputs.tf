@@ -260,7 +260,7 @@ output "aws_origin_pool_name" {
 }
 
 output "aws_vip" {
-  description = "HA VIP reserved for the AWS CE site. TGW Connect BGP is unavailable until telemetry capability is attested."
+  description = "HA VIP advertised by the AWS CE site after TGW Connect BGP convergence."
   value       = var.aws_vip
 }
 

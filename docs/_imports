@@ -84,3 +84,7 @@ terraform/variables_azure.tf -> terraform/variables_azure.tf
 terraform/variables_ce.tf -> terraform/variables_ce.tf
 terraform/variables_xc.tf -> terraform/variables_xc.tf
 terraform/versions.tf -> terraform/versions.tf
+terraform/aws_tgw_connect.tf -> terraform/aws_tgw_connect.tf
+terraform/modules/aws-tgw-connect/main.tf -> terraform/modules/aws-tgw-connect/main.tf
+terraform/modules/aws-tgw-connect/outputs.tf -> terraform/modules/aws-tgw-connect/outputs.tf
+terraform/modules/aws-tgw-connect/variables.tf -> terraform/modules/aws-tgw-connect/variables.tf
