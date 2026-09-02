@@ -54,7 +54,7 @@ resource "xcsh_securemesh_site_v2" "this" {
       node_list {
         hostname  = var.hostname
         type      = "Control"
-        public_ip = ""
+        public_ip = null
 
         interface_list {
           name = "eth0"

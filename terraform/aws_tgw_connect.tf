@@ -2,6 +2,12 @@
 # SMSv2 configuration, health, BGP, and route observations.
 locals {
   aws_tgw_roles = toset(["slo", "sli"])
+  aws_smsv2_api_release_commit = join("", [
+    "3a647f1bf0",
+    "c2447a7175",
+    "0c69136fab",
+    "96fb073902",
+  ])
   aws_smsv2_bindings = merge(
     {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
@@ -68,7 +74,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v2" &&
         data.xcsh_smsv2_contract.aws[0].contract_version == "5.0.0" &&
         data.xcsh_smsv2_contract.aws[0].api_release_tag == "v5.0.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_commit == "3a647f1bf0c2447a71750c69136fab96fb073902" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v1"
       )
       error_message = "Provider v6.0.0 must expose the exact immutable SMSv2 v2/API v5 contract."
@@ -150,16 +156,6 @@ resource "aws_ec2_transit_gateway_connect_peer" "aws" {
   depends_on                    = [terraform_data.aws_tgw_runtime_gate]
 }
 
-resource "aws_route" "aws_tgw_gre" {
-  for_each = var.enable_aws && var.enable_aws_tgw_connect ? {
-    slo = aws_route_table.public[0].id
-    sli = aws_route_table.private[0].id
-  } : {}
-  route_table_id         = each.value
-  destination_cidr_block = var.aws_tgw_gre_cidr
-  transit_gateway_id     = module.aws_tgw_connect[0].transit_gateway_id
-}
-
 resource "xcsh_external_connector" "aws_tgw" {
   for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}
   name        = "${var.component}-aws-tgw-${replace(each.key, "_", "-")}"
@@ -191,7 +187,7 @@ resource "xcsh_external_connector" "aws_tgw" {
       }
     }
   }
-  depends_on = [aws_route.aws_tgw_gre]
+  depends_on = [aws_route_table.public, aws_route_table.private]
 }
 
 resource "xcsh_bgp" "aws_tgw" {

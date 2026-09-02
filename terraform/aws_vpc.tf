@@ -68,6 +68,14 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.aws[0].id
   }
 
+  dynamic "route" {
+    for_each = var.enable_aws_tgw_connect ? [1] : []
+    content {
+      cidr_block         = var.aws_tgw_gre_cidr
+      transit_gateway_id = module.aws_tgw_connect[0].transit_gateway_id
+    }
+  }
+
   tags = merge(local.tags, {
     Name = "${var.component}-aws-public-rt"
   })
@@ -88,6 +96,14 @@ resource "aws_route_table" "private" {
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.aws[0].id
+  }
+
+  dynamic "route" {
+    for_each = var.enable_aws_tgw_connect ? [1] : []
+    content {
+      cidr_block         = var.aws_tgw_gre_cidr
+      transit_gateway_id = module.aws_tgw_connect[0].transit_gateway_id
+    }
   }
 
   tags = merge(local.tags, {

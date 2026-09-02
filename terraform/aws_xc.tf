@@ -13,8 +13,9 @@ resource "xcsh_securemesh_site_v2" "aws" {
       dynamic "node_list" {
         for_each = { for index in range(var.aws_ce_count) : tostring(index) => index }
         content {
-          hostname = aws_instance.ce[node_list.value].private_dns
-          type     = "Control"
+          hostname  = aws_instance.ce[node_list.value].private_dns
+          type      = "Control"
+          public_ip = null
 
           interface_list {
             name = "slo"
