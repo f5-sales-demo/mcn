@@ -6,7 +6,7 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 6.0.0"
+      version = "= 6.1.2"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
