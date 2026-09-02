@@ -63,13 +63,13 @@ run "plans_mac_bound_tgw_connect_and_convergence_gates" {
     target          = data.xcsh_smsv2_contract.aws[0]
     values = {
       contract_id      = "f5xc-ce-automation/v2"
-      contract_version = "5.0.0"
-      api_release_tag  = "v5.0.0"
+      contract_version = "5.0.1"
+      api_release_tag  = "v5.0.1"
       api_release_commit = join("", [
-        "3a647f1bf0",
-        "c2447a7175",
-        "0c69136fab",
-        "96fb073902",
+        "03297e8b40",
+        "3ac7df1cb0",
+        "897387edd7",
+        "4f836114a",
       ])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v1"
       capabilities = {

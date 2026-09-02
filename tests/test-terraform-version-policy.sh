@@ -25,14 +25,14 @@ else
   ok "setup-terraform uses its latest-version default"
 fi
 
-echo "2. every xcsh consumer pins exactly v6.0.0"
+echo "2. every xcsh consumer pins exactly v6.1.2"
 for relative in terraform/versions.tf terraform/modules/xc-site/versions.tf coverage/smsv2/versions.tf; do
   file="${REPO_ROOT}/${relative}"
   block=$(sed -n '/^[[:space:]]*xcsh = {/,/^[[:space:]]*}/p' "$file")
-  if printf '%s\n' "$block" | grep -Eq 'version[[:space:]]*=[[:space:]]*"= 6\.0\.0"'; then
-    ok "${relative} pins = 6.0.0"
+  if printf '%s\n' "$block" | grep -Eq 'version[[:space:]]*=[[:space:]]*"= 6\.1\.2"'; then
+    ok "${relative} pins = 6.1.2"
   else
-    bad "${relative} does not pin exactly = 6.0.0"
+    bad "${relative} does not pin exactly = 6.1.2"
   fi
   count=$(printf '%s\n' "$block" | grep -Ec '^[[:space:]]*version[[:space:]]*=' || true)
   [ "$count" -eq 1 ] || bad "${relative} has ${count} xcsh version constraints"
