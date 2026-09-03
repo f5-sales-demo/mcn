@@ -90,23 +90,6 @@ ignore = [
     "S603",
     "TRY300",
 ]
-"scripts/capture_ce_interface_evidence.py" = [
-    "ANN",
-    "D",
-    "EM",
-    "TRY003",
-    "S603",
-]
-"scripts/test_capture_ce_interface_evidence.py" = [
-    "ANN",
-    "D",
-    "EXE001",
-    "PT009",
-    "PT018",
-    "PT019",
-    "PT027",
-    "S101",
-]
 "tests/test_audit_runner_workflows.py" = [
     "INP001",
     "PT009",
