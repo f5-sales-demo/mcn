@@ -1,11 +1,52 @@
 ---
-title: Multi-Cloud Networking
-description: Multi-cloud networking and site connectivity for F5 Distributed Cloud.
-hero:
-  tagline: Multi-cloud networking and site connectivity.
-  image:
-    html: '<img src="/mcn/images/hero.svg" alt="F5 XC MCN" />'
-sidebar:
-  hidden: true
-  order: 0
+title: Multi-Cloud Networking (MCN)
+description: Customer Edge architecture, site lifecycle, interface models, BGP failover, SiteCLI diagnostics, and multi-cloud interconnects.
 ---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+**F5 Distributed Cloud Multi-Cloud Networking** (MCN) connects distributed workloads across public clouds (AWS, Azure, GCP), on-premises hypervisors, and edge sites using automated Layer 3 and Layer 7 overlays.
+
+## Architecture
+
+```text
++-------------------------------------------------------------------------+
+|                  F5 Distributed Cloud Global Network                    |
+|                                                                         |
+|  +--------------------+                     +--------------------+      |
+|  | AWS VPC Site       | <=================> | Azure VNet Site    |      |
+|  | Customer Edge (CE) |   Global Backbone   | Customer Edge (CE) |      |
+|  +---------+----------+   (IPsec / Wireguard) +---------+----------+      |
+|            |                                            |               |
+|            v                                            v               |
+|  +--------------------+                     +--------------------+      |
+|  | Private Subnet AWS |                     | Private Subnet Azure|     |
+|  | Workloads / APIs   |                     | Workloads / DBs    |      |
+|  +--------------------+                     +--------------------+      |
++-------------------------------------------------------------------------+
+```
+
+## Key Topics
+
+<CardGrid>
+  <Card title="Customer Edge (CE) Architecture" icon="laptop">
+    Understand CE deployment models, hardware/VM sizing, and the Single Management System v2 (SMSv2) contract.
+  </Card>
+  <Card title="Interface Models & Networking" icon="puzzle">
+    Configure SLI/Inside/Outside interfaces, static routing, BGP peering, and IPsec tunnels.
+  </Card>
+  <Card title="High Availability & Failover" icon="star">
+    Active-active ECMP and active-standby failover designs with sub-second health detection.
+  </Card>
+  <Card title="SiteCLI & Diagnostics" icon="document">
+    Comprehensive command reference for on-box debugging, packet captures, and flow tracing.
+  </Card>
+</CardGrid>
+
+## Documentation Sections
+
+- **[Customer Edge Lifecycle](/mcn/customer-edge/lifecycle)**: Node provisioning, registration tokens, software updates, and decommissioning.
+- **[Interface Models](/mcn/customer-edge/interface-model)**: Single-NIC vs Multi-NIC interface topologies.
+- **[High Availability](/mcn/customer-edge/high-availability/)**: HA cluster design and ECMP flow affinity.
+- **[On-Box Commands & Diagnostics](/mcn/customer-edge/commands/)**: Comprehensive guide to `sitecli`, `vpm`, `envoy`, `ip`, and `tcpdump` workflows.
+- **[Live Demo Walkthrough](/mcn/demo/)**: 4-phase automated demo deploying AWS and Azure CEs with Terraform.
