@@ -144,13 +144,13 @@ AWS Customer Edge EC2 nodes, IAM role/profile, key pair, ordered dual network in
 
 ### `terraform/aws_xc.tf`
 
-AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), virtual site (`xcsh_virtual_site.aws`), origin pool (`xcsh_origin_pool.aws`), and HTTP load balancer (`xcsh_http_loadbalancer.aws`). AWS Transit Gateway Connect uses provider v6 MAC-bound SMSv2 configuration and runtime observations with AWS-authoritative transport facts.
+AWS SecureMesh v2 site (`xcsh_securemesh_site_v2.aws`), virtual site (`xcsh_virtual_site.aws`), origin pool (`xcsh_origin_pool.aws`), and HTTP load balancer (`xcsh_http_loadbalancer.aws`). AWS Transit Gateway Connect uses provider v7 MAC-bound SMSv2 configuration and runtime observations with AWS-authoritative transport facts.
 
 <Code code={awsXc} lang="hcl" title="terraform/aws_xc.tf" />
 
 ### `terraform/aws_tgw_connect.tf`
 
-Strict provider-v6 orchestration for the immutable SMSv2 contract, MAC-bound runtime health, AWS Transit Gateway Connect peers, F5 XC external connectors and BGP, and bounded route convergence.
+Strict provider-v7 orchestration for the immutable SMSv2 contract, MAC-bound runtime health, AWS Transit Gateway Connect peers, F5 XC external connectors and BGP, and bounded route convergence.
 
 <Code code={awsTgwConnect} lang="hcl" title="terraform/aws_tgw_connect.tf" />
 
@@ -180,7 +180,7 @@ Tenant, app namespace, load balancer, origin pool and the VIP.
 
 ### `terraform/versions.tf`
 
-Terraform floor and provider constraints. The xcsh provider is pinned exactly to the clean-break v6.1.2 release; the local lock file remains gitignored.
+Terraform floor and provider constraints. The xcsh provider is pinned exactly to the clean-break v7.0.0 release; the local lock file remains gitignored.
 
 <Code code={versions} lang="hcl" title="terraform/versions.tf" />
 

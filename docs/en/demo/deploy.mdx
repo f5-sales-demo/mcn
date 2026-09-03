@@ -12,8 +12,8 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
 - **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.8`, for
   provider-defined functions and the `check` block that guards the VIP.
-- **The `xcsh` provider at exactly v6.1.2.** This unreleased project uses the clean-break
-  SMSv2 contract and does not retain provider 3.x/5.x compatibility paths. The local
+- **The `xcsh` provider at exactly v7.0.0.** This deployment uses only the clean-break
+  SMSv2 contract. The local
   `.terraform.lock.hcl` remains gitignored; the exact source constraint is authoritative.
 - **An F5 XC API credential** for the tenant in `var.expected_xc_tenant`, exported as
   `XCSH_API_TOKEN` (or the P12/PEM pair). Export the credential only, never a URL — see
@@ -98,24 +98,70 @@ credential. If a credential you believe is good returns `401`, compare the two o
 above before you mint another token.
 </Aside>
 
+## AWS SMSv2 preflight is mandatory
+
+The AWS Transit Gateway path is pinned to the immutable
+[`xcsh` v7.0.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v7.0.0).
+That release publishes contract `f5xc-ce-automation/v3` for API `v6.0.0` and is
+fail-closed: the current release reports its three AWS SMSv2 capabilities as
+`unavailable`. Do not bypass that result.
+
+Before any plan is applied with `enable_aws_tgw_connect = true`, save the reviewed
+plan and run the non-mutating preflight using the complete command in the Apply
+sequence. Put evidence in a new, empty directory outside the repository.
+
+The gate compares the authenticated AWS account and region, Azure subscription,
+initialized Azure backend, XC tenant, and planned AWS site with the explicitly
+expected targets. It then installs exactly provider v7.0.0 in a disposable
+directory and reads its compiled contract. The only durable evidence is
+`summary.json`, containing `status`, a fixed reason code, and a UTC timestamp;
+account IDs, subscription IDs, tenant names, endpoints, tokens, and resource
+values are never written to evidence.
+
+Apply only when the summary says `ready` with reason `preflight_passed`. A blocked
+result is an expected safe outcome and no infrastructure should be changed.
+
+The later live-UAT acceptance path must prove all six MAC-bound interfaces healthy,
+retain nullable `public_ip = null`, converge all BGP peers and both detailed and
+simplified route observations, agree with AWS Connect peer facts, and finish with a
+no-change Terraform plan. Until that full path succeeds, the AWS/TGW capability
+remains gated even when the rest of the deployment is usable.
+
 ## Apply
 
 <Steps>
 
-1. **Initialize.** The backend config is not committed; supply your own.
+1. **Initialize.** The backend config is not committed; supply your own with
+   `terraform init -upgrade -backend-config=backend.hcl`.
+
+2. **Run the AWS SMSv2 preflight when TGW Connect is enabled.** Continue only on `ready`.
 
    ```bash
-   terraform init -upgrade -backend-config=backend.hcl
+   terraform plan -out=/private/path/mcn.tfplan
+
+   scripts/aws-smsv2-uat-preflight.sh \
+     --evidence-dir /private/path/mcn-smsv2-evidence \
+     --terraform-dir terraform \
+     --plan-file /private/path/mcn.tfplan \
+     --expected-aws-account '<AWS_ACCOUNT_ID>' \
+     --expected-aws-region us-east-2 \
+     --expected-azure-subscription '<AZURE_SUBSCRIPTION_ID>' \
+     --expected-backend-resource-group '<BACKEND_RESOURCE_GROUP>' \
+     --expected-backend-storage-account '<BACKEND_STORAGE_ACCOUNT>' \
+     --expected-backend-container '<BACKEND_CONTAINER>' \
+     --expected-backend-key '<BACKEND_KEY>' \
+     --expected-xc-tenant '<XC_TENANT>' \
+     --expected-site '<TASK_OWNED_AWS_SITE>'
    ```
 
-2. **First apply.** This builds Azure, the CE sites and the registration token, and boots
+3. **First apply.** This builds Azure, the CE sites and the registration token, and boots
    the CEs.
 
    ```bash
    terraform apply
    ```
 
-3. **Apply again once the CEs have registered.** This is not optional, and the reason is
+4. **Apply again once the CEs have registered.** This is not optional, and the reason is
    below rather than being something you discover.
 
    ```bash
