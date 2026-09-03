@@ -3,10 +3,10 @@
 locals {
   aws_tgw_roles = toset(["slo", "sli"])
   aws_smsv2_api_release_commit = join("", [
-    "03297e8b40",
-    "3ac7df1cb0",
-    "897387edd7",
-    "4f836114a",
+    "8a48ca67ad",
+    "9fc23174d0",
+    "86c0d63a27",
+    "83e531044b",
   ])
   aws_smsv2_bindings = merge(
     {
@@ -71,13 +71,13 @@ resource "terraform_data" "aws_tgw_contract_gate" {
     }
     precondition {
       condition = (
-        data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v2" &&
-        data.xcsh_smsv2_contract.aws[0].contract_version == "5.0.1" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v5.0.1" &&
+        data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v3" &&
+        data.xcsh_smsv2_contract.aws[0].contract_version == "6.0.0" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.0.0" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
-        data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v1"
+        data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v6.1.2 must expose the exact immutable SMSv2 v2/API v5 contract."
+      error_message = "Provider v7.0.0 must expose the exact immutable SMSv2 v3/API v6 contract."
     }
     precondition {
       condition = (
@@ -86,7 +86,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         try(data.xcsh_smsv2_contract.aws[0].capabilities["runtime_status"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available"
       )
-      error_message = "Provider v6.1.2 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v7.0.0 must publish all and only the required SMSv2 capabilities as available."
     }
     precondition {
       condition = (
@@ -94,9 +94,9 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         toset(data.xcsh_smsv2_contract.aws[0].f5xc_authorities) == toset([
           "smsv2_configuration", "runtime_health", "bgp_peers", "bgp_routes", "simplified_routes",
         ]) &&
-        length(data.xcsh_smsv2_contract.aws[0].aws_authorities) == 5 &&
+        length(data.xcsh_smsv2_contract.aws[0].aws_authorities) == 6 &&
         toset(data.xcsh_smsv2_contract.aws[0].aws_authorities) == toset([
-          "eni", "transit_gateway", "transit_gateway_connect", "gre_endpoints", "bgp_inside_cidrs",
+          "eni", "transit_gateway", "transit_gateway_connect", "gre_endpoints", "bgp_inside_cidrs", "autonomous_system_numbers",
         ])
       )
       error_message = "The SMSv2 contract authority split does not match this deployment."
@@ -246,10 +246,9 @@ data "xcsh_site_bgp_status" "aws" {
       expected_routes = [var.aws_vpc_cidr]
     }
   }
-  timeout_seconds             = var.aws_bgp_convergence_timeout_seconds
-  poll_interval_seconds       = var.aws_bgp_poll_interval_seconds
-  max_observation_age_seconds = var.aws_bgp_max_observation_age_seconds
-  depends_on                  = [xcsh_bgp.aws_tgw]
+  timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
+  poll_interval_seconds = var.aws_bgp_poll_interval_seconds
+  depends_on            = [xcsh_bgp.aws_tgw]
 }
 
 output "aws_tgw_connect_status" {

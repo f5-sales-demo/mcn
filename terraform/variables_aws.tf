@@ -21,7 +21,7 @@ variable "aws_ce_ami_id" {
 }
 
 variable "enable_aws_tgw_connect" {
-  description = "Enable the v6-only SMSv2 AWS Transit Gateway Connect topology."
+  description = "Enable the v7 SMSv2 AWS Transit Gateway Connect topology."
   type        = bool
   default     = false
 }
@@ -88,11 +88,6 @@ variable "aws_bgp_poll_interval_seconds" {
   default     = 10
 }
 
-variable "aws_bgp_max_observation_age_seconds" {
-  description = "Maximum age accepted for an F5 XC BGP observation."
-  type        = number
-  default     = 120
-}
 
 variable "aws_location" {
   description = "AWS region for all AWS resources."
