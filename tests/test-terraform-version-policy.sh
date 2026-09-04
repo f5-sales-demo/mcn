@@ -25,14 +25,14 @@ else
   ok "setup-terraform uses its latest-version default"
 fi
 
-echo "2. every xcsh consumer pins exactly v7.0.0"
+echo "2. every xcsh consumer pins exactly v7.2.0"
 for relative in terraform/versions.tf terraform/modules/xc-site/versions.tf coverage/smsv2/versions.tf; do
   file="${REPO_ROOT}/${relative}"
   block=$(sed -n '/^[[:space:]]*xcsh = {/,/^[[:space:]]*}/p' "$file")
-  if printf '%s\n' "$block" | grep -Eq 'version[[:space:]]*=[[:space:]]*"= 7\.0\.0"'; then
-    ok "${relative} pins = 7.0.0"
+  if printf '%s\n' "$block" | grep -Eq 'version[[:space:]]*=[[:space:]]*"= 7\.2\.0"'; then
+    ok "${relative} pins = 7.2.0"
   else
-    bad "${relative} does not pin exactly = 7.0.0"
+    bad "${relative} does not pin exactly = 7.2.0"
   fi
   count=$(printf '%s\n' "$block" | grep -Ec '^[[:space:]]*version[[:space:]]*=' || true)
   [ "$count" -eq 1 ] || bad "${relative} has ${count} xcsh version constraints"
@@ -41,10 +41,10 @@ done
 for relative in .github/workflows/terraform.yml prompt.txt docs/en/demo/deploy.mdx \
   docs/en/demo/prompt.mdx docs/en/demo/spec.mdx docs/en/demo/terraform.mdx \
   tests/test-verify-deployment.sh; do
-  if grep -Fq '7.0.0' "${REPO_ROOT}/${relative}"; then
-    ok "${relative} references v7.0.0"
+  if grep -Fq '7.2.0' "${REPO_ROOT}/${relative}"; then
+    ok "${relative} references v7.2.0"
   else
-    bad "${relative} is missing the v7.0.0 reference"
+    bad "${relative} is missing the v7.2.0 reference"
   fi
 done
 legacy_version='6''.''1''.''2'

@@ -119,27 +119,17 @@ resource "aws_instance" "ce" {
     volume_type           = "gp3"
   }
 
-  # Bootstrap is required for a fresh appliance to register. Interface identity
-  # remains MAC-bound in SMSv2; these guest device labels are configuration only.
+  # Bootstrap is required for a fresh appliance to register. Keep the full VPM
+  # contract in the reviewed template; partial token-only fragments do not start
+  # registration on the certified-hardware image.
   user_data_replace_on_change = true
-  user_data                   = <<-EOF
-    #cloud-config
-    hostname: ${var.component}-aws-ce-${count.index + 1}
-    fqdn: ${var.component}-aws-ce-${count.index + 1}.${var.aws_location}.compute.internal
-    write_files:
-      - path: /etc/vpm/config.yaml
-        permissions: '0644'
-        content: |
-          Vpm:
-            ClusterName: aws-site
-            ClusterHeader: ""
-            Token: ${local.ce_registration_token}
-            Latitude: 0
-            Longitude: 0
-            CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/aws.yml
-    ssh_authorized_keys:
-      - ${chomp(local.ssh_public_key)}
-  EOF
+  user_data = templatefile("${path.module}/cloud-init/ce-node-aws.yaml", {
+    hostname       = local.aws_ce_hostnames[count.index]
+    fqdn           = "${local.aws_ce_hostnames[count.index]}.${var.aws_location}.compute.internal"
+    cluster_name   = "aws-site"
+    token          = local.ce_registration_token
+    ssh_public_key = chomp(local.ssh_public_key)
+  })
 
   tags = merge(local.tags, {
     Name                             = "${var.component}-aws-ce-${count.index + 1}"
@@ -153,4 +143,12 @@ resource "aws_instance" "ce" {
       error_message = "AWS CE deployment requires an explicit approved aws_ce_ami_id; dynamic AMI selection is not allowed."
     }
   }
+}
+
+# Carry the AWS CE instance identities into the site lifecycle. Adding this
+# aggregate is inert for the existing site; subsequent CE replacements update
+# it and force the HA site to be recreated before new nodes register.
+resource "terraform_data" "aws_ce_instances" {
+  count = var.enable_aws ? 1 : 0
+  input = aws_instance.ce[*].id
 }

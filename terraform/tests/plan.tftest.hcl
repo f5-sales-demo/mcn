@@ -28,8 +28,9 @@ variables {
   # CI fails on a missing required variable and any assertion against them depends
   # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
   # space: unroutable by design, so it cannot name a real host.
-  lb_domain = "mcn-ce-ha.f5-sales-demo.com"
-  origin_ip = "203.0.113.10"
+  lb_domain  = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip  = "203.0.113.10"
+  enable_aws = false
 }
 
 run "root_plans_end_to_end" {

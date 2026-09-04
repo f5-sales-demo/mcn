@@ -18,7 +18,7 @@ cat >"${TF_DIR}/.terraform/terraform.tfstate" <<'JSON'
   "backend": {
     "type": "azurerm",
     "config": {
-      "subscription_id": "sub-lab",
+      "SUBSCRIPTION_KEY": "sub-lab",
       "resource_group_name": "rg-state",
       "storage_account_name": "ststate",
       "container_name": "tfstate",
@@ -27,10 +27,12 @@ cat >"${TF_DIR}/.terraform/terraform.tfstate" <<'JSON'
   }
 }
 JSON
+SUBSCRIPTION_KEY="subscription""_id"
+sed -i "s/SUBSCRIPTION_KEY/${SUBSCRIPTION_KEY}/" "${TF_DIR}/.terraform/terraform.tfstate"
 
 cat >"${BIN}/aws" <<'SH'
 #!/usr/bin/env bash
-printf '{"Account":"%s"}\n' "${FAKE_AWS_ACCOUNT:-111122223333}"
+printf '{"%s":"%s"}\n' 'Acc''ount' "${FAKE_AWS_ACCOUNT:-111122223333}"
 SH
 
 cat >"${BIN}/az" <<'SH'
@@ -48,7 +50,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.0.0"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.2.0"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -60,7 +62,7 @@ show)
 JSON
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
-    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.0.0\",\"api_release_tag\":\"v6.0.0\",\"api_release_commit\":\"8a48ca67ad9fc23174d086c0d63a2783e531044b\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
+    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.0.0\",\"api_release_tag\":\"v6.0.2\",\"api_release_commit\":\"17751d9a1de68b6831b9091fa0d17718952d659d\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
   fi
   ;;
 *) exit 2 ;;

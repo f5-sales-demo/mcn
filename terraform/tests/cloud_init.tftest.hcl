@@ -37,6 +37,7 @@ variables {
   lb_domain          = "mcn-ce-ha.f5-sales-demo.com"
   origin_ip          = "203.0.113.10"
   ce_count           = 1
+  enable_aws         = false
   deployer           = "tester"
   registration_token = "plan-test-token"
 }

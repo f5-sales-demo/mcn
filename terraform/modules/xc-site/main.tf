@@ -225,9 +225,10 @@ data "xcsh_site_registration" "this" {
 resource "xcsh_registration_approval" "this" {
   count = var.approve_registration && data.xcsh_site_registration.this.found ? 1 : 0
 
-  namespace = "system"
-  name      = data.xcsh_site_registration.this.name
-  state     = "APPROVED"
+  namespace    = "system"
+  name         = data.xcsh_site_registration.this.name
+  cluster_size = 1
+  state        = "APPROVED"
 }
 
 # One bgp object per CE site: eBGP from the CE (ASN var.ce_asn) to the Azure
