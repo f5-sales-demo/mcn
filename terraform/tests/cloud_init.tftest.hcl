@@ -34,12 +34,13 @@ variables {
   # CI fails on a missing required variable and any assertion against them depends
   # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
   # space: unroutable by design, so it cannot name a real host.
-  lb_domain          = "mcn-ce-ha.f5-sales-demo.com"
-  origin_ip          = "203.0.113.10"
-  ce_count           = 1
-  enable_aws         = false
-  deployer           = "tester"
-  registration_token = "plan-test-token"
+  lb_domain              = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip              = "203.0.113.10"
+  ce_count               = 1
+  enable_aws             = false
+  enable_aws_tgw_connect = false
+  deployer               = "tester"
+  registration_token     = "plan-test-token"
 }
 
 # The operator SSH grant. Asserted as one exact multi-line substring rather than as

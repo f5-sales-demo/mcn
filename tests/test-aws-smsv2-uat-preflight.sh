@@ -57,9 +57,8 @@ plan)
   ;;
 show)
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
-    cat <<'JSON'
-{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws[0]","change":{"actions":["create"],"after":{"name":"mcn-1085-aws-site","namespace":"system"}}}]}
-JSON
+    site_actions=${FAKE_SITE_ACTIONS:-'"create"'}
+    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws[0]","change":{"actions":[%s],"after":{"name":"mcn-1085-aws-site","namespace":"system"}}}]}\n' "$site_actions"
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
     printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.0.0\",\"api_release_tag\":\"v6.0.2\",\"api_release_commit\":\"17751d9a1de68b6831b9091fa0d17718952d659d\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
@@ -115,6 +114,29 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = preflight_passed ] || fail "ready reason not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - exact v7 available contract passes with sanitized evidence"
+
+evidence="${TMP_ROOT}/replacement"
+mkdir "$evidence"
+output="${TMP_ROOT}/replacement.out"
+if ! FAKE_SITE_ACTIONS='"delete","create"' "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "site replacement should preserve the checked site identity"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "replacement status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - site replacement is accepted when its target identity matches"
+
+sed -i 's/"subscription_id": "sub-lab"/"subscription_id": ""/' "${TF_DIR}/.terraform/terraform.tfstate"
+evidence="${TMP_ROOT}/backend-without-subscription"
+mkdir "$evidence"
+output="${TMP_ROOT}/backend-without-subscription.out"
+if ! "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "storage-coordinate backend without subscription_id should pass under the verified Azure identity"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "storage-coordinate backend status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - storage-coordinate backend accepts verified Azure identity without subscription_id"
 
 evidence="${TMP_ROOT}/unavailable"
 mkdir "$evidence"

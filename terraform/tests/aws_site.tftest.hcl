@@ -28,22 +28,23 @@ override_data {
 }
 
 variables {
-  site_prefix         = null
-  lb_name             = null
-  origin_pool_name    = null
-  route_server_name   = null
-  bastion_name        = null
-  client_vm_name      = null
-  region_short        = null
-  resource_group_name = null
-  lb_domain           = "mcn-ce-ha.f5-sales-demo.com"
-  aws_lb_domain       = "aws.mcn-ce-ha.f5-sales-demo.com"
-  origin_ip           = "203.0.113.10"
-  deployer            = "tester"
-  ssh_public_key      = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
-  xc_app_namespace    = "multi-cloud-networking"
-  aws_ce_ami_id       = "ami-0123456789abcdef0"
-  enable_aws          = true
+  site_prefix            = null
+  lb_name                = null
+  origin_pool_name       = null
+  route_server_name      = null
+  bastion_name           = null
+  client_vm_name         = null
+  region_short           = null
+  resource_group_name    = null
+  lb_domain              = "mcn-ce-ha.f5-sales-demo.com"
+  aws_lb_domain          = "aws.mcn-ce-ha.f5-sales-demo.com"
+  origin_ip              = "203.0.113.10"
+  deployer               = "tester"
+  ssh_public_key         = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
+  xc_app_namespace       = "multi-cloud-networking"
+  aws_ce_ami_id          = "ami-0123456789abcdef0"
+  enable_aws             = true
+  enable_aws_tgw_connect = false
 }
 
 run "aws_site_and_resources" {
@@ -139,7 +140,8 @@ run "aws_disabled_plans_no_aws_resources" {
   command = plan
 
   variables {
-    enable_aws = false
+    enable_aws             = false
+    enable_aws_tgw_connect = false
   }
 
   assert {

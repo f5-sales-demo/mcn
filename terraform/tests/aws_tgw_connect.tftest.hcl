@@ -109,10 +109,10 @@ run "plans_mac_bound_tgw_connect_and_convergence_gates" {
       contract_version = "6.0.0"
       api_release_tag  = "v6.0.2"
       api_release_commit = join("", [
-        "8a48ca67ad",
-        "9fc23174d0",
-        "86c0d63a27",
-        "83e531044b",
+        "17751d9a1d",
+        "e68b6831b9",
+        "091fa0d177",
+        "18952d659d",
       ])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
       capabilities = {
@@ -197,7 +197,7 @@ run "rejects_published_unavailable_capabilities" {
       contract_id         = "f5xc-ce-automation/v3"
       contract_version    = "6.0.0"
       api_release_tag     = "v6.0.2"
-      api_release_commit  = join("", ["8a48ca67ad", "9fc23174d0", "86c0d63a27", "83e531044b"])
+      api_release_commit  = join("", ["17751d9a1d", "e68b6831b9", "091fa0d177", "18952d659d"])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
       capabilities = {
         aws_ce_create  = "unavailable"
@@ -245,7 +245,7 @@ run "rejects_wrong_authority_sets" {
       contract_id         = "f5xc-ce-automation/v3"
       contract_version    = "6.0.0"
       api_release_tag     = "v6.0.2"
-      api_release_commit  = join("", ["8a48ca67ad", "9fc23174d0", "86c0d63a27", "83e531044b"])
+      api_release_commit  = join("", ["17751d9a1d", "e68b6831b9", "091fa0d177", "18952d659d"])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
       capabilities = {
         aws_ce_create  = "available"
@@ -269,7 +269,7 @@ run "rejects_non_exact_capability_map" {
       contract_id         = "f5xc-ce-automation/v3"
       contract_version    = "6.0.0"
       api_release_tag     = "v6.0.2"
-      api_release_commit  = join("", ["8a48ca67ad", "9fc23174d0", "86c0d63a27", "83e531044b"])
+      api_release_commit  = join("", ["17751d9a1d", "e68b6831b9", "091fa0d177", "18952d659d"])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
       capabilities = {
         aws_ce_create         = "available"

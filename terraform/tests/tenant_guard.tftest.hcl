@@ -41,13 +41,14 @@ variables {
   # CI fails on a missing required variable and any assertion against them depends
   # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
   # space: unroutable by design, so it cannot name a real host.
-  lb_domain      = "mcn-ce-ha.f5-sales-demo.com"
-  origin_ip      = "203.0.113.10"
-  enable_aws     = false
-  ce_count       = 1
-  deployer       = "tester"
-  enable_bastion = false
-  ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
+  lb_domain              = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip              = "203.0.113.10"
+  enable_aws             = false
+  enable_aws_tgw_connect = false
+  ce_count               = 1
+  deployer               = "tester"
+  enable_bastion         = false
+  ssh_public_key         = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
 }
 
 # The default is the tenant this deployment belongs to, and the API endpoint is

@@ -3,10 +3,10 @@
 locals {
   aws_tgw_roles = toset(["slo", "sli"])
   aws_smsv2_api_release_commit = join("", [
-    "8a48ca67ad",
-    "9fc23174d0",
-    "86c0d63a27",
-    "83e531044b",
+    "17751d9a1d",
+    "e68b6831b9",
+    "091fa0d177",
+    "18952d659d",
   ])
   aws_smsv2_bindings = merge(
     {
