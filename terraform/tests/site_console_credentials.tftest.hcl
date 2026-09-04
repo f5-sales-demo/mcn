@@ -17,9 +17,10 @@ mock_provider "random" {
 }
 
 variables {
-  lb_domain  = "mcn.example.com"
-  origin_ip  = "198.51.100.10"
-  enable_aws = false
+  lb_domain              = "mcn.example.com"
+  origin_ip              = "198.51.100.10"
+  enable_aws             = false
+  enable_aws_tgw_connect = false
 }
 
 run "site_console_password_is_applied_on_the_ce_host" {

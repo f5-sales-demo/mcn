@@ -9,17 +9,18 @@ mock_provider "aws" {}
 mock_provider "libvirt" {}
 
 variables {
-  site_prefix         = null
-  lb_name             = null
-  origin_pool_name    = null
-  route_server_name   = null
-  bastion_name        = null
-  client_vm_name      = null
-  region_short        = null
-  resource_group_name = null
-  lb_domain           = "mcn-ce-ha.f5-sales-demo.com"
-  origin_ip           = "203.0.113.10"
-  enable_aws          = false
+  site_prefix            = null
+  lb_name                = null
+  origin_pool_name       = null
+  route_server_name      = null
+  bastion_name           = null
+  client_vm_name         = null
+  region_short           = null
+  resource_group_name    = null
+  lb_domain              = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip              = "203.0.113.10"
+  enable_aws             = false
+  enable_aws_tgw_connect = false
 }
 
 run "slo_only_is_the_default_logical_shape" {

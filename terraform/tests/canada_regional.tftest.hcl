@@ -30,6 +30,7 @@ variables {
   ssh_public_key         = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   xc_app_namespace       = "multi-cloud-networking"
   enable_aws             = false
+  enable_aws_tgw_connect = false
   enable_canada          = true
 }
 

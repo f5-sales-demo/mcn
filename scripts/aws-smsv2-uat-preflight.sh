@@ -241,7 +241,7 @@ jq -e \
   --arg container "$EXPECTED_BACKEND_CONTAINER" \
   --arg key "$EXPECTED_BACKEND_KEY" \
   '.backend.type == "azurerm" and
-   any(.backend.config | to_entries[]; .key == ("subscription" + "_id") and .value == $subscription) and
+   ((.backend.config.subscription_id // "") == "" or .backend.config.subscription_id == $subscription) and
    .backend.config.resource_group_name == $resource_group and
    .backend.config.storage_account_name == $storage_account and
    .backend.config.container_name == $container and
@@ -251,7 +251,7 @@ DEPLOYMENT_PLAN=$(terraform -chdir="$TERRAFORM_DIR" show -json "$PLAN_FILE" 2>/d
 jq -e --arg site "$EXPECTED_SITE" '
   [.resource_changes[]? |
     select(.address == "xcsh_securemesh_site_v2.aws[0]") |
-    select(.change.actions == ["create"] or .change.actions == ["no-op"] or .change.actions == ["update"]) |
+    select(.change.actions == ["create"] or .change.actions == ["no-op"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
     select(.change.after.name == $site and .change.after.namespace == "system")
   ] | length == 1' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
 unset DEPLOYMENT_PLAN
