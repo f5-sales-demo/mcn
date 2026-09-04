@@ -19,6 +19,7 @@ variables {
   resource_group_name = null
   lb_domain           = "mcn-ce-ha.f5-sales-demo.com"
   origin_ip           = "203.0.113.10"
+  enable_aws          = false
 }
 
 run "slo_only_is_the_default_logical_shape" {

@@ -27,9 +27,10 @@ variables {
   # CI fails on a missing required variable and any assertion against them depends
   # on whose workstation ran the test. 203.0.113.0/24 is RFC 5737 documentation
   # space: unroutable by design, so it cannot name a real host.
-  lb_domain = "mcn-ce-ha.f5-sales-demo.com"
-  origin_ip = "203.0.113.10"
-  deployer  = "tester"
+  lb_domain  = "mcn-ce-ha.f5-sales-demo.com"
+  origin_ip  = "203.0.113.10"
+  enable_aws = false
+  deployer   = "tester"
   # enable_bgp left at its true default; the LB/advertise/origin-pool under test are
   # independent of bgp either way. It used to be forced false only to dodge the provider's
   # object-ref name length cap, relaxed in v3.74.0.

@@ -1,0 +1,28 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${fqdn}
+
+write_files:
+  - path: /etc/vpm/config.yaml
+    permissions: "0600"
+    owner: root:root
+    content: |
+      Vpm:
+        ClusterType: ce
+        ClusterName: ${cluster_name}
+        Token: ${token}
+        MauriceEndpoint: https://register.ves.volterra.io
+        MauricePrivateEndpoint: https://register-tls.ves.volterra.io
+        CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/aws.yml
+        Latitude: 0.0
+        Longitude: 0.0
+      Kubernetes:
+        EtcdUseTLS: true
+        Server: vip
+        CloudProvider: disabled
+
+  - path: /var/home/admin/.ssh/authorized_keys
+    permissions: "0600"
+    owner: admin:admin
+    content: |
+      ${ssh_public_key}

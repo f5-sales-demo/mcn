@@ -50,12 +50,12 @@ override_data {
   values = {
     healthy = true
     interfaces = {
-      node_01_slo = { node = "node-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "slo", mtu = 1500, healthy = true }
-      node_02_slo = { node = "node-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "slo", mtu = 1500, healthy = true }
-      node_03_slo = { node = "node-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "slo", mtu = 1500, healthy = true }
-      node_01_sli = { node = "node-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "sli", mtu = 1500, healthy = true }
-      node_02_sli = { node = "node-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "sli", mtu = 1500, healthy = true }
-      node_03_sli = { node = "node-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "sli", mtu = 1500, healthy = true }
+      node_01_slo = { node = "node-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-01-eth0-0", mtu = 1500, healthy = true }
+      node_02_slo = { node = "node-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-02-eth0-0", mtu = 1500, healthy = true }
+      node_03_slo = { node = "node-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-03-eth0-0", mtu = 1500, healthy = true }
+      node_01_sli = { node = "node-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-01-eth1-0", mtu = 1500, healthy = true }
+      node_02_sli = { node = "node-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-02-eth1-0", mtu = 1500, healthy = true }
+      node_03_sli = { node = "node-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-03-eth1-0", mtu = 1500, healthy = true }
     }
   }
 }
@@ -107,7 +107,7 @@ run "plans_mac_bound_tgw_connect_and_convergence_gates" {
     values = {
       contract_id      = "f5xc-ce-automation/v3"
       contract_version = "6.0.0"
-      api_release_tag  = "v6.0.0"
+      api_release_tag  = "v6.0.2"
       api_release_commit = join("", [
         "8a48ca67ad",
         "9fc23174d0",
@@ -131,12 +131,12 @@ run "plans_mac_bound_tgw_connect_and_convergence_gates" {
     values = {
       healthy = true
       interfaces = {
-        node_01_slo = { node = "node-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "slo", mtu = 1500, healthy = true }
-        node_02_slo = { node = "node-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "slo", mtu = 1500, healthy = true }
-        node_03_slo = { node = "node-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "slo", mtu = 1500, healthy = true }
-        node_01_sli = { node = "node-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "sli", mtu = 1500, healthy = true }
-        node_02_sli = { node = "node-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "sli", mtu = 1500, healthy = true }
-        node_03_sli = { node = "node-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "sli", mtu = 1500, healthy = true }
+        node_01_slo = { node = "node-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-01-eth0-0", mtu = 1500, healthy = true }
+        node_02_slo = { node = "node-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-02-eth0-0", mtu = 1500, healthy = true }
+        node_03_slo = { node = "node-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-03-eth0-0", mtu = 1500, healthy = true }
+        node_01_sli = { node = "node-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-01-eth1-0", mtu = 1500, healthy = true }
+        node_02_sli = { node = "node-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-02-eth1-0", mtu = 1500, healthy = true }
+        node_03_sli = { node = "node-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-03-eth1-0", mtu = 1500, healthy = true }
       }
     }
   }
@@ -147,12 +147,12 @@ run "plans_mac_bound_tgw_connect_and_convergence_gates" {
     values = {
       converged = true
       peers = {
-        node_01_slo = { node = "node-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "slo", peer_address = "169.254.100.1", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
-        node_02_slo = { node = "node-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "slo", peer_address = "169.254.100.9", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
-        node_03_slo = { node = "node-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "slo", peer_address = "169.254.100.17", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
-        node_01_sli = { node = "node-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "sli", peer_address = "169.254.100.25", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
-        node_02_sli = { node = "node-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "sli", peer_address = "169.254.100.33", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
-        node_03_sli = { node = "node-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "sli", peer_address = "169.254.100.41", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
+        node_01_slo = { node = "node-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-01-eth0-0", peer_address = "169.254.100.1", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
+        node_02_slo = { node = "node-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-02-eth0-0", peer_address = "169.254.100.9", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
+        node_03_slo = { node = "node-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-03-eth0-0", peer_address = "169.254.100.17", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
+        node_01_sli = { node = "node-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-01-eth1-0", peer_address = "169.254.100.25", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
+        node_02_sli = { node = "node-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-02-eth1-0", peer_address = "169.254.100.33", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
+        node_03_sli = { node = "node-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "ves-io-securemesh-site-v2-aws-site-network-node-03-eth1-0", peer_address = "169.254.100.41", state = "ESTABLISHED", established = true, received_prefix_count = 1, advertised_prefix_count = 1, state_changed_at = "2026-09-01T00:00:00Z" }
       }
       bgp_routes_json = "{}"
       slo_routes_json = "{}"
@@ -173,6 +173,12 @@ run "plans_mac_bound_tgw_connect_and_convergence_gates" {
     error_message = "The F5 graph must plan six external connectors and two role-keyed BGP objects."
   }
   assert {
+    condition = alltrue([
+      for binding in values(local.aws_smsv2_bindings) : binding.payload_role == "sli"
+    ])
+    error_message = "Every GRE connector must place payload in Site Local Inside, as required by the live F5 API."
+  }
+  assert {
     condition     = length(terraform_data.aws_tgw_contract_gate) == 1 && length(terraform_data.aws_tgw_runtime_gate) == 1
     error_message = "The available path must retain both the immutable contract and six-interface runtime gates."
   }
@@ -190,7 +196,7 @@ run "rejects_published_unavailable_capabilities" {
     values = {
       contract_id         = "f5xc-ce-automation/v3"
       contract_version    = "6.0.0"
-      api_release_tag     = "v6.0.0"
+      api_release_tag     = "v6.0.2"
       api_release_commit  = join("", ["8a48ca67ad", "9fc23174d0", "86c0d63a27", "83e531044b"])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
       capabilities = {
@@ -238,7 +244,7 @@ run "rejects_wrong_authority_sets" {
     values = {
       contract_id         = "f5xc-ce-automation/v3"
       contract_version    = "6.0.0"
-      api_release_tag     = "v6.0.0"
+      api_release_tag     = "v6.0.2"
       api_release_commit  = join("", ["8a48ca67ad", "9fc23174d0", "86c0d63a27", "83e531044b"])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
       capabilities = {
@@ -262,7 +268,7 @@ run "rejects_non_exact_capability_map" {
     values = {
       contract_id         = "f5xc-ce-automation/v3"
       contract_version    = "6.0.0"
-      api_release_tag     = "v6.0.0"
+      api_release_tag     = "v6.0.2"
       api_release_commit  = join("", ["8a48ca67ad", "9fc23174d0", "86c0d63a27", "83e531044b"])
       telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
       capabilities = {

@@ -2,6 +2,13 @@
 # F5 XC SecureMesh v2 Site, Virtual Site, Origin Pool & LB for AWS
 # ---------------------------------------------------------
 
+locals {
+  aws_ce_hostnames = [
+    for index in range(var.enable_aws ? var.aws_ce_count : 0) :
+    "${var.component}-aws-ce-${index + 1}"
+  ]
+}
+
 resource "xcsh_securemesh_site_v2" "aws" {
   count       = var.enable_aws ? 1 : 0
   name        = "aws-site"
@@ -13,7 +20,7 @@ resource "xcsh_securemesh_site_v2" "aws" {
       dynamic "node_list" {
         for_each = { for index in range(var.aws_ce_count) : tostring(index) => index }
         content {
-          hostname  = aws_instance.ce[node_list.value].private_dns
+          hostname  = local.aws_ce_hostnames[node_list.value]
           type      = "Control"
           public_ip = null
 
@@ -21,7 +28,8 @@ resource "xcsh_securemesh_site_v2" "aws" {
             name = "slo"
             mtu  = var.aws_smsv2_interface_mtu
             ethernet_interface {
-              mac = aws_network_interface.slo[node_list.value].mac_address
+              device = "eth0"
+              mac    = aws_network_interface.slo[node_list.value].mac_address
             }
             network_option {
               site_local_network {}
@@ -33,7 +41,8 @@ resource "xcsh_securemesh_site_v2" "aws" {
             name = "sli"
             mtu  = var.aws_smsv2_interface_mtu
             ethernet_interface {
-              mac = aws_network_interface.sli[node_list.value].mac_address
+              device = "eth1"
+              mac    = aws_network_interface.sli[node_list.value].mac_address
             }
             network_option {
               site_local_inside_network {}
@@ -56,6 +65,35 @@ resource "xcsh_securemesh_site_v2" "aws" {
   no_s2s_connectivity_slo {}
   disable_url_categorization {}
   disable_management_network {}
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.aws_ce_instances]
+  }
+}
+
+# Runtime registrations exist only after each appliance boots. This lookup is
+# intentionally independent of the site resource so an initial plan reports
+# found=false and a later convergence pass can approve all registered nodes.
+data "xcsh_site_registration" "aws" {
+  for_each = {
+    for index, hostname in local.aws_ce_hostnames : tostring(index) => hostname
+  }
+
+  site_name = "aws-site"
+  hostname  = each.value
+  namespace = "system"
+}
+
+resource "xcsh_registration_approval" "aws" {
+  for_each = {
+    for key, registration in data.xcsh_site_registration.aws :
+    key => registration if registration.found
+  }
+
+  namespace    = "system"
+  name         = each.value.name
+  cluster_size = var.aws_ce_count
+  state        = "APPROVED"
 }
 
 resource "xcsh_virtual_site" "aws" {

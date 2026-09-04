@@ -6,6 +6,27 @@ mock_provider "xcsh" {}
 mock_provider "aws" {}
 mock_provider "libvirt" {}
 
+override_resource {
+  override_during = plan
+  target          = xcsh_token.ce
+  values          = { uid = "test-registration-token" }
+}
+
+override_data {
+  target = data.xcsh_site_registration.aws["0"]
+  values = { found = false }
+}
+
+override_data {
+  target = data.xcsh_site_registration.aws["1"]
+  values = { found = false }
+}
+
+override_data {
+  target = data.xcsh_site_registration.aws["2"]
+  values = { found = false }
+}
+
 variables {
   site_prefix         = null
   lb_name             = null
@@ -60,6 +81,47 @@ run "aws_site_and_resources" {
   assert {
     condition     = aws_instance.ce[0].root_block_device[0].volume_size == 100
     error_message = "AWS CE instances must plan a 100-GiB root volume."
+  }
+
+  assert {
+    condition = alltrue([
+      for required in [
+        "ClusterType: ce",
+        "ClusterName: aws-site",
+        "MauriceEndpoint: https://register.ves.volterra.io",
+        "MauricePrivateEndpoint: https://register-tls.ves.volterra.io",
+        "CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/aws.yml",
+        "CloudProvider: disabled",
+        "path: /var/home/admin/.ssh/authorized_keys",
+      ] : strcontains(aws_instance.ce[0].user_data, required)
+    ])
+    error_message = "AWS CE cloud-init must contain the complete VPM registration and operator-access contract."
+  }
+
+  assert {
+    condition     = length(terraform_data.aws_ce_instances) == 1
+    error_message = "The AWS SMSv2 site lifecycle must track the CE instance identities."
+  }
+
+  assert {
+    condition     = length(data.xcsh_site_registration.aws) == 3 && length(xcsh_registration_approval.aws) == 0
+    error_message = "AWS must look up all three runtime registrations and defer approval until they are found."
+  }
+
+  assert {
+    condition = alltrue([
+      for node in xcsh_securemesh_site_v2.aws[0].aws.not_managed.node_list :
+      node.interface_list[0].ethernet_interface.device == "eth0" &&
+      node.interface_list[1].ethernet_interface.device == "eth1"
+    ])
+    error_message = "Every AWS SMSv2 node must map SLO to eth0 and SLI to eth1, as required by the live API contract."
+  }
+
+  assert {
+    condition = [
+      for node in xcsh_securemesh_site_v2.aws[0].aws.not_managed.node_list : node.hostname
+    ] == ["mcn-ce-ha-aws-ce-1", "mcn-ce-ha-aws-ce-2", "mcn-ce-ha-aws-ce-3"]
+    error_message = "AWS SMSv2 nodes must use the canonical hostnames configured during CE registration."
   }
 }
 

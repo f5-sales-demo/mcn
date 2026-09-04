@@ -43,6 +43,7 @@ variables {
   # space: unroutable by design, so it cannot name a real host.
   lb_domain      = "mcn-ce-ha.f5-sales-demo.com"
   origin_ip      = "203.0.113.10"
+  enable_aws     = false
   ce_count       = 1
   deployer       = "tester"
   enable_bastion = false

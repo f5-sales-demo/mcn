@@ -14,8 +14,9 @@ locals {
       format("node_%02d_slo", index + 1) => {
         index             = index
         order             = index
-        node              = aws_instance.ce[index].private_dns
+        node              = local.aws_ce_hostnames[index]
         role              = "slo"
+        payload_role      = "sli"
         mac               = aws_network_interface.slo[index].mac_address
         gre_peer_address  = aws_network_interface.slo[index].private_ip
         inside_cidr_block = cidrsubnet(var.aws_tgw_inside_cidr, 5, index)
@@ -26,8 +27,9 @@ locals {
       format("node_%02d_sli", index + 1) => {
         index             = index
         order             = var.aws_ce_count + index
-        node              = aws_instance.ce[index].private_dns
+        node              = local.aws_ce_hostnames[index]
         role              = "sli"
+        payload_role      = "sli"
         mac               = aws_network_interface.sli[index].mac_address
         gre_peer_address  = aws_network_interface.sli[index].private_ip
         inside_cidr_block = cidrsubnet(var.aws_tgw_inside_cidr, 5, var.aws_ce_count + index)
@@ -73,11 +75,11 @@ resource "terraform_data" "aws_tgw_contract_gate" {
       condition = (
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v3" &&
         data.xcsh_smsv2_contract.aws[0].contract_version == "6.0.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.0.0" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.0.2" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v7.0.0 must expose the exact immutable SMSv2 v3/API v6 contract."
+      error_message = "Provider v7.2.0 must expose the exact immutable SMSv2 v3/API v6 contract."
     }
     precondition {
       condition = (
@@ -86,7 +88,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         try(data.xcsh_smsv2_contract.aws[0].capabilities["runtime_status"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available"
       )
-      error_message = "Provider v7.0.0 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v7.2.0 must publish all and only the required SMSv2 capabilities as available."
     }
     precondition {
       condition = (
@@ -116,11 +118,13 @@ module "aws_tgw_connect" {
 }
 
 data "xcsh_smsv2_aws_runtime" "aws" {
-  count      = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
-  namespace  = "system"
-  site       = xcsh_securemesh_site_v2.aws[0].name
-  nodes      = local.aws_smsv2_nodes
-  depends_on = [xcsh_securemesh_site_v2.aws]
+  count                 = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  namespace             = "system"
+  site                  = xcsh_securemesh_site_v2.aws[0].name
+  nodes                 = local.aws_smsv2_nodes
+  timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
+  poll_interval_seconds = var.aws_bgp_poll_interval_seconds
+  depends_on            = [xcsh_securemesh_site_v2.aws]
 }
 
 resource "terraform_data" "aws_tgw_runtime_gate" {
@@ -168,14 +172,16 @@ resource "xcsh_external_connector" "aws_tgw" {
   gre {
     gre_parameters {
       dynamic "site_local_network" {
-        for_each = each.value.role == "slo" ? [1] : []
+        for_each = each.value.payload_role == "slo" ? [1] : []
         content {}
       }
       dynamic "site_local_inside_network" {
-        for_each = each.value.role == "sli" ? [1] : []
+        for_each = each.value.payload_role == "sli" ? [1] : []
         content {}
       }
-      tunnel_mtu = data.xcsh_smsv2_aws_runtime.aws[0].interfaces[each.key].mtu - 24
+      # The external-connector API caps GRE MTU at 1370. Preserve a smaller
+      # observed underlay ceiling while never constructing an invalid request.
+      tunnel_mtu = min(data.xcsh_smsv2_aws_runtime.aws[0].interfaces[each.key].mtu - 24, 1370)
       peer_ip_address {
         addr = aws_ec2_transit_gateway_connect_peer.aws[each.key].transit_gateway_address
       }
@@ -197,7 +203,9 @@ resource "xcsh_bgp" "aws_tgw" {
   description = "AWS TGW Connect BGP for the ${upper(each.key)} interfaces."
   where {
     site {
-      network_type = each.key == "slo" ? "VIRTUAL_NETWORK_SITE_LOCAL" : "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE"
+      # The external-connector API accepts TGW payload only in Site Local
+      # Inside, independently of whether GRE transport uses SLO or SLI.
+      network_type = "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE"
       ref {
         name      = xcsh_securemesh_site_v2.aws[0].name
         namespace = "system"
@@ -240,7 +248,7 @@ data "xcsh_site_bgp_status" "aws" {
   expected_peers = {
     for key, interface in local.aws_smsv2_bindings : key => {
       node            = interface.node
-      role            = interface.role
+      role            = interface.payload_role
       mac             = interface.mac
       peer_address    = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[key].bgp_transit_gateway_addresses))[0]
       expected_routes = [var.aws_vpc_cidr]

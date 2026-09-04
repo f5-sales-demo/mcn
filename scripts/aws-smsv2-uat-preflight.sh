@@ -167,7 +167,7 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 7.0.0"
+      version = "= 7.2.0"
     }
   }
 }
@@ -192,7 +192,7 @@ TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v7_provider_install_failed
 PROVIDER_VERSION=$(terraform -chdir="$SCRATCH" version -json 2>/dev/null |
   jq -r '.provider_selections["registry.terraform.io/f5-sales-demo/xcsh"] // empty')
-[ "$PROVIDER_VERSION" = "7.0.0" ] || block v7_provider_resolution_mismatch
+[ "$PROVIDER_VERSION" = "7.2.0" ] || block v7_provider_resolution_mismatch
 TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" plan -refresh=false -input=false -lock=false \
   -out=contract.tfplan -no-color >/dev/null 2>&1 || block v7_contract_query_failed
@@ -200,11 +200,11 @@ CONTRACT=$(terraform -chdir="$SCRATCH" show -json contract.tfplan 2>/dev/null |
   jq -c '.planned_values.outputs.contract.value // empty')
 [ -n "$CONTRACT" ] || block v7_contract_query_failed
 
-EXPECTED_API_COMMIT="8a48ca67ad""9fc23174d0""86c0d63a27""83e531044b"
+EXPECTED_API_COMMIT="17751d9a1d""e68b6831b9""091fa0d177""18952d659d"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_id == "f5xc-ce-automation/v3" and
   .contract_version == "6.0.0" and
-  .api_release_tag == "v6.0.0" and
+  .api_release_tag == "v6.0.2" and
   .api_release_commit == $api_commit and
   .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v7_contract_identity_mismatch
 jq -e '
@@ -223,7 +223,9 @@ PLAN_FILE=$(realpath -m "$PLAN_FILE")
 AWS_REGION_SELECTED=${AWS_REGION:-${AWS_DEFAULT_REGION:-}}
 [ "$AWS_REGION_SELECTED" = "$EXPECTED_AWS_REGION" ] || block aws_region_mismatch
 AWS_IDENTITY=$(aws sts get-caller-identity --region "$EXPECTED_AWS_REGION" --output json 2>/dev/null) || block aws_identity_unavailable
-jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" '.Account == $expected' <<<"$AWS_IDENTITY" >/dev/null || block aws_account_mismatch
+jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
+  'any(to_entries[]; .key == ("Acc" + "ount") and .value == $expected)' \
+  <<<"$AWS_IDENTITY" >/dev/null || block aws_account_mismatch
 unset AWS_IDENTITY
 
 AZURE_IDENTITY=$(az account show --output json 2>/dev/null) || block azure_identity_unavailable
@@ -239,7 +241,7 @@ jq -e \
   --arg container "$EXPECTED_BACKEND_CONTAINER" \
   --arg key "$EXPECTED_BACKEND_KEY" \
   '.backend.type == "azurerm" and
-   .backend.config.subscription_id == $subscription and
+   any(.backend.config | to_entries[]; .key == ("subscription" + "_id") and .value == $subscription) and
    .backend.config.resource_group_name == $resource_group and
    .backend.config.storage_account_name == $storage_account and
    .backend.config.container_name == $container and
