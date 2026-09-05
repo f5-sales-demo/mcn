@@ -22,6 +22,7 @@ on:
       - 'tests/test-terraform-imports.sh'
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
+      - 'tests/test-aws-upgrade-showcase.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - '.github/workflows/terraform.yml'
   push:
@@ -35,6 +36,7 @@ on:
       - 'tests/test-terraform-imports.sh'
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
+      - 'tests/test-aws-upgrade-showcase.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - '.github/workflows/terraform.yml'
 
@@ -73,6 +75,10 @@ jobs:
         working-directory: .
         run: bash tests/test-aws-smsv2-uat-preflight.sh
 
+      - name: AWS three-site upgrade showcase contract
+        working-directory: .
+        run: bash tests/test-aws-upgrade-showcase.sh
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
 
@@ -92,7 +98,7 @@ jobs:
   # xcsh provider, so the provider's own schema validators fire at plan with no XC API call.
   # This job resolves f5-sales-demo/xcsh from the public registry, so it only turns green once
   # the exact clean-break provider version required by
-  # `coverage/smsv2/versions.tf` (`= 7.2.0`) is published in the registry. Locally the same tests run
+  # `coverage/smsv2/versions.tf` (`= 7.3.0`) is published in the registry. Locally the same tests run
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2

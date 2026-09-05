@@ -1,60 +1,62 @@
 # ---------------------------------------------------------
-# F5 XC SecureMesh v2 Site, Virtual Site, Origin Pool & LB for AWS
+# Three independent F5 XC SecureMesh v2 sites and AWS VIP
 # ---------------------------------------------------------
 
 locals {
-  aws_ce_hostnames = [
+  aws_sites = {
     for index in range(var.enable_aws ? var.aws_ce_count : 0) :
-    "${var.component}-aws-ce-${index + 1}"
-  ]
+    format("%02d", index + 1) => {
+      index    = index
+      name     = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      hostname = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+    }
+  }
+  aws_ce_hostnames = [for site in values(local.aws_sites) : site.hostname]
 }
 
 resource "xcsh_securemesh_site_v2" "aws" {
-  count       = var.enable_aws ? 1 : 0
-  name        = "aws-site"
+  for_each    = local.aws_sites
+  name        = each.value.name
   namespace   = "system"
-  description = "AWS Customer Edge SecureMesh Site v2"
+  description = "Independent AWS Customer Edge SecureMesh v2 site ${each.key}"
 
   aws {
     not_managed {
-      dynamic "node_list" {
-        for_each = { for index in range(var.aws_ce_count) : tostring(index) => index }
-        content {
-          hostname  = local.aws_ce_hostnames[node_list.value]
-          type      = "Control"
-          public_ip = null
+      node_list {
+        hostname  = each.value.hostname
+        type      = "Control"
+        public_ip = null
 
-          interface_list {
-            name = "slo"
-            mtu  = var.aws_smsv2_interface_mtu
-            ethernet_interface {
-              device = "eth0"
-              mac    = aws_network_interface.slo[node_list.value].mac_address
-            }
-            network_option {
-              site_local_network {}
-            }
-            dhcp_client {}
+        interface_list {
+          name = "slo"
+          mtu  = var.aws_smsv2_interface_mtu
+          ethernet_interface {
+            device = "eth0"
+            mac    = aws_network_interface.slo[each.value.index].mac_address
           }
+          network_option {
+            site_local_network {}
+          }
+          dhcp_client {}
+        }
 
-          interface_list {
-            name = "sli"
-            mtu  = var.aws_smsv2_interface_mtu
-            ethernet_interface {
-              device = "eth1"
-              mac    = aws_network_interface.sli[node_list.value].mac_address
-            }
-            network_option {
-              site_local_inside_network {}
-            }
-            dhcp_client {}
+        interface_list {
+          name = "sli"
+          mtu  = var.aws_smsv2_interface_mtu
+          ethernet_interface {
+            device = "eth1"
+            mac    = aws_network_interface.sli[each.value.index].mac_address
           }
+          network_option {
+            site_local_inside_network {}
+          }
+          dhcp_client {}
         }
       }
     }
   }
 
-  enable_ha {}
+  disable_ha {}
   block_all_services {}
   no_network_policy {}
   no_forward_proxy {}
@@ -66,22 +68,30 @@ resource "xcsh_securemesh_site_v2" "aws" {
   disable_url_categorization {}
   disable_management_network {}
 
-  lifecycle {
-    replace_triggered_by = [terraform_data.aws_ce_instances]
+  software_settings {
+    os {
+      operating_system_version = var.aws_baseline_os_version
+    }
+    sw {
+      volterra_software_version = var.aws_baseline_software_version
+    }
   }
 }
 
-# Runtime registrations exist only after each appliance boots. This lookup is
-# intentionally independent of the site resource so an initial plan reports
-# found=false and a later convergence pass can approve all registered nodes.
-data "xcsh_site_registration" "aws" {
-  for_each = {
-    for index, hostname in local.aws_ce_hostnames : tostring(index) => hostname
-  }
+resource "xcsh_site_cloud_init" "aws" {
+  for_each                  = local.aws_sites
+  provider_ref              = "AWS"
+  site_name                 = xcsh_securemesh_site_v2.aws[each.key].name
+  enable_management_network = false
+}
 
-  site_name = "aws-site"
-  hostname  = each.value
+data "xcsh_site_registration" "aws" {
+  for_each = local.aws_sites
+
+  site_name = each.value.name
+  hostname  = each.value.hostname
   namespace = "system"
+
 }
 
 resource "xcsh_registration_approval" "aws" {
@@ -92,7 +102,7 @@ resource "xcsh_registration_approval" "aws" {
 
   namespace    = "system"
   name         = each.value.name
-  cluster_size = var.aws_ce_count
+  cluster_size = 1
   state        = "APPROVED"
 }
 
@@ -103,7 +113,7 @@ resource "xcsh_virtual_site" "aws" {
 
   site_type = "CUSTOMER_EDGE"
   site_selector {
-    expressions = ["ves.io/siteName in (aws-site)"]
+    expressions = [format("ves.io/siteName in (%s)", join(",", [for site in values(local.aws_sites) : site.name]))]
   }
 }
 
@@ -111,15 +121,12 @@ resource "xcsh_origin_pool" "aws" {
   count       = var.enable_aws ? 1 : 0
   name        = "${var.component}-aws-pool"
   namespace   = data.xcsh_namespace.mcn.name
-  description = "AWS origin pool serving MCN CE-HA demo"
-
-  port = var.origin_port
+  description = "AWS origin pool serving the three-site TGW showcase"
+  port        = var.origin_port
 
   origin_servers {
     labels = {}
-    public_ip {
-      ip = var.origin_ip
-    }
+    public_ip { ip = var.origin_ip }
   }
 
   no_tls {}
@@ -131,17 +138,15 @@ resource "xcsh_http_loadbalancer" "aws" {
   count     = var.enable_aws ? 1 : 0
   name      = "${var.component}-aws-lb"
   namespace = data.xcsh_namespace.mcn.name
+  domains   = [var.aws_lb_domain]
 
-  domains = [var.aws_lb_domain]
-
-  http {
-    port = 80
-  }
+  http { port = 80 }
 
   advertise_custom {
     advertise_where {
-      virtual_site {
-        network = "SITE_NETWORK_INSIDE_AND_OUTSIDE"
+      virtual_site_with_vip {
+        ip      = var.aws_vip
+        network = "SITE_NETWORK_SPECIFIED_VIP_INSIDE"
         virtual_site {
           name      = xcsh_virtual_site.aws[0].name
           namespace = data.xcsh_namespace.mcn.name

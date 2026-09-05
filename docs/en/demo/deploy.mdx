@@ -10,9 +10,9 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
 ## Prerequisites
 
-- **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.8`, for
+- **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.16.1`, for
   provider-defined functions and the `check` block that guards the VIP.
-- **The `xcsh` provider at exactly v7.2.0.** This deployment uses only the clean-break
+- **The `xcsh` provider at exactly v7.3.0.** This deployment uses only the clean-break
   SMSv2 contract. The local
   `.terraform.lock.hcl` remains gitignored; the exact source constraint is authoritative.
 - **An F5 XC API credential** for the tenant in `var.expected_xc_tenant`, exported as
@@ -101,18 +101,18 @@ above before you mint another token.
 ## AWS SMSv2 preflight is mandatory
 
 The AWS Transit Gateway path is pinned to the immutable
-[`xcsh` v7.2.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v7.2.0).
-That release publishes contract `f5xc-ce-automation/v3` for API `v6.0.0` and is
-fail-closed: the current release reports its three AWS SMSv2 capabilities as
-`unavailable`. Do not bypass that result.
+[`xcsh` v7.3.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v7.3.0).
+That release publishes contract `f5xc-ce-automation/v3` version `6.1.0` from
+`api-specs-enriched` v6.1.0. Its four AWS SMSv2 capabilities, including
+`site_upgrade`, must all report `available`; do not bypass a failed gate.
 
 Before any plan is applied with `enable_aws_tgw_connect = true`, save the reviewed
 plan and run the non-mutating preflight using the complete command in the Apply
 sequence. Put evidence in a new, empty directory outside the repository.
 
 The gate compares the authenticated AWS account and region, Azure subscription,
-initialized Azure backend, XC tenant, and planned AWS site with the explicitly
-expected targets. It then installs exactly provider v7.2.0 in a disposable
+initialized Azure backend, XC tenant, and all three planned AWS sites with the explicitly
+expected targets. It then installs exactly provider v7.3.0 in a disposable
 directory and reads its compiled contract. The only durable evidence is
 `summary.json`, containing `status`, a fixed reason code, and a UTC timestamp;
 account IDs, subscription IDs, tenant names, endpoints, tokens, and resource
@@ -121,11 +121,13 @@ values are never written to evidence.
 Apply only when the summary says `ready` with reason `preflight_passed`. A blocked
 result is an expected safe outcome and no infrastructure should be changed.
 
-The later live-UAT acceptance path must prove all six MAC-bound interfaces healthy,
+The optional `--execute-uat` phase proves all six MAC-bound interfaces healthy,
 retain nullable `public_ip = null`, converge all BGP peers and both detailed and
-simplified route observations, agree with AWS Connect peer facts, and finish with a
-no-change Terraform plan. Until that full path succeeds, the AWS/TGW capability
-remains gated even when the rest of the deployment is usable.
+simplified route observations, agree with AWS Connect peer facts, run SSM traffic
+every five seconds through failover, and upgrade sites `01`, `02`, and `03` serially
+from software `crt-20251002-0027` / OS `9.2026.10` to software
+`crt-20260201-0179` / OS `9.2026.17`. Evidence remains a mode-0600 sanitized summary
+outside Git.
 
 ## Apply
 
@@ -138,6 +140,9 @@ remains gated even when the rest of the deployment is usable.
 
    ```bash
    terraform plan -out=/private/path/mcn.tfplan
+   AWS_SITE_01=$(terraform output -json aws_site_names | jq -r '.["01"]')
+   AWS_SITE_02=$(terraform output -json aws_site_names | jq -r '.["02"]')
+   AWS_SITE_03=$(terraform output -json aws_site_names | jq -r '.["03"]')
 
    scripts/aws-smsv2-uat-preflight.sh \
      --evidence-dir /private/path/mcn-smsv2-evidence \
@@ -151,8 +156,14 @@ remains gated even when the rest of the deployment is usable.
      --expected-backend-container '<BACKEND_CONTAINER>' \
      --expected-backend-key '<BACKEND_KEY>' \
      --expected-xc-tenant '<XC_TENANT>' \
-     --expected-site '<TASK_OWNED_AWS_SITE>'
+     --expected-site "$AWS_SITE_01" \
+     --expected-site "$AWS_SITE_02" \
+     --expected-site "$AWS_SITE_03"
    ```
+
+   Add `--execute-uat` only after reviewing the AWS-only saved plan. That mode
+   stops and restarts one CE, drives five-second traffic from the SSM client,
+   and invokes each site's software and OS actions serially.
 
 3. **First apply.** This builds Azure, the CE sites and the registration token, and boots
    the CEs.

@@ -53,13 +53,14 @@ Observed 2026-08-05. The three-path hybrid architecture:
 | Namespaces | CE sites in `system`; origin pool and load balancer in `var.xc_app_namespace` |
 | Rest of World CEs | `var.ce_count` single-node Secure Mesh v2 sites in `var.location` (`eastus`) |
 | Canadian CEs | `var.ca_ce_count` single-node Secure Mesh v2 sites in `var.ca_location` (`canadacentral`) |
-| AWS CEs | `var.aws_ce_count` EC2 Customer Edge nodes in `var.aws_location` (`us-east-2`) VPC (`10.150.0.0/16`) |
+| AWS CEs | Three independent, single-node SecureMesh v2 sites in `var.aws_location` (`us-east-2`), each with MAC-bound SLO and SLI interfaces |
+| AWS workload | Amazon Linux SSM client with no ingress rules in a dedicated TGW-attached VPC (`10.151.0.0/16`) |
 | On-Premise KVM CEs | 3 KVM Customer Edge nodes (`onprem-ce-01`, `02`, `03`) on local libvirt network `ce-bgp-net` (`10.100.0.0/24`) |
 | Canadian Virtual Sites | `xcsh_virtual_site.canada_re` (Toronto & Montreal REs) and `xcsh_virtual_site.canada_ce` (Canadian CEs) |
-| AWS Virtual Site | `xcsh_virtual_site.aws` (AWS Customer Edge Site `aws-site`) |
-| Route exchange | Azure Route Servers in `eastus` and `canadacentral` (ASN `var.rs_asn`), AWS VPC Router (ASN `65515`), FRR ToR BGP Router for KVM (ASN `65515`, `10.100.0.1`) |
+| AWS Virtual Site | `mcn-ce-ha-aws-vsite`, selecting sites `mcn-ce-ha-aws-us-east-2-01` through `03` |
+| Route exchange | Azure Route Servers in `eastus` and `canadacentral` (ASN `var.rs_asn`), AWS Transit Gateway Connect (ASN `var.aws_tgw_asn`), FRR ToR BGP Router for KVM (ASN `65515`, `10.100.0.1`) |
 | Peerings | eBGP peerings per CE, CE ASN `var.ce_asn` (`64512`) |
-| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; `var.aws_vip` (`10.150.0.10`) for AWS; `10.100.0.10` for On-Prem KVM |
+| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; `var.aws_vip` (`198.51.100.10`) for AWS; `10.100.0.10` for On-Prem KVM |
 | Load balancers | `var.lb_domain` (`f5-sales-demo.com`) for ROW; `var.ca_lb_domain` (`f5-sales-demo.ca`) for Canada; `var.aws_lb_domain` (`aws.mcn-ce-ha.f5-sales-demo.com`) for AWS |
 | Test clients | Client VMs in each regional VNet, AWS VPC, and local test environment for driving traffic at the VIPs |
 

@@ -1,12 +1,11 @@
 terraform {
-  # >= 1.10.0 for provider-defined functions, check{} blocks, and test framework
-  # mocking options (override_during = plan in .tftest.hcl).
-  required_version = ">= 1.10.0"
+  # >= 1.16.1 for provider-defined actions and saved-plan invocation.
+  required_version = ">= 1.16.1"
 
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 7.2.0"
+      version = "= 7.3.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"

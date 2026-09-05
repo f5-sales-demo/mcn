@@ -102,9 +102,14 @@ variable "aws_vpc_cidr" {
 }
 
 variable "aws_ce_count" {
-  description = "Number of Customer Edge EC2 nodes to deploy in AWS."
+  description = "Number of independent single-node Customer Edge sites. The validated showcase topology requires exactly three."
   type        = number
   default     = 3
+
+  validation {
+    condition     = var.aws_ce_count == 3
+    error_message = "aws_ce_count must remain 3 for the validated three-site showcase."
+  }
 }
 
 variable "aws_instance_type" {
@@ -114,13 +119,72 @@ variable "aws_instance_type" {
 }
 
 variable "aws_vip" {
-  description = "HA VIP for AWS CEs advertised as a /32 via eBGP."
+  description = "External documentation-range VIP advertised as a /32 by the AWS virtual site."
   type        = string
-  default     = "10.150.0.10"
+  default     = "198.51.100.10"
 
   validation {
     condition     = can(cidrhost("${var.aws_vip}/32", 0))
     error_message = "aws_vip must be a valid IPv4 address."
+  }
+}
+
+variable "aws_workload_vpc_cidr" {
+  description = "Address space for the TGW-attached AWS workload VPC."
+  type        = string
+  default     = "10.151.0.0/16"
+}
+
+variable "aws_baseline_software_version" {
+  description = "Verified software version installed before the showcase upgrade."
+  type        = string
+  default     = "crt-20251002-0027"
+}
+
+variable "aws_baseline_os_version" {
+  description = "Verified operating-system version installed before the showcase upgrade."
+  type        = string
+  default     = "9.2026.10"
+}
+
+variable "aws_target_software_version" {
+  description = "Tenant-advertised software version selected for the showcase upgrade."
+  type        = string
+  default     = "crt-20260201-0179"
+}
+
+variable "aws_target_os_version" {
+  description = "Tenant-advertised operating-system version selected for the showcase upgrade."
+  type        = string
+  default     = "9.2026.17"
+}
+
+variable "aws_upgrade_wait" {
+  description = "Wait for every supplied upgrade target to be installed and for each site to return ONLINE."
+  type        = bool
+  default     = false
+}
+
+variable "aws_upgrade_timeout_seconds" {
+  description = "Bounded per-site upgrade convergence timeout."
+  type        = number
+  default     = 7200
+}
+
+variable "aws_upgrade_poll_interval_seconds" {
+  description = "Polling interval for site upgrade observations."
+  type        = number
+  default     = 30
+}
+
+variable "aws_upgrade_observed_sites" {
+  description = "Canonical two-digit AWS site keys observed by the upgrade status data source."
+  type        = set(string)
+  default     = ["01", "02", "03"]
+
+  validation {
+    condition     = length(setsubtract(var.aws_upgrade_observed_sites, toset(["01", "02", "03"]))) == 0
+    error_message = "aws_upgrade_observed_sites may contain only 01, 02, and 03."
   }
 }
 

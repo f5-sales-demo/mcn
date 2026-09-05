@@ -12,18 +12,36 @@ override_resource {
   values          = { uid = "test-registration-token" }
 }
 
+override_resource {
+  override_during = plan
+  target          = xcsh_site_cloud_init.aws["01"]
+  values          = { cloud_init_config = "#cloud-config\nruncmd:\n  - echo site-01\n" }
+}
+
+override_resource {
+  override_during = plan
+  target          = xcsh_site_cloud_init.aws["02"]
+  values          = { cloud_init_config = "#cloud-config\nruncmd:\n  - echo site-02\n" }
+}
+
+override_resource {
+  override_during = plan
+  target          = xcsh_site_cloud_init.aws["03"]
+  values          = { cloud_init_config = "#cloud-config\nruncmd:\n  - echo site-03\n" }
+}
+
 override_data {
-  target = data.xcsh_site_registration.aws["0"]
+  target = data.xcsh_site_registration.aws["01"]
   values = { found = false }
 }
 
 override_data {
-  target = data.xcsh_site_registration.aws["1"]
+  target = data.xcsh_site_registration.aws["02"]
   values = { found = false }
 }
 
 override_data {
-  target = data.xcsh_site_registration.aws["2"]
+  target = data.xcsh_site_registration.aws["03"]
   values = { found = false }
 }
 
@@ -70,8 +88,8 @@ run "aws_site_and_resources" {
   }
 
   assert {
-    condition     = output.aws_vip == "10.150.0.10"
-    error_message = "AWS VIP should be 10.150.0.10."
+    condition     = output.aws_vip == "198.51.100.10"
+    error_message = "AWS VIP should be the external documentation address 198.51.100.10."
   }
 
   assert {
@@ -85,23 +103,8 @@ run "aws_site_and_resources" {
   }
 
   assert {
-    condition = alltrue([
-      for required in [
-        "ClusterType: ce",
-        "ClusterName: aws-site",
-        "MauriceEndpoint: https://register.ves.volterra.io",
-        "MauricePrivateEndpoint: https://register-tls.ves.volterra.io",
-        "CertifiedHardwareEndpoint: https://vesio.blob.core.windows.net/releases/certified-hardware/aws.yml",
-        "CloudProvider: disabled",
-        "path: /var/home/admin/.ssh/authorized_keys",
-      ] : strcontains(aws_instance.ce[0].user_data, required)
-    ])
-    error_message = "AWS CE cloud-init must contain the complete VPM registration and operator-access contract."
-  }
-
-  assert {
-    condition     = length(terraform_data.aws_ce_instances) == 1
-    error_message = "The AWS SMSv2 site lifecycle must track the CE instance identities."
+    condition     = length(xcsh_securemesh_site_v2.aws) == 3 && length(xcsh_site_cloud_init.aws) == 3
+    error_message = "AWS must plan three independent sites and one site-scoped bootstrap per site."
   }
 
   assert {
@@ -111,18 +114,23 @@ run "aws_site_and_resources" {
 
   assert {
     condition = alltrue([
-      for node in xcsh_securemesh_site_v2.aws[0].aws.not_managed.node_list :
-      node.interface_list[0].ethernet_interface.device == "eth0" &&
-      node.interface_list[1].ethernet_interface.device == "eth1"
+      for site in values(xcsh_securemesh_site_v2.aws) :
+      site.aws.not_managed.node_list[0].interface_list[0].ethernet_interface.device == "eth0" &&
+      site.aws.not_managed.node_list[0].interface_list[1].ethernet_interface.device == "eth1"
     ])
     error_message = "Every AWS SMSv2 node must map SLO to eth0 and SLI to eth1, as required by the live API contract."
   }
 
   assert {
-    condition = [
-      for node in xcsh_securemesh_site_v2.aws[0].aws.not_managed.node_list : node.hostname
-    ] == ["mcn-ce-ha-aws-ce-1", "mcn-ce-ha-aws-ce-2", "mcn-ce-ha-aws-ce-3"]
-    error_message = "AWS SMSv2 nodes must use the canonical hostnames configured during CE registration."
+    condition = toset([
+      for site in values(xcsh_securemesh_site_v2.aws) : site.name
+    ]) == toset(["mcn-ce-ha-aws-us-east-2-01", "mcn-ce-ha-aws-us-east-2-02", "mcn-ce-ha-aws-us-east-2-03"])
+    error_message = "AWS must use the three canonical independent site names."
+  }
+
+  assert {
+    condition     = length(aws_vpc.workload) == 1 && length(aws_instance.workload) == 1 && length(aws_security_group.workload) == 1
+    error_message = "AWS must plan a dedicated workload VPC and SSM client."
   }
 }
 
@@ -155,7 +163,7 @@ run "aws_disabled_plans_no_aws_resources" {
   }
 
   assert {
-    condition     = length(xcsh_securemesh_site_v2.aws) == 0
+    condition     = length(xcsh_securemesh_site_v2.aws) == 0 && length(aws_vpc.workload) == 0
     error_message = "With enable_aws = false, no AWS SecureMesh site should be created."
   }
 

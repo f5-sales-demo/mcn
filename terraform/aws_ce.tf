@@ -98,9 +98,11 @@ resource "aws_instance" "ce" {
   count = var.enable_aws ? var.aws_ce_count : 0
 
   ami                  = var.aws_ce_ami_id
+  ebs_optimized        = true
   instance_type        = var.aws_instance_type
   iam_instance_profile = aws_iam_instance_profile.ce[0].name
   key_name             = aws_key_pair.ce[0].key_name
+  monitoring           = true
 
   network_interface {
     network_interface_id = aws_network_interface.slo[count.index].id
@@ -119,22 +121,22 @@ resource "aws_instance" "ce" {
     volume_type           = "gp3"
   }
 
-  # Bootstrap is required for a fresh appliance to register. Keep the full VPM
-  # contract in the reviewed template; partial token-only fragments do not start
-  # registration on the certified-hardware image.
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  # The provider issues a site-scoped bootstrap. A boothook keyed to the SLI MAC
+  # suppresses DHCP default routes before the appliance consumes that bootstrap.
   user_data_replace_on_change = true
-  user_data = templatefile("${path.module}/cloud-init/ce-node-aws.yaml", {
-    hostname       = local.aws_ce_hostnames[count.index]
-    fqdn           = "${local.aws_ce_hostnames[count.index]}.${var.aws_location}.compute.internal"
-    cluster_name   = "aws-site"
-    token          = local.ce_registration_token
-    ssh_public_key = chomp(local.ssh_public_key)
+  user_data = templatefile("${path.module}/cloud-init/ce-node-aws.multipart.tpl", {
+    site_cloud_init = xcsh_site_cloud_init.aws[format("%02d", count.index + 1)].cloud_init_config
+    sli_mac         = aws_network_interface.sli[count.index].mac_address
   })
 
   tags = merge(local.tags, {
-    Name                             = "${var.component}-aws-ce-${count.index + 1}"
-    "ves-io-site-name"               = "aws-site"
-    "kubernetes.io/cluster/aws-site" = "owned"
+    Name                                                                             = local.aws_sites[format("%02d", count.index + 1)].name
+    "ves-io-site-name"                                                               = local.aws_sites[format("%02d", count.index + 1)].name
+    "kubernetes.io/cluster/${local.aws_sites[format("%02d", count.index + 1)].name}" = "owned"
   })
 
   lifecycle {
@@ -143,12 +145,4 @@ resource "aws_instance" "ce" {
       error_message = "AWS CE deployment requires an explicit approved aws_ce_ami_id; dynamic AMI selection is not allowed."
     }
   }
-}
-
-# Carry the AWS CE instance identities into the site lifecycle. Adding this
-# aggregate is inert for the existing site; subsequent CE replacements update
-# it and force the HA site to be recreated before new nodes register.
-resource "terraform_data" "aws_ce_instances" {
-  count = var.enable_aws ? 1 : 0
-  input = aws_instance.ce[*].id
 }

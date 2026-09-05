@@ -50,7 +50,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.2.0"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.3.0"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -58,10 +58,11 @@ plan)
 show)
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
     site_actions=${FAKE_SITE_ACTIONS:-'"create"'}
-    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws[0]","change":{"actions":[%s],"after":{"name":"mcn-1085-aws-site","namespace":"system"}}}]}\n' "$site_actions"
+    extra=${FAKE_EXTRA_CHANGE:-}
+    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"after":{"name":"mcn-ce-ha-aws-us-east-2-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"after":{"name":"mcn-ce-ha-aws-us-east-2-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"after":{"name":"mcn-ce-ha-aws-us-east-2-03","namespace":"system"}}}%s]}\n' "$site_actions" "$site_actions" "$site_actions" "$extra"
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
-    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.0.0\",\"api_release_tag\":\"v6.0.2\",\"api_release_commit\":\"17751d9a1de68b6831b9091fa0d17718952d659d\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
+    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.0\",\"api_release_commit\":\"5c93ab3660c278b6f2dbe5d10ea24a1a64229532\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
   fi
   ;;
 *) exit 2 ;;
@@ -86,7 +87,9 @@ common=(
   --expected-backend-container tfstate
   --expected-backend-key mcn.tfstate
   --expected-xc-tenant lab
-  --expected-site mcn-1085-aws-site
+  --expected-site mcn-ce-ha-aws-us-east-2-01
+  --expected-site mcn-ce-ha-aws-us-east-2-02
+  --expected-site mcn-ce-ha-aws-us-east-2-03
 )
 
 fail() {
@@ -98,7 +101,7 @@ assert_sanitized() {
   local evidence=$1 output=$2
   [ "$(find "$evidence" -maxdepth 1 -type f -printf '%f\n')" = summary.json ] || fail "evidence contains unexpected files"
   [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = reason,status,timestamp ] || fail "summary has unexpected keys"
-  if grep -R -E '111122223333|sub-lab|rg-state|ststate|mcn-1085-aws-site|test-token-must-not-leak|lab\.console\.ves\.volterra\.io' "$evidence" "$output"; then
+  if grep -R -E '111122223333|sub-lab|rg-state|ststate|mcn-ce-ha-aws-us-east-2|test-token-must-not-leak|lab\.console\.ves\.volterra\.io' "$evidence" "$output"; then
     fail "identity or credential leaked into sanitized evidence"
   fi
 }
@@ -157,6 +160,28 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = aws_account_mismatch ] || fail "AWS blocker not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - target identity mismatch fails closed"
+
+evidence="${TMP_ROOT}/azure-change"
+mkdir "$evidence"
+output="${TMP_ROOT}/azure-change.out"
+if FAKE_EXTRA_CHANGE=',{"address":"azurerm_virtual_network.hub","type":"azurerm_virtual_network","name":"hub","change":{"actions":["update"],"after":{}}}' \
+  "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "any Azure action must block"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = azure_changes_present ] || fail "Azure-change blocker not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - Azure changes fail closed"
+
+evidence="${TMP_ROOT}/outside-allowlist"
+mkdir "$evidence"
+output="${TMP_ROOT}/outside-allowlist.out"
+if FAKE_EXTRA_CHANGE=',{"address":"random_id.unrelated","type":"random_id","name":"unrelated","change":{"actions":["create"],"after":{}}}' \
+  "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "a change outside the AWS/XC-AWS allowlist must block"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = plan_resource_outside_aws_allowlist ] || fail "allowlist blocker not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - changes outside the AWS/XC-AWS allowlist fail closed"
 
 mkdir "$INSIDE_EVIDENCE"
 if "$SCRIPT" --evidence-dir "$INSIDE_EVIDENCE" "${common[@]}" >/dev/null 2>&1; then
