@@ -306,8 +306,8 @@ verify_mutation_identities() {
   xc_site=$(printf 'header = "Authorization: APIToken %s"\n' "$API_TOKEN" |
     curl -fsS --connect-timeout 10 --max-time 30 --config - \
       "${API_URL%/}/api/config/namespaces/system/securemesh_site_v2s/${EXPECTED_SITES[0]}") || return 1
-  jq -e --arg site "${EXPECTED_SITES[0]}" \
-    '.metadata.namespace == "system" and .metadata.name == $site' <<<"$xc_site" >/dev/null || return 1
+  jq -e --arg site "${EXPECTED_SITES[0]}" --arg namespace system \
+    '(.metadata | [.namespace, .name]) == [$namespace, $site]' <<<"$xc_site" >/dev/null || return 1
 }
 
 tf() {
