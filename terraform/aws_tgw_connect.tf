@@ -40,6 +40,15 @@ locals {
       }
     },
   )
+  # Session keys are known during planning; AWS supplies the two addresses.
+  aws_bgp_sessions = merge([
+    for key, binding in(var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}) : {
+      for endpoint in range(2) : "${key}_${endpoint + 1}" => merge(binding, {
+        connector_key = key
+        peer_address  = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[key].bgp_transit_gateway_addresses))[endpoint]
+      })
+    }
+  ]...)
   aws_smsv2_nodes = {
     for key, interface in local.aws_smsv2_bindings : key => {
       node = interface.node
@@ -223,18 +232,18 @@ resource "xcsh_bgp" "aws_tgw" {
     local_address {}
   }
   dynamic "peers" {
-    for_each = { for key, interface in local.aws_smsv2_bindings : key => interface if interface.site_key == each.key }
+    for_each = { for key, session in local.aws_bgp_sessions : key => session if session.site_key == each.key }
     content {
       metadata { name = replace(peers.key, "_", "-") }
       external {
         asn     = module.aws_tgw_connect[0].amazon_side_asn
-        address = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[peers.key].bgp_transit_gateway_addresses))[0]
+        address = peers.value.peer_address
         port    = 179
         family_inet {
           enable {}
         }
         interface {
-          name      = "ves-io-external-connector-${xcsh_external_connector.aws_tgw[peers.key].name}"
+          name      = "ves-io-external-connector-${xcsh_external_connector.aws_tgw[peers.value.connector_key].name}"
           namespace = "system"
         }
         disable_v6 {}
@@ -251,11 +260,11 @@ data "xcsh_site_bgp_status" "aws" {
   namespace = "system"
   site      = xcsh_securemesh_site_v2.aws[each.key].name
   expected_peers = {
-    for key, interface in local.aws_smsv2_bindings : key => {
+    for key, interface in local.aws_bgp_sessions : key => {
       node            = interface.node
       role            = interface.payload_role
       mac             = interface.mac
-      peer_address    = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[key].bgp_transit_gateway_addresses))[0]
+      peer_address    = interface.peer_address
       expected_routes = [var.aws_workload_vpc_cidr]
     } if interface.site_key == each.key
   }
@@ -267,13 +276,14 @@ data "xcsh_site_bgp_status" "aws" {
 output "aws_tgw_connect_status" {
   description = "Non-sensitive SMSv2 contract, runtime, and BGP convergence summary."
   value = var.enable_aws && var.enable_aws_tgw_connect ? {
-    contract_id      = data.xcsh_smsv2_contract.aws[0].contract_id
-    contract_version = data.xcsh_smsv2_contract.aws[0].contract_version
-    api_release      = data.xcsh_smsv2_contract.aws[0].api_release_tag
-    telemetry_schema = data.xcsh_smsv2_contract.aws[0].telemetry_schema_id
-    runtime_healthy  = alltrue([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.healthy])
-    interface_count  = sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)])
-    bgp_converged    = alltrue([for status in values(data.xcsh_site_bgp_status.aws) : status.converged])
-    peer_count       = sum([for status in values(data.xcsh_site_bgp_status.aws) : length(status.peers)])
+    contract_id        = data.xcsh_smsv2_contract.aws[0].contract_id
+    contract_version   = data.xcsh_smsv2_contract.aws[0].contract_version
+    api_release        = data.xcsh_smsv2_contract.aws[0].api_release_tag
+    telemetry_schema   = data.xcsh_smsv2_contract.aws[0].telemetry_schema_id
+    runtime_healthy    = alltrue([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.healthy])
+    interface_count    = sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)])
+    bgp_converged      = alltrue([for status in values(data.xcsh_site_bgp_status.aws) : status.converged])
+    connect_peer_count = length(aws_ec2_transit_gateway_connect_peer.aws)
+    bgp_session_count  = sum([for status in values(data.xcsh_site_bgp_status.aws) : length(status.peers)])
   } : null
 }

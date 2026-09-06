@@ -7,9 +7,10 @@ mock_provider "random" {}
 
 mock_provider "aws" {
   mock_resource "aws_ec2_transit_gateway_connect_peer" {
+    override_during = plan
     defaults = {
-      bgp_peer_address              = "169.254.100.2"
-      bgp_transit_gateway_addresses = ["169.254.100.1"]
+      bgp_peer_address              = "169.254.100.1"
+      bgp_transit_gateway_addresses = ["169.254.100.2", "169.254.100.3"]
       transit_gateway_address       = "100.64.0.1"
     }
   }
@@ -126,12 +127,20 @@ run "plans_three_sites_six_peers_and_workload_attachment" {
     error_message = "TGW external connectors must retain the API-required Site Local Inside payload network."
   }
   assert {
-    condition     = length(xcsh_bgp.aws_tgw) == 3 && alltrue([for bgp in values(xcsh_bgp.aws_tgw) : length(bgp.peers) == 2])
-    error_message = "Every site must own one two-peer BGP object."
+    condition     = length(xcsh_bgp.aws_tgw) == 3 && alltrue([for bgp in values(xcsh_bgp.aws_tgw) : length(bgp.peers) == 4])
+    error_message = "Every site must configure both AWS BGP endpoints on each of its two Connect peers."
   }
   assert {
     condition     = alltrue(flatten([for bgp in values(xcsh_bgp.aws_tgw) : [for peer in bgp.peers : peer.external.external_connector == null]]))
     error_message = "TGW BGP peers must use their assigned AWS transit-gateway BGP address, not the external-connector address selector."
+  }
+  assert {
+    condition     = alltrue([for status in values(data.xcsh_site_bgp_status.aws) : length(status.expected_peers) == 4])
+    error_message = "Each site must observe four distinct BGP sessions."
+  }
+  assert {
+    condition     = alltrue([for bgp in values(xcsh_bgp.aws_tgw) : toset([for peer in bgp.peers : peer.external.address]) == toset(["169.254.100.2", "169.254.100.3"])])
+    error_message = "Both AWS-assigned endpoint addresses must appear in every BGP object."
   }
   assert {
     condition     = length(data.xcsh_smsv2_aws_runtime.aws) == 3 && length(data.xcsh_site_bgp_status.aws) == 3

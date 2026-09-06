@@ -423,11 +423,11 @@ AWS_VIP=$(tf output -raw aws_vip 2>/dev/null) || block vip_identity_unavailable
 [ "$AWS_VIP" = "198.51.100.10" ] || block vip_identity_mismatch
 
 TOPOLOGY=$(tf output -json aws_tgw_connect_status 2>/dev/null) || block topology_status_unavailable
-jq -e '.runtime_healthy == true and .bgp_converged == true and .interface_count == 6 and .peer_count == 6' \
+jq -e '.runtime_healthy == true and .bgp_converged == true and .interface_count == 6 and .connect_peer_count == 6 and .bgp_session_count == 12' \
   <<<"$TOPOLOGY" >/dev/null || block topology_not_converged
 unset TOPOLOGY
 
-[ "$(xc_established_peers)" -eq 6 ] || block six_bgp_sessions_unavailable
+[ "$(xc_established_peers)" -eq 12 ] || block twelve_bgp_sessions_unavailable
 TGW_ROUTE_TABLE_ID=$(tf output -json 2>/dev/null | jq -r '.aws_tgw_route_table_id.value // empty')
 [ -n "$TGW_ROUTE_TABLE_ID" ] || block tgw_route_table_identity_unavailable
 aws ec2 search-transit-gateway-routes --region "$EXPECTED_AWS_REGION" \
@@ -447,12 +447,12 @@ verify_mutation_identities || block mutation_identity_revalidation_failed
 aws ec2 stop-instances --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" >/dev/null 2>&1 || block failover_stop_failed
 FAILOVER_STOPPED=true
 aws ec2 wait instance-stopped --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" || block failover_stop_timeout
-wait_for_peer_count 4 || block two_paths_did_not_withdraw
+wait_for_peer_count 8 || block four_sessions_did_not_withdraw
 verify_mutation_identities || block mutation_identity_revalidation_failed
 aws ec2 start-instances --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" >/dev/null 2>&1 || block failover_start_failed
 aws ec2 wait instance-running --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" || block failover_start_timeout
 FAILOVER_STOPPED=false
-wait_for_peer_count 6 || block six_paths_did_not_reconverge
+wait_for_peer_count 12 || block twelve_sessions_did_not_reconverge
 
 for key in 01 02 03; do
   status_plan "$key" "crt-20251002-0027" "9.2026.10" || block baseline_version_mismatch

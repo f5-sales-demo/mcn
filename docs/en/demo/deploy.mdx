@@ -136,9 +136,12 @@ values are never written to evidence.
 Apply only when the summary says `ready` with reason `preflight_passed`. A blocked
 result is an expected safe outcome and no infrastructure should be changed.
 
-The optional `--execute-uat` phase proves all six MAC-bound interfaces healthy,
-retain nullable `public_ip = null`, converge all BGP peers and both detailed and
-simplified route observations, agree with AWS Connect peer facts, run SSM traffic
+The optional `--execute-uat` phase requires six healthy MAC-bound interfaces and
+six Connect peers with twelve established BGP sessions. Both AWS-assigned BGP
+endpoints are configured on every tunnel. The status output reports
+`connect_peer_count` and `bgp_session_count` separately. During one CE's outage,
+eight sessions must remain established; all twelve must return after recovery.
+The gate also requires detailed and simplified routes to agree, and runs SSM traffic
 every five seconds through failover, and upgrade sites `01`, `02`, and `03` serially
 from software `crt-20251002-0027` / OS `9.2026.10` to software
 `crt-20260201-0179` / OS `9.2026.17`. Evidence remains a mode-0600 sanitized summary
