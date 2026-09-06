@@ -1,21 +1,23 @@
 # AWS owns ENI, TGW, Connect, GRE, and inside-CIDR facts. F5 XC owns
 # SMSv2 configuration, health, BGP, and route observations.
 locals {
-  aws_tgw_roles = toset(["slo", "sli"])
   aws_smsv2_api_release_commit = join("", [
-    "17751d9a1d",
-    "e68b6831b9",
-    "091fa0d177",
-    "18952d659d",
+    "2b27355ac9bf4683d3a",
+    "321f7d6388676f756c2f5",
   ])
   aws_smsv2_bindings = merge(
     {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
       format("node_%02d_slo", index + 1) => {
-        index             = index
-        order             = index
-        node              = local.aws_ce_hostnames[index]
-        role              = "slo"
+        index    = index
+        site_key = format("%02d", index + 1)
+        site     = local.aws_sites[format("%02d", index + 1)].name
+        order    = index
+        node     = local.aws_ce_hostnames[index]
+        role     = "slo"
+        # XC rejects GRE connectors whose transport and payload networks are
+        # both Site Local Outside. Keep the payload in Site Local Inside even
+        # when the bound transport interface is SLO.
         payload_role      = "sli"
         mac               = aws_network_interface.slo[index].mac_address
         gre_peer_address  = aws_network_interface.slo[index].private_ip
@@ -26,6 +28,8 @@ locals {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
       format("node_%02d_sli", index + 1) => {
         index             = index
+        site_key          = format("%02d", index + 1)
+        site              = local.aws_sites[format("%02d", index + 1)].name
         order             = var.aws_ce_count + index
         node              = local.aws_ce_hostnames[index]
         role              = "sli"
@@ -74,27 +78,28 @@ resource "terraform_data" "aws_tgw_contract_gate" {
     precondition {
       condition = (
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v3" &&
-        data.xcsh_smsv2_contract.aws[0].contract_version == "6.0.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.0.2" &&
+        data.xcsh_smsv2_contract.aws[0].contract_version == "6.1.0" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.1" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v7.2.0 must expose the exact immutable SMSv2 v3/API v6 contract."
+      error_message = "Provider v7.4.1 must expose the exact immutable SMSv2 v3/API v6.1 contract."
     }
     precondition {
       condition = (
-        length(data.xcsh_smsv2_contract.aws[0].capabilities) == 3 &&
+        length(data.xcsh_smsv2_contract.aws[0].capabilities) == 4 &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["aws_ce_create"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["runtime_status"], "") == "available" &&
-        try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available"
+        try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available" &&
+        try(data.xcsh_smsv2_contract.aws[0].capabilities["site_upgrade"], "") == "available"
       )
-      error_message = "Provider v7.2.0 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v7.4.1 must publish all and only the required SMSv2 capabilities as available."
     }
     precondition {
       condition = (
-        length(data.xcsh_smsv2_contract.aws[0].f5xc_authorities) == 5 &&
+        length(data.xcsh_smsv2_contract.aws[0].f5xc_authorities) == 6 &&
         toset(data.xcsh_smsv2_contract.aws[0].f5xc_authorities) == toset([
-          "smsv2_configuration", "runtime_health", "bgp_peers", "bgp_routes", "simplified_routes",
+          "smsv2_configuration", "runtime_health", "bgp_peers", "bgp_routes", "simplified_routes", "site_upgrade_observation",
         ]) &&
         length(data.xcsh_smsv2_contract.aws[0].aws_authorities) == 6 &&
         toset(data.xcsh_smsv2_contract.aws[0].aws_authorities) == toset([
@@ -118,10 +123,10 @@ module "aws_tgw_connect" {
 }
 
 data "xcsh_smsv2_aws_runtime" "aws" {
-  count                 = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  for_each              = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
   namespace             = "system"
-  site                  = xcsh_securemesh_site_v2.aws[0].name
-  nodes                 = local.aws_smsv2_nodes
+  site                  = xcsh_securemesh_site_v2.aws[each.key].name
+  nodes                 = { for key, node in local.aws_smsv2_nodes : key => node if local.aws_smsv2_bindings[key].site_key == each.key }
   timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
   poll_interval_seconds = var.aws_bgp_poll_interval_seconds
   depends_on            = [xcsh_securemesh_site_v2.aws]
@@ -130,16 +135,16 @@ data "xcsh_smsv2_aws_runtime" "aws" {
 resource "terraform_data" "aws_tgw_runtime_gate" {
   count = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
   input = {
-    healthy    = data.xcsh_smsv2_aws_runtime.aws[0].healthy
-    interfaces = data.xcsh_smsv2_aws_runtime.aws[0].interfaces
+    healthy    = alltrue([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.healthy])
+    interfaces = merge([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.interfaces]...)
   }
   lifecycle {
     precondition {
       condition = (
-        data.xcsh_smsv2_aws_runtime.aws[0].healthy &&
-        length(data.xcsh_smsv2_aws_runtime.aws[0].interfaces) == 6 &&
+        alltrue([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.healthy]) &&
+        sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)]) == 6 &&
         alltrue([
-          for interface in values(data.xcsh_smsv2_aws_runtime.aws[0].interfaces) :
+          for interface in flatten([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : values(runtime.interfaces)]) :
           interface.healthy && interface.mtu == var.aws_smsv2_interface_mtu &&
           contains(["slo", "sli"], interface.role)
         ])
@@ -166,7 +171,7 @@ resource "xcsh_external_connector" "aws_tgw" {
   namespace   = "system"
   description = "AWS TGW Connect GRE tunnel for ${each.key}."
   ce_site_reference {
-    name      = xcsh_securemesh_site_v2.aws[0].name
+    name      = xcsh_securemesh_site_v2.aws[each.value.site_key].name
     namespace = "system"
   }
   gre {
@@ -181,13 +186,13 @@ resource "xcsh_external_connector" "aws_tgw" {
       }
       # The external-connector API caps GRE MTU at 1370. Preserve a smaller
       # observed underlay ceiling while never constructing an invalid request.
-      tunnel_mtu = min(data.xcsh_smsv2_aws_runtime.aws[0].interfaces[each.key].mtu - 24, 1370)
+      tunnel_mtu = min(data.xcsh_smsv2_aws_runtime.aws[each.value.site_key].interfaces[each.key].mtu - 24, 1370)
       peer_ip_address {
         addr = aws_ec2_transit_gateway_connect_peer.aws[each.key].transit_gateway_address
       }
       tunnel_eps {
-        node             = data.xcsh_smsv2_aws_runtime.aws[0].interfaces[each.key].node
-        interface        = data.xcsh_smsv2_aws_runtime.aws[0].interfaces[each.key].interface_name
+        node             = data.xcsh_smsv2_aws_runtime.aws[each.value.site_key].interfaces[each.key].node
+        interface        = data.xcsh_smsv2_aws_runtime.aws[each.value.site_key].interfaces[each.key].interface_name
         local_tunnel_ip  = "${aws_ec2_transit_gateway_connect_peer.aws[each.key].bgp_peer_address}/29"
         remote_tunnel_ip = "${sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[each.key].bgp_transit_gateway_addresses))[0]}/29"
       }
@@ -197,17 +202,17 @@ resource "xcsh_external_connector" "aws_tgw" {
 }
 
 resource "xcsh_bgp" "aws_tgw" {
-  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_tgw_roles : toset([])
-  name        = "${var.component}-aws-tgw-${each.key}-bgp"
+  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+  name        = "${each.value.name}-tgw-bgp"
   namespace   = "system"
-  description = "AWS TGW Connect BGP for the ${upper(each.key)} interfaces."
+  description = "Two-peer AWS TGW Connect BGP for independent site ${each.value.name}."
   where {
     site {
       # The external-connector API accepts TGW payload only in Site Local
       # Inside, independently of whether GRE transport uses SLO or SLI.
       network_type = "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE"
       ref {
-        name      = xcsh_securemesh_site_v2.aws[0].name
+        name      = xcsh_securemesh_site_v2.aws[each.key].name
         namespace = "system"
       }
       disable_internet_vip {}
@@ -218,7 +223,7 @@ resource "xcsh_bgp" "aws_tgw" {
     local_address {}
   }
   dynamic "peers" {
-    for_each = { for key, interface in local.aws_smsv2_bindings : key => interface if interface.role == each.key }
+    for_each = { for key, interface in local.aws_smsv2_bindings : key => interface if interface.site_key == each.key }
     content {
       metadata { name = replace(peers.key, "_", "-") }
       external {
@@ -242,17 +247,17 @@ resource "xcsh_bgp" "aws_tgw" {
 }
 
 data "xcsh_site_bgp_status" "aws" {
-  count     = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  for_each  = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
   namespace = "system"
-  site      = xcsh_securemesh_site_v2.aws[0].name
+  site      = xcsh_securemesh_site_v2.aws[each.key].name
   expected_peers = {
     for key, interface in local.aws_smsv2_bindings : key => {
       node            = interface.node
       role            = interface.payload_role
       mac             = interface.mac
       peer_address    = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[key].bgp_transit_gateway_addresses))[0]
-      expected_routes = [var.aws_vpc_cidr]
-    }
+      expected_routes = [var.aws_workload_vpc_cidr]
+    } if interface.site_key == each.key
   }
   timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
   poll_interval_seconds = var.aws_bgp_poll_interval_seconds
@@ -266,9 +271,9 @@ output "aws_tgw_connect_status" {
     contract_version = data.xcsh_smsv2_contract.aws[0].contract_version
     api_release      = data.xcsh_smsv2_contract.aws[0].api_release_tag
     telemetry_schema = data.xcsh_smsv2_contract.aws[0].telemetry_schema_id
-    runtime_healthy  = data.xcsh_smsv2_aws_runtime.aws[0].healthy
-    interface_count  = length(data.xcsh_smsv2_aws_runtime.aws[0].interfaces)
-    bgp_converged    = data.xcsh_site_bgp_status.aws[0].converged
-    peer_count       = length(data.xcsh_site_bgp_status.aws[0].peers)
+    runtime_healthy  = alltrue([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.healthy])
+    interface_count  = sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)])
+    bgp_converged    = alltrue([for status in values(data.xcsh_site_bgp_status.aws) : status.converged])
+    peer_count       = sum([for status in values(data.xcsh_site_bgp_status.aws) : length(status.peers)])
   } : null
 }

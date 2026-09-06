@@ -48,6 +48,7 @@ sitecli/captures/sitecli-vif.txt
 
 # Terraform source, staged with paths preserved for documentation imports.
 terraform/aws_ce.tf -> terraform/aws_ce.tf
+terraform/aws_upgrade.tf -> terraform/aws_upgrade.tf
 terraform/aws_vpc.tf -> terraform/aws_vpc.tf
 terraform/aws_xc.tf -> terraform/aws_xc.tf
 terraform/backend.tf -> terraform/backend.tf

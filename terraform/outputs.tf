@@ -234,6 +234,36 @@ output "aws_vpc_id" {
   value       = try(aws_vpc.aws[0].id, null)
 }
 
+output "aws_workload_vpc_id" {
+  description = "Dedicated AWS workload VPC identity."
+  value       = try(aws_vpc.workload[0].id, null)
+}
+
+output "aws_workload_instance_id" {
+  description = "Amazon Linux SSM client identity."
+  value       = try(aws_instance.workload[0].id, null)
+}
+
+output "aws_workload_private_ip" {
+  description = "Private address of the Amazon Linux SSM client."
+  value       = try(aws_instance.workload[0].private_ip, null)
+}
+
+output "aws_site_names" {
+  description = "Canonical independent AWS SecureMesh v2 site names."
+  value       = { for key, site in local.aws_sites : key => site.name }
+}
+
+output "aws_tgw_id" {
+  description = "AWS Transit Gateway identity."
+  value       = try(module.aws_tgw_connect[0].transit_gateway_id, null)
+}
+
+output "aws_tgw_route_table_id" {
+  description = "TGW route table used for explicit workload association and propagation."
+  value       = try(module.aws_tgw_connect[0].route_table_id, null)
+}
+
 output "aws_ce_instance_ids" {
   description = "EC2 instance IDs of the AWS Customer Edge nodes."
   value       = aws_instance.ce[*].id
@@ -263,4 +293,3 @@ output "aws_vip" {
   description = "HA VIP advertised by the AWS CE site after TGW Connect BGP convergence."
   value       = var.aws_vip
 }
-
