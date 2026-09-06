@@ -64,6 +64,8 @@ require_text terraform/variables_aws.tf 'default     = "crt-20260201-0179"'
 require_text terraform/variables_aws.tf 'default     = "9.2026.17"'
 require_text terraform/variables_aws.tf 'default     = "10.151.0.0/16"'
 require_text terraform/variables_aws.tf 'default     = "198.51.100.10"'
+require_text terraform/variables_aws.tf 'variable "aws_bootstrap_site_keys"'
+require_text terraform/variables_aws.tf 'default     = ["01", "02", "03"]'
 
 workload_sg=$(sed -n '/resource "aws_security_group" "workload" {/,/^}/p' "${REPO_ROOT}/terraform/aws_vpc.tf")
 if grep -Eq '^[[:space:]]*ingress[[:space:]]*{' <<<"$workload_sg"; then

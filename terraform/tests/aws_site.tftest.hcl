@@ -204,6 +204,19 @@ run "aws_requires_an_explicit_ami_before_any_instance_plan" {
   expect_failures = [aws_instance.ce]
 }
 
+run "aws_bootstrap_stage_issues_only_the_first_site" {
+  command = plan
+
+  variables {
+    aws_bootstrap_site_keys = ["01"]
+  }
+
+  assert {
+    condition     = keys(xcsh_token.aws) == ["01"] && keys(xcsh_site_cloud_init.aws) == ["01", "02", "03"]
+    error_message = "The first controlled replacement must issue only CE01's JWT while retaining all site cloud-init records."
+  }
+}
+
 run "aws_disabled_plans_no_aws_resources" {
   command = plan
 

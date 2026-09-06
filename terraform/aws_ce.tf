@@ -137,12 +137,12 @@ resource "aws_instance" "ce" {
     site_cloud_init = replace(
       replace(
         replace(
-          xcsh_site_cloud_init.aws[format("%02d", count.index + 1)].cloud_init_config,
+          try(xcsh_site_cloud_init.aws[format("%02d", count.index + 1)].cloud_init_config, ""),
           "{{ .Token }}",
-          xcsh_token.aws[format("%02d", count.index + 1)].uid,
+          try(xcsh_token.aws[format("%02d", count.index + 1)].uid, ""),
         ),
         "{{ .token }}",
-        xcsh_token.aws[format("%02d", count.index + 1)].uid,
+        try(xcsh_token.aws[format("%02d", count.index + 1)].uid, ""),
       ),
       "permissions: 0644",
       "permissions: \"0644\"",

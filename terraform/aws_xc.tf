@@ -11,11 +11,17 @@ locals {
       hostname = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
     }
   }
+  # Bootstrap keys are cumulative during controlled replacement: 01, then
+  # 01+02, then all three. The default remains the complete topology.
+  aws_bootstrap_sites = {
+    for key, site in local.aws_sites : key => site
+    if contains(var.aws_bootstrap_site_keys, key)
+  }
   aws_ce_hostnames = [for site in values(local.aws_sites) : site.hostname]
 }
 
 resource "xcsh_token" "aws" {
-  for_each = local.aws_sites
+  for_each = local.aws_bootstrap_sites
 
   name        = "${each.value.name}-registration"
   namespace   = "system"
@@ -89,6 +95,9 @@ resource "xcsh_securemesh_site_v2" "aws" {
 }
 
 resource "xcsh_site_cloud_init" "aws" {
+  # Cloud-init records remain stable for all sites. Only the sensitive JWT
+  # issuance is staged, so a CE01 replacement cannot delete peer bootstrap
+  # records from state or the XC API.
   for_each                  = local.aws_sites
   provider_ref              = "aws"
   site_name                 = xcsh_securemesh_site_v2.aws[each.key].name

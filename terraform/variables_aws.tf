@@ -118,6 +118,17 @@ variable "aws_ce_count" {
   }
 }
 
+variable "aws_bootstrap_site_keys" {
+  description = "Cumulative AWS site keys whose JWT token and cloud-init are issued during a controlled replacement. Use [\"01\"], then [\"01\", \"02\"], then all three; the default is the complete topology."
+  type        = list(string)
+  default     = ["01", "02", "03"]
+
+  validation {
+    condition     = contains(["01", "01,02", "01,02,03"], join(",", var.aws_bootstrap_site_keys))
+    error_message = "aws_bootstrap_site_keys must be a non-empty cumulative prefix: [\"01\"], [\"01\", \"02\"], or [\"01\", \"02\", \"03\"]."
+  }
+}
+
 variable "aws_instance_type" {
   description = "EC2 instance size for the Customer Edge nodes."
   type        = string
