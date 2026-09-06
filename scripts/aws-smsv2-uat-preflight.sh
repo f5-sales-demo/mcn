@@ -260,12 +260,18 @@ if [ "$PLAN_MODE" = destroy ]; then
 else
   jq -e --argjson sites "$EXPECTED_SITES_JSON" '
     [.resource_changes[]? |
-      select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
       select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
-      select(.change.actions == ["create"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
-      select(.change.after.namespace == "system") |
-      .change.after.name
-    ] | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
+      if .type == "xcsh_securemesh_site_v2" and .name == "aws" then
+        select(.change.actions == ["create"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
+        select(.change.after.namespace == "system") |
+        .change.after.name
+      elif .type == "xcsh_token" and .name == "aws" then
+        select(.change.actions == ["create"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
+        .change.after.site_name
+      else
+        empty
+      end
+    ] | unique | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
 fi
 unset DEPLOYMENT_PLAN
 record ready preflight_passed

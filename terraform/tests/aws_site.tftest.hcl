@@ -158,7 +158,13 @@ run "aws_site_and_resources" {
 
   assert {
     condition = alltrue([
-      for config in values(local.aws_site_cloud_init) :
+      for config in [
+        for key, bootstrap in xcsh_site_cloud_init.aws : replace(
+          replace(replace(bootstrap.cloud_init_config, "{{ .Token }}", xcsh_token.aws[key].uid), "{{ .token }}", xcsh_token.aws[key].uid),
+          "permissions: 0644",
+          "permissions: \"0644\"",
+        )
+      ] :
       strcontains(nonsensitive(config), "token: test-site-token-") &&
       !strcontains(nonsensitive(config), "{{ .token }}") &&
       !strcontains(nonsensitive(config), "{{ .Token }}")

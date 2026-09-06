@@ -3,14 +3,6 @@
 # ---------------------------------------------------------
 locals {
   aws_ssh_public_key = var.aws_ssh_public_key != "" ? var.aws_ssh_public_key : local.ssh_public_key
-
-  aws_site_cloud_init = {
-    for key, bootstrap in xcsh_site_cloud_init.aws : key => replace(
-      replace(replace(bootstrap.cloud_init_config, "{{ .Token }}", xcsh_token.aws[key].uid),
-      "{{ .token }}", xcsh_token.aws[key].uid),
-      "permissions: 0644", "permissions: \"0644\""
-    )
-  }
 }
 
 
@@ -142,10 +134,22 @@ resource "aws_instance" "ce" {
   # operator access without replacing the provider's /etc/vpm/user_data list.
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/cloud-init/ce-node-aws.multipart.tpl", {
-    site_cloud_init = local.aws_site_cloud_init[format("%02d", count.index + 1)]
-    sli_mac         = aws_network_interface.sli[count.index].mac_address
-    fqdn            = "${local.aws_sites[format("%02d", count.index + 1)].hostname}.${var.aws_location}.compute.internal"
-    ssh_public_key  = chomp(local.aws_ssh_public_key)
+    site_cloud_init = replace(
+      replace(
+        replace(
+          xcsh_site_cloud_init.aws[format("%02d", count.index + 1)].cloud_init_config,
+          "{{ .Token }}",
+          xcsh_token.aws[format("%02d", count.index + 1)].uid,
+        ),
+        "{{ .token }}",
+        xcsh_token.aws[format("%02d", count.index + 1)].uid,
+      ),
+      "permissions: 0644",
+      "permissions: \"0644\"",
+    )
+    sli_mac        = aws_network_interface.sli[count.index].mac_address
+    fqdn           = "${local.aws_sites[format("%02d", count.index + 1)].hostname}.${var.aws_location}.compute.internal"
+    ssh_public_key = chomp(local.aws_ssh_public_key)
   })
 
   tags = merge(local.tags, {

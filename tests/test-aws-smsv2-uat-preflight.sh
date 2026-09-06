@@ -39,7 +39,11 @@ show)
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
+    if [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
+      printf '{"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$site_01_actions" "$extra"
+    else
+      printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
+    fi
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
     printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.1\",\"api_release_commit\":\"2b27355ac9bf4683d3a321f7d6388676f756c2f5\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
@@ -123,6 +127,17 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site replacement status not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - one-site replacement is accepted before the remaining sites"
+
+evidence="${TMP_ROOT}/single-token"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-token.out"
+if ! FAKE_TOKEN_ONLY=true FAKE_SITE_01_ACTIONS='"create"' "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "one-site JWT issuance must prove the site stage without forcing peer tokens"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site JWT issuance status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - site-scoped JWT issuance is accepted before the remaining sites"
 
 evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"
