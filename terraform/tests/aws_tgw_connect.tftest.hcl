@@ -130,8 +130,8 @@ run "plans_three_sites_six_peers_and_workload_attachment" {
     error_message = "Every site must own one two-peer BGP object."
   }
   assert {
-    condition     = alltrue(flatten([for bgp in values(xcsh_bgp.aws_tgw) : [for peer in bgp.peers : peer.external.external_connector != null && peer.external.address == null]]))
-    error_message = "TGW BGP peers must use External Connector Peer address mode, not a direct peer address."
+    condition     = alltrue(flatten([for bgp in values(xcsh_bgp.aws_tgw) : [for peer in bgp.peers : peer.external.external_connector == null]]))
+    error_message = "TGW BGP peers must use their assigned AWS transit-gateway BGP address, not the external-connector address selector."
   }
   assert {
     condition     = length(data.xcsh_smsv2_aws_runtime.aws) == 3 && length(data.xcsh_site_bgp_status.aws) == 3

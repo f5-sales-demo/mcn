@@ -227,12 +227,9 @@ resource "xcsh_bgp" "aws_tgw" {
     content {
       metadata { name = replace(peers.key, "_", "-") }
       external {
-        asn  = module.aws_tgw_connect[0].amazon_side_asn
-        port = 179
-        # Select the connector-owned peer address. A manually supplied TGW
-        # address configures direct Ethernet BGP and leaves the connector
-        # unbound, so XC never instantiates a BGP observation for it.
-        external_connector {}
+        asn     = module.aws_tgw_connect[0].amazon_side_asn
+        address = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[peers.key].bgp_transit_gateway_addresses))[0]
+        port    = 179
         family_inet {
           enable {}
         }
