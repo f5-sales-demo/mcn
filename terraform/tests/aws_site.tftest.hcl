@@ -291,3 +291,13 @@ run "aws_devices_are_per_site_not_fleet_assumptions" {
     error_message = "Preserve each site's MAC-verified guest device selection independently."
   }
 }
+
+run "aws_vip_selects_explicitly_labelled_sites" {
+  command = plan
+  assert {
+    condition = alltrue([for site in values(xcsh_securemesh_site_v2.aws) :
+      lookup(site.labels, "mcn-topology", "") == "${var.component}-aws"
+    ]) && toset(xcsh_virtual_site.aws[0].site_selector.expressions) == toset(["mcn-topology in (${var.component}-aws)"])
+    error_message = "The virtual site must select an explicit topology label present on every AWS SMSv2 site."
+  }
+}

@@ -35,6 +35,7 @@ resource "xcsh_securemesh_site_v2" "aws" {
   name        = each.value.name
   namespace   = "system"
   description = "Independent AWS Customer Edge SecureMesh v2 site ${each.key}"
+  labels      = { "mcn-topology" = "${var.component}-aws" }
 
   aws {
     not_managed {
@@ -132,7 +133,7 @@ resource "xcsh_virtual_site" "aws" {
 
   site_type = "CUSTOMER_EDGE"
   site_selector {
-    expressions = [format("ves.io/siteName in (%s)", join(",", [for site in values(local.aws_sites) : site.name]))]
+    expressions = ["mcn-topology in (${var.component}-aws)"]
   }
 }
 

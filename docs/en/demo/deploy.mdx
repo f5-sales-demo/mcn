@@ -142,6 +142,10 @@ its AWS ENI MAC using boot-console or supported node-discovery evidence. Names
 such as `ens5` and `ens6` are observations for a particular image and instance,
 not defaults. Missing site mappings or duplicate devices fail validation.
 
+AWS sites carry the explicit `mcn-topology` label selected by the VIP virtual
+site. Verify the virtual site's selectees before claiming VIP placement;
+registration does not guarantee a `ves.io/siteName` label exists.
+
 Changing a device can regenerate its XC network-interface object. Review the
 site update and dependent connector binding changes serially, and verify actual
 forwarding and BGP state after each change. A successful site write alone does
