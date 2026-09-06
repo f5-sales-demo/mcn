@@ -122,8 +122,8 @@ run "plans_three_sites_six_peers_and_workload_attachment" {
     error_message = "All six MAC-bound interfaces must own an AWS Connect peer and XC external connector."
   }
   assert {
-    condition     = alltrue([for binding in values(local.aws_smsv2_bindings) : binding.payload_role == binding.role])
-    error_message = "Every TGW external connector must use the network role of its MAC-bound CE interface."
+    condition     = alltrue([for binding in values(local.aws_smsv2_bindings) : binding.payload_role == "sli"])
+    error_message = "TGW external connectors must retain the API-required Site Local Inside payload network."
   }
   assert {
     condition     = length(xcsh_bgp.aws_tgw) == 3 && alltrue([for bgp in values(xcsh_bgp.aws_tgw) : length(bgp.peers) == 2])
