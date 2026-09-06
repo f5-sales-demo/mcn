@@ -92,6 +92,11 @@ run "aws_site_and_resources" {
   }
 
   assert {
+    condition     = length(data.azuread_client_config.current) == 0 && length(data.azuread_user.current) == 0
+    error_message = "An explicit deployer must keep AWS-only planning from reading Azure AD."
+  }
+
+  assert {
     condition     = output.aws_lb_domain == "aws.mcn-ce-ha.f5-sales-demo.com"
     error_message = "AWS HTTP Load Balancer domain should be aws.mcn-ce-ha.f5-sales-demo.com."
   }
