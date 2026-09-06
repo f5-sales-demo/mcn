@@ -358,7 +358,7 @@ When the AWS Customer Edge extension is deployed (`enable_aws = true`), verify E
 1. **Verify EC2 Customer Edge Instance States**:
 
    ```bash
-   aws ec2 describe-instances --region us-east-2 \
+   aws ec2 describe-instances --region ap-northeast-1 \
      --instance-ids $(terraform output -json aws_ce_instance_ids | jq -r '.[]') \
      --query "Reservations[*].Instances[*].{InstanceId:InstanceId,State:State.Name,PublicIp:PublicIpAddress,PrivateIp:PrivateIpAddress}" \
      -o table

@@ -12,7 +12,7 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
 - **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.16.1`, for
   provider-defined functions and the `check` block that guards the VIP.
-- **The `xcsh` provider at exactly v7.3.0.** This deployment uses only the clean-break
+- **The `xcsh` provider at exactly v7.4.0.** This deployment uses only the clean-break
   SMSv2 contract. The local
   `.terraform.lock.hcl` remains gitignored; the exact source constraint is authoritative.
 - **An F5 XC API credential** for the tenant in `var.expected_xc_tenant`, exported as
@@ -101,18 +101,25 @@ above before you mint another token.
 ## AWS SMSv2 preflight is mandatory
 
 The AWS Transit Gateway path is pinned to the immutable
-[`xcsh` v7.3.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v7.3.0).
+[`xcsh` v7.4.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v7.4.0).
 That release publishes contract `f5xc-ce-automation/v3` version `6.1.0` from
-`api-specs-enriched` v6.1.0. Its four AWS SMSv2 capabilities, including
+`api-specs-enriched` v6.1.1. Its four AWS SMSv2 capabilities, including
 `site_upgrade`, must all report `available`; do not bypass a failed gate.
+
+Each AWS site receives its own `xcsh_token.aws` credential with `type = 1` and
+`site_name` set to the exact Secure Mesh Site v2 name. The multipart EC2 user data
+embeds the provider-issued `xcsh_site_cloud_init` payload, which owns
+`/etc/vpm/user_data`. The wrapper may add the early SLI route guard and operator
+SSH access, but it must never create or replace `/etc/vpm/config.yaml`; the certified
+AWS CE AMI retains that hardware-certification configuration.
 
 Before any plan is applied with `enable_aws_tgw_connect = true`, save the reviewed
 plan and run the non-mutating preflight using the complete command in the Apply
 sequence. Put evidence in a new, empty directory outside the repository.
 
-The gate compares the authenticated AWS account and region, Azure subscription,
-initialized Azure backend, XC tenant, and all three planned AWS sites with the explicitly
-expected targets. It then installs exactly provider v7.3.0 in a disposable
+The gate compares the authenticated AWS account and region, XC tenant, and all three planned
+AWS sites with the explicitly expected targets. It performs no Azure CLI or backend operation,
+rejects every Azure resource change, then installs exactly provider v7.4.0 in a disposable
 directory and reads its compiled contract. The only durable evidence is
 `summary.json`, containing `status`, a fixed reason code, and a UTC timestamp;
 account IDs, subscription IDs, tenant names, endpoints, tokens, and resource
@@ -149,12 +156,7 @@ outside Git.
      --terraform-dir terraform \
      --plan-file /private/path/mcn.tfplan \
      --expected-aws-account '<AWS_ACCOUNT_ID>' \
-     --expected-aws-region us-east-2 \
-     --expected-azure-subscription '<AZURE_SUBSCRIPTION_ID>' \
-     --expected-backend-resource-group '<BACKEND_RESOURCE_GROUP>' \
-     --expected-backend-storage-account '<BACKEND_STORAGE_ACCOUNT>' \
-     --expected-backend-container '<BACKEND_CONTAINER>' \
-     --expected-backend-key '<BACKEND_KEY>' \
+     --expected-aws-region ap-northeast-1 \
      --expected-xc-tenant '<XC_TENANT>' \
      --expected-site "$AWS_SITE_01" \
      --expected-site "$AWS_SITE_02" \

@@ -1,11 +1,23 @@
 # ---------------------------------------------------------
 # AWS Customer Edge (EC2 instances, IAM, and ordered dual NICs)
 # ---------------------------------------------------------
+locals {
+  aws_ssh_public_key = var.aws_ssh_public_key != "" ? var.aws_ssh_public_key : local.ssh_public_key
+
+  aws_site_cloud_init = {
+    for key, bootstrap in xcsh_site_cloud_init.aws : key => replace(
+      replace(replace(bootstrap.cloud_init_config, "{{ .Token }}", xcsh_token.aws[key].uid),
+      "{{ .token }}", xcsh_token.aws[key].uid),
+      "permissions: 0644", "permissions: \"0644\""
+    )
+  }
+}
+
 
 resource "aws_key_pair" "ce" {
   count      = var.enable_aws ? 1 : 0
   key_name   = "${var.component}-aws-ce-key"
-  public_key = local.ssh_public_key
+  public_key = local.aws_ssh_public_key
 
   tags = local.tags
 }
@@ -125,12 +137,15 @@ resource "aws_instance" "ce" {
     http_tokens = "required"
   }
 
-  # The provider issues a site-scoped bootstrap. A boothook keyed to the SLI MAC
-  # suppresses DHCP default routes before the appliance consumes that bootstrap.
+  # Preserve the provider-issued cloud-config as the only cloud-config MIME part.
+  # A boothook and final shell part enforce SLO-only default routing and install
+  # operator access without replacing the provider's /etc/vpm/user_data list.
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/cloud-init/ce-node-aws.multipart.tpl", {
-    site_cloud_init = xcsh_site_cloud_init.aws[format("%02d", count.index + 1)].cloud_init_config
+    site_cloud_init = local.aws_site_cloud_init[format("%02d", count.index + 1)]
     sli_mac         = aws_network_interface.sli[count.index].mac_address
+    fqdn            = "${local.aws_sites[format("%02d", count.index + 1)].hostname}.${var.aws_location}.compute.internal"
+    ssh_public_key  = chomp(local.aws_ssh_public_key)
   })
 
   tags = merge(local.tags, {

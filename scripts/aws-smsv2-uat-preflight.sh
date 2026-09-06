@@ -8,14 +8,10 @@ TERRAFORM_DIR="${REPO_ROOT}/terraform"
 PLAN_FILE=""
 EXPECTED_AWS_ACCOUNT=""
 EXPECTED_AWS_REGION=""
-EXPECTED_AZURE_SUBSCRIPTION=""
-EXPECTED_BACKEND_RESOURCE_GROUP=""
-EXPECTED_BACKEND_STORAGE_ACCOUNT=""
-EXPECTED_BACKEND_CONTAINER=""
-EXPECTED_BACKEND_KEY=""
 EXPECTED_XC_TENANT=""
 EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
+PLAN_MODE="apply"
 EXECUTE_UAT=false
 SUMMARY=""
 SCRATCH=""
@@ -32,16 +28,12 @@ Required options:
   --plan-file PATH
   --expected-aws-account ID
   --expected-aws-region REGION
-  --expected-azure-subscription ID
-  --expected-backend-resource-group NAME
-  --expected-backend-storage-account NAME
-  --expected-backend-container NAME
-  --expected-backend-key KEY
   --expected-xc-tenant NAME
-  --expected-site NAME       Repeat exactly three times.
+  --expected-site NAME       Repeat for every task-owned site; apply mode requires exactly three.
 
 Optional:
   --terraform-dir PATH   Defaults to the repository terraform directory.
+  --plan-mode MODE       apply (default) or destroy.
   --xc-context NAME      Defaults to f5-sales-demo when XC environment values are absent.
   --execute-uat          Run traffic, failover, serial upgrades, and final convergence after preflight.
 EOF
@@ -80,32 +72,16 @@ while [ "$#" -gt 0 ]; do
     PLAN_FILE=${2:?}
     shift 2
     ;;
+  --plan-mode)
+    PLAN_MODE=${2:?}
+    shift 2
+    ;;
   --expected-aws-account)
     EXPECTED_AWS_ACCOUNT=${2:?}
     shift 2
     ;;
   --expected-aws-region)
     EXPECTED_AWS_REGION=${2:?}
-    shift 2
-    ;;
-  --expected-azure-subscription)
-    EXPECTED_AZURE_SUBSCRIPTION=${2:?}
-    shift 2
-    ;;
-  --expected-backend-resource-group)
-    EXPECTED_BACKEND_RESOURCE_GROUP=${2:?}
-    shift 2
-    ;;
-  --expected-backend-storage-account)
-    EXPECTED_BACKEND_STORAGE_ACCOUNT=${2:?}
-    shift 2
-    ;;
-  --expected-backend-container)
-    EXPECTED_BACKEND_CONTAINER=${2:?}
-    shift 2
-    ;;
-  --expected-backend-key)
-    EXPECTED_BACKEND_KEY=${2:?}
     shift 2
     ;;
   --expected-xc-tenant)
@@ -132,15 +108,18 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION \
-  EXPECTED_AZURE_SUBSCRIPTION EXPECTED_BACKEND_RESOURCE_GROUP \
-  EXPECTED_BACKEND_STORAGE_ACCOUNT EXPECTED_BACKEND_CONTAINER \
-  EXPECTED_BACKEND_KEY EXPECTED_XC_TENANT; do
+for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXPECTED_XC_TENANT; do
   [ -n "${!value}" ] || die "missing required preflight argument"
 done
-[ "${#EXPECTED_SITES[@]}" -eq 3 ] || die "exactly three --expected-site values are required"
+[[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
+[ "$PLAN_MODE" = apply ] || [ "$EXECUTE_UAT" = false ] || die "live UAT requires apply plan mode"
+if [ "$PLAN_MODE" = apply ]; then
+  [ "${#EXPECTED_SITES[@]}" -eq 3 ] || die "apply mode requires exactly three --expected-site values"
+else
+  [ "${#EXPECTED_SITES[@]}" -ge 1 ] || die "destroy mode requires at least one --expected-site value"
+fi
 
-for command_name in terraform jq aws az realpath; do
+for command_name in terraform jq aws realpath; do
   command -v "$command_name" >/dev/null 2>&1 || die "required command is unavailable"
 done
 
@@ -195,7 +174,7 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 7.3.0"
+      version = "= 7.4.0"
     }
   }
 }
@@ -220,7 +199,7 @@ TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v7_provider_install_failed
 PROVIDER_VERSION=$(terraform -chdir="$SCRATCH" version -json 2>/dev/null |
   jq -r '.provider_selections["registry.terraform.io/f5-sales-demo/xcsh"] // empty')
-[ "$PROVIDER_VERSION" = "7.3.0" ] || block v7_provider_resolution_mismatch
+[ "$PROVIDER_VERSION" = "7.4.0" ] || block v7_provider_resolution_mismatch
 TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" plan -refresh=false -input=false -lock=false \
   -out=contract.tfplan -no-color >/dev/null 2>&1 || block v7_contract_query_failed
@@ -228,11 +207,11 @@ CONTRACT=$(terraform -chdir="$SCRATCH" show -json contract.tfplan 2>/dev/null |
   jq -c '.planned_values.outputs.contract.value // empty')
 [ -n "$CONTRACT" ] || block v7_contract_query_failed
 
-EXPECTED_API_COMMIT="5c93ab3660""c278b6f2db""e5d10ea24a""1a64229532"
+EXPECTED_API_COMMIT="2b27355ac9""bf4683d3a3""21f7d63886""76f756c2f5"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_id == "f5xc-ce-automation/v3" and
   .contract_version == "6.1.0" and
-  .api_release_tag == "v6.1.0" and
+  .api_release_tag == "v6.1.1" and
   .api_release_commit == $api_commit and
   .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v7_contract_identity_mismatch
 jq -e '
@@ -256,44 +235,37 @@ jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
   <<<"$AWS_IDENTITY" >/dev/null || block aws_account_mismatch
 unset AWS_IDENTITY
 
-AZURE_IDENTITY=$(az account show --output json 2>/dev/null) || block azure_identity_unavailable
-jq -e --arg expected "$EXPECTED_AZURE_SUBSCRIPTION" '.id == $expected' <<<"$AZURE_IDENTITY" >/dev/null || block azure_subscription_mismatch
-unset AZURE_IDENTITY
-
-BACKEND_STATE="${TERRAFORM_DIR}/.terraform/terraform.tfstate"
-[ -f "$BACKEND_STATE" ] || block azure_backend_unavailable
-jq -e \
-  --arg subscription "$EXPECTED_AZURE_SUBSCRIPTION" \
-  --arg resource_group "$EXPECTED_BACKEND_RESOURCE_GROUP" \
-  --arg storage_account "$EXPECTED_BACKEND_STORAGE_ACCOUNT" \
-  --arg container "$EXPECTED_BACKEND_CONTAINER" \
-  --arg key "$EXPECTED_BACKEND_KEY" \
-  '.backend.type == "azurerm" and
-   ((.backend.config.subscription_id // "") == "" or .backend.config.subscription_id == $subscription) and
-   .backend.config.resource_group_name == $resource_group and
-   .backend.config.storage_account_name == $storage_account and
-   .backend.config.container_name == $container and
-   .backend.config.key == $key' "$BACKEND_STATE" >/dev/null || block azure_backend_mismatch
-
 DEPLOYMENT_PLAN=$(terraform -chdir="$TERRAFORM_DIR" show -json "$PLAN_FILE" 2>/dev/null) || block deployment_plan_unreadable
 jq -e '
   [.resource_changes[]? |
-    select(.change.actions != ["no-op"]) |
+    select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
     select(.type | startswith("azurerm_") or startswith("azuread_"))
   ] | length == 0' <<<"$DEPLOYMENT_PLAN" >/dev/null || block azure_changes_present
 jq -e '
   [.resource_changes[]? |
-    select(.change.actions != ["no-op"]) |
-    select((.address | test("^(aws_|module\\.aws_tgw_connect|xcsh_(securemesh_site_v2|site_cloud_init|registration_approval|virtual_site|origin_pool|http_loadbalancer|external_connector|bgp)\\.aws|terraform_data\\.aws|xcsh_token\\.ce)")) | not)
+    select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
+    select((.address | test("^(aws_|module\\.aws_tgw_connect|xcsh_(securemesh_site_v2|site_cloud_init|registration_approval|virtual_site|origin_pool|http_loadbalancer|external_connector|bgp|token)\\.aws|terraform_data\\.aws|xcsh_token\\.ce)")) | not)
   ] | length == 0' <<<"$DEPLOYMENT_PLAN" >/dev/null || block plan_resource_outside_aws_allowlist
 EXPECTED_SITES_JSON=$(printf '%s\n' "${EXPECTED_SITES[@]}" | jq -Rsc 'split("\n") | map(select(length > 0)) | sort')
-jq -e --argjson sites "$EXPECTED_SITES_JSON" '
-  [.resource_changes[]? |
-    select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
-    select(.change.actions == ["create"] or .change.actions == ["no-op"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
-    select(.change.after.namespace == "system") |
-    .change.after.name
-  ] | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
+if [ "$PLAN_MODE" = destroy ]; then
+  jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"] and .change.actions != ["delete"])] | length == 0' \
+    <<<"$DEPLOYMENT_PLAN" >/dev/null || block destroy_plan_contains_non_delete_actions
+  jq -e --argjson sites "$EXPECTED_SITES_JSON" '
+    [.resource_changes[]? |
+      select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
+      select(.change.actions == ["delete"]) |
+      select(.change.before.namespace == "system") |
+      .change.before.name
+    ] | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
+else
+  jq -e --argjson sites "$EXPECTED_SITES_JSON" '
+    [.resource_changes[]? |
+      select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
+      select(.change.actions == ["create"] or .change.actions == ["no-op"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
+      select(.change.after.namespace == "system") |
+      .change.after.name
+    ] | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
+fi
 unset DEPLOYMENT_PLAN
 record ready preflight_passed
 
@@ -397,7 +369,7 @@ invoke_upgrade() {
     -out="$plan_path" >/dev/null || return 1
   chmod 600 "$plan_path"
   invoke_plan=$(tf show -json "$plan_path") || return 1
-  jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"])] | length == 0' \
+  jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
     <<<"$invoke_plan" >/dev/null || block upgrade_invoke_plan_has_resource_changes
   unset invoke_plan
   tf apply -input=false -no-color -auto-approve "$plan_path" >/dev/null || return 1

@@ -14,20 +14,38 @@ override_resource {
 
 override_resource {
   override_during = plan
+  target          = xcsh_token.aws["01"]
+  values          = { uid = "test-site-token-01" }
+}
+
+override_resource {
+  override_during = plan
+  target          = xcsh_token.aws["02"]
+  values          = { uid = "test-site-token-02" }
+}
+
+override_resource {
+  override_during = plan
+  target          = xcsh_token.aws["03"]
+  values          = { uid = "test-site-token-03" }
+}
+
+override_resource {
+  override_during = plan
   target          = xcsh_site_cloud_init.aws["01"]
-  values          = { cloud_init_config = "#cloud-config\nruncmd:\n  - echo site-01\n" }
+  values          = { cloud_init_config = "#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    content: |\n      token: {{ .token }}\n" }
 }
 
 override_resource {
   override_during = plan
   target          = xcsh_site_cloud_init.aws["02"]
-  values          = { cloud_init_config = "#cloud-config\nruncmd:\n  - echo site-02\n" }
+  values          = { cloud_init_config = "#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    content: |\n      token: {{ .token }}\n" }
 }
 
 override_resource {
   override_during = plan
   target          = xcsh_site_cloud_init.aws["03"]
-  values          = { cloud_init_config = "#cloud-config\nruncmd:\n  - echo site-03\n" }
+  values          = { cloud_init_config = "#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    content: |\n      token: {{ .token }}\n" }
 }
 
 override_data {
@@ -59,6 +77,7 @@ variables {
   origin_ip              = "203.0.113.10"
   deployer               = "tester"
   ssh_public_key         = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
+  aws_ssh_public_key     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAwsSpecificKeyMaterialOnlyForTests aws-plan-test-only"
   xc_app_namespace       = "multi-cloud-networking"
   aws_ce_ami_id          = "ami-0123456789abcdef0"
   enable_aws             = true
@@ -103,13 +122,43 @@ run "aws_site_and_resources" {
   }
 
   assert {
-    condition     = length(xcsh_securemesh_site_v2.aws) == 3 && length(xcsh_site_cloud_init.aws) == 3
+    condition     = aws_key_pair.ce[0].public_key == var.aws_ssh_public_key
+    error_message = "AWS must support an AWS-only operator key without changing Azure VM access."
+  }
+
+  assert {
+    condition     = length(xcsh_securemesh_site_v2.aws) == 3 && length(xcsh_site_cloud_init.aws) == 3 && length(xcsh_token.aws) == 3
     error_message = "AWS must plan three independent sites and one site-scoped bootstrap per site."
   }
 
   assert {
-    condition     = length(data.xcsh_site_registration.aws) == 3 && length(xcsh_registration_approval.aws) == 0
+    condition = alltrue([
+      for key, token in xcsh_token.aws : token.type == 1 && token.site_name == local.aws_sites[key].name
+    ])
+    error_message = "Every AWS registration credential must be a JWT token bound to its exact Secure Mesh Site v2 name."
+  }
+
+  assert {
+    condition = length(data.xcsh_site_registration.aws) == 3 && length(xcsh_registration_approval.aws) == 0
+
     error_message = "AWS must look up all three runtime registrations and defer approval until they are found."
+  }
+
+  assert {
+    condition = alltrue([
+      for bootstrap in values(xcsh_site_cloud_init.aws) : bootstrap.provider_ref == "aws"
+    ])
+    error_message = "AWS site cloud-init issuance must use the lowercase provider identifier expected by the live API."
+  }
+
+  assert {
+    condition = alltrue([
+      for config in values(local.aws_site_cloud_init) :
+      strcontains(nonsensitive(config), "token: test-site-token-") &&
+      !strcontains(nonsensitive(config), "{{ .token }}") &&
+      !strcontains(nonsensitive(config), "{{ .Token }}")
+    ])
+    error_message = "Every AWS CE must receive resolved cloud-init with no token template placeholder."
   }
 
   assert {
@@ -124,7 +173,7 @@ run "aws_site_and_resources" {
   assert {
     condition = toset([
       for site in values(xcsh_securemesh_site_v2.aws) : site.name
-    ]) == toset(["mcn-ce-ha-aws-us-east-2-01", "mcn-ce-ha-aws-us-east-2-02", "mcn-ce-ha-aws-us-east-2-03"])
+    ]) == toset(["mcn-ce-ha-aws-ap-northeast-1-01", "mcn-ce-ha-aws-ap-northeast-1-02", "mcn-ce-ha-aws-ap-northeast-1-03"])
     error_message = "AWS must use the three canonical independent site names."
   }
 

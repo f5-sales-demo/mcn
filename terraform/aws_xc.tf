@@ -14,6 +14,16 @@ locals {
   aws_ce_hostnames = [for site in values(local.aws_sites) : site.hostname]
 }
 
+resource "xcsh_token" "aws" {
+  for_each = local.aws_sites
+
+  name        = "${each.value.name}-registration"
+  namespace   = "system"
+  description = "Registration token for independent AWS site ${each.value.name}"
+  type        = 1
+  site_name   = each.value.name
+}
+
 resource "xcsh_securemesh_site_v2" "aws" {
   for_each    = local.aws_sites
   name        = each.value.name
@@ -80,7 +90,7 @@ resource "xcsh_securemesh_site_v2" "aws" {
 
 resource "xcsh_site_cloud_init" "aws" {
   for_each                  = local.aws_sites
-  provider_ref              = "AWS"
+  provider_ref              = "aws"
   site_name                 = xcsh_securemesh_site_v2.aws[each.key].name
   enable_management_network = false
 }

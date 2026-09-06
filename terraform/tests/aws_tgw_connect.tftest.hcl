@@ -23,8 +23,8 @@ override_data {
   values = {
     contract_id         = "f5xc-ce-automation/v3"
     contract_version    = "6.1.0"
-    api_release_tag     = "v6.1.0"
-    api_release_commit  = "5c93ab3660c278b6f2d${"be5d10ea24a1a64229532"}"
+    api_release_tag     = "v6.1.1"
+    api_release_commit  = "2b27355ac9bf4683d3a${"321f7d6388676f756c2f5"}"
     telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
     capabilities = {
       aws_ce_create  = "available"
@@ -67,8 +67,8 @@ override_data {
   values = {
     healthy = true
     interfaces = {
-      node_01_slo = { node = "mcn-ce-ha-aws-us-east-2-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "site-01-eth0", mtu = 1500, healthy = true }
-      node_01_sli = { node = "mcn-ce-ha-aws-us-east-2-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "site-01-eth1", mtu = 1500, healthy = true }
+      node_01_slo = { node = "mcn-ce-ha-aws-ap-northeast-1-01", role = "slo", mac = "02:00:00:00:00:01", interface_name = "site-01-eth0", mtu = 1500, healthy = true }
+      node_01_sli = { node = "mcn-ce-ha-aws-ap-northeast-1-01", role = "sli", mac = "02:00:00:00:01:01", interface_name = "site-01-eth1", mtu = 1500, healthy = true }
     }
   }
 }
@@ -77,8 +77,8 @@ override_data {
   values = {
     healthy = true
     interfaces = {
-      node_02_slo = { node = "mcn-ce-ha-aws-us-east-2-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "site-02-eth0", mtu = 1500, healthy = true }
-      node_02_sli = { node = "mcn-ce-ha-aws-us-east-2-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "site-02-eth1", mtu = 1500, healthy = true }
+      node_02_slo = { node = "mcn-ce-ha-aws-ap-northeast-1-02", role = "slo", mac = "02:00:00:00:00:02", interface_name = "site-02-eth0", mtu = 1500, healthy = true }
+      node_02_sli = { node = "mcn-ce-ha-aws-ap-northeast-1-02", role = "sli", mac = "02:00:00:00:01:02", interface_name = "site-02-eth1", mtu = 1500, healthy = true }
     }
   }
 }
@@ -87,8 +87,8 @@ override_data {
   values = {
     healthy = true
     interfaces = {
-      node_03_slo = { node = "mcn-ce-ha-aws-us-east-2-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "site-03-eth0", mtu = 1500, healthy = true }
-      node_03_sli = { node = "mcn-ce-ha-aws-us-east-2-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "site-03-eth1", mtu = 1500, healthy = true }
+      node_03_slo = { node = "mcn-ce-ha-aws-ap-northeast-1-03", role = "slo", mac = "02:00:00:00:00:03", interface_name = "site-03-eth0", mtu = 1500, healthy = true }
+      node_03_sli = { node = "mcn-ce-ha-aws-ap-northeast-1-03", role = "sli", mac = "02:00:00:00:01:03", interface_name = "site-03-eth1", mtu = 1500, healthy = true }
     }
   }
 }

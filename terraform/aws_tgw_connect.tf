@@ -2,8 +2,8 @@
 # SMSv2 configuration, health, BGP, and route observations.
 locals {
   aws_smsv2_api_release_commit = join("", [
-    "5c93ab3660c278b6f2d",
-    "be5d10ea24a1a64229532",
+    "2b27355ac9bf4683d3a",
+    "321f7d6388676f756c2f5",
   ])
   aws_smsv2_bindings = merge(
     {
@@ -76,11 +76,11 @@ resource "terraform_data" "aws_tgw_contract_gate" {
       condition = (
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v3" &&
         data.xcsh_smsv2_contract.aws[0].contract_version == "6.1.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.0" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.1" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v7.3.0 must expose the exact immutable SMSv2 v3/API v6.1 contract."
+      error_message = "Provider v7.4.0 must expose the exact immutable SMSv2 v3/API v6.1 contract."
     }
     precondition {
       condition = (
@@ -90,7 +90,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["site_upgrade"], "") == "available"
       )
-      error_message = "Provider v7.3.0 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v7.4.0 must publish all and only the required SMSv2 capabilities as available."
     }
     precondition {
       condition = (

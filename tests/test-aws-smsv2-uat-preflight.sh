@@ -10,34 +10,12 @@ trap 'rm -rf "$TMP_ROOT" "$INSIDE_EVIDENCE"' EXIT
 BIN="${TMP_ROOT}/bin"
 TF_DIR="${TMP_ROOT}/terraform"
 PLAN_FILE="${TMP_ROOT}/deployment.tfplan"
-mkdir -p "$BIN" "${TF_DIR}/.terraform"
+mkdir -p "$BIN" "$TF_DIR"
 : >"$PLAN_FILE"
-
-cat >"${TF_DIR}/.terraform/terraform.tfstate" <<'JSON'
-{
-  "backend": {
-    "type": "azurerm",
-    "config": {
-      "SUBSCRIPTION_KEY": "sub-lab",
-      "resource_group_name": "rg-state",
-      "storage_account_name": "ststate",
-      "container_name": "tfstate",
-      "key": "mcn.tfstate"
-    }
-  }
-}
-JSON
-SUBSCRIPTION_KEY="subscription""_id"
-sed -i "s/SUBSCRIPTION_KEY/${SUBSCRIPTION_KEY}/" "${TF_DIR}/.terraform/terraform.tfstate"
 
 cat >"${BIN}/aws" <<'SH'
 #!/usr/bin/env bash
 printf '{"%s":"%s"}\n' 'Acc''ount' "${FAKE_AWS_ACCOUNT:-111122223333}"
-SH
-
-cat >"${BIN}/az" <<'SH'
-#!/usr/bin/env bash
-printf '{"id":"%s"}\n' "${FAKE_AZURE_SUBSCRIPTION:-sub-lab}"
 SH
 
 cat >"${BIN}/terraform" <<'SH'
@@ -50,7 +28,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.3.0"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.4.0"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -59,20 +37,20 @@ show)
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
     site_actions=${FAKE_SITE_ACTIONS:-'"create"'}
     extra=${FAKE_EXTRA_CHANGE:-}
-    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"after":{"name":"mcn-ce-ha-aws-us-east-2-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"after":{"name":"mcn-ce-ha-aws-us-east-2-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"after":{"name":"mcn-ce-ha-aws-us-east-2-03","namespace":"system"}}}%s]}\n' "$site_actions" "$site_actions" "$site_actions" "$extra"
+    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_actions" "$site_actions" "$site_actions" "$extra"
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
-    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.0\",\"api_release_commit\":\"5c93ab3660c278b6f2dbe5d10ea24a1a64229532\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
+    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.1\",\"api_release_commit\":\"2b27355ac9bf4683d3a321f7d6388676f756c2f5\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
   fi
   ;;
 *) exit 2 ;;
 esac
 SH
-chmod 755 "${BIN}/aws" "${BIN}/az" "${BIN}/terraform"
+chmod 755 "${BIN}/aws" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
 export FAKE_TF_DIR="$TF_DIR"
-export AWS_REGION="us-east-2"
+export AWS_REGION="ap-northeast-1"
 export XCSH_API_URL="https://lab.console.ves.volterra.io"
 export XCSH_API_TOKEN="test-token-must-not-leak"
 
@@ -80,16 +58,11 @@ common=(
   --terraform-dir "$TF_DIR"
   --plan-file "$PLAN_FILE"
   --expected-aws-account 111122223333
-  --expected-aws-region us-east-2
-  --expected-azure-subscription sub-lab
-  --expected-backend-resource-group rg-state
-  --expected-backend-storage-account ststate
-  --expected-backend-container tfstate
-  --expected-backend-key mcn.tfstate
+  --expected-aws-region ap-northeast-1
   --expected-xc-tenant lab
-  --expected-site mcn-ce-ha-aws-us-east-2-01
-  --expected-site mcn-ce-ha-aws-us-east-2-02
-  --expected-site mcn-ce-ha-aws-us-east-2-03
+  --expected-site mcn-ce-ha-aws-ap-northeast-1-01
+  --expected-site mcn-ce-ha-aws-ap-northeast-1-02
+  --expected-site mcn-ce-ha-aws-ap-northeast-1-03
 )
 
 fail() {
@@ -101,7 +74,7 @@ assert_sanitized() {
   local evidence=$1 output=$2
   [ "$(find "$evidence" -maxdepth 1 -type f -printf '%f\n')" = summary.json ] || fail "evidence contains unexpected files"
   [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = reason,status,timestamp ] || fail "summary has unexpected keys"
-  if grep -R -E '111122223333|sub-lab|rg-state|ststate|mcn-ce-ha-aws-us-east-2|test-token-must-not-leak|lab\.console\.ves\.volterra\.io' "$evidence" "$output"; then
+  if grep -R -E '111122223333|mcn-ce-ha-aws-ap-northeast-1|test-token-must-not-leak|lab\.console\.ves\.volterra\.io' "$evidence" "$output"; then
     fail "identity or credential leaked into sanitized evidence"
   fi
 }
@@ -129,17 +102,27 @@ fi
 assert_sanitized "$evidence" "$output"
 echo "ok - site replacement is accepted when its target identity matches"
 
-sed -i 's/"subscription_id": "sub-lab"/"subscription_id": ""/' "${TF_DIR}/.terraform/terraform.tfstate"
-evidence="${TMP_ROOT}/backend-without-subscription"
+evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"
-output="${TMP_ROOT}/backend-without-subscription.out"
-if ! "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+output="${TMP_ROOT}/destroy.out"
+if ! FAKE_SITE_ACTIONS='"delete"' "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
   cat "$output" >&2
-  fail "storage-coordinate backend without subscription_id should pass under the verified Azure identity"
+  fail "AWS-only delete plan should pass destroy mode"
 fi
-[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "storage-coordinate backend status not recorded"
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "destroy ready status not recorded"
 assert_sanitized "$evidence" "$output"
-echo "ok - storage-coordinate backend accepts verified Azure identity without subscription_id"
+echo "ok - destroy mode accepts only the three expected site deletions"
+
+evidence="${TMP_ROOT}/destroy-mixed"
+mkdir "$evidence"
+output="${TMP_ROOT}/destroy-mixed.out"
+if FAKE_SITE_ACTIONS='"delete"' FAKE_EXTRA_CHANGE=',{"address":"aws_instance.unexpected","type":"aws_instance","name":"unexpected","change":{"actions":["create"],"after":{}}}' \
+  "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "destroy mode must reject non-delete actions"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = destroy_plan_contains_non_delete_actions ] || fail "mixed destroy blocker not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - destroy mode rejects non-delete actions"
 
 evidence="${TMP_ROOT}/unavailable"
 mkdir "$evidence"
@@ -170,7 +153,7 @@ if FAKE_EXTRA_CHANGE=',{"address":"azurerm_virtual_network.hub","type":"azurerm_
 fi
 [ "$(jq -r .reason "$evidence/summary.json")" = azure_changes_present ] || fail "Azure-change blocker not recorded"
 assert_sanitized "$evidence" "$output"
-echo "ok - Azure changes fail closed"
+echo "ok - an Azure change is rejected without Azure CLI access"
 
 evidence="${TMP_ROOT}/outside-allowlist"
 mkdir "$evidence"

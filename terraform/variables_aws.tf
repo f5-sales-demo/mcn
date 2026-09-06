@@ -20,6 +20,12 @@ variable "aws_ce_ami_id" {
   }
 }
 
+variable "aws_ssh_public_key" {
+  description = "Optional AWS-only SSH public key material. When empty, the shared ssh_public_key input is used."
+  type        = string
+  default     = ""
+}
+
 variable "enable_aws_tgw_connect" {
   description = "Enable the v7 SMSv2 AWS Transit Gateway Connect topology."
   type        = bool
@@ -92,7 +98,7 @@ variable "aws_bgp_poll_interval_seconds" {
 variable "aws_location" {
   description = "AWS region for all AWS resources."
   type        = string
-  default     = "us-east-2"
+  default     = "ap-northeast-1"
 }
 
 variable "aws_vpc_cidr" {
