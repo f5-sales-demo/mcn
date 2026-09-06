@@ -28,7 +28,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.4.0"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.4.1"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
