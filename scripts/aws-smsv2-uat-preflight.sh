@@ -29,7 +29,7 @@ Required options:
   --expected-aws-account ID
   --expected-aws-region REGION
   --expected-xc-tenant NAME
-  --expected-site NAME       Repeat for every task-owned site; apply mode requires exactly three.
+  --expected-site NAME       Repeat for the one-site or three-site stage being reviewed.
 
 Optional:
   --terraform-dir PATH   Defaults to the repository terraform directory.
@@ -113,11 +113,11 @@ for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXP
 done
 [[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
 [ "$PLAN_MODE" = apply ] || [ "$EXECUTE_UAT" = false ] || die "live UAT requires apply plan mode"
-if [ "$PLAN_MODE" = apply ]; then
-  [ "${#EXPECTED_SITES[@]}" -eq 3 ] || die "apply mode requires exactly three --expected-site values"
-else
-  [ "${#EXPECTED_SITES[@]}" -ge 1 ] || die "destroy mode requires at least one --expected-site value"
-fi
+case "${#EXPECTED_SITES[@]}" in
+1 | 3) ;;
+*) die "plan stage requires exactly one or exactly three --expected-site values" ;;
+esac
+[ "$EXECUTE_UAT" = false ] || [ "${#EXPECTED_SITES[@]}" -eq 3 ] || die "live UAT requires exactly three expected sites"
 
 for command_name in terraform jq aws realpath; do
   command -v "$command_name" >/dev/null 2>&1 || die "required command is unavailable"
@@ -261,7 +261,8 @@ else
   jq -e --argjson sites "$EXPECTED_SITES_JSON" '
     [.resource_changes[]? |
       select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
-      select(.change.actions == ["create"] or .change.actions == ["no-op"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
+      select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
+      select(.change.actions == ["create"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
       select(.change.after.namespace == "system") |
       .change.after.name
     ] | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch

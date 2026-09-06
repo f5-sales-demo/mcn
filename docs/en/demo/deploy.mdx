@@ -117,9 +117,9 @@ Before any plan is applied with `enable_aws_tgw_connect = true`, save the review
 plan and run the non-mutating preflight using the complete command in the Apply
 sequence. Put evidence in a new, empty directory outside the repository.
 
-The gate compares the authenticated AWS account and region, XC tenant, and all three planned
-AWS sites with the explicitly expected targets. It performs no Azure CLI or backend operation,
-rejects every Azure resource change, then installs exactly provider v7.4.0 in a disposable
+The gate compares the authenticated AWS account and region, XC tenant, and the explicitly
+expected one-site or three-site stage. It performs no Azure CLI or backend operation, rejects
+every Azure resource change, then installs exactly provider v7.4.0 in a disposable
 directory and reads its compiled contract. The only durable evidence is
 `summary.json`, containing `status`, a fixed reason code, and a UTC timestamp;
 account IDs, subscription IDs, tenant names, endpoints, tokens, and resource

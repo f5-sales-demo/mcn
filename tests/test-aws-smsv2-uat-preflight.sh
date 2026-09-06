@@ -35,9 +35,11 @@ plan)
   ;;
 show)
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
-    site_actions=${FAKE_SITE_ACTIONS:-'"create"'}
+    site_01_actions=${FAKE_SITE_01_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
+    site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
+    site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_actions" "$site_actions" "$site_actions" "$extra"
+    printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
     printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.1\",\"api_release_commit\":\"2b27355ac9bf4683d3a321f7d6388676f756c2f5\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
@@ -101,6 +103,26 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "replacement status not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - site replacement is accepted when its target identity matches"
+
+single_site=(
+  --terraform-dir "$TF_DIR"
+  --plan-file "$PLAN_FILE"
+  --expected-aws-account 111122223333
+  --expected-aws-region ap-northeast-1
+  --expected-xc-tenant lab
+  --expected-site mcn-ce-ha-aws-ap-northeast-1-01
+)
+evidence="${TMP_ROOT}/single-site"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-site.out"
+if ! FAKE_SITE_01_ACTIONS='"delete","create"' FAKE_SITE_02_ACTIONS='"no-op"' FAKE_SITE_03_ACTIONS='"no-op"' \
+  "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "one-site replacement must exclude unchanged peer sites"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site replacement status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - one-site replacement is accepted before the remaining sites"
 
 evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"
