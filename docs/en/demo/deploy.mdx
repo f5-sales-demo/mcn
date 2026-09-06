@@ -136,6 +136,18 @@ values are never written to evidence.
 Apply only when the summary says `ready` with reason `preflight_passed`. A blocked
 result is an expected safe outcome and no infrastructure should be changed.
 
+Before planning AWS sites, supply `aws_smsv2_devices` with `slo` and `sli` guest
+device names for site keys `01`, `02`, and `03`. Correlate each guest device with
+its AWS ENI MAC using boot-console or supported node-discovery evidence. Names
+such as `ens5` and `ens6` are observations for a particular image and instance,
+not defaults. Missing site mappings or duplicate devices fail validation.
+
+Changing a device can regenerate its XC network-interface object. Review the
+site update and dependent connector binding changes serially, and verify actual
+forwarding and BGP state after each change. A successful site write alone does
+not prove connectivity. Existing configurations must supply this new map; there
+are no legacy device-name aliases.
+
 The optional `--execute-uat` phase requires six healthy MAC-bound interfaces and
 six Connect peers with twelve established BGP sessions. Both AWS-assigned BGP
 endpoints are configured on every tunnel. The status output reports

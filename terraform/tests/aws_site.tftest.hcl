@@ -80,6 +80,11 @@ variables {
   aws_ssh_public_key     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAwsSpecificKeyMaterialOnlyForTests aws-plan-test-only"
   xc_app_namespace       = "multi-cloud-networking"
   aws_ce_ami_id          = "ami-0123456789abcdef0"
+  aws_smsv2_devices = {
+    "01" = { slo = "ens5", sli = "ens6" }
+    "02" = { slo = "ens5", sli = "ens6" }
+    "03" = { slo = "ens5", sli = "ens6" }
+  }
   enable_aws             = true
   enable_aws_tgw_connect = false
 }
@@ -175,10 +180,10 @@ run "aws_site_and_resources" {
   assert {
     condition = alltrue([
       for site in values(xcsh_securemesh_site_v2.aws) :
-      site.aws.not_managed.node_list[0].interface_list[0].ethernet_interface.device == "eth0" &&
-      site.aws.not_managed.node_list[0].interface_list[1].ethernet_interface.device == "eth1"
+      site.aws.not_managed.node_list[0].interface_list[0].ethernet_interface.device == "ens5" &&
+      site.aws.not_managed.node_list[0].interface_list[1].ethernet_interface.device == "ens6"
     ])
-    error_message = "Every AWS SMSv2 node must map SLO to eth0 and SLI to eth1, as required by the live API contract."
+    error_message = "Every AWS SMSv2 node must use the supplied guest device names, correlated with its ENI MACs."
   }
 
   assert {
@@ -248,5 +253,41 @@ run "aws_disabled_plans_no_aws_resources" {
   assert {
     condition     = output.aws_vpc_id == null
     error_message = "With enable_aws = false, aws_vpc_id output must be null."
+  }
+}
+
+run "aws_device_discovery_must_be_supplied" {
+  command = plan
+  variables { aws_smsv2_devices = {} }
+  expect_failures = [var.aws_smsv2_devices]
+}
+
+run "aws_device_roles_cannot_share_a_device" {
+  command = plan
+  variables {
+    aws_smsv2_devices = {
+      "01" = { slo = "ens5", sli = "ens5" }
+      "02" = { slo = "ens5", sli = "ens6" }
+      "03" = { slo = "ens5", sli = "ens6" }
+    }
+  }
+  expect_failures = [var.aws_smsv2_devices]
+}
+
+run "aws_devices_are_per_site_not_fleet_assumptions" {
+  command = plan
+  variables {
+    aws_smsv2_devices = {
+      "01" = { slo = "ens5", sli = "ens6" }
+      "02" = { slo = "enp0s5", sli = "enp0s6" }
+      "03" = { slo = "eth0", sli = "eth1" }
+    }
+  }
+  assert {
+    condition = alltrue([for key, site in xcsh_securemesh_site_v2.aws :
+      site.aws.not_managed.node_list[0].interface_list[0].ethernet_interface.device == var.aws_smsv2_devices[key].slo &&
+      site.aws.not_managed.node_list[0].interface_list[1].ethernet_interface.device == var.aws_smsv2_devices[key].sli
+    ])
+    error_message = "Preserve each site's MAC-verified guest device selection independently."
   }
 }

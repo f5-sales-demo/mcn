@@ -47,7 +47,7 @@ resource "xcsh_securemesh_site_v2" "aws" {
           name = "slo"
           mtu  = var.aws_smsv2_interface_mtu
           ethernet_interface {
-            device = "eth0"
+            device = try(var.aws_smsv2_devices[each.key].slo, null)
             mac    = aws_network_interface.slo[each.value.index].mac_address
           }
           network_option {
@@ -60,7 +60,7 @@ resource "xcsh_securemesh_site_v2" "aws" {
           name = "sli"
           mtu  = var.aws_smsv2_interface_mtu
           ethernet_interface {
-            device = "eth1"
+            device = try(var.aws_smsv2_devices[each.key].sli, null)
             mac    = aws_network_interface.sli[each.value.index].mac_address
           }
           network_option {

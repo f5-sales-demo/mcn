@@ -103,6 +103,11 @@ variables {
   ssh_public_key         = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   aws_ce_ami_id          = "ami-0123456789abcdef0"
   aws_vip                = "198.51.100.10"
+  aws_smsv2_devices = {
+    "01" = { slo = "ens5", sli = "ens6" }
+    "02" = { slo = "ens5", sli = "ens6" }
+    "03" = { slo = "ens5", sli = "ens6" }
+  }
   enable_aws             = true
   enable_aws_tgw_connect = true
 }

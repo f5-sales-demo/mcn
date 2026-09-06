@@ -214,7 +214,7 @@ resource "xcsh_bgp" "aws_tgw" {
   for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
   name        = "${each.value.name}-tgw-bgp"
   namespace   = "system"
-  description = "Two-peer AWS TGW Connect BGP for independent site ${each.value.name}."
+  description = "Four-session AWS TGW Connect BGP for independent site ${each.value.name}."
   where {
     site {
       # The external-connector API accepts TGW payload only in Site Local
