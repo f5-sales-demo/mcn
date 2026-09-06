@@ -39,8 +39,12 @@ show)
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    if [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
+    if [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
+      printf '{"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n'
+    elif [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
       printf '{"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$site_01_actions" "$extra"
+    elif [ "${FAKE_INSTANCE_ONLY:-false}" = true ]; then
+      printf '{"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$site_01_actions" "$extra"
     else
       printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
     fi
@@ -138,6 +142,29 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site JWT issuance status not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - site-scoped JWT issuance is accepted before the remaining sites"
+
+evidence="${TMP_ROOT}/single-instance"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-instance.out"
+if ! FAKE_INSTANCE_ONLY=true FAKE_SITE_01_ACTIONS='"delete","create"' \
+  "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "one-site CE instance replacement must use its exact site tag"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site instance replacement status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - one-site CE instance replacement is accepted by exact site tag"
+
+evidence="${TMP_ROOT}/tgw-bgp"
+mkdir "$evidence"
+output="${TMP_ROOT}/tgw-bgp.out"
+if ! FAKE_TGW_BGP_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "TGW BGP-only stage must prove all three exact site bindings"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "TGW BGP stage status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - TGW BGP-only stage is accepted by exact site bindings"
 
 evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"

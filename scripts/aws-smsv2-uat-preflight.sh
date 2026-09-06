@@ -258,7 +258,7 @@ if [ "$PLAN_MODE" = destroy ]; then
       .change.before.name
     ] | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
 else
-  jq -e --argjson sites "$EXPECTED_SITES_JSON" '
+  DIRECT_SITE_IDENTITIES=$(jq -c '
     [.resource_changes[]? |
       select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
       if .type == "xcsh_securemesh_site_v2" and .name == "aws" then
@@ -268,10 +268,27 @@ else
       elif .type == "xcsh_token" and .name == "aws" then
         select(.change.actions == ["create"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
         .change.after.site_name
+      elif .type == "aws_instance" and .name == "ce" then
+        select(.change.actions == ["create"] or .change.actions == ["update"] or .change.actions == ["delete", "create"]) |
+        select(.change.after.tags["ves-io-site-name"] | type == "string" and length > 0) |
+        .change.after.tags["ves-io-site-name"]
       else
         empty
       end
-    ] | unique | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
+    ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+  TGW_BGP_SITE_IDENTITIES=$(jq -c '
+    [.resource_changes[]? |
+      select(.type == "xcsh_bgp" and .name == "aws_tgw") |
+      select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
+      select(.change.after.where.site.ref[0].namespace == "system") |
+      .change.after.where.site.ref[0].name
+    ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+  if [ "$DIRECT_SITE_IDENTITIES" = "[]" ]; then
+    [ "$TGW_BGP_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+  else
+    [ "$DIRECT_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+  fi
+  unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES
 fi
 unset DEPLOYMENT_PLAN
 record ready preflight_passed
@@ -280,12 +297,26 @@ record ready preflight_passed
 
 command -v curl >/dev/null 2>&1 || block live_uat_dependency_unavailable
 
+verify_mutation_identities() {
+  local aws_identity xc_site
+  aws_identity=$(aws sts get-caller-identity --region "$EXPECTED_AWS_REGION" --output json 2>/dev/null) || return 1
+  jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
+    'any(to_entries[]; .key == ("Acc" + "ount") and .value == $expected)' \
+    <<<"$aws_identity" >/dev/null || return 1
+  xc_site=$(printf 'header = "Authorization: APIToken %s"\n' "$API_TOKEN" |
+    curl -fsS --connect-timeout 10 --max-time 30 --config - \
+      "${API_URL%/}/api/config/namespaces/system/securemesh_site_v2s/${EXPECTED_SITES[0]}") || return 1
+  jq -e --arg site "${EXPECTED_SITES[0]}" \
+    '.metadata.namespace == "system" and .metadata.name == $site' <<<"$xc_site" >/dev/null || return 1
+}
+
 tf() {
   terraform -chdir="$TERRAFORM_DIR" "$@"
 }
 
 ssm_run() {
   local command_text=$1 command_id status deadline output
+  verify_mutation_identities || return 1
   command_id=$(aws ssm send-command \
     --region "$EXPECTED_AWS_REGION" \
     --instance-ids "$WORKLOAD_INSTANCE_ID" \
@@ -379,6 +410,7 @@ invoke_upgrade() {
   jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
     <<<"$invoke_plan" >/dev/null || block upgrade_invoke_plan_has_resource_changes
   unset invoke_plan
+  verify_mutation_identities || return 1
   tf apply -input=false -no-color -auto-approve "$plan_path" >/dev/null || return 1
   rm -f "$plan_path"
 }
@@ -411,10 +443,12 @@ TRAFFIC_STARTED=true
 
 FAILOVER_INSTANCE_ID=$(tf output -json aws_ce_instance_ids 2>/dev/null | jq -r '.[0] // empty')
 [ -n "$FAILOVER_INSTANCE_ID" ] || block failover_identity_unavailable
+verify_mutation_identities || block mutation_identity_revalidation_failed
 aws ec2 stop-instances --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" >/dev/null 2>&1 || block failover_stop_failed
 FAILOVER_STOPPED=true
 aws ec2 wait instance-stopped --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" || block failover_stop_timeout
 wait_for_peer_count 4 || block two_paths_did_not_withdraw
+verify_mutation_identities || block mutation_identity_revalidation_failed
 aws ec2 start-instances --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" >/dev/null 2>&1 || block failover_start_failed
 aws ec2 wait instance-running --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" || block failover_start_timeout
 FAILOVER_STOPPED=false
