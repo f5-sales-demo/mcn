@@ -15,7 +15,7 @@ locals {
         order             = index
         node              = local.aws_ce_hostnames[index]
         role              = "slo"
-        payload_role      = "sli"
+        payload_role      = "slo"
         mac               = aws_network_interface.slo[index].mac_address
         gre_peer_address  = aws_network_interface.slo[index].private_ip
         inside_cidr_block = cidrsubnet(var.aws_tgw_inside_cidr, 5, index)
@@ -205,8 +205,8 @@ resource "xcsh_bgp" "aws_tgw" {
   description = "Two-peer AWS TGW Connect BGP for independent site ${each.value.name}."
   where {
     site {
-      # The external-connector API accepts TGW payload only in Site Local
-      # Inside, independently of whether GRE transport uses SLO or SLI.
+      # BGP sessions use the CE's Site Local Inside routing context; each
+      # connector itself retains the network role of its bound interface.
       network_type = "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE"
       ref {
         name      = xcsh_securemesh_site_v2.aws[each.key].name
