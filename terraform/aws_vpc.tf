@@ -82,9 +82,9 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  count = var.enable_aws ? 3 : 0
+  for_each = var.enable_aws ? local.aws_bootstrap_sites : {}
 
-  subnet_id      = aws_subnet.public_slo[count.index].id
+  subnet_id      = aws_subnet.public_slo[each.value.index].id
   route_table_id = aws_route_table.public[0].id
 }
 
@@ -112,9 +112,9 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route_table_association" "private" {
-  count = var.enable_aws ? 3 : 0
+  for_each = var.enable_aws ? local.aws_bootstrap_sites : {}
 
-  subnet_id      = aws_subnet.private_sli[count.index].id
+  subnet_id      = aws_subnet.private_sli[each.value.index].id
   route_table_id = aws_route_table.private[0].id
 }
 

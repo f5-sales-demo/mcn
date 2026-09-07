@@ -177,8 +177,8 @@ resource "terraform_data" "aws_tgw_runtime_gate" {
 resource "terraform_data" "aws_tgw_site_route_gate" {
   for_each = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
   input = {
-    public_association_id  = aws_route_table_association.public[each.value.index].id
-    private_association_id = aws_route_table_association.private[each.value.index].id
+    public_association_id  = aws_route_table_association.public[each.key].id
+    private_association_id = aws_route_table_association.private[each.key].id
   }
 }
 
