@@ -85,6 +85,18 @@ resource "xcsh_securemesh_site_v2" "aws" {
   disable_url_categorization = {}
   disable_management_network = {}
 
+  # Realize the HTTP load balancer's specified inside address in the site
+  # local VRF. This common automatic VIP is what the inside BGP context can
+  # export through TGW Connect.
+  local_vrf {
+    default_config = {}
+    sli_config {
+      vip                 = var.aws_vip
+      no_static_routes    = {}
+      no_v6_static_routes = {}
+    }
+  }
+
   software_settings {
     os {
       operating_system_version = var.aws_baseline_os_version
