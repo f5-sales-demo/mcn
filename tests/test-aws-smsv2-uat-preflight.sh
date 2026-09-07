@@ -49,23 +49,35 @@ show)
     printf '# changed\n' >>"$FAKE_CANDIDATE_BINARY"
   fi
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
+    plan_vip=${FAKE_PLAN_AWS_VIP_JSON:-'"198.51.100.10"'}
     site_01_actions=${FAKE_SITE_01_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
     if [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
-      printf '{"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n'
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip"
     elif [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
-      printf '{"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$site_01_actions" "$extra"
     elif [ "${FAKE_INSTANCE_ONLY:-false}" = true ]; then
-      printf '{"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$plan_vip" "$site_01_actions" "$extra"
     else
-      printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$plan_vip" "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
     fi
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
     printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.1\",\"api_release_commit\":\"2b27355ac9bf4683d3a321f7d6388676f756c2f5\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
   fi
+  ;;
+output)
+  case "$*" in
+  *'-raw aws_workload_instance_id'*) printf 'i-workload\n' ;;
+  *'-raw origin_ip'*) printf '203.0.113.80\n' ;;
+  *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-198.51.100.10}" ;;
+  *'-json aws_tgw_connect_status'*)
+    printf '{"runtime_healthy":false,"bgp_converged":false,"interface_count":0,"connect_peer_count":0,"bgp_session_count":0}\n'
+    ;;
+  *) exit 2 ;;
+  esac
   ;;
 *) exit 2 ;;
 esac
@@ -328,6 +340,42 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = plan_resource_outside_aws_allowlist ] || fail "allowlist blocker not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - changes outside the AWS/XC-AWS allowlist fail closed"
+
+plan_vip_failure() {
+  local name=$1 plan_vip=$2 reason=$3
+  local evidence="${TMP_ROOT}/${name}" output="${TMP_ROOT}/${name}.out"
+  mkdir "$evidence"
+  if FAKE_PLAN_AWS_VIP_JSON="$plan_vip" "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+    fail "${name} plan VIP validation must fail closed"
+  fi
+  [ "$(jq -r .reason "$evidence/summary.json")" = "$reason" ] || fail "${name} reason not recorded"
+  assert_sanitized "$evidence" "$output"
+}
+
+plan_vip_failure plan-vip-missing null plan_vip_identity_unavailable
+plan_vip_failure plan-vip-malformed '"not-an-ip"' plan_vip_identity_invalid
+echo "ok - missing and malformed plan-bound VIP identities fail closed"
+
+evidence="${TMP_ROOT}/matching-vip-override"
+mkdir "$evidence"
+output="${TMP_ROOT}/matching-vip-override.out"
+if FAKE_PLAN_AWS_VIP_JSON='"203.0.113.10"' FAKE_LIVE_AWS_VIP=203.0.113.10 \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "non-converged fake topology must stop live UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = topology_not_converged ] || fail "matching VIP override did not reach topology validation"
+assert_sanitized "$evidence" "$output"
+
+evidence="${TMP_ROOT}/mismatched-vip-override"
+mkdir "$evidence"
+output="${TMP_ROOT}/mismatched-vip-override.out"
+if FAKE_PLAN_AWS_VIP_JSON='"203.0.113.10"' FAKE_LIVE_AWS_VIP=198.51.100.10 \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "plan/live VIP mismatch must stop live UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = vip_identity_mismatch ] || fail "plan/live VIP mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - live UAT binds an overridden VIP to the reviewed plan"
 
 mkdir "$INSIDE_EVIDENCE"
 if "$SCRIPT" --evidence-dir "$INSIDE_EVIDENCE" "${common[@]}" >/dev/null 2>&1; then
