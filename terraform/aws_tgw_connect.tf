@@ -204,6 +204,27 @@ resource "xcsh_external_connector" "aws_tgw" {
   depends_on = [aws_route_table.public, aws_route_table.private]
 }
 
+resource "xcsh_bgp_routing_policy" "aws_vip_export" {
+  count       = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  name        = "${var.component}-aws-vip-export"
+  namespace   = "system"
+  description = "Permit the realized SMSv2 inside VIP on AWS TGW BGP sessions."
+
+  rules {
+    match {
+      ip_prefixes {
+        prefixes {
+          ip_prefixes = "${var.aws_vip}/32"
+          exact_match = {}
+        }
+      }
+    }
+    action {
+      allow = {}
+    }
+  }
+}
+
 resource "xcsh_bgp" "aws_tgw" {
   for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
   name        = "${each.value.name}-tgw-bgp"
@@ -247,6 +268,16 @@ resource "xcsh_bgp" "aws_tgw" {
       }
       passive_mode_disabled = {}
       bfd_disabled          = {}
+      routing_policies {
+        route_policy {
+          all_nodes = {}
+          outbound  = {}
+          object_refs {
+            name      = xcsh_bgp_routing_policy.aws_vip_export[0].name
+            namespace = "system"
+          }
+        }
+      }
     }
   }
   depends_on = [xcsh_external_connector.aws_tgw]
