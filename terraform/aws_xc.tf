@@ -27,7 +27,7 @@ resource "xcsh_token" "aws" {
   namespace   = "system"
   description = "Registration token for independent AWS site ${each.value.name}"
   type        = 1
-  site_name   = each.value.name
+  site_name   = xcsh_securemesh_site_v2.aws[each.key].name
 }
 
 resource "xcsh_securemesh_site_v2" "aws" {
