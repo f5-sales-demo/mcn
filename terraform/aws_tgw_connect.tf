@@ -40,9 +40,16 @@ locals {
       }
     },
   )
+  # Keep the live routing graph inside the same cumulative boundary as token
+  # issuance and cloud-init. This lets each CE reach ONLINE and converge before
+  # the next site is admitted without evaluating absent nodes from later stages.
+  aws_bootstrap_smsv2_bindings = {
+    for key, binding in local.aws_smsv2_bindings : key => binding
+    if contains(var.aws_bootstrap_site_keys, binding.site_key)
+  }
   # Session keys are known during planning; AWS supplies the two addresses.
   aws_bgp_sessions = merge([
-    for key, binding in(var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}) : {
+    for key, binding in(var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}) : {
       for endpoint in range(2) : "${key}_${endpoint + 1}" => merge(binding, {
         connector_key = key
         peer_address  = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[key].bgp_transit_gateway_addresses))[endpoint]
@@ -50,7 +57,7 @@ locals {
     }
   ]...)
   aws_smsv2_nodes = {
-    for key, interface in local.aws_smsv2_bindings : key => {
+    for key, interface in local.aws_bootstrap_smsv2_bindings : key => {
       node = interface.node
       role = interface.role
       mac  = interface.mac
@@ -132,7 +139,7 @@ module "aws_tgw_connect" {
 }
 
 data "xcsh_smsv2_aws_runtime" "aws" {
-  for_each              = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+  for_each              = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
   namespace             = "system"
   site                  = xcsh_securemesh_site_v2.aws[each.key].name
   nodes                 = { for key, node in local.aws_smsv2_nodes : key => node if local.aws_smsv2_bindings[key].site_key == each.key }
@@ -151,20 +158,20 @@ resource "terraform_data" "aws_tgw_runtime_gate" {
     precondition {
       condition = (
         alltrue([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.healthy]) &&
-        sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)]) == 6 &&
+        sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)]) == 2 * length(local.aws_bootstrap_sites) &&
         alltrue([
           for interface in flatten([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : values(runtime.interfaces)]) :
           interface.healthy && interface.mtu == var.aws_smsv2_interface_mtu &&
           contains(["slo", "sli"], interface.role)
         ])
       )
-      error_message = "All six MAC-bound SMSv2 interfaces must agree on node/role/MTU and report healthy before AWS Connect peers are created."
+      error_message = "Every admitted MAC-bound SMSv2 interface must agree on node/role/MTU and report healthy before its AWS Connect peer is created."
     }
   }
 }
 
 resource "aws_ec2_transit_gateway_connect_peer" "aws" {
-  for_each                      = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}
+  for_each                      = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}
   bgp_asn                       = tostring(var.aws_ce_bgp_asn)
   inside_cidr_blocks            = [each.value.inside_cidr_block]
   peer_address                  = each.value.gre_peer_address
@@ -175,7 +182,7 @@ resource "aws_ec2_transit_gateway_connect_peer" "aws" {
 }
 
 resource "xcsh_external_connector" "aws_tgw" {
-  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}
+  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}
   name        = "${var.component}-aws-tgw-${replace(each.key, "_", "-")}"
   namespace   = "system"
   description = "AWS TGW Connect GRE tunnel for ${each.key}."
@@ -205,7 +212,7 @@ resource "xcsh_external_connector" "aws_tgw" {
 }
 
 resource "xcsh_bgp" "aws_tgw" {
-  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
   name        = "${each.value.name}-tgw-bgp"
   namespace   = "system"
   description = "Four-session AWS TGW Connect BGP for independent site ${each.value.name}."
@@ -249,7 +256,7 @@ resource "xcsh_bgp" "aws_tgw" {
 }
 
 data "xcsh_site_bgp_status" "aws" {
-  for_each  = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+  for_each  = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
   namespace = "system"
   site      = xcsh_securemesh_site_v2.aws[each.key].name
   expected_peers = {

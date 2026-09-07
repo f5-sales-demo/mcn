@@ -116,8 +116,10 @@ AWS CE AMI retains that hardware-certification configuration.
 
 For a controlled replacement, `aws_bootstrap_site_keys` is intentionally cumulative:
 plan CE01 with `["01"]`, then CE02 with `["01", "02"]`, and CE03 with all three
-keys. This prevents a targeted CE replacement from minting peer-site JWT credentials;
-the three provider-issued cloud-init records remain stable throughout every stage.
+keys. Each stage limits runtime discovery, Connect peers, external connectors, BGP
+configuration, and convergence observation to those admitted sites. This prevents a
+targeted CE replacement from waiting for absent peer sites or minting their JWT credentials;
+the admitted provider-issued cloud-init records remain stable throughout every stage.
 The default is all three keys for the complete topology; use the saved-plan preflight for
 every partial stage.
 

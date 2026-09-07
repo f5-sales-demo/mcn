@@ -207,3 +207,22 @@ run "plans_three_sites_six_peers_and_workload_attachment" {
     error_message = "The NLB must forward TCP/80 to all three BGP-routed site-local listeners."
   }
 }
+
+run "bootstrap_stage_limits_runtime_and_routing_to_ce01" {
+  command = plan
+
+  variables {
+    aws_bootstrap_site_keys = ["01"]
+  }
+
+  assert {
+    condition = (
+      length(data.xcsh_smsv2_aws_runtime.aws) == 1 &&
+      length(aws_ec2_transit_gateway_connect_peer.aws) == 2 &&
+      length(xcsh_external_connector.aws_tgw) == 2 &&
+      length(xcsh_bgp.aws_tgw) == 1 &&
+      length(data.xcsh_site_bgp_status.aws) == 1
+    )
+    error_message = "The CE01 bootstrap stage must evaluate one site, two Connect peers, and its four BGP sessions only."
+  }
+}
