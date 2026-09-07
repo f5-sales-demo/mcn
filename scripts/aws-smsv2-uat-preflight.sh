@@ -13,6 +13,7 @@ EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
 PLAN_MODE="apply"
 EXECUTE_UAT=false
+CONTINUITY_ONLY=false
 CANDIDATE_PROVIDER_BINARY=""
 CANDIDATE_PROVIDER_SHA256=""
 PROVIDER_MODE="registry"
@@ -46,6 +47,7 @@ Optional:
   --candidate-provider-sha256 SHA256:DIGEST
                          Required exact digest for the candidate provider binary.
   --execute-uat          Run traffic, failover, serial upgrades, and final convergence after preflight.
+  --continuity-only      With --execute-uat, validate an already-upgraded topology and rerun traffic/failover only.
 EOF
 }
 
@@ -121,6 +123,10 @@ while [ "$#" -gt 0 ]; do
     EXECUTE_UAT=true
     shift
     ;;
+  --continuity-only)
+    CONTINUITY_ONLY=true
+    shift
+    ;;
   -h | --help)
     usage
     exit 0
@@ -134,6 +140,7 @@ for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXP
 done
 [[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
 [ "$PLAN_MODE" = apply ] || [ "$EXECUTE_UAT" = false ] || die "live UAT requires apply plan mode"
+[ "$CONTINUITY_ONLY" = false ] || [ "$EXECUTE_UAT" = true ] || die "continuity-only requires --execute-uat"
 case "${#EXPECTED_SITES[@]}" in
 1 | 3) ;;
 *) die "plan stage requires exactly one or exactly three --expected-site values" ;;
@@ -594,7 +601,7 @@ jq -e --argjson listeners "$SITE_LISTENERS" '
 unset TARGET_HEALTH
 
 TRAFFIC_MARKER="mcn-smsv2-uat-${RANDOM}${RANDOM}"
-TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 2 --retry-all-errors --retry-delay 0 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null && curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo ok; else echo fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
+TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 2 --retry-all-errors --retry-delay 0 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
 ssm_run "$TRAFFIC_COMMAND" >/dev/null || block ssm_traffic_start_failed
 TRAFFIC_STARTED=true
 
@@ -613,20 +620,33 @@ FAILOVER_STOPPED=false
 wait_for_peer_count 12 || block twelve_sessions_did_not_reconverge
 wait_for_target_count 3 || block three_site_targets_did_not_recover
 
-for key in 01 02 03; do
-  status_plan "$key" "crt-20251002-0027" "9.2026.10" || block baseline_version_mismatch
-  eligibility_plan "$key" || block upgrade_precheck_or_advertised_target_failed
-  invoke_upgrade sw "$key" || block software_upgrade_invoke_failed
-  status_plan "$key" "crt-20260201-0179" "9.2026.10" || block software_upgrade_convergence_failed
-  invoke_upgrade os "$key" || block os_upgrade_invoke_failed
-  status_plan "$key" "crt-20260201-0179" "9.2026.17" || block os_upgrade_convergence_failed
-done
+if [ "$CONTINUITY_ONLY" = true ]; then
+  for key in 01 02 03; do
+    status_plan "$key" "crt-20260201-0179" "9.2026.17" || block existing_upgrade_convergence_failed
+  done
+  UAT_REASON=aws_smsv2_continuity_complete
+  SERIAL_UPGRADES=0
+else
+  for key in 01 02 03; do
+    status_plan "$key" "crt-20251002-0027" "9.2026.10" || block baseline_version_mismatch
+    eligibility_plan "$key" || block upgrade_precheck_or_advertised_target_failed
+    invoke_upgrade sw "$key" || block software_upgrade_invoke_failed
+    status_plan "$key" "crt-20260201-0179" "9.2026.10" || block software_upgrade_convergence_failed
+    invoke_upgrade os "$key" || block os_upgrade_invoke_failed
+    status_plan "$key" "crt-20260201-0179" "9.2026.17" || block os_upgrade_convergence_failed
+  done
+  UAT_REASON=aws_smsv2_uat_complete
+  SERIAL_UPGRADES=3
+fi
 
-TRAFFIC_RESULT=$(ssm_run "pid=\$(cat /var/tmp/${TRAFFIC_MARKER}.pid); kill \"\$pid\" 2>/dev/null || true; sleep 6; awk 'BEGIN{o=0;f=0;ro=0;rf=0} /^ok$/{o++} /^fail$/{f++} /^raw_ok$/{ro++} /^raw_fail$/{rf++} END{printf \"%d %d %d %d\",o,f,ro,rf}' /var/tmp/${TRAFFIC_MARKER}.log; rm -f /var/tmp/${TRAFFIC_MARKER}.pid /var/tmp/${TRAFFIC_MARKER}.log") || block ssm_traffic_result_failed
+TRAFFIC_RESULT=$(ssm_run "pid=\$(cat /var/tmp/${TRAFFIC_MARKER}.pid); kill \"\$pid\" 2>/dev/null || true; sleep 6; awk 'BEGIN{vo=0;vf=0;ro=0;rf=0;oo=0;of=0} /^vip_ok$/{vo++} /^vip_fail$/{vf++} /^raw_ok$/{ro++} /^raw_fail$/{rf++} /^origin_ok$/{oo++} /^origin_fail$/{of++} END{printf \"%d %d %d %d %d %d\",vo,vf,ro,rf,oo,of}' /var/tmp/${TRAFFIC_MARKER}.log; rm -f /var/tmp/${TRAFFIC_MARKER}.pid /var/tmp/${TRAFFIC_MARKER}.log") || block ssm_traffic_result_failed
 TRAFFIC_STARTED=false
-read -r TRAFFIC_OK TRAFFIC_FAILED RAW_TRAFFIC_OK RAW_TRAFFIC_FAILED <<<"$TRAFFIC_RESULT"
-if [ "$TRAFFIC_OK" -lt 2 ] || [ "$TRAFFIC_FAILED" -ne 0 ]; then
+read -r VIP_OK VIP_FAILED RAW_TRAFFIC_OK RAW_TRAFFIC_FAILED ORIGIN_OK ORIGIN_FAILED <<<"$TRAFFIC_RESULT"
+if [ "$VIP_OK" -lt 2 ] || [ "$VIP_FAILED" -ne 0 ]; then
   block ssm_traffic_continuity_failed
+fi
+if [ "$ORIGIN_OK" -lt 2 ]; then
+  block ssm_origin_control_unavailable
 fi
 
 FINAL_REFRESH_PLAN="${SCRATCH}/final-refresh.tfplan"
@@ -662,12 +682,16 @@ verify_candidate_provider || block candidate_provider_changed
 
 jq -n \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg reason "$UAT_REASON" \
   --arg provider_mode "$PROVIDER_MODE" \
   --arg provider_sha256 "$PROVIDER_SHA256" \
-  --argjson traffic_samples "$TRAFFIC_OK" \
+  --argjson traffic_samples "$VIP_OK" \
   --argjson raw_traffic_samples "$RAW_TRAFFIC_OK" \
   --argjson raw_traffic_failures "$RAW_TRAFFIC_FAILED" \
-  '{status:"passed", reason:"aws_smsv2_uat_complete", timestamp:$timestamp,
+  --argjson origin_control_samples "$ORIGIN_OK" \
+  --argjson origin_control_failures "$ORIGIN_FAILED" \
+  --argjson serial_upgrades "$SERIAL_UPGRADES" \
+  '{status:"passed", reason:$reason, timestamp:$timestamp,
     provider_mode:$provider_mode,
     provider_sha256:(if $provider_sha256 == "" then null else $provider_sha256 end),
     sites:3, interfaces:6, connect_peers:6, bgp_sessions:12, withdrawn_sessions:4,
@@ -675,8 +699,10 @@ jq -n \
     traffic_samples:$traffic_samples, traffic_failures:0,
     raw_transport_samples:($raw_traffic_samples + $raw_traffic_failures),
     raw_transport_failures:$raw_traffic_failures,
-    serial_upgrades:3, target_converged:true}' \
+    origin_control_samples:($origin_control_samples + $origin_control_failures),
+    origin_control_failures:$origin_control_failures,
+    serial_upgrades:$serial_upgrades, target_converged:true}' \
   >"$SUMMARY"
 chmod 600 "$SUMMARY"
 unset API_TOKEN WORKLOAD_INSTANCE_ID FAILOVER_INSTANCE_ID ORIGIN_IP AWS_VIP AWS_LB_DOMAIN SITE_LISTENERS TARGET_GROUP_ARN
-printf 'status=passed reason=aws_smsv2_uat_complete\n'
+printf 'status=passed reason=%s\n' "$UAT_REASON"

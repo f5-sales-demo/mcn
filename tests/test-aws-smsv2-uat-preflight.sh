@@ -132,6 +132,15 @@ fail() {
   exit 1
 }
 
+continuity_only_output="${TMP_ROOT}/continuity-only-without-uat.out"
+if "$SCRIPT" --continuity-only --evidence-dir "${TMP_ROOT}/continuity-only-without-uat" \
+  "${common[@]}" >"$continuity_only_output" 2>&1; then
+  fail "continuity-only mode must require explicit live UAT execution"
+fi
+grep -Fq 'continuity-only requires --execute-uat' "$continuity_only_output" ||
+  fail "continuity-only mode did not report its missing live UAT opt-in"
+echo "ok - continuity-only mode requires explicit live UAT execution"
+
 assert_sanitized() {
   local evidence=$1 output=$2
   [ "$(find "$evidence" -maxdepth 1 -type f -printf '%f\n')" = summary.json ] || fail "evidence contains unexpected files"

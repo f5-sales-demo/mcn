@@ -175,6 +175,14 @@ from software `crt-20251002-0027` / OS `9.2026.10` to software
 `crt-20260201-0179` / OS `9.2026.17`. Evidence remains a mode-0600 sanitized summary
 outside Git.
 
+Traffic evidence separates the retry-backed VIP result, the first-attempt VIP
+transport result, and the direct-origin control result. A retry-backed VIP failure
+blocks continuity. Intermittent origin-control failures remain visible in the
+receipt without being attributed to the VIP path. Use `--continuity-only` together
+with `--execute-uat` to repeat traffic, failover, and reconvergence against sites
+that are already at the target versions. That supplemental receipt reports zero
+serial upgrades and does not replace the complete upgrade receipt.
+
 ## Apply
 
 <Steps>
