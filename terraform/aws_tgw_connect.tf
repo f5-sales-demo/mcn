@@ -218,7 +218,10 @@ resource "xcsh_bgp" "aws_tgw" {
         name      = xcsh_securemesh_site_v2.aws[each.key].name
         namespace = "system"
       }
-      disable_internet_vip = {}
+      # The HTTP load balancer advertises its specified inside VIP through
+      # these AWS TGW sessions. XC suppresses that route for this site when
+      # the disable choice is sent.
+      enable_internet_vip = {}
     }
   }
   bgp_parameters {

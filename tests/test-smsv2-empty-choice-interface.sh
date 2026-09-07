@@ -18,6 +18,17 @@ rg -q 'site_local_network[[:space:]]*=[[:space:]]*each\.value\.payload_role == "
 rg -q 'site_local_inside_network[[:space:]]*=[[:space:]]*each\.value\.payload_role == "sli" \? \{\} : null' terraform/aws_tgw_connect.tf ||
   fail "GRE SLI payload role is not a nullable object attribute"
 
+aws_bgp=$(awk '
+  /^resource "xcsh_bgp" "aws_tgw"/ { capture=1 }
+  capture && (/^data / || (/^resource / && $0 !~ /^resource "xcsh_bgp" "aws_tgw"/)) { exit }
+  capture { print }
+' terraform/aws_tgw_connect.tf)
+grep -Eq '^[[:space:]]*enable_internet_vip[[:space:]]*=[[:space:]]*\{\}[[:space:]]*$' <<<"$aws_bgp" ||
+  fail "AWS TGW BGP does not enable custom internet VIP advertisement"
+if grep -Eq '^[[:space:]]*disable_internet_vip[[:space:]]*=' <<<"$aws_bgp"; then
+  fail "AWS TGW BGP disables custom internet VIP advertisement"
+fi
+
 markers=(
   site_local_network site_local_inside_network dhcp_client disable_ha block_all_services
   no_network_policy no_forward_proxy f5_proxy no_proxy_bypass logs_streaming_disabled
@@ -29,7 +40,7 @@ markers=(
   disable_malicious_user_detection disable_malware_protection disable_threat_mesh
   default_sensitive_data_policy f5_dns_default f5_ntp_default default_config
   default_sli_config no_offline_survivability_mode jumbo_disabled geo_proximity
-  default_os_version default_sw_version disable_internet_vip local_address
+  default_os_version default_sw_version disable_internet_vip enable_internet_vip local_address
   disable_v6 passive_mode_disabled bfd_disabled no_ipv4_address no_ipv6_address
   monitor monitor_disabled site_to_site_connectivity_interface_disabled
   site_to_site_connectivity_interface_enabled dns ssh web_user_interface enable_ha
