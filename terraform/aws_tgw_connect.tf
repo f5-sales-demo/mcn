@@ -170,6 +170,18 @@ resource "terraform_data" "aws_tgw_runtime_gate" {
   }
 }
 
+# A target rooted at one site's BGP status must still install both subnet
+# associations. Without the SLI association, the SLO GRE sessions establish
+# while both SLI sessions remain down because 100.64.0.0/24 follows the VPC's
+# main route table instead of the TGW route.
+resource "terraform_data" "aws_tgw_site_route_gate" {
+  for_each = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
+  input = {
+    public_association_id  = aws_route_table_association.public[each.value.index].id
+    private_association_id = aws_route_table_association.private[each.value.index].id
+  }
+}
+
 resource "aws_ec2_transit_gateway_connect_peer" "aws" {
   for_each                      = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}
   bgp_asn                       = tostring(var.aws_ce_bgp_asn)
@@ -208,7 +220,7 @@ resource "xcsh_external_connector" "aws_tgw" {
       }
     }
   }
-  depends_on = [aws_route_table.public, aws_route_table.private]
+  depends_on = [terraform_data.aws_tgw_site_route_gate]
 }
 
 resource "xcsh_bgp" "aws_tgw" {

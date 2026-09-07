@@ -130,8 +130,8 @@ run "plans_three_sites_six_peers_and_workload_attachment" {
     error_message = "The topology must contain exactly two role-based Connect attachments."
   }
   assert {
-    condition     = length(aws_ec2_transit_gateway_connect_peer.aws) == 6 && length(xcsh_external_connector.aws_tgw) == 6
-    error_message = "All six MAC-bound interfaces must own an AWS Connect peer and XC external connector."
+    condition     = length(terraform_data.aws_tgw_site_route_gate) == 3 && length(aws_ec2_transit_gateway_connect_peer.aws) == 6 && length(xcsh_external_connector.aws_tgw) == 6
+    error_message = "All three site subnet pairs must be associated before six MAC-bound interfaces own an AWS Connect peer and XC external connector."
   }
   assert {
     condition     = alltrue([for binding in values(local.aws_smsv2_bindings) : binding.payload_role == "sli"])
@@ -218,11 +218,12 @@ run "bootstrap_stage_limits_runtime_and_routing_to_ce01" {
   assert {
     condition = (
       length(data.xcsh_smsv2_aws_runtime.aws) == 1 &&
+      length(terraform_data.aws_tgw_site_route_gate) == 1 &&
       length(aws_ec2_transit_gateway_connect_peer.aws) == 2 &&
       length(xcsh_external_connector.aws_tgw) == 2 &&
       length(xcsh_bgp.aws_tgw) == 1 &&
       length(data.xcsh_site_bgp_status.aws) == 1
     )
-    error_message = "The CE01 bootstrap stage must evaluate one site, two Connect peers, and its four BGP sessions only."
+    error_message = "The CE01 bootstrap stage must evaluate one site's subnet routing, two Connect peers, and its four BGP sessions only."
   }
 }
