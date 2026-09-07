@@ -220,6 +220,17 @@ run "aws_bootstrap_stage_issues_only_the_first_site" {
     condition     = keys(xcsh_token.aws) == ["01"] && keys(xcsh_site_cloud_init.aws) == ["01", "02", "03"]
     error_message = "The first controlled replacement must issue only CE01's JWT while retaining all site cloud-init records."
   }
+
+  assert {
+    condition = (
+      strcontains(nonsensitive(local.aws_ce_site_cloud_init["01"]), "token: test-site-token-01") &&
+      strcontains(nonsensitive(local.aws_ce_site_cloud_init["02"]), "token: {{ .token }}") &&
+      strcontains(nonsensitive(local.aws_ce_site_cloud_init["03"]), "token: {{ .token }}") &&
+      !strcontains(nonsensitive(local.aws_ce_site_cloud_init["02"]), "token: \n") &&
+      !strcontains(nonsensitive(local.aws_ce_site_cloud_init["03"]), "token: \n")
+    )
+    error_message = "A staged JWT plan must resolve the selected site and preserve unresolved peer placeholders without rendering blank tokens."
+  }
 }
 
 run "aws_disabled_plans_no_aws_resources" {
