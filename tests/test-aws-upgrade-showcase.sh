@@ -26,8 +26,12 @@ require_text terraform/aws_xc.tf 'cluster_size = 1'
 require_text terraform/aws_xc.tf 'operating_system_version = var.aws_baseline_os_version'
 require_text terraform/aws_xc.tf 'volterra_software_version = var.aws_baseline_software_version'
 require_text terraform/aws_xc.tf 'name      = "${var.component}-aws-vsite"'
-require_text terraform/aws_xc.tf 'virtual_site_with_vip {'
-require_text terraform/aws_xc.tf 'ip      = var.aws_vip'
+require_text terraform/aws_xc.tf 'virtual_site {'
+require_text terraform/aws_xc.tf 'network = "SITE_NETWORK_INSIDE"'
+if rg -q 'virtual_site_with_vip[[:space:]]*\{' terraform/aws_xc.tf; then
+  echo "AWS LB bypasses the SMSv2 site's common inside VIP" >&2
+  exit 1
+fi
 require_text terraform/aws_xc.tf 'sli_config {'
 require_text terraform/aws_xc.tf 'vip                 = var.aws_vip'
 require_text terraform/aws_xc.tf 'no_static_routes    = {}'
