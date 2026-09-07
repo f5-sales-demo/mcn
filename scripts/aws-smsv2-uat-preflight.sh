@@ -387,11 +387,17 @@ else
       select(.change.after.namespace == "system") |
       .change.after.name
     ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+  PLAN_BOUND_SITE_IDENTITIES=$(jq -c '
+    (.planned_values.outputs.aws_site_names.value // .prior_state.values.outputs.aws_site_names.value // {}) |
+    if type == "object" then [.[] | select(type == "string" and length > 0)] | unique | sort else [] end' \
+    <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
   if [ "$DIRECT_SITE_IDENTITIES" = "[]" ]; then
     if [ "$TGW_BGP_SITE_IDENTITIES" != "[]" ]; then
       [ "$TGW_BGP_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
     elif [ "$KEYED_TASK_SITE_IDENTITIES" != "[]" ]; then
       [ "$KEYED_TASK_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+    elif [ "$PLAN_BOUND_SITE_IDENTITIES" != "[]" ]; then
+      [ "$PLAN_BOUND_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
     else
       jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
         <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
@@ -400,7 +406,7 @@ else
   else
     [ "$DIRECT_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
   fi
-  unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES KEYED_TASK_SITE_IDENTITIES CONFIGURED_SITE_IDENTITIES
+  unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES KEYED_TASK_SITE_IDENTITIES CONFIGURED_SITE_IDENTITIES PLAN_BOUND_SITE_IDENTITIES
 fi
 unset DEPLOYMENT_PLAN
 verify_candidate_provider || block candidate_provider_changed

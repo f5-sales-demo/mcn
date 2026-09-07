@@ -64,7 +64,9 @@ show)
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    if [ "${FAKE_APPROVAL_ONLY:-false}" = true ]; then
+    if [ "${FAKE_SHARED_TOPOLOGY_ONLY:-false}" = true ]; then
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_vpc.workload[0]","type":"aws_vpc","name":"workload","index":0,"change":{"actions":["create"],"after":{"cidr_block":"10.151.0.0/16"}}}]}\n' "$plan_vip" "$plan_listeners"
+    elif [ "${FAKE_APPROVAL_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_ROUTE_GATE_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_route_table_association.private[\\"01\\"]","type":"aws_route_table_association","name":"private","index":"01","change":{"actions":["create"],"after":{}}},{"address":"terraform_data.aws_tgw_site_route_gate[\\"01\\"]","type":"terraform_data","name":"aws_tgw_site_route_gate","index":"01","change":{"actions":["create"],"after":{"input":{"public_association_id":"rtbassoc-public","private_association_id":"rtbassoc-private"}}}}]}\n' "$plan_vip" "$plan_listeners"
@@ -364,6 +366,28 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "TGW BGP stage status not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - TGW BGP-only stage is accepted by exact site bindings"
+
+evidence="${TMP_ROOT}/shared-topology"
+mkdir "$evidence"
+output="${TMP_ROOT}/shared-topology.out"
+if ! FAKE_SHARED_TOPOLOGY_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "shared topology changes must bind to the exact plan-bound three-site set"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "shared topology status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - shared topology changes bind to the exact three-site plan output"
+
+evidence="${TMP_ROOT}/single-shared-topology"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-shared-topology.out"
+if FAKE_SHARED_TOPOLOGY_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  fail "shared three-site topology must reject a one-site expected identity"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = task_site_identity_mismatch ] ||
+  fail "single-site shared topology mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - shared topology rejects a mismatched one-site claim"
 
 evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"
