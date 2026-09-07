@@ -48,7 +48,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.4.1"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"8.0.0"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -162,7 +162,7 @@ fi
 assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
-echo "ok - exact v7 available contract passes with sanitized evidence"
+echo "ok - exact v8 available contract passes with sanitized evidence"
 
 evidence="${TMP_ROOT}/no-change"
 mkdir "$evidence"
@@ -426,7 +426,7 @@ output="${TMP_ROOT}/unavailable.out"
 if FAKE_CAPABILITY_STATE=unavailable "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
   fail "unavailable capabilities must block"
 fi
-[ "$(jq -r .reason "$evidence/summary.json")" = v7_capabilities_unavailable ] || fail "capability blocker not recorded"
+[ "$(jq -r .reason "$evidence/summary.json")" = v8_capabilities_unavailable ] || fail "capability blocker not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - unavailable capabilities fail closed"
 

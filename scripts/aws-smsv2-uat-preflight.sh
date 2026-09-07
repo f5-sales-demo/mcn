@@ -73,6 +73,34 @@ block() {
   exit 1
 }
 
+block_traffic() {
+  local reason=$1 timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  jq -n \
+    --arg status blocked \
+    --arg reason "$reason" \
+    --arg timestamp "$timestamp" \
+    --arg provider_mode "$PROVIDER_MODE" \
+    --arg provider_sha256 "$PROVIDER_SHA256" \
+    --argjson traffic_samples "$((VIP_OK + VIP_FAILED))" \
+    --argjson traffic_failures "$VIP_FAILED" \
+    --argjson raw_traffic_samples "$((RAW_TRAFFIC_OK + RAW_TRAFFIC_FAILED))" \
+    --argjson raw_traffic_failures "$RAW_TRAFFIC_FAILED" \
+    --argjson origin_control_samples "$((ORIGIN_OK + ORIGIN_FAILED))" \
+    --argjson origin_control_failures "$ORIGIN_FAILED" \
+    '{status:$status, reason:$reason, timestamp:$timestamp,
+      provider_mode:$provider_mode,
+      provider_sha256:(if $provider_sha256 == "" then null else $provider_sha256 end),
+      traffic_samples:$traffic_samples, traffic_failures:$traffic_failures,
+      raw_transport_samples:$raw_traffic_samples,
+      raw_transport_failures:$raw_traffic_failures,
+      origin_control_samples:$origin_control_samples,
+      origin_control_failures:$origin_control_failures}' >"$SUMMARY"
+  chmod 600 "$SUMMARY"
+  printf 'status=blocked reason=%s timestamp=%s\n' "$reason" "$timestamp"
+  exit 1
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
   --evidence-dir)
@@ -250,7 +278,7 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 7.4.1"
+      version = "= 8.0.0"
     }
   }
 }
@@ -272,16 +300,16 @@ output "contract" {
 TF
 
 TF_CLI_CONFIG_FILE="$REGISTRY_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
-  terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v7_provider_install_failed
+  terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v8_provider_install_failed
 PROVIDER_VERSION=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" version -json 2>/dev/null |
   jq -r '.provider_selections["registry.terraform.io/f5-sales-demo/xcsh"] // empty')
-[ "$PROVIDER_VERSION" = "7.4.1" ] || block v7_provider_resolution_mismatch
+[ "$PROVIDER_VERSION" = "8.0.0" ] || block v8_provider_resolution_mismatch
 TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" plan -refresh=false -input=false -lock=false \
-  -out=contract.tfplan -no-color >/dev/null 2>&1 || block v7_contract_query_failed
+  -out=contract.tfplan -no-color >/dev/null 2>&1 || block v8_contract_query_failed
 CONTRACT=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" show -json contract.tfplan 2>/dev/null |
   jq -c '.planned_values.outputs.contract.value // empty')
-[ -n "$CONTRACT" ] || block v7_contract_query_failed
+[ -n "$CONTRACT" ] || block v8_contract_query_failed
 
 EXPECTED_API_COMMIT="a5fa987f87""6db955666b""d94fefed35""f283bb5364"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
@@ -289,14 +317,14 @@ jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_version == "6.1.0" and
   .api_release_tag == "v6.1.2" and
   .api_release_commit == $api_commit and
-  .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v7_contract_identity_mismatch
+  .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v8_contract_identity_mismatch
 jq -e '
   (.f5xc_authorities | sort) == (["smsv2_configuration", "runtime_health", "bgp_peers", "bgp_routes", "simplified_routes", "site_upgrade_observation"] | sort) and
   (.aws_authorities | sort) == (["eni", "transit_gateway", "transit_gateway_connect", "gre_endpoints", "bgp_inside_cidrs", "autonomous_system_numbers"] | sort)' \
-  <<<"$CONTRACT" >/dev/null || block v7_authority_mismatch
+  <<<"$CONTRACT" >/dev/null || block v8_authority_mismatch
 jq -e '
   (.capabilities | keys | sort) == (["aws_ce_create", "runtime_status", "site_upgrade", "tgw_connect"] | sort) and
-  ([.capabilities[]] | all(. == "available"))' <<<"$CONTRACT" >/dev/null || block v7_capabilities_unavailable
+  ([.capabilities[]] | all(. == "available"))' <<<"$CONTRACT" >/dev/null || block v8_capabilities_unavailable
 
 unset CONTRACT
 
@@ -601,7 +629,7 @@ jq -e --argjson listeners "$SITE_LISTENERS" '
 unset TARGET_HEALTH
 
 TRAFFIC_MARKER="mcn-smsv2-uat-${RANDOM}${RANDOM}"
-TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 2 --retry-all-errors --retry-delay 0 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
+TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 12 --retry-all-errors --retry-delay 2 --retry-max-time 45 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
 ssm_run "$TRAFFIC_COMMAND" >/dev/null || block ssm_traffic_start_failed
 TRAFFIC_STARTED=true
 
@@ -643,10 +671,10 @@ TRAFFIC_RESULT=$(ssm_run "pid=\$(cat /var/tmp/${TRAFFIC_MARKER}.pid); kill \"\$p
 TRAFFIC_STARTED=false
 read -r VIP_OK VIP_FAILED RAW_TRAFFIC_OK RAW_TRAFFIC_FAILED ORIGIN_OK ORIGIN_FAILED <<<"$TRAFFIC_RESULT"
 if [ "$VIP_OK" -lt 2 ] || [ "$VIP_FAILED" -ne 0 ]; then
-  block ssm_traffic_continuity_failed
+  block_traffic ssm_vip_retry_window_exhausted
 fi
 if [ "$ORIGIN_OK" -lt 2 ]; then
-  block ssm_origin_control_unavailable
+  block_traffic ssm_origin_control_unavailable
 fi
 
 FINAL_REFRESH_PLAN="${SCRATCH}/final-refresh.tfplan"

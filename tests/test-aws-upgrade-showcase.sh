@@ -20,7 +20,7 @@ reject_text() {
 }
 
 require_text terraform/versions.tf 'required_version = ">= 1.16.1"'
-require_text terraform/versions.tf 'version = "= 7.4.1"'
+require_text terraform/versions.tf 'version = "= 8.0.0"'
 require_text terraform/aws_xc.tf 'disable_ha                 = {}'
 require_text terraform/aws_xc.tf 'cluster_size = 1'
 require_text terraform/aws_xc.tf 'operating_system_version = var.aws_baseline_os_version'
@@ -100,7 +100,8 @@ for route_table in public private; do
 done
 require_text scripts/aws-smsv2-uat-preflight.sh 'site_listener_tgw_route_unavailable'
 require_text scripts/aws-smsv2-uat-preflight.sh 'failed_site_target_did_not_withdraw'
-require_text scripts/aws-smsv2-uat-preflight.sh '--retry 2 --retry-all-errors --retry-delay 0'
+require_text scripts/aws-smsv2-uat-preflight.sh '--retry 12 --retry-all-errors --retry-delay 2 --retry-max-time 45'
+reject_text scripts/aws-smsv2-uat-preflight.sh '--retry-delay 0'
 require_text scripts/aws-smsv2-uat-preflight.sh '>> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo'
 require_text scripts/aws-smsv2-uat-preflight.sh 'echo vip_ok'
 require_text scripts/aws-smsv2-uat-preflight.sh 'echo vip_fail'
@@ -108,6 +109,7 @@ require_text scripts/aws-smsv2-uat-preflight.sh 'echo origin_ok'
 require_text scripts/aws-smsv2-uat-preflight.sh 'echo origin_fail'
 require_text scripts/aws-smsv2-uat-preflight.sh 'origin_control_failures:$origin_control_failures'
 require_text scripts/aws-smsv2-uat-preflight.sh '[ "$VIP_FAILED" -ne 0 ]'
+require_text scripts/aws-smsv2-uat-preflight.sh 'block_traffic ssm_vip_retry_window_exhausted'
 require_text scripts/aws-smsv2-uat-preflight.sh 'upgrade_invoke_plan_has_resource_changes'
 require_text scripts/aws-smsv2-uat-preflight.sh '-invoke="action.xcsh_site_upgrade_${kind}.aws[\"${key}\"]"'
 require_text scripts/aws-smsv2-uat-preflight.sh 'final_refresh_plan_has_resource_changes'

@@ -99,7 +99,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v7.4.1 must expose the exact immutable SMSv2 v3/API v6.1 contract."
+      error_message = "Provider v8.0.0 must expose the exact immutable SMSv2 v3/API v6.1 contract."
     }
     precondition {
       condition = (
@@ -109,7 +109,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["site_upgrade"], "") == "available"
       )
-      error_message = "Provider v7.4.1 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v8.0.0 must publish all and only the required SMSv2 capabilities as available."
     }
     precondition {
       condition = (

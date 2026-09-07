@@ -27,7 +27,7 @@ variable "aws_ssh_public_key" {
 }
 
 variable "enable_aws_tgw_connect" {
-  description = "Enable the v7 SMSv2 AWS Transit Gateway Connect topology."
+  description = "Enable the v8 SMSv2 AWS Transit Gateway Connect topology."
   type        = bool
   default     = false
 }
