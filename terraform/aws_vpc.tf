@@ -38,7 +38,7 @@ resource "aws_subnet" "public_slo" {
   vpc_id                  = aws_vpc.aws[0].id
   cidr_block              = cidrsubnet(var.aws_vpc_cidr, 8, count.index + 1)
   availability_zone       = try(data.aws_availability_zones.available[0].names[count.index], "${var.aws_location}${element(["a", "b", "c"], count.index)}")
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = merge(local.tags, {
     Name = "${var.component}-aws-slo-subnet-${count.index + 1}"
@@ -119,6 +119,7 @@ resource "aws_route_table_association" "private" {
 }
 
 resource "aws_security_group" "ce" {
+  #checkov:skip=CKV2_AWS_5:Attached to every CE SLO and SLI ENI; Checkov does not follow counted expression references.
   count = var.enable_aws ? 1 : 0
 
   name        = "${var.component}-aws-ce-sg"
@@ -169,6 +170,7 @@ resource "aws_security_group" "ce" {
   }
 
   egress {
+    #checkov:skip=CKV_AWS_382:The CE is a network appliance whose overlay and application data-plane destinations are tenant-defined; ingress remains explicitly constrained.
     description = "Allow all outbound traffic"
     from_port   = 0
     to_port     = 0
@@ -179,4 +181,185 @@ resource "aws_security_group" "ce" {
   tags = merge(local.tags, {
     Name = "${var.component}-aws-ce-sg"
   })
+}
+
+# Dedicated workload VPC. The client is managed only through SSM and its
+# security group deliberately declares no ingress rules.
+resource "aws_vpc" "workload" {
+  #checkov:skip=CKV2_AWS_11:Short-lived protected-lab workload VPC.
+  #checkov:skip=CKV2_AWS_12:Default security group is not used by the client.
+  count                = var.enable_aws ? 1 : 0
+  cidr_block           = var.aws_workload_vpc_cidr
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  tags                 = merge(local.tags, { Name = "${var.component}-aws-workload-vpc" })
+}
+
+resource "aws_internet_gateway" "workload" {
+  count  = var.enable_aws ? 1 : 0
+  vpc_id = aws_vpc.workload[0].id
+  tags   = merge(local.tags, { Name = "${var.component}-aws-workload-igw" })
+}
+
+resource "aws_subnet" "workload" {
+  count                   = var.enable_aws ? 1 : 0
+  vpc_id                  = aws_vpc.workload[0].id
+  cidr_block              = cidrsubnet(var.aws_workload_vpc_cidr, 8, 1)
+  availability_zone       = try(data.aws_availability_zones.available[0].names[0], "${var.aws_location}a")
+  map_public_ip_on_launch = false
+  tags                    = merge(local.tags, { Name = "${var.component}-aws-workload-public" })
+}
+
+resource "aws_route_table" "workload" {
+  count  = var.enable_aws ? 1 : 0
+  vpc_id = aws_vpc.workload[0].id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.workload[0].id
+  }
+
+  dynamic "route" {
+    for_each = var.enable_aws_tgw_connect ? [1] : []
+    content {
+      cidr_block         = "${var.aws_vip}/32"
+      transit_gateway_id = module.aws_tgw_connect[0].transit_gateway_id
+    }
+  }
+
+  tags = merge(local.tags, { Name = "${var.component}-aws-workload-rt" })
+}
+
+resource "aws_route_table_association" "workload" {
+  count          = var.enable_aws ? 1 : 0
+  subnet_id      = aws_subnet.workload[0].id
+  route_table_id = aws_route_table.workload[0].id
+}
+
+resource "aws_ec2_transit_gateway_vpc_attachment" "workload" {
+  count                                           = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  subnet_ids                                      = [aws_subnet.workload[0].id]
+  transit_gateway_id                              = module.aws_tgw_connect[0].transit_gateway_id
+  transit_gateway_default_route_table_association = false
+  transit_gateway_default_route_table_propagation = false
+  vpc_id                                          = aws_vpc.workload[0].id
+  tags                                            = merge(local.tags, { Name = "${var.component}-aws-workload-tgw" })
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "workload" {
+  count                          = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.workload[0].id
+  transit_gateway_route_table_id = module.aws_tgw_connect[0].route_table_id
+}
+
+resource "aws_ec2_transit_gateway_route_table_propagation" "workload" {
+  count                          = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.workload[0].id
+  transit_gateway_route_table_id = module.aws_tgw_connect[0].route_table_id
+}
+
+resource "aws_security_group" "workload" {
+  #checkov:skip=CKV2_AWS_5:Attached directly to the workload instance through vpc_security_group_ids; Checkov does not follow the counted expression.
+  count       = var.enable_aws ? 1 : 0
+  name        = "${var.component}-aws-workload-ssm"
+  description = "Egress-only SSM workload client; no ingress rules"
+  vpc_id      = aws_vpc.workload[0].id
+
+  egress {
+    description = "HTTP showcase traffic"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "HTTPS for SSM and showcase traffic"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "UDP DNS to the VPC resolver"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["${cidrhost(var.aws_workload_vpc_cidr, 2)}/32"]
+  }
+
+  egress {
+    description = "TCP DNS to the VPC resolver"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = ["${cidrhost(var.aws_workload_vpc_cidr, 2)}/32"]
+  }
+
+  tags = merge(local.tags, { Name = "${var.component}-aws-workload-ssm" })
+}
+
+resource "aws_iam_role" "workload" {
+  count = var.enable_aws ? 1 : 0
+  name  = "${var.component}-aws-workload-ssm"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "workload_ssm" {
+  count      = var.enable_aws ? 1 : 0
+  role       = aws_iam_role.workload[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "workload" {
+  count = var.enable_aws ? 1 : 0
+  name  = "${var.component}-aws-workload-ssm"
+  role  = aws_iam_role.workload[0].name
+}
+
+data "aws_ami" "amazon_linux_2023" {
+  count       = var.enable_aws ? 1 : 0
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-2023.*-x86_64"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
+resource "aws_instance" "workload" {
+  #checkov:skip=CKV_AWS_88:The ingress-free UAT client needs an explicit public IP for SSM and Internet origin checks without a NAT gateway.
+  count                       = var.enable_aws ? 1 : 0
+  ami                         = data.aws_ami.amazon_linux_2023[0].id
+  instance_type               = "t3.micro"
+  subnet_id                   = aws_subnet.workload[0].id
+  ebs_optimized               = true
+  vpc_security_group_ids      = [aws_security_group.workload[0].id]
+  iam_instance_profile        = aws_iam_instance_profile.workload[0].name
+  associate_public_ip_address = true
+  monitoring                  = true
+
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  root_block_device {
+    encrypted = true
+  }
+
+  tags = merge(local.tags, { Name = "${var.component}-aws-ssm-client" })
 }
