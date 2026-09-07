@@ -5,7 +5,7 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 require_text() {
   local file=$1 text=$2
-  grep -Fq "$text" "${REPO_ROOT}/${file}" || {
+  grep -Fq -- "$text" "${REPO_ROOT}/${file}" || {
     printf 'missing %s in %s\n' "$text" "$file" >&2
     exit 1
   }
@@ -13,7 +13,7 @@ require_text() {
 
 reject_text() {
   local file=$1 text=$2
-  if grep -Fq "$text" "${REPO_ROOT}/${file}"; then
+  if grep -Fq -- "$text" "${REPO_ROOT}/${file}"; then
     printf 'unexpected %s in %s\n' "$text" "$file" >&2
     exit 1
   fi
@@ -56,6 +56,11 @@ require_text terraform/aws_vpc.tf 'resource "aws_vpc" "workload"'
 require_text terraform/aws_vpc.tf 'resource "aws_instance" "workload"'
 require_text terraform/aws_vpc.tf 'resource "aws_ec2_transit_gateway_vpc_attachment" "workload"'
 require_text scripts/aws-smsv2-uat-preflight.sh 'upgrade_invoke_plan_has_resource_changes'
+require_text scripts/aws-smsv2-uat-preflight.sh '--candidate-provider-binary'
+require_text scripts/aws-smsv2-uat-preflight.sh '--candidate-provider-sha256'
+require_text scripts/aws-smsv2-uat-preflight.sh 'provider_sha256'
+require_text docs/en/demo/deploy.mdx '--candidate-provider-binary'
+require_text docs/en/demo/deploy.mdx 'terraform-provider-xcsh'
 require_text terraform/aws_upgrade.tf 'action "xcsh_site_upgrade_sw" "aws"'
 require_text terraform/aws_upgrade.tf 'action "xcsh_site_upgrade_os" "aws"'
 require_text terraform/aws_upgrade.tf 'data "xcsh_site_upgrade_status" "aws"'

@@ -12,9 +12,10 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
 - **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.16.1`, for
   provider-defined functions and the `check` block that guards the VIP.
-- **The `xcsh` provider at exactly v7.4.1.** This deployment uses only the clean-break
-  SMSv2 contract. The local
-  `.terraform.lock.hcl` remains gitignored; the exact source constraint is authoritative.
+- **The `xcsh` provider at exactly v7.4.1 for normal deployments.** This deployment uses
+  only the clean-break SMSv2 contract. A release-candidate acceptance run may substitute one
+  reviewed local binary through the explicit procedure below. The local `.terraform.lock.hcl`
+  remains gitignored; the exact source constraint is authoritative.
 - **An F5 XC API credential** for the tenant in `var.expected_xc_tenant`, exported as
   `XCSH_API_TOKEN` (or the P12/PEM pair). Export the credential only, never a URL — see
   below.
@@ -131,7 +132,8 @@ every Azure resource change, then installs exactly provider v7.4.1 in a disposab
 directory and reads its compiled contract. The only durable evidence is
 `summary.json`, containing `status`, a fixed reason code, and a UTC timestamp;
 account IDs, subscription IDs, tenant names, endpoints, tokens, and resource
-values are never written to evidence.
+values are never written to evidence. The summary also records `provider_mode` and, for a
+local candidate, its expected `provider_sha256` so the evidence identifies the exact tested bytes.
 
 Apply only when the summary says `ready` with reason `preflight_passed`. A blocked
 result is an expected safe outcome and no infrastructure should be changed.
@@ -171,6 +173,10 @@ outside Git.
    `terraform init -upgrade -backend-config=backend.hcl`.
 
 2. **Run the AWS SMSv2 preflight when TGW Connect is enabled.** Continue only on `ready`.
+   The first sequence uses the released provider. Add `--execute-uat` only after reviewing the
+   AWS-only saved plan; that mode stops and restarts one CE, drives five-second traffic from the
+   SSM client, and invokes each site's software and OS actions serially. For prerelease acceptance,
+   continue within the same example to select one reviewed local candidate.
 
    ```bash
    terraform plan -out=/private/path/mcn.tfplan
@@ -188,11 +194,68 @@ outside Git.
      --expected-site "$AWS_SITE_01" \
      --expected-site "$AWS_SITE_02" \
      --expected-site "$AWS_SITE_03"
+
+   # Prerelease candidate acceptance
+   CANDIDATE_BIN=/private/path/provider/terraform-provider-xcsh
+   CANDIDATE_DIR=$(dirname "$CANDIDATE_BIN")
+   CANDIDATE_SHA256="sha256:$(sha256sum "$CANDIDATE_BIN" | awk '{print $1}')"
+   CANDIDATE_TFRC=/private/path/mcn-candidate.tfrc
+   REGISTRY_TFRC=/private/path/mcn-registry-only.tfrc
+
+   printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
+   chmod 600 "$REGISTRY_TFRC"
+
+   cat > "$CANDIDATE_TFRC" <<EOF
+   provider_installation {
+     dev_overrides {
+       "f5-sales-demo/xcsh" = "$CANDIDATE_DIR"
+     }
+     direct {}
+   }
+   EOF
+   chmod 600 "$CANDIDATE_TFRC"
+
+   TF_CLI_CONFIG_FILE="$REGISTRY_TFRC" terraform init -upgrade \
+     -backend-config=backend.hcl
+   TF_CLI_CONFIG_FILE="$CANDIDATE_TFRC" terraform plan \
+     -out=/private/path/mcn-candidate.tfplan
+
+   ../scripts/aws-smsv2-uat-preflight.sh \
+     --candidate-provider-binary "$CANDIDATE_BIN" \
+     --candidate-provider-sha256 "$CANDIDATE_SHA256" \
+     --evidence-dir /private/path/mcn-candidate-evidence \
+     --terraform-dir . \
+     --plan-file /private/path/mcn-candidate.tfplan \
+     --expected-aws-account '<AWS_ACCOUNT_ID>' \
+     --expected-aws-region ap-northeast-1 \
+     --expected-xc-tenant '<XC_TENANT>' \
+     --expected-site "$AWS_SITE_01" \
+     --expected-site "$AWS_SITE_02" \
+     --expected-site "$AWS_SITE_03"
+
+   TF_CLI_CONFIG_FILE="$CANDIDATE_TFRC" terraform apply \
+     /private/path/mcn-candidate.tfplan
+
+   ../scripts/aws-smsv2-uat-preflight.sh \
+     --execute-uat \
+     --candidate-provider-binary "$CANDIDATE_BIN" \
+     --candidate-provider-sha256 "$CANDIDATE_SHA256" \
+     --evidence-dir /private/path/mcn-candidate-uat-evidence \
+     --terraform-dir . \
+     --plan-file /private/path/mcn-candidate.tfplan \
+     --expected-aws-account '<AWS_ACCOUNT_ID>' \
+     --expected-aws-region ap-northeast-1 \
+     --expected-xc-tenant '<XC_TENANT>' \
+     --expected-site "$AWS_SITE_01" \
+     --expected-site "$AWS_SITE_02" \
+     --expected-site "$AWS_SITE_03"
    ```
 
-   Add `--execute-uat` only after reviewing the AWS-only saved plan. That mode
-   stops and restarts one CE, drives five-second traffic from the SSM client,
-   and invokes each site's software and OS actions serially.
+   The preflight ignores ambient Terraform CLI configuration, initializes its contract probe
+   through a registry-only configuration, and selects the candidate for contract and live UAT
+   operations. It checks the digest before accepting the plan and again around live mutations.
+   A missing, ambiguous, changed, or mismatched candidate fails closed. Do not publish a public
+   prerelease to replace this procedure.
 
 3. **First apply.** This builds Azure, the CE sites and the registration token, and boots
    the CEs.
