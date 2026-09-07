@@ -40,7 +40,9 @@ cat >"${BIN}/terraform" <<'SH'
 set -euo pipefail
 chdir=${1#-chdir=}
 shift
-printf '%s\t%s\n' "$1" "${TF_CLI_CONFIG_FILE:-unset}" >>"$FAKE_TF_CALLS"
+token_state=unset
+[ -n "${XCSH_API_TOKEN:-}" ] && token_state=present
+printf '%s\t%s\t%s\n' "$1" "${TF_CLI_CONFIG_FILE:-unset}" "$token_state" >>"$FAKE_TF_CALLS"
 case "$1" in
 init)
   exit 0
@@ -56,19 +58,20 @@ show)
     printf '# changed\n' >>"$FAKE_CANDIDATE_BINARY"
   fi
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
-    plan_vip=${FAKE_PLAN_AWS_VIP_JSON:-'"198.51.100.10"'}
+    plan_vip=${FAKE_PLAN_AWS_VIP_JSON:-'"10.151.1.10"'}
+    plan_listeners=${FAKE_PLAN_SITE_LISTENERS_JSON:-'{"01":"10.150.11.10","02":"10.150.12.10","03":"10.150.13.10"}'}
     site_01_actions=${FAKE_SITE_01_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
     if [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     elif [ "${FAKE_INSTANCE_ONLY:-false}" = true ]; then
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$plan_vip" "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     else
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$plan_vip" "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
     fi
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
@@ -79,7 +82,10 @@ output)
   case "$*" in
   *'-raw aws_workload_instance_id'*) printf 'i-workload\n' ;;
   *'-raw origin_ip'*) printf '203.0.113.80\n' ;;
-  *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-198.51.100.10}" ;;
+  *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-10.151.1.10}" ;;
+  *'-raw aws_lb_domain'*) printf 'aws.mcn-ce-ha.example.com\n' ;;
+  *'-raw aws_smsv2_target_group_arn'*) printf 'arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:targetgroup/test/0123456789abcdef\n' ;;
+  *'-json aws_smsv2_site_listener_ips'*) printf '%s\n' "${FAKE_LIVE_SITE_LISTENERS_JSON:-{\"01\":\"10.150.11.10\",\"02\":\"10.150.12.10\",\"03\":\"10.150.13.10\"}}" ;;
   *'-json aws_tgw_connect_status'*)
     if [ "${FAKE_TOPOLOGY_CONVERGED:-false}" = true ]; then
       printf '{"runtime_healthy":true,"bgp_converged":true,"interface_count":6,"connect_peer_count":6,"bgp_session_count":12}\n'
@@ -143,6 +149,17 @@ assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
 echo "ok - exact v7 available contract passes with sanitized evidence"
 
+evidence="${TMP_ROOT}/no-change"
+mkdir "$evidence"
+output="${TMP_ROOT}/no-change.out"
+if ! FAKE_SITE_ACTIONS='"no-op"' "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "no-change plan should prove the exact configured site identities"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "no-change status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - no-change plan is accepted for the exact configured sites"
+
 evidence="${TMP_ROOT}/candidate-ready"
 mkdir "$evidence"
 output="${TMP_ROOT}/candidate-ready.out"
@@ -166,6 +183,28 @@ if grep -Fq 'ambient-must-not-be-used' "$TF_CALLS"; then
   fail "ambient Terraform CLI config leaked into candidate validation"
 fi
 echo "ok - matching candidate artifact is selected explicitly and bound to evidence"
+
+context_home="${TMP_ROOT}/context-home"
+mkdir -p "${context_home}/.config/xcsh/contexts"
+printf '{"apiUrl":"https://lab.console.ves.volterra.io","apiToken":"context-token-must-not-leak"}\n' \
+  >"${context_home}/.config/xcsh/contexts/context-test.json"
+evidence="${TMP_ROOT}/context-auth"
+mkdir "$evidence"
+output="${TMP_ROOT}/context-auth.out"
+: >"$TF_CALLS"
+if env -u XCSH_API_URL -u XCSH_API_TOKEN HOME="$context_home" \
+  "$SCRIPT" --execute-uat --xc-context context-test \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "non-converged fake topology must stop context-auth UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = topology_not_converged ] ||
+  fail "context-auth UAT did not reach topology validation"
+awk -F '\t' '$1 == "output" { found=1; if ($3 != "present") bad=1 } END { exit bad || !found }' "$TF_CALLS" ||
+  fail "context-derived token did not reach live Terraform operations"
+if grep -Fq 'context-token-must-not-leak' "$output" "$evidence/summary.json"; then
+  fail "context-derived token leaked into sanitized output"
+fi
+echo "ok - context-derived authentication reaches live Terraform operations"
 
 candidate_failure() {
   local name=$1 reason=$2
@@ -254,6 +293,17 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site replacement status not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - one-site replacement is accepted before the remaining sites"
+
+evidence="${TMP_ROOT}/single-site-no-change"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-site-no-change.out"
+if FAKE_SITE_ACTIONS='"no-op"' "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  fail "one-site no-change plan must reject the three-site configured identity set"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = task_site_identity_mismatch ] ||
+  fail "single-site no-change mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - no-change plan rejects a mismatched stage identity set"
 
 evidence="${TMP_ROOT}/single-token"
 mkdir "$evidence"
@@ -368,6 +418,22 @@ plan_vip_failure plan-vip-missing null plan_vip_identity_unavailable
 plan_vip_failure plan-vip-malformed '"not-an-ip"' plan_vip_identity_invalid
 echo "ok - missing and malformed plan-bound VIP identities fail closed"
 
+plan_listener_failure() {
+  local name=$1 listeners=$2
+  local evidence="${TMP_ROOT}/${name}" output="${TMP_ROOT}/${name}.out"
+  mkdir "$evidence"
+  if FAKE_PLAN_SITE_LISTENERS_JSON="$listeners" "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+    fail "${name} plan listener validation must fail closed"
+  fi
+  [ "$(jq -r .reason "$evidence/summary.json")" = plan_site_listener_identities_invalid ] || fail "${name} reason not recorded"
+  assert_sanitized "$evidence" "$output"
+}
+
+plan_listener_failure plan-listeners-missing null
+plan_listener_failure plan-listeners-duplicate '{"01":"10.150.11.10","02":"10.150.11.10","03":"10.150.13.10"}'
+plan_listener_failure plan-listeners-malformed '{"01":"10.150.11.10","02":"not-an-ip","03":"10.150.13.10"}'
+echo "ok - plan-bound listener identities require three distinct site addresses"
+
 evidence="${TMP_ROOT}/matching-vip-override"
 mkdir "$evidence"
 output="${TMP_ROOT}/matching-vip-override.out"
@@ -388,6 +454,17 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = vip_identity_mismatch ] || fail "plan/live VIP mismatch reason not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - live UAT binds an overridden VIP to the reviewed plan"
+
+evidence="${TMP_ROOT}/mismatched-site-listeners"
+mkdir "$evidence"
+output="${TMP_ROOT}/mismatched-site-listeners.out"
+if FAKE_LIVE_SITE_LISTENERS_JSON='{"01":"10.150.11.11","02":"10.150.12.10","03":"10.150.13.10"}' \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "plan/live site-listener mismatch must stop live UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = site_listener_identity_mismatch ] || fail "plan/live site-listener mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - live UAT binds all three listener identities to the reviewed plan"
 
 evidence="${TMP_ROOT}/mixed-case-established"
 mkdir "$evidence"

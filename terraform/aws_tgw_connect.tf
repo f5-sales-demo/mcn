@@ -204,27 +204,6 @@ resource "xcsh_external_connector" "aws_tgw" {
   depends_on = [aws_route_table.public, aws_route_table.private]
 }
 
-resource "xcsh_bgp_routing_policy" "aws_vip_export" {
-  count       = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
-  name        = "${var.component}-aws-vip-export"
-  namespace   = "system"
-  description = "Permit the realized SMSv2 inside VIP on AWS TGW BGP sessions."
-
-  rules {
-    match {
-      ip_prefixes {
-        prefixes {
-          ip_prefixes = "${var.aws_vip}/32"
-          exact_match = {}
-        }
-      }
-    }
-    action {
-      allow = {}
-    }
-  }
-}
-
 resource "xcsh_bgp" "aws_tgw" {
   for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
   name        = "${each.value.name}-tgw-bgp"
@@ -264,16 +243,6 @@ resource "xcsh_bgp" "aws_tgw" {
       }
       passive_mode_disabled = {}
       bfd_disabled          = {}
-      routing_policies {
-        route_policy {
-          all_nodes = {}
-          outbound  = {}
-          object_refs {
-            name      = xcsh_bgp_routing_policy.aws_vip_export[0].name
-            namespace = "system"
-          }
-        }
-      }
     }
   }
   depends_on = [xcsh_external_connector.aws_tgw]
@@ -285,16 +254,17 @@ data "xcsh_site_bgp_status" "aws" {
   site      = xcsh_securemesh_site_v2.aws[each.key].name
   expected_peers = {
     for key, interface in local.aws_bgp_sessions : key => {
-      node            = interface.node
-      role            = interface.payload_role
-      mac             = interface.mac
-      peer_address    = interface.peer_address
-      expected_routes = [var.aws_workload_vpc_cidr]
+      node                     = interface.node
+      role                     = interface.payload_role
+      mac                      = interface.mac
+      peer_address             = interface.peer_address
+      expected_imported_routes = [var.aws_workload_vpc_cidr]
     } if interface.site_key == each.key
   }
-  timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
-  poll_interval_seconds = var.aws_bgp_poll_interval_seconds
-  depends_on            = [xcsh_bgp.aws_tgw]
+  expected_exported_routes = ["${each.value.listener_ip}/32"]
+  timeout_seconds          = var.aws_bgp_convergence_timeout_seconds
+  poll_interval_seconds    = var.aws_bgp_poll_interval_seconds
+  depends_on               = [xcsh_bgp.aws_tgw]
 }
 
 output "aws_tgw_connect_status" {

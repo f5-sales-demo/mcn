@@ -163,9 +163,9 @@ variable "aws_instance_type" {
 }
 
 variable "aws_vip" {
-  description = "External documentation-range VIP advertised as a /32 by the AWS virtual site."
+  description = "Plan-bound private address of the internal AWS Network Load Balancer in the workload subnet."
   type        = string
-  default     = "198.51.100.10"
+  default     = "10.151.1.10"
 
   validation {
     condition     = can(cidrhost("${var.aws_vip}/32", 0))

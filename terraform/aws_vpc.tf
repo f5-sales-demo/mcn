@@ -220,9 +220,9 @@ resource "aws_route_table" "workload" {
   }
 
   dynamic "route" {
-    for_each = var.enable_aws_tgw_connect ? [1] : []
+    for_each = var.enable_aws_tgw_connect ? toset([for site in values(local.aws_sites) : site.listener_ip]) : toset([])
     content {
-      cidr_block         = "${var.aws_vip}/32"
+      cidr_block         = "${route.value}/32"
       transit_gateway_id = module.aws_tgw_connect[0].transit_gateway_id
     }
   }
@@ -298,6 +298,98 @@ resource "aws_security_group" "workload" {
   }
 
   tags = merge(local.tags, { Name = "${var.component}-aws-workload-ssm" })
+}
+
+resource "aws_security_group" "smsv2_nlb" {
+  #checkov:skip=CKV2_AWS_5:Attached directly to the internal SMSv2 network load balancer.
+  count       = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  name        = "${var.component}-aws-smsv2-nlb"
+  description = "Workload access to the SMSv2 site-local listeners"
+  vpc_id      = aws_vpc.workload[0].id
+
+  ingress {
+    description = "HTTP from the workload VPC"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [var.aws_workload_vpc_cidr]
+  }
+
+  egress {
+    description = "HTTP health checks and traffic to SMSv2 SLI listeners"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [var.aws_vpc_cidr]
+  }
+
+  tags = merge(local.tags, { Name = "${var.component}-aws-smsv2-nlb" })
+}
+
+resource "aws_lb" "smsv2" {
+  #checkov:skip=CKV_AWS_91:Ephemeral private development NLB; protected evidence captures health and traffic.
+  #checkov:skip=CKV_AWS_150:Ephemeral nuke-and-pave development topology.
+  count                            = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  name                             = "${var.component}-smsv2"
+  internal                         = true
+  load_balancer_type               = "network"
+  security_groups                  = [aws_security_group.smsv2_nlb[0].id]
+  enable_cross_zone_load_balancing = true
+
+  subnet_mapping {
+    subnet_id            = aws_subnet.workload[0].id
+    private_ipv4_address = var.aws_vip
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.aws_vip == cidrhost(aws_subnet.workload[0].cidr_block, 10)
+      error_message = "aws_vip must be host 10 of the workload subnet reserved for the internal SMSv2 NLB."
+    }
+  }
+
+  tags = merge(local.tags, { Name = "${var.component}-aws-smsv2" })
+}
+
+resource "aws_lb_target_group" "smsv2" {
+  count       = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  name        = "${var.component}-smsv2"
+  port        = 80
+  protocol    = "TCP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.workload[0].id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 10
+    port                = "traffic-port"
+    protocol            = "TCP"
+    unhealthy_threshold = 2
+  }
+
+  tags = merge(local.tags, { Name = "${var.component}-aws-smsv2" })
+}
+
+resource "aws_lb_target_group_attachment" "smsv2" {
+  for_each = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+
+  target_group_arn  = aws_lb_target_group.smsv2[0].arn
+  target_id         = each.value.listener_ip
+  port              = 80
+  availability_zone = "all"
+}
+
+resource "aws_lb_listener" "smsv2" {
+  count             = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
+  load_balancer_arn = aws_lb.smsv2[0].arn
+  port              = 80
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.smsv2[0].arn
+  }
 }
 
 resource "aws_iam_role" "workload" {

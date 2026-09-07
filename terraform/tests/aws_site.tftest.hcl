@@ -117,8 +117,8 @@ run "aws_site_and_resources" {
   }
 
   assert {
-    condition     = output.aws_vip == "198.51.100.10"
-    error_message = "AWS VIP should be the external documentation address 198.51.100.10."
+    condition     = output.aws_vip == "10.151.1.10"
+    error_message = "AWS VIP should default to host 10 of the workload subnet reserved for the internal NLB."
   }
 
   assert {
@@ -305,6 +305,13 @@ run "aws_devices_are_per_site_not_fleet_assumptions" {
 
 run "aws_vip_selects_explicitly_labelled_sites" {
   command = plan
+  assert {
+    condition = alltrue([
+      for advertisement in xcsh_http_loadbalancer.aws[0].advertise_custom.advertise_where :
+      advertisement.site.network == "SITE_NETWORK_INSIDE" && advertisement.site.ip == null
+    ])
+    error_message = "Every exact SMSv2 site must use its supported automatic inside listener address."
+  }
   assert {
     condition = alltrue([for site in values(xcsh_securemesh_site_v2.aws) :
       lookup(site.labels, "mcn-topology", "") == "${var.component}-aws"

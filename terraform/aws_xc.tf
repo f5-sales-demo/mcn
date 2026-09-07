@@ -6,9 +6,10 @@ locals {
   aws_sites = {
     for index in range(var.enable_aws ? var.aws_ce_count : 0) :
     format("%02d", index + 1) => {
-      index    = index
-      name     = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
-      hostname = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      index       = index
+      name        = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      hostname    = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      listener_ip = cidrhost(cidrsubnet(var.aws_vpc_cidr, 8, index + 11), 10)
     }
   }
   # Bootstrap keys are cumulative during controlled replacement: 01, then
@@ -85,19 +86,9 @@ resource "xcsh_securemesh_site_v2" "aws" {
   disable_url_categorization = {}
   disable_management_network = {}
 
-  # Realize the HTTP load balancer's specified inside address in the site
-  # local VRF. This common automatic VIP is what the inside BGP context can
-  # export through TGW Connect.
   local_vrf {
-    default_config = {}
-    sli_config {
-      vip                 = var.aws_vip
-      no_static_routes    = {}
-      no_v6_static_routes = {}
-    }
-  }
-  load_balancing {
-    vip_vrrp_mode = "VIP_VRRP_ENABLE"
+    default_config     = {}
+    default_sli_config = {}
   }
 
   software_settings {
@@ -182,7 +173,6 @@ resource "xcsh_http_loadbalancer" "aws" {
       for_each = local.aws_sites
       content {
         site {
-          ip      = var.aws_vip
           network = "SITE_NETWORK_INSIDE"
           site {
             name      = xcsh_securemesh_site_v2.aws[advertise_where.key].name

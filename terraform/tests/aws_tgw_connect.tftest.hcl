@@ -39,28 +39,34 @@ override_data {
 }
 
 override_resource {
-  target = aws_network_interface.slo[0]
-  values = { mac_address = "02:00:00:00:00:01", private_ip = "10.150.1.10" }
+  override_during = plan
+  target          = aws_network_interface.slo[0]
+  values          = { mac_address = "02:00:00:00:00:01", private_ip = "10.150.1.10" }
 }
 override_resource {
-  target = aws_network_interface.slo[1]
-  values = { mac_address = "02:00:00:00:00:02", private_ip = "10.150.2.10" }
+  override_during = plan
+  target          = aws_network_interface.slo[1]
+  values          = { mac_address = "02:00:00:00:00:02", private_ip = "10.150.2.10" }
 }
 override_resource {
-  target = aws_network_interface.slo[2]
-  values = { mac_address = "02:00:00:00:00:03", private_ip = "10.150.3.10" }
+  override_during = plan
+  target          = aws_network_interface.slo[2]
+  values          = { mac_address = "02:00:00:00:00:03", private_ip = "10.150.3.10" }
 }
 override_resource {
-  target = aws_network_interface.sli[0]
-  values = { mac_address = "02:00:00:00:01:01", private_ip = "10.150.11.10" }
+  override_during = plan
+  target          = aws_network_interface.sli[0]
+  values          = { mac_address = "02:00:00:00:01:01", private_ip = "10.150.11.10" }
 }
 override_resource {
-  target = aws_network_interface.sli[1]
-  values = { mac_address = "02:00:00:00:01:02", private_ip = "10.150.12.10" }
+  override_during = plan
+  target          = aws_network_interface.sli[1]
+  values          = { mac_address = "02:00:00:00:01:02", private_ip = "10.150.12.10" }
 }
 override_resource {
-  target = aws_network_interface.sli[2]
-  values = { mac_address = "02:00:00:00:01:03", private_ip = "10.150.13.10" }
+  override_during = plan
+  target          = aws_network_interface.sli[2]
+  values          = { mac_address = "02:00:00:00:01:03", private_ip = "10.150.13.10" }
 }
 
 override_data {
@@ -102,7 +108,7 @@ variables {
   enable_bastion = false
   ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   aws_ce_ami_id  = "ami-0123456789abcdef0"
-  aws_vip        = "198.51.100.10"
+  aws_vip        = "10.151.1.10"
   aws_smsv2_devices = {
     "01" = { slo = "ens5", sli = "ens6" }
     "02" = { slo = "ens5", sli = "ens6" }
@@ -144,6 +150,14 @@ run "plans_three_sites_six_peers_and_workload_attachment" {
     error_message = "Each site must observe four distinct BGP sessions."
   }
   assert {
+    condition = alltrue([
+      for key, status in data.xcsh_site_bgp_status.aws :
+      status.expected_exported_routes == toset([format("10.150.%d.10/32", tonumber(key) + 10)]) &&
+      alltrue([for peer in values(status.expected_peers) : peer.expected_imported_routes == toset([var.aws_workload_vpc_cidr])])
+    ])
+    error_message = "Every site must prove its exact exported listener /32 and each session's exact imported workload prefix."
+  }
+  assert {
     condition     = alltrue([for bgp in values(xcsh_bgp.aws_tgw) : toset([for peer in bgp.peers : peer.external.address]) == toset(["169.254.100.2", "169.254.100.3"])])
     error_message = "Both AWS-assigned endpoint addresses must appear in every BGP object."
   }
@@ -156,7 +170,40 @@ run "plans_three_sites_six_peers_and_workload_attachment" {
     error_message = "The workload VPC must have explicit TGW attachment, association, and propagation."
   }
   assert {
-    condition     = anytrue([for route in aws_route_table.workload[0].route : route.cidr_block == "198.51.100.10/32"])
-    error_message = "The workload route table must send the external VIP through the TGW."
+    condition = alltrue([
+      for expected in ["10.150.11.10/32", "10.150.12.10/32", "10.150.13.10/32"] :
+      contains([for route in aws_route_table.workload[0].route : route.cidr_block], expected)
+    ])
+    error_message = "The workload route table must send all three site-local listener addresses through the TGW."
+  }
+  assert {
+    condition = alltrue([
+      for index, expected in ["10.150.11.10", "10.150.12.10", "10.150.13.10"] :
+      aws_network_interface.sli[index].private_ips == toset([expected])
+    ])
+    error_message = "Each SLI ENI must reserve its plan-known site listener address for deterministic rebuilds."
+  }
+  assert {
+    condition = (
+      length(aws_lb.smsv2) == 1 &&
+      aws_lb.smsv2[0].internal == true &&
+      aws_lb.smsv2[0].load_balancer_type == "network" &&
+      one(aws_lb.smsv2[0].subnet_mapping).private_ipv4_address == "10.151.1.10"
+    )
+    error_message = "The stable AWS VIP must be a private, statically addressed Network Load Balancer."
+  }
+  assert {
+    condition = (
+      length(aws_lb_target_group.smsv2) == 1 &&
+      aws_lb_target_group.smsv2[0].target_type == "ip" &&
+      length(aws_lb_target_group_attachment.smsv2) == 3 &&
+      toset([for target in values(aws_lb_target_group_attachment.smsv2) : target.target_id]) == toset([
+        "10.150.11.10",
+        "10.150.12.10",
+        "10.150.13.10",
+      ]) &&
+      length(aws_lb_listener.smsv2) == 1
+    )
+    error_message = "The NLB must forward TCP/80 to all three BGP-routed site-local listeners."
   }
 }

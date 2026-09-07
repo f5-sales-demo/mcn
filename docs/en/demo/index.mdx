@@ -60,7 +60,7 @@ Observed 2026-08-05. The three-path hybrid architecture:
 | AWS Virtual Site | `mcn-ce-ha-aws-vsite`, selecting sites `mcn-ce-ha-aws-ap-northeast-1-01` through `03` |
 | Route exchange | Azure Route Servers in `eastus` and `canadacentral` (ASN `var.rs_asn`), AWS Transit Gateway Connect (ASN `var.aws_tgw_asn`), FRR ToR BGP Router for KVM (ASN `65515`, `10.100.0.1`) |
 | Peerings | eBGP peerings per CE, CE ASN `var.ce_asn` (`64512`) |
-| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; `var.aws_vip` (`198.51.100.10`) for AWS; `10.100.0.10` for On-Prem KVM |
+| Advertised VIPs | `var.vip` (`10.250.0.10`) for ROW; `var.ca_vip` (`10.250.1.10`) for Canada; internal AWS NLB `var.aws_vip` (`10.151.1.10`) fronts three BGP-routed SMSv2 site listeners; `10.100.0.10` for On-Prem KVM |
 | Load balancers | `var.lb_domain` (`f5-sales-demo.com`) for ROW; `var.ca_lb_domain` (`f5-sales-demo.ca`) for Canada; `var.aws_lb_domain` (`aws.mcn-ce-ha.f5-sales-demo.com`) for AWS |
 | Test clients | Client VMs in each regional VNet, AWS VPC, and local test environment for driving traffic at the VIPs |
 

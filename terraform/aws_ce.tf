@@ -93,6 +93,7 @@ resource "aws_network_interface" "sli" {
   count = var.enable_aws ? var.aws_ce_count : 0
 
   subnet_id         = aws_subnet.private_sli[count.index % 3].id
+  private_ips       = [local.aws_sites[format("%02d", count.index + 1)].listener_ip]
   security_groups   = [aws_security_group.ce[0].id]
   source_dest_check = false
 

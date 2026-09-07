@@ -24,7 +24,7 @@ aws_bgp=$(awk '
   capture { print }
 ' terraform/aws_tgw_connect.tf)
 if grep -Eq '^[[:space:]]*(enable|disable)_internet_vip[[:space:]]*=' <<<"$aws_bgp"; then
-  fail "AWS TGW BGP sends a legacy orchestrated-site internet VIP choice"
+  fail "AWS TGW BGP sends the internet VIP choice rejected for SMSv2 sites"
 fi
 
 markers=(
