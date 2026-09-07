@@ -109,6 +109,8 @@ resource "aws_eip" "ce" {
   domain            = "vpc"
   network_interface = aws_network_interface.slo[count.index].id
 
+  depends_on = [aws_internet_gateway.aws]
+
   tags = merge(local.tags, {
     Name = "${var.component}-aws-ce-${count.index + 1}-eip"
   })
