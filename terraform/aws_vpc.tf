@@ -61,6 +61,8 @@ resource "aws_subnet" "private_sli" {
 resource "aws_route_table" "public" {
   count = var.enable_aws ? 1 : 0
 
+  depends_on = [module.aws_tgw_connect]
+
   vpc_id = aws_vpc.aws[0].id
 
   route {
@@ -90,6 +92,8 @@ resource "aws_route_table_association" "public" {
 
 resource "aws_route_table" "private" {
   count = var.enable_aws ? 1 : 0
+
+  depends_on = [module.aws_tgw_connect]
 
   vpc_id = aws_vpc.aws[0].id
 

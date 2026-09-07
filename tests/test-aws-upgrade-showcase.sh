@@ -91,6 +91,13 @@ require_text terraform/aws_vpc.tf 'target_id         = each.value.listener_ip'
 require_text terraform/aws_vpc.tf 'availability_zone = "all"'
 require_text terraform/aws_vpc.tf 'resource "aws_lb_listener" "smsv2" {'
 require_text terraform/aws_vpc.tf 'for_each = var.enable_aws_tgw_connect ? toset([for site in values(local.aws_sites) : site.listener_ip]) : toset([])'
+for route_table in public private; do
+  route_table_body=$(sed -n "/resource \"aws_route_table\" \"${route_table}\" {/,/^}/p" terraform/aws_vpc.tf)
+  grep -Fq 'depends_on = [module.aws_tgw_connect]' <<<"$route_table_body" || {
+    printf '%s route table must wait for the complete TGW transport module\n' "$route_table" >&2
+    exit 1
+  }
+done
 require_text scripts/aws-smsv2-uat-preflight.sh 'site_listener_tgw_route_unavailable'
 require_text scripts/aws-smsv2-uat-preflight.sh 'failed_site_target_did_not_withdraw'
 require_text scripts/aws-smsv2-uat-preflight.sh '--retry 2 --retry-all-errors --retry-delay 0'
