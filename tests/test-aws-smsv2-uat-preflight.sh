@@ -64,8 +64,12 @@ show)
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    if [ "${FAKE_SHARED_TOPOLOGY_ONLY:-false}" = true ]; then
+    if [ "${FAKE_TARGETED_BOOTSTRAP:-false}" = true ]; then
+      printf '{"complete":false,"planned_values":{"outputs":{}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}]}\n'
+    elif [ "${FAKE_SHARED_TOPOLOGY_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_vpc.workload[0]","type":"aws_vpc","name":"workload","index":0,"change":{"actions":["create"],"after":{"cidr_block":"10.151.0.0/16"}}}]}\n' "$plan_vip" "$plan_listeners"
+    elif [ "${FAKE_TARGETED_APPROVAL_NO_OUTPUTS:-false}" = true ]; then
+      printf '{"complete":false,"planned_values":{"outputs":{}},"prior_state":{"values":{"root_module":{"resources":[{"address":"xcsh_securemesh_site_v2.aws[\\"01\\"]","type":"xcsh_securemesh_site_v2","name":"aws","index":"01","values":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}]}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n'
     elif [ "${FAKE_APPROVAL_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_ROUTE_GATE_ONLY:-false}" = true ]; then
@@ -353,6 +357,18 @@ fi
 assert_sanitized "$evidence" "$output"
 echo "ok - keyed registration approval binds an unpredictable registration to one exact site"
 
+evidence="${TMP_ROOT}/single-targeted-approval"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-targeted-approval.out"
+if ! FAKE_TARGETED_APPROVAL_NO_OUTPUTS=true \
+  "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "targeted approval must resolve its keyed site from prior managed state"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "targeted approval ready status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - targeted approval resolves its site from prior managed state"
+
 evidence="${TMP_ROOT}/single-instance"
 mkdir "$evidence"
 output="${TMP_ROOT}/single-instance.out"
@@ -398,16 +414,28 @@ fi
 assert_sanitized "$evidence" "$output"
 echo "ok - shared topology rejects a mismatched one-site claim"
 
+evidence="${TMP_ROOT}/targeted-bootstrap"
+mkdir "$evidence"
+output="${TMP_ROOT}/targeted-bootstrap.out"
+if ! FAKE_TARGETED_BOOTSTRAP=true "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "incomplete targeted bootstrap plan should not require omitted apply-only outputs"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "targeted bootstrap ready status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - targeted bootstrap accepts omitted apply-only plan outputs"
+
 evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"
 output="${TMP_ROOT}/destroy.out"
-if ! FAKE_SITE_ACTIONS='"delete"' "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+if ! FAKE_SITE_ACTIONS='"delete"' FAKE_PLAN_AWS_VIP_JSON=null FAKE_PLAN_SITE_LISTENERS_JSON='{}' \
+  "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
   cat "$output" >&2
   fail "AWS-only delete plan should pass destroy mode"
 fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "destroy ready status not recorded"
 assert_sanitized "$evidence" "$output"
-echo "ok - destroy mode accepts only the three expected site deletions"
+echo "ok - destroy mode accepts only the three expected site deletions without apply-only outputs"
 
 evidence="${TMP_ROOT}/destroy-mixed"
 mkdir "$evidence"

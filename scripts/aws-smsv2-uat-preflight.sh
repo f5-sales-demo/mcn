@@ -340,23 +340,28 @@ jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
 unset AWS_IDENTITY
 
 DEPLOYMENT_PLAN=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$TERRAFORM_DIR" show -json "$PLAN_FILE" 2>/dev/null) || block deployment_plan_unreadable
-PLAN_AWS_VIP=$(jq -er '(.planned_values.outputs.aws_vip.value // .prior_state.values.outputs.aws_vip.value) | select(type == "string" and length > 0)' \
-  <<<"$DEPLOYMENT_PLAN" 2>/dev/null) || block plan_vip_identity_unavailable
-jq -en --arg vip "$PLAN_AWS_VIP" '
-  ($vip | split(".")) as $octets |
-  ($octets | length) == 4 and
-  all($octets[]; test("^(0|[1-9][0-9]{0,2})$") and (tonumber <= 255))' \
-  >/dev/null || block plan_vip_identity_invalid
-PLAN_SITE_LISTENERS=$(jq -ec '
-  (.planned_values.outputs.aws_smsv2_site_listener_ips.value // .prior_state.values.outputs.aws_smsv2_site_listener_ips.value) |
-  select(type == "object" and (keys | sort) == ["01", "02", "03"]) |
-  select(([.[]] | unique | length) == 3) |
-  select(all(.[];
-    type == "string" and
-    (split(".")) as $octets |
+PLAN_AWS_VIP=""
+PLAN_SITE_LISTENERS=""
+PLAN_COMPLETE=$(jq -r 'if .complete == false then "false" else "true" end' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+if [ "$PLAN_MODE" != destroy ] && { [ "$PLAN_COMPLETE" = true ] || [ "$EXECUTE_UAT" = true ]; }; then
+  PLAN_AWS_VIP=$(jq -er '(.planned_values.outputs.aws_vip.value // .prior_state.values.outputs.aws_vip.value) | select(type == "string" and length > 0)' \
+    <<<"$DEPLOYMENT_PLAN" 2>/dev/null) || block plan_vip_identity_unavailable
+  jq -en --arg vip "$PLAN_AWS_VIP" '
+    ($vip | split(".")) as $octets |
     ($octets | length) == 4 and
-    all($octets[]; test("^(0|[1-9][0-9]{0,2})$") and (tonumber <= 255))))' \
-  <<<"$DEPLOYMENT_PLAN" 2>/dev/null) || block plan_site_listener_identities_invalid
+    all($octets[]; test("^(0|[1-9][0-9]{0,2})$") and (tonumber <= 255))' \
+    >/dev/null || block plan_vip_identity_invalid
+  PLAN_SITE_LISTENERS=$(jq -ec '
+    (.planned_values.outputs.aws_smsv2_site_listener_ips.value // .prior_state.values.outputs.aws_smsv2_site_listener_ips.value) |
+    select(type == "object" and (keys | sort) == ["01", "02", "03"]) |
+    select(([.[]] | unique | length) == 3) |
+    select(all(.[];
+      type == "string" and
+      (split(".")) as $octets |
+      ($octets | length) == 4 and
+      all($octets[]; test("^(0|[1-9][0-9]{0,2})$") and (tonumber <= 255))))' \
+    <<<"$DEPLOYMENT_PLAN" 2>/dev/null) || block plan_site_listener_identities_invalid
+fi
 jq -e '
   [.resource_changes[]? |
     select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
@@ -405,7 +410,13 @@ else
       .change.after.where.site.ref[0].name
     ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
   KEYED_TASK_SITE_IDENTITIES=$(jq -c '
-    (.planned_values.outputs.aws_site_names.value // .prior_state.values.outputs.aws_site_names.value // {}) as $sites |
+    (.planned_values.outputs.aws_site_names.value // .prior_state.values.outputs.aws_site_names.value // {}) as $output_sites |
+    ([.prior_state.values.root_module.resources[]? |
+      select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
+      select(.index | type == "string") |
+      {key:.index, value:.values.name}
+    ] | from_entries) as $state_sites |
+    ($state_sites + $output_sites) as $sites |
     [.resource_changes[]? |
       select(
         (.type == "terraform_data" and .name == "aws_tgw_site_route_gate") or
