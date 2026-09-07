@@ -283,7 +283,13 @@ data "xcsh_site_bgp_status" "aws" {
   expected_exported_routes = ["${each.value.listener_ip}/32"]
   timeout_seconds          = var.aws_bgp_convergence_timeout_seconds
   poll_interval_seconds    = var.aws_bgp_poll_interval_seconds
-  depends_on               = [xcsh_bgp.aws_tgw]
+  depends_on = [
+    xcsh_bgp.aws_tgw,
+    module.aws_tgw_connect,
+    aws_ec2_transit_gateway_route_table_association.workload,
+    aws_ec2_transit_gateway_route_table_propagation.workload,
+    xcsh_http_loadbalancer.aws,
+  ]
 }
 
 output "aws_tgw_connect_status" {

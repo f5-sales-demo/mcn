@@ -44,6 +44,17 @@ reject_text terraform/aws_tgw_connect.tf 'advertise_vip_aggregate'
 reject_text terraform/aws_tgw_connect.tf 'aggregation {'
 reject_text terraform/aws_tgw_connect.tf 'resource "xcsh_bgp_routing_policy" "aws_vip_export" {'
 reject_text terraform/aws_tgw_connect.tf 'routing_policies {'
+bgp_status=$(sed -n '/data "xcsh_site_bgp_status" "aws" {/,/^}/p' terraform/aws_tgw_connect.tf)
+for dependency in \
+  'module.aws_tgw_connect' \
+  'aws_ec2_transit_gateway_route_table_association.workload' \
+  'aws_ec2_transit_gateway_route_table_propagation.workload' \
+  'xcsh_http_loadbalancer.aws'; do
+  grep -Fq "$dependency" <<<"$bgp_status" || {
+    printf 'BGP status must wait for %s before enforcing exact route convergence\n' "$dependency" >&2
+    exit 1
+  }
+done
 require_text terraform/aws_ce.tf 'xcsh_site_cloud_init.aws'
 require_text terraform/aws_xc.tf 'resource "xcsh_token" "aws"'
 require_text terraform/aws_xc.tf 'type        = 1'

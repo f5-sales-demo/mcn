@@ -125,6 +125,12 @@ the admitted provider-issued cloud-init records remain stable throughout every s
 The default is all three keys for the complete topology; use the saved-plan preflight for
 every partial stage.
 
+Session establishment can be checked during each partial stage. Exact imported workload
+and exported listener routes are enforced only after the complete TGW route table,
+workload attachment association and propagation, and XC load balancer are applied. The
+final status read is ordered behind those resources, so a first complete plan does not
+poll for routes that cannot exist yet.
+
 Before any plan is applied with `enable_aws_tgw_connect = true`, save the reviewed
 plan and run the non-mutating preflight using the complete command in the Apply
 sequence. Put evidence in a new, empty directory outside the repository.
