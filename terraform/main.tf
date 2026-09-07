@@ -276,7 +276,7 @@ resource "xcsh_origin_pool" "this" {
     }
   }
 
-  no_tls {}
+  no_tls                 = {}
   loadbalancer_algorithm = "ROUND_ROBIN"
   endpoint_selection     = "DISTRIBUTED"
 }
@@ -320,7 +320,7 @@ resource "xcsh_http_loadbalancer" "this" {
           }
           ip = var.vip
         }
-        use_default_port {}
+        use_default_port = {}
       }
     }
   }
@@ -334,21 +334,21 @@ resource "xcsh_http_loadbalancer" "this" {
     priority = 1
   }
 
-  round_robin {}
-  no_challenge {}
-  user_id_client_ip {}
-  disable_waf {}
-  disable_rate_limit {}
-  disable_api_discovery {}
-  disable_api_testing {}
-  disable_api_definition {}
+  round_robin            = {}
+  no_challenge           = {}
+  user_id_client_ip      = {}
+  disable_waf            = {}
+  disable_rate_limit     = {}
+  disable_api_discovery  = {}
+  disable_api_testing    = {}
+  disable_api_definition = {}
   l7_ddos_protection {}
-  service_policies_from_namespace {}
-  disable_trust_client_ip_headers {}
-  disable_malicious_user_detection {}
-  disable_malware_protection {}
-  disable_threat_mesh {}
-  default_sensitive_data_policy {}
+  service_policies_from_namespace  = {}
+  disable_trust_client_ip_headers  = {}
+  disable_malicious_user_detection = {}
+  disable_malware_protection       = {}
+  disable_threat_mesh              = {}
+  default_sensitive_data_policy    = {}
 }
 
 # ---------------------------------------------------------
@@ -530,7 +530,7 @@ resource "xcsh_origin_pool" "canada" {
     }
   }
 
-  no_tls {}
+  no_tls                 = {}
   loadbalancer_algorithm = "ROUND_ROBIN"
   endpoint_selection     = "DISTRIBUTED"
 }
@@ -562,7 +562,7 @@ resource "xcsh_http_loadbalancer" "canada" {
           }
           ip = var.ca_vip
         }
-        use_default_port {}
+        use_default_port = {}
       }
     }
   }
@@ -576,19 +576,19 @@ resource "xcsh_http_loadbalancer" "canada" {
     priority = 1
   }
 
-  round_robin {}
-  no_challenge {}
-  user_id_client_ip {}
-  disable_waf {}
-  disable_rate_limit {}
-  disable_api_discovery {}
-  disable_api_testing {}
-  disable_api_definition {}
+  round_robin            = {}
+  no_challenge           = {}
+  user_id_client_ip      = {}
+  disable_waf            = {}
+  disable_rate_limit     = {}
+  disable_api_discovery  = {}
+  disable_api_testing    = {}
+  disable_api_definition = {}
   l7_ddos_protection {}
-  service_policies_from_namespace {}
-  disable_trust_client_ip_headers {}
-  disable_malicious_user_detection {}
-  disable_malware_protection {}
-  disable_threat_mesh {}
-  default_sensitive_data_policy {}
+  service_policies_from_namespace  = {}
+  disable_trust_client_ip_headers  = {}
+  disable_malicious_user_detection = {}
+  disable_malware_protection       = {}
+  disable_threat_mesh              = {}
+  default_sensitive_data_policy    = {}
 }

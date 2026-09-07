@@ -52,9 +52,9 @@ resource "xcsh_securemesh_site_v2" "aws" {
             mac    = aws_network_interface.slo[each.value.index].mac_address
           }
           network_option {
-            site_local_network {}
+            site_local_network = {}
           }
-          dhcp_client {}
+          dhcp_client = {}
         }
 
         interface_list {
@@ -65,25 +65,25 @@ resource "xcsh_securemesh_site_v2" "aws" {
             mac    = aws_network_interface.sli[each.value.index].mac_address
           }
           network_option {
-            site_local_inside_network {}
+            site_local_inside_network = {}
           }
-          dhcp_client {}
+          dhcp_client = {}
         }
       }
     }
   }
 
-  disable_ha {}
-  block_all_services {}
-  no_network_policy {}
-  no_forward_proxy {}
-  f5_proxy {}
-  no_proxy_bypass {}
-  logs_streaming_disabled {}
-  no_s2s_connectivity_sli {}
-  no_s2s_connectivity_slo {}
-  disable_url_categorization {}
-  disable_management_network {}
+  disable_ha                 = {}
+  block_all_services         = {}
+  no_network_policy          = {}
+  no_forward_proxy           = {}
+  f5_proxy                   = {}
+  no_proxy_bypass            = {}
+  logs_streaming_disabled    = {}
+  no_s2s_connectivity_sli    = {}
+  no_s2s_connectivity_slo    = {}
+  disable_url_categorization = {}
+  disable_management_network = {}
 
   software_settings {
     os {
@@ -149,7 +149,7 @@ resource "xcsh_origin_pool" "aws" {
     public_ip { ip = var.origin_ip }
   }
 
-  no_tls {}
+  no_tls                 = {}
   loadbalancer_algorithm = "ROUND_ROBIN"
   endpoint_selection     = "DISTRIBUTED"
 }
@@ -172,7 +172,7 @@ resource "xcsh_http_loadbalancer" "aws" {
           namespace = data.xcsh_namespace.mcn.name
         }
       }
-      use_default_port {}
+      use_default_port = {}
     }
   }
 
@@ -185,13 +185,13 @@ resource "xcsh_http_loadbalancer" "aws" {
     priority = 1
   }
 
-  round_robin {}
-  no_challenge {}
-  user_id_client_ip {}
-  disable_waf {}
-  disable_rate_limit {}
-  disable_api_discovery {}
-  disable_api_testing {}
-  disable_api_definition {}
+  round_robin            = {}
+  no_challenge           = {}
+  user_id_client_ip      = {}
+  disable_waf            = {}
+  disable_rate_limit     = {}
+  disable_api_discovery  = {}
+  disable_api_testing    = {}
+  disable_api_definition = {}
   l7_ddos_protection {}
 }

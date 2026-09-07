@@ -185,14 +185,8 @@ resource "xcsh_external_connector" "aws_tgw" {
   }
   gre {
     gre_parameters {
-      dynamic "site_local_network" {
-        for_each = each.value.payload_role == "slo" ? [1] : []
-        content {}
-      }
-      dynamic "site_local_inside_network" {
-        for_each = each.value.payload_role == "sli" ? [1] : []
-        content {}
-      }
+      site_local_network        = each.value.payload_role == "slo" ? {} : null
+      site_local_inside_network = each.value.payload_role == "sli" ? {} : null
       # The external-connector API caps GRE MTU at 1370. Preserve a smaller
       # observed underlay ceiling while never constructing an invalid request.
       tunnel_mtu = min(data.xcsh_smsv2_aws_runtime.aws[each.value.site_key].interfaces[each.key].mtu - 24, 1370)
@@ -224,12 +218,12 @@ resource "xcsh_bgp" "aws_tgw" {
         name      = xcsh_securemesh_site_v2.aws[each.key].name
         namespace = "system"
       }
-      disable_internet_vip {}
+      disable_internet_vip = {}
     }
   }
   bgp_parameters {
-    asn = var.aws_ce_bgp_asn
-    local_address {}
+    asn           = var.aws_ce_bgp_asn
+    local_address = {}
   }
   dynamic "peers" {
     for_each = { for key, session in local.aws_bgp_sessions : key => session if session.site_key == each.key }
@@ -246,10 +240,10 @@ resource "xcsh_bgp" "aws_tgw" {
           name      = "ves-io-external-connector-${xcsh_external_connector.aws_tgw[peers.value.connector_key].name}"
           namespace = "system"
         }
-        disable_v6 {}
+        disable_v6 = {}
       }
-      passive_mode_disabled {}
-      bfd_disabled {}
+      passive_mode_disabled = {}
+      bfd_disabled          = {}
     }
   }
   depends_on = [xcsh_external_connector.aws_tgw]

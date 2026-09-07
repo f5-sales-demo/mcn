@@ -66,36 +66,36 @@ resource "xcsh_securemesh_site_v2" "this" {
 
           # Site Local Outside (SLO) — required on every site; BGP peers from here.
           network_option {
-            site_local_network {}
+            site_local_network = {}
           }
 
-          dhcp_client {}
+          dhcp_client = {}
         }
       }
     }
   }
 
-  block_all_services {}
-  disable_ha {}
+  block_all_services = {}
+  disable_ha         = {}
 
   dns_ntp_config {
-    f5_dns_default {}
-    f5_ntp_default {}
+    f5_dns_default = {}
+    f5_ntp_default = {}
   }
 
   local_vrf {
-    default_config {}
-    default_sli_config {}
+    default_config     = {}
+    default_sli_config = {}
   }
 
-  logs_streaming_disabled {}
-  no_forward_proxy {}
-  no_network_policy {}
-  no_s2s_connectivity_sli {}
-  no_s2s_connectivity_slo {}
+  logs_streaming_disabled = {}
+  no_forward_proxy        = {}
+  no_network_policy       = {}
+  no_s2s_connectivity_sli = {}
+  no_s2s_connectivity_slo = {}
 
   offline_survivability_mode {
-    no_offline_survivability_mode {}
+    no_offline_survivability_mode = {}
   }
 
   performance_enhancement_mode {
@@ -105,12 +105,12 @@ resource "xcsh_securemesh_site_v2" "this" {
       # undeclared makes the site land and then re-plan the marker as a removal on
       # every subsequent plan — it never reaches 0 changes. Declaring the server
       # default explicitly is what settles it (same fix coverage/smsv2 took in #625).
-      jumbo_disabled {}
+      jumbo_disabled = {}
     }
   }
 
   re_select {
-    geo_proximity {}
+    geo_proximity = {}
   }
 
   # CE software and OS selection is create-time configuration. The node always
@@ -129,17 +129,11 @@ resource "xcsh_securemesh_site_v2" "this" {
   # when deliberately reproducing an older build.
   software_settings {
     os {
-      dynamic "default_os_version" {
-        for_each = var.os_version == "" ? [1] : []
-        content {}
-      }
+      default_os_version       = var.os_version == "" ? {} : null
       operating_system_version = var.os_version == "" ? null : var.os_version
     }
     sw {
-      dynamic "default_sw_version" {
-        for_each = var.sw_version == "" ? [1] : []
-        content {}
-      }
+      default_sw_version        = var.sw_version == "" ? {} : null
       volterra_software_version = var.sw_version == "" ? null : var.sw_version
     }
   }
@@ -260,8 +254,8 @@ resource "xcsh_bgp" "this" {
         namespace = "system"
         name      = var.site_name
       }
-      network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
-      disable_internet_vip {}
+      network_type         = "VIRTUAL_NETWORK_SITE_LOCAL"
+      disable_internet_vip = {}
     }
   }
 
@@ -270,7 +264,7 @@ resource "xcsh_bgp" "this" {
     # local_address {} = derive the BGP router ID from the interface's local
     # address (the JSON's BGP_ROUTER_ID_FROM_INTERFACE; there is no separate
     # bgp_router_id_type attribute in the provider schema).
-    local_address {}
+    local_address = {}
   }
 
   # Iterate over a plan-KNOWN peer count (rs_peer_count) and index into
@@ -293,11 +287,11 @@ resource "xcsh_bgp" "this" {
           name      = var.interface_name
         }
 
-        disable_v6 {}
+        disable_v6 = {}
       }
 
-      passive_mode_disabled {}
-      bfd_disabled {}
+      passive_mode_disabled = {}
+      bfd_disabled          = {}
     }
   }
 }

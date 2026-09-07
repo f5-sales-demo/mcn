@@ -132,14 +132,14 @@ interface_list {
 
   # Site Local Outside (SLO) — required on every site; BGP peers from here.
   network_option {
-    site_local_network {}
+    site_local_network = {}
   }
 
-  dhcp_client {}
+  dhcp_client = {}
 }
 ```
 
-`site_local_network {}` is SLO. So:
+`site_local_network = {}` is SLO. So:
 
 | In this deployment | What it actually is |
 | --- | --- |
@@ -148,7 +148,7 @@ interface_list {
 | `internal` NIC | The SLI interface. |
 | Management network | **Not configured.** No `enable_management_network` marker is set on the site object. |
 
-The sites are single-node — `disable_ha {}`, one site per availability zone — so the
+The sites are single-node — `disable_ha = {}`, one site per availability zone — so the
 management network would be *permitted* here, unlike in a three-node cluster. It is simply
 not enabled, and enabling it would renumber the interfaces per the ordering above, which the
 BGP peer binding depends on.

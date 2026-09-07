@@ -61,16 +61,13 @@ resource "xcsh_securemesh_site_v2" "probe" {
           }
 
           network_option {
-            site_local_network {}
+            site_local_network = {}
           }
 
           # S3 address_choice oneof {dhcp_client | static_ip | no_ipv4_address}, one per var.address_arm.
           # static_ip (default) exposes the ip_address CIDRValidator() and default_gw IPValidator()
           # string validators; all three arms are live-appliable.
-          dynamic "dhcp_client" {
-            for_each = var.address_arm == "dhcp_client" ? [1] : []
-            content {}
-          }
+          dhcp_client = var.address_arm == "dhcp_client" ? {} : null
 
           dynamic "static_ip" {
             for_each = var.address_arm == "static_ip" ? [1] : []
@@ -80,23 +77,17 @@ resource "xcsh_securemesh_site_v2" "probe" {
             }
           }
 
-          dynamic "no_ipv4_address" {
-            for_each = var.address_arm == "no_ipv4_address" ? [1] : []
-            content {}
-          }
+          no_ipv4_address = var.address_arm == "no_ipv4_address" ? {} : null
 
           # S3 ipv6_address_choice oneof {no_ipv6_address | ipv6_auto_config | static_ipv6_address}.
           # no_ipv6_address (default) is live-appliable; the other two 400 on a single-node IPv4
           # probe (plan-only). static_ipv6_address.node_static_ip.ip_address is CIDRValidator()-guarded.
-          dynamic "no_ipv6_address" {
-            for_each = var.ipv6_arm == "no_ipv6_address" ? [1] : []
-            content {}
-          }
+          no_ipv6_address = var.ipv6_arm == "no_ipv6_address" ? {} : null
 
           dynamic "ipv6_auto_config" {
             for_each = var.ipv6_arm == "ipv6_auto_config" ? [1] : []
             content {
-              host {} # autoconfig_choice: host (empty) — the router arm needs an IPv6 prefix
+              host = {} # autoconfig_choice: host (empty) — the router arm needs an IPv6 prefix
             }
           }
 
@@ -110,27 +101,13 @@ resource "xcsh_securemesh_site_v2" "probe" {
           }
 
           # S3 monitoring_choice oneof {monitor | monitor_disabled}. Both empty, both live-appliable.
-          dynamic "monitor" {
-            for_each = var.monitor_arm == "monitor" ? [1] : []
-            content {}
-          }
-
-          dynamic "monitor_disabled" {
-            for_each = var.monitor_arm == "monitor_disabled" ? [1] : []
-            content {}
-          }
+          monitor          = var.monitor_arm == "monitor" ? {} : null
+          monitor_disabled = var.monitor_arm == "monitor_disabled" ? {} : null
 
           # S3 site_to_site_connectivity_interface_choice oneof {disabled | enabled}. disabled
           # (default) is live-appliable; enabled needs site s2s wiring (plan-only).
-          dynamic "site_to_site_connectivity_interface_disabled" {
-            for_each = var.s2s_iface_arm == "disabled" ? [1] : []
-            content {}
-          }
-
-          dynamic "site_to_site_connectivity_interface_enabled" {
-            for_each = var.s2s_iface_arm == "enabled" ? [1] : []
-            content {}
-          }
+          site_to_site_connectivity_interface_disabled = var.s2s_iface_arm == "disabled" ? {} : null
+          site_to_site_connectivity_interface_enabled  = var.s2s_iface_arm == "enabled" ? {} : null
         }
 
         # S1: a second interface exposing the vlan_interface.vlan_id leaf (validator
@@ -148,10 +125,10 @@ resource "xcsh_securemesh_site_v2" "probe" {
             }
 
             network_option {
-              site_local_network {}
+              site_local_network = {}
             }
 
-            dhcp_client {}
+            dhcp_client = {}
           }
         }
       }
@@ -161,10 +138,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # S4 services oneof {block_all_services | blocked_services}, keyed on var.services_arm so exactly
   # one member renders. block_all_services (default) is the base arm; blocked_services renders a
   # blocked_service entry exposing the network_type OneOf validator (S4a live).
-  dynamic "block_all_services" {
-    for_each = var.services_arm == "block_all_services" ? [1] : []
-    content {}
-  }
+  block_all_services = var.services_arm == "block_all_services" ? {} : null
 
   # S7 blocked_service service_choice {dns | ssh | web_user_interface}, keyed on
   # var.blocked_service_arm so exactly ONE marker renders. F5's runtime keeps a single member: an
@@ -177,44 +151,23 @@ resource "xcsh_securemesh_site_v2" "probe" {
       blocked_service {
         network_type = var.blocked_network_type
 
-        dynamic "dns" {
-          for_each = var.blocked_service_arm == "dns" ? [1] : []
-          content {}
-        }
-
-        dynamic "ssh" {
-          for_each = var.blocked_service_arm == "ssh" ? [1] : []
-          content {}
-        }
-
-        dynamic "web_user_interface" {
-          for_each = var.blocked_service_arm == "web_user_interface" ? [1] : []
-          content {}
-        }
+        dns                = var.blocked_service_arm == "dns" ? {} : null
+        ssh                = var.blocked_service_arm == "ssh" ? {} : null
+        web_user_interface = var.blocked_service_arm == "web_user_interface" ? {} : null
       }
     }
   }
 
   # S4 node_ha oneof {disable_ha | enable_ha}. disable_ha (default) is live; enable_ha is plan-only
   # (400 on a single-node probe — needs >=3 nodes).
-  dynamic "disable_ha" {
-    for_each = var.ha_arm == "disable_ha" ? [1] : []
-    content {}
-  }
-
-  dynamic "enable_ha" {
-    for_each = var.ha_arm == "enable_ha" ? [1] : []
-    content {}
-  }
+  disable_ha = var.ha_arm == "disable_ha" ? {} : null
+  enable_ha  = var.ha_arm == "enable_ha" ? {} : null
 
   # S4 dns_ntp_config renders one dns sub-oneof member + one ntp sub-oneof member (keyed on
   # var.dns_arm / var.ntp_arm). The f5_*_default defaults match the base probe; custom_dns/custom_ntp
   # expose the dns_servers / ntp_servers list leaves (S4a live).
   dns_ntp_config {
-    dynamic "f5_dns_default" {
-      for_each = var.dns_arm == "f5_dns_default" ? [1] : []
-      content {}
-    }
+    f5_dns_default = var.dns_arm == "f5_dns_default" ? {} : null
 
     dynamic "custom_dns" {
       for_each = var.dns_arm == "custom_dns" ? [1] : []
@@ -223,10 +176,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
       }
     }
 
-    dynamic "f5_ntp_default" {
-      for_each = var.ntp_arm == "f5_ntp_default" ? [1] : []
-      content {}
-    }
+    f5_ntp_default = var.ntp_arm == "f5_ntp_default" ? {} : null
 
     dynamic "custom_ntp" {
       for_each = var.ntp_arm == "custom_ntp" ? [1] : []
@@ -238,10 +188,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
 
   # S4 proxy_bypass oneof {no_proxy_bypass | custom_proxy_bypass}, unset by default (the pre-S4 base
   # never set it) so a bare plan is unchanged. Both alternative arms are S4a live.
-  dynamic "no_proxy_bypass" {
-    for_each = var.proxy_bypass_arm == "no_proxy_bypass" ? [1] : []
-    content {}
-  }
+  no_proxy_bypass = var.proxy_bypass_arm == "no_proxy_bypass" ? {} : null
 
   dynamic "custom_proxy_bypass" {
     for_each = var.proxy_bypass_arm == "custom_proxy_bypass" ? [1] : []
@@ -252,27 +199,13 @@ resource "xcsh_securemesh_site_v2" "probe" {
 
   # S4 url_categorization oneof {disable_url_categorization | enable_url_categorization}, unset by
   # default. Both alternative arms are empty markers and S4a live.
-  dynamic "disable_url_categorization" {
-    for_each = var.url_cat_arm == "disable_url_categorization" ? [1] : []
-    content {}
-  }
-
-  dynamic "enable_url_categorization" {
-    for_each = var.url_cat_arm == "enable_url_categorization" ? [1] : []
-    content {}
-  }
+  disable_url_categorization = var.url_cat_arm == "disable_url_categorization" ? {} : null
+  enable_url_categorization  = var.url_cat_arm == "enable_url_categorization" ? {} : null
 
   # S4 management_network oneof {disable_management_network | enable_management_network}, unset by
   # default. disable_management_network is S4a live; enable_management_network is plan-only (400).
-  dynamic "disable_management_network" {
-    for_each = var.mgmt_net_arm == "disable_management_network" ? [1] : []
-    content {}
-  }
-
-  dynamic "enable_management_network" {
-    for_each = var.mgmt_net_arm == "enable_management_network" ? [1] : []
-    content {}
-  }
+  disable_management_network = var.mgmt_net_arm == "disable_management_network" ? {} : null
+  enable_management_network  = var.mgmt_net_arm == "enable_management_network" ? {} : null
 
   # S4 load_balancing.vip_vrrp_mode. Omitted entirely when var.vip_vrrp_mode is "" (pre-S4 base never
   # set it). ENABLE/DISABLE are S4a live; the OneOf validator is proven by reject-vip-vrrp-mode.
@@ -289,16 +222,16 @@ resource "xcsh_securemesh_site_v2" "probe" {
     for_each = var.segment_vrf_arm == "inline" ? [1] : []
     content {
       segment_config {
-        nameserver = var.segment_nameserver
-        no_static_routes {}
-        no_v6_static_routes {}
+        nameserver          = var.segment_nameserver
+        no_static_routes    = {}
+        no_v6_static_routes = {}
       }
     }
   }
 
   local_vrf {
-    default_config {}
-    default_sli_config {}
+    default_config     = {}
+    default_sli_config = var.vrf_string_arms ? null : {}
 
     # S2: sli_config exposes the nameserver/vip leaves guarded by IPv4Validator(). This is a
     # distinct local_vrf oneof arm from default_sli_config above; gated by var.vrf_string_arms
@@ -316,10 +249,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # S4 logs_receiver oneof {logs_streaming_disabled | log_receiver_with_net}. logs_streaming_disabled
   # (default) is the base arm. log_receiver_with_net is ref-dependent (plan-only, S4b); it drives logs
   # via the network-aware receiver, never the stale top-level log_receiver field (provider #1256).
-  dynamic "logs_streaming_disabled" {
-    for_each = var.logs_arm == "logs_streaming_disabled" ? [1] : []
-    content {}
-  }
+  logs_streaming_disabled = var.logs_arm == "logs_streaming_disabled" ? {} : null
 
   dynamic "log_receiver_with_net" {
     for_each = var.logs_arm == "log_receiver_with_net" ? [1] : []
@@ -328,16 +258,13 @@ resource "xcsh_securemesh_site_v2" "probe" {
         name      = var.log_receiver_ref_name
         namespace = var.ref_namespace
       }
-      use_slo_sli {}
+      use_slo_sli = {}
     }
   }
 
   # S4 forward_proxy oneof {no_forward_proxy | active_forward_proxy_policies}. no_forward_proxy
   # (default) is the base arm; active_forward_proxy_policies is a ref list (plan-only, S4b).
-  dynamic "no_forward_proxy" {
-    for_each = var.forward_proxy_arm == "no_forward_proxy" ? [1] : []
-    content {}
-  }
+  no_forward_proxy = var.forward_proxy_arm == "no_forward_proxy" ? {} : null
 
   dynamic "active_forward_proxy_policies" {
     for_each = var.forward_proxy_arm == "active_forward_proxy_policies" ? [1] : []
@@ -351,10 +278,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
 
   # S4 network_policy oneof {no_network_policy | active_enhanced_firewall_policies}. no_network_policy
   # (default) is the base arm; active_enhanced_firewall_policies is a ref list (plan-only, S4b).
-  dynamic "no_network_policy" {
-    for_each = var.network_policy_arm == "no_network_policy" ? [1] : []
-    content {}
-  }
+  no_network_policy = var.network_policy_arm == "no_network_policy" ? {} : null
 
   dynamic "active_enhanced_firewall_policies" {
     for_each = var.network_policy_arm == "active_enhanced_firewall_policies" ? [1] : []
@@ -368,10 +292,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
 
   # S4 s2s_connectivity_sli oneof {no_s2s_connectivity_sli | dc_cluster_group_sli}. Base arm default;
   # dc_cluster_group_sli is an ObjectRefType (plan-only, S4b).
-  dynamic "no_s2s_connectivity_sli" {
-    for_each = var.s2s_sli_arm == "no_s2s_connectivity_sli" ? [1] : []
-    content {}
-  }
+  no_s2s_connectivity_sli = var.s2s_sli_arm == "no_s2s_connectivity_sli" ? {} : null
 
   dynamic "dc_cluster_group_sli" {
     for_each = var.s2s_sli_arm == "dc_cluster_group_sli" ? [1] : []
@@ -387,10 +308,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # (mesh_group_choice + connection_choice): the all-empty variant
   # {no_site_mesh_group{} sm_connection_public_ip{}} is S4a live; the site_mesh_group ref variant is
   # plan-only (S4b).
-  dynamic "no_s2s_connectivity_slo" {
-    for_each = var.s2s_slo_arm == "no_s2s_connectivity_slo" ? [1] : []
-    content {}
-  }
+  no_s2s_connectivity_slo = var.s2s_slo_arm == "no_s2s_connectivity_slo" ? {} : null
 
   dynamic "dc_cluster_group_slo" {
     for_each = var.s2s_slo_arm == "dc_cluster_group_slo" ? [1] : []
@@ -404,10 +322,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
     for_each = var.s2s_slo_arm == "site_mesh_group_empty" || var.s2s_slo_arm == "site_mesh_group_ref" ? [1] : []
     content {
       # mesh_group_choice: no_site_mesh_group (empty variant) vs site_mesh_group (ref variant).
-      dynamic "no_site_mesh_group" {
-        for_each = var.s2s_slo_arm == "site_mesh_group_empty" ? [1] : []
-        content {}
-      }
+      no_site_mesh_group = var.s2s_slo_arm == "site_mesh_group_empty" ? {} : null
 
       dynamic "site_mesh_group" {
         for_each = var.s2s_slo_arm == "site_mesh_group_ref" ? [1] : []
@@ -418,7 +333,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
       }
 
       # connection_choice: public IP for the site mesh connection (live-safe empty marker).
-      sm_connection_public_ip {}
+      sm_connection_public_ip = {}
     }
   }
 
@@ -426,15 +341,8 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # keyed on var.offline_arm. no_offline_survivability_mode (default) is the base arm; both are empty
   # markers and both are S5a live.
   offline_survivability_mode {
-    dynamic "no_offline_survivability_mode" {
-      for_each = var.offline_arm == "no_offline_survivability_mode" ? [1] : []
-      content {}
-    }
-
-    dynamic "enable_offline_survivability_mode" {
-      for_each = var.offline_arm == "enable_offline_survivability_mode" ? [1] : []
-      content {}
-    }
+    no_offline_survivability_mode     = var.offline_arm == "no_offline_survivability_mode" ? {} : null
+    enable_offline_survivability_mode = var.offline_arm == "enable_offline_survivability_mode" ? {} : null
   }
 
   # S5 performance_enhancement_mode oneof {perf_mode_l7_enhanced | perf_mode_l3_enhanced}, keyed on
@@ -447,30 +355,16 @@ resource "xcsh_securemesh_site_v2" "probe" {
     dynamic "perf_mode_l7_enhanced" {
       for_each = var.perf_arm == "perf_mode_l7_enhanced" ? [1] : []
       content {
-        dynamic "jumbo_disabled" {
-          for_each = var.l7_jumbo_arm == "jumbo_disabled" ? [1] : []
-          content {}
-        }
-
-        dynamic "jumbo_enabled" {
-          for_each = var.l7_jumbo_arm == "jumbo_enabled" ? [1] : []
-          content {}
-        }
+        jumbo_disabled = var.l7_jumbo_arm == "jumbo_disabled" ? {} : null
+        jumbo_enabled  = var.l7_jumbo_arm == "jumbo_enabled" ? {} : null
       }
     }
 
     dynamic "perf_mode_l3_enhanced" {
       for_each = var.perf_arm == "perf_mode_l3_enhanced" ? [1] : []
       content {
-        dynamic "no_jumbo" {
-          for_each = var.l3_jumbo_arm == "no_jumbo" ? [1] : []
-          content {}
-        }
-
-        dynamic "jumbo" {
-          for_each = var.l3_jumbo_arm == "jumbo" ? [1] : []
-          content {}
-        }
+        no_jumbo = var.l3_jumbo_arm == "no_jumbo" ? {} : null
+        jumbo    = var.l3_jumbo_arm == "jumbo" ? {} : null
       }
     }
   }
@@ -479,10 +373,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # (default) is the base empty arm and S5a live; specific_re renders primary_re (LengthBetween(1, 64))
   # + backup_re and is plan-only S5b (primary_re must name a real RE geography).
   re_select {
-    dynamic "geo_proximity" {
-      for_each = var.re_select_arm == "geo_proximity" ? [1] : []
-      content {}
-    }
+    geo_proximity = var.re_select_arm == "geo_proximity" ? {} : null
 
     dynamic "specific_re" {
       for_each = var.re_select_arm == "specific_re" ? [1] : []
@@ -499,17 +390,11 @@ resource "xcsh_securemesh_site_v2" "probe" {
   # arms are S5a live; the pinned-version round-trip must still import/re-plan 0-change.
   software_settings {
     os {
-      dynamic "default_os_version" {
-        for_each = var.os_arm == "default_os_version" ? [1] : []
-        content {}
-      }
+      default_os_version       = var.os_arm == "default_os_version" ? {} : null
       operating_system_version = var.os_arm == "operating_system_version" ? var.os_version : null
     }
     sw {
-      dynamic "default_sw_version" {
-        for_each = var.sw_arm == "default_sw_version" ? [1] : []
-        content {}
-      }
+      default_sw_version        = var.sw_arm == "default_sw_version" ? {} : null
       volterra_software_version = var.sw_arm == "volterra_software_version" ? var.sw_version : null
     }
   }
@@ -523,10 +408,7 @@ resource "xcsh_securemesh_site_v2" "probe" {
     for_each = var.upgrade_drain_arm != "unset" ? [1] : []
     content {
       kubernetes_upgrade_drain {
-        dynamic "disable_upgrade_drain" {
-          for_each = var.upgrade_drain_arm == "disable_upgrade_drain" ? [1] : []
-          content {}
-        }
+        disable_upgrade_drain = var.upgrade_drain_arm == "disable_upgrade_drain" ? {} : null
 
         dynamic "enable_upgrade_drain" {
           for_each = var.upgrade_drain_arm == "enable_upgrade_drain" ? [1] : []
@@ -534,15 +416,8 @@ resource "xcsh_securemesh_site_v2" "probe" {
             drain_max_unavailable_node_count = var.drain_max_unavailable
             drain_node_timeout               = var.drain_node_timeout
 
-            dynamic "disable_vega_upgrade_mode" {
-              for_each = var.vega_arm == "disable_vega_upgrade_mode" ? [1] : []
-              content {}
-            }
-
-            dynamic "enable_vega_upgrade_mode" {
-              for_each = var.vega_arm == "enable_vega_upgrade_mode" ? [1] : []
-              content {}
-            }
+            disable_vega_upgrade_mode = var.vega_arm == "disable_vega_upgrade_mode" ? {} : null
+            enable_vega_upgrade_mode  = var.vega_arm == "enable_vega_upgrade_mode" ? {} : null
           }
         }
       }
@@ -580,8 +455,5 @@ resource "xcsh_securemesh_site_v2" "probe" {
     }
   }
 
-  dynamic "f5_proxy" {
-    for_each = var.proxy_arm == "f5_proxy" ? [1] : []
-    content {}
-  }
+  f5_proxy = var.proxy_arm == "f5_proxy" ? {} : null
 }
