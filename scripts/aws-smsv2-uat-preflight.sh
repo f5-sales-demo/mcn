@@ -594,7 +594,7 @@ jq -e --argjson listeners "$SITE_LISTENERS" '
 unset TARGET_HEALTH
 
 TRAFFIC_MARKER="mcn-smsv2-uat-${RANDOM}${RANDOM}"
-TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 2 --retry-all-errors --retry-delay 0 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null && curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo ok; else echo fail; fi; sleep 5; done' >/dev/null 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
+TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 2 --retry-all-errors --retry-delay 0 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null && curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo ok; else echo fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
 ssm_run "$TRAFFIC_COMMAND" >/dev/null || block ssm_traffic_start_failed
 TRAFFIC_STARTED=true
 

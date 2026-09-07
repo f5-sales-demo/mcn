@@ -94,6 +94,7 @@ require_text terraform/aws_vpc.tf 'for_each = var.enable_aws_tgw_connect ? toset
 require_text scripts/aws-smsv2-uat-preflight.sh 'site_listener_tgw_route_unavailable'
 require_text scripts/aws-smsv2-uat-preflight.sh 'failed_site_target_did_not_withdraw'
 require_text scripts/aws-smsv2-uat-preflight.sh '--retry 2 --retry-all-errors --retry-delay 0'
+require_text scripts/aws-smsv2-uat-preflight.sh '>> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo'
 require_text scripts/aws-smsv2-uat-preflight.sh 'upgrade_invoke_plan_has_resource_changes'
 require_text scripts/aws-smsv2-uat-preflight.sh '-invoke="action.xcsh_site_upgrade_${kind}.aws[\"${key}\"]"'
 require_text scripts/aws-smsv2-uat-preflight.sh '--candidate-provider-binary'
