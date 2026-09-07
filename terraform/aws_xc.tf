@@ -96,6 +96,9 @@ resource "xcsh_securemesh_site_v2" "aws" {
       no_v6_static_routes = {}
     }
   }
+  load_balancing {
+    vip_vrrp_mode = "VIP_VRRP_ENABLE"
+  }
 
   software_settings {
     os {
