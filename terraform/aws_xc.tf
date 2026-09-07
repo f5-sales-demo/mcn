@@ -178,17 +178,19 @@ resource "xcsh_http_loadbalancer" "aws" {
   http { port = 80 }
 
   advertise_custom {
-    advertise_where {
-      virtual_site {
-        # SMSv2 realizes var.aws_vip as the site's common inside VIP above;
-        # virtual-site advertising consumes that realized address.
-        network = "SITE_NETWORK_INSIDE"
-        virtual_site {
-          name      = xcsh_virtual_site.aws[0].name
-          namespace = data.xcsh_namespace.mcn.name
+    dynamic "advertise_where" {
+      for_each = local.aws_sites
+      content {
+        site {
+          ip      = var.aws_vip
+          network = "SITE_NETWORK_INSIDE"
+          site {
+            name      = xcsh_securemesh_site_v2.aws[advertise_where.key].name
+            namespace = "system"
+          }
         }
+        use_default_port = {}
       }
-      use_default_port = {}
     }
   }
 

@@ -26,10 +26,14 @@ require_text terraform/aws_xc.tf 'cluster_size = 1'
 require_text terraform/aws_xc.tf 'operating_system_version = var.aws_baseline_os_version'
 require_text terraform/aws_xc.tf 'volterra_software_version = var.aws_baseline_software_version'
 require_text terraform/aws_xc.tf 'name      = "${var.component}-aws-vsite"'
-require_text terraform/aws_xc.tf 'virtual_site {'
+require_text terraform/aws_xc.tf 'dynamic "advertise_where" {'
+require_text terraform/aws_xc.tf 'for_each = local.aws_sites'
+require_text terraform/aws_xc.tf 'site {'
+require_text terraform/aws_xc.tf 'ip      = var.aws_vip'
 require_text terraform/aws_xc.tf 'network = "SITE_NETWORK_INSIDE"'
-if rg -q 'virtual_site_with_vip[[:space:]]*\{' terraform/aws_xc.tf; then
-  echo "AWS LB bypasses the SMSv2 site's common inside VIP" >&2
+aws_lb=$(sed -n '/resource "xcsh_http_loadbalancer" "aws" {/,/^}/p' terraform/aws_xc.tf)
+if grep -Eq 'virtual_site(_with_vip)?[[:space:]]*\{' <<<"$aws_lb"; then
+  echo "AWS LB does not bind its VIP to the exact SMSv2 sites" >&2
   exit 1
 fi
 require_text terraform/aws_xc.tf 'sli_config {'
