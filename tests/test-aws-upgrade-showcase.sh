@@ -97,6 +97,8 @@ require_text scripts/aws-smsv2-uat-preflight.sh '--retry 2 --retry-all-errors --
 require_text scripts/aws-smsv2-uat-preflight.sh '>> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo'
 require_text scripts/aws-smsv2-uat-preflight.sh 'upgrade_invoke_plan_has_resource_changes'
 require_text scripts/aws-smsv2-uat-preflight.sh '-invoke="action.xcsh_site_upgrade_${kind}.aws[\"${key}\"]"'
+require_text scripts/aws-smsv2-uat-preflight.sh 'final_refresh_plan_has_resource_changes'
+require_text scripts/aws-smsv2-uat-preflight.sh 'final_refresh_apply_failed'
 require_text scripts/aws-smsv2-uat-preflight.sh '--candidate-provider-binary'
 require_text scripts/aws-smsv2-uat-preflight.sh '--candidate-provider-sha256'
 require_text scripts/aws-smsv2-uat-preflight.sh 'provider_sha256'

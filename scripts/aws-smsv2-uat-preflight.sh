@@ -629,6 +629,26 @@ if [ "$TRAFFIC_OK" -lt 2 ] || [ "$TRAFFIC_FAILED" -ne 0 ]; then
   block ssm_traffic_continuity_failed
 fi
 
+FINAL_REFRESH_PLAN="${SCRATCH}/final-refresh.tfplan"
+set +e
+tf plan -refresh-only -detailed-exitcode -input=false -no-color -lock=false \
+  -out="$FINAL_REFRESH_PLAN" >/dev/null
+FINAL_REFRESH_EXIT=$?
+set -e
+case "$FINAL_REFRESH_EXIT" in
+0 | 2) ;;
+*) block final_refresh_plan_failed ;;
+esac
+FINAL_REFRESH_JSON=$(tf show -json "$FINAL_REFRESH_PLAN") || block final_refresh_plan_unreadable
+jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
+  <<<"$FINAL_REFRESH_JSON" >/dev/null || block final_refresh_plan_has_resource_changes
+unset FINAL_REFRESH_JSON
+if [ "$FINAL_REFRESH_EXIT" -eq 2 ]; then
+  verify_mutation_identities || block mutation_identity_revalidation_failed
+  tf apply -input=false -no-color -auto-approve "$FINAL_REFRESH_PLAN" >/dev/null || block final_refresh_apply_failed
+fi
+rm -f "$FINAL_REFRESH_PLAN"
+
 if tf plan -detailed-exitcode -input=false -no-color -lock=false >/dev/null; then
   :
 else
