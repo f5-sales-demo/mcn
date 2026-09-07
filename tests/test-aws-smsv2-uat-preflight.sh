@@ -64,7 +64,9 @@ show)
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    if [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
+    if [ "${FAKE_ROUTE_GATE_ONLY:-false}" = true ]; then
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_route_table_association.private[\\"01\\"]","type":"aws_route_table_association","name":"private","index":"01","change":{"actions":["create"],"after":{}}},{"address":"terraform_data.aws_tgw_site_route_gate[\\"01\\"]","type":"terraform_data","name":"aws_tgw_site_route_gate","index":"01","change":{"actions":["create"],"after":{"input":{"public_association_id":"rtbassoc-public","private_association_id":"rtbassoc-private"}}}}]}\n' "$plan_vip" "$plan_listeners"
+    elif [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
@@ -315,6 +317,17 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site JWT issuance status not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - site-scoped JWT issuance is accepted before the remaining sites"
+
+evidence="${TMP_ROOT}/single-route-gate"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-route-gate.out"
+if ! FAKE_ROUTE_GATE_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "one-site subnet-route repair must prove its site through the keyed route gate"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site route-gate status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - keyed route gate binds a subnet-route repair to one exact site"
 
 evidence="${TMP_ROOT}/single-instance"
 mkdir "$evidence"

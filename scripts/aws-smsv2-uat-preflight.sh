@@ -369,6 +369,15 @@ else
       select(.change.after.where.site.ref[0].namespace == "system") |
       .change.after.where.site.ref[0].name
     ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+  ROUTE_GATE_SITE_IDENTITIES=$(jq -c '
+    (.planned_values.outputs.aws_site_names.value // .prior_state.values.outputs.aws_site_names.value // {}) as $sites |
+    [.resource_changes[]? |
+      select(.type == "terraform_data" and .name == "aws_tgw_site_route_gate") |
+      select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
+      select(.index | type == "string") |
+      $sites[.index] |
+      select(type == "string" and length > 0)
+    ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
   CONFIGURED_SITE_IDENTITIES=$(jq -c '
     [.resource_changes[]? |
       select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
@@ -378,6 +387,8 @@ else
   if [ "$DIRECT_SITE_IDENTITIES" = "[]" ]; then
     if [ "$TGW_BGP_SITE_IDENTITIES" != "[]" ]; then
       [ "$TGW_BGP_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+    elif [ "$ROUTE_GATE_SITE_IDENTITIES" != "[]" ]; then
+      [ "$ROUTE_GATE_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
     else
       jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
         <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
@@ -386,7 +397,7 @@ else
   else
     [ "$DIRECT_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
   fi
-  unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES CONFIGURED_SITE_IDENTITIES
+  unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES ROUTE_GATE_SITE_IDENTITIES CONFIGURED_SITE_IDENTITIES
 fi
 unset DEPLOYMENT_PLAN
 verify_candidate_provider || block candidate_provider_changed
