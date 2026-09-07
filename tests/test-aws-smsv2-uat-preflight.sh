@@ -28,6 +28,13 @@ cat >"${BIN}/aws" <<'SH'
 printf '{"%s":"%s"}\n' 'Acc''ount' "${FAKE_AWS_ACCOUNT:-111122223333}"
 SH
 
+cat >"${BIN}/curl" <<'SH'
+#!/usr/bin/env bash
+status=${FAKE_XC_PROTOCOL_STATUS:-Established}
+printf '{"ver":{"peers":[{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"}]}}\n' \
+  "$status" "$status" "$status" "$status"
+SH
+
 cat >"${BIN}/terraform" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -74,15 +81,20 @@ output)
   *'-raw origin_ip'*) printf '203.0.113.80\n' ;;
   *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-198.51.100.10}" ;;
   *'-json aws_tgw_connect_status'*)
-    printf '{"runtime_healthy":false,"bgp_converged":false,"interface_count":0,"connect_peer_count":0,"bgp_session_count":0}\n'
+    if [ "${FAKE_TOPOLOGY_CONVERGED:-false}" = true ]; then
+      printf '{"runtime_healthy":true,"bgp_converged":true,"interface_count":6,"connect_peer_count":6,"bgp_session_count":12}\n'
+    else
+      printf '{"runtime_healthy":false,"bgp_converged":false,"interface_count":0,"connect_peer_count":0,"bgp_session_count":0}\n'
+    fi
     ;;
+  *'-json'*) printf '{"aws_tgw_route_table_id":{"value":null}}\n' ;;
   *) exit 2 ;;
   esac
   ;;
 *) exit 2 ;;
 esac
 SH
-chmod 755 "${BIN}/aws" "${BIN}/terraform"
+chmod 755 "${BIN}/aws" "${BIN}/curl" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
 export FAKE_TF_DIR="$TF_DIR"
@@ -376,6 +388,17 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = vip_identity_mismatch ] || fail "plan/live VIP mismatch reason not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - live UAT binds an overridden VIP to the reviewed plan"
+
+evidence="${TMP_ROOT}/mixed-case-established"
+mkdir "$evidence"
+output="${TMP_ROOT}/mixed-case-established.out"
+if FAKE_TOPOLOGY_CONVERGED=true FAKE_XC_PROTOCOL_STATUS=Established \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "fake UAT without a TGW route table identity must stop"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = tgw_route_table_identity_unavailable ] || fail "mixed-case established sessions did not pass peer validation"
+assert_sanitized "$evidence" "$output"
+echo "ok - XC mixed-case Established status counts toward twelve sessions"
 
 mkdir "$INSIDE_EVIDENCE"
 if "$SCRIPT" --evidence-dir "$INSIDE_EVIDENCE" "${common[@]}" >/dev/null 2>&1; then

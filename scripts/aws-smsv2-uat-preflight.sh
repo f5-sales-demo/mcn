@@ -427,7 +427,7 @@ xc_established_peers() {
     response=$(printf 'header = "Authorization: APIToken %s"\n' "$API_TOKEN" |
       curl -fsS --connect-timeout 10 --max-time 30 --config - \
         "${API_URL%/}/api/operate/namespaces/system/sites/${site}/ver/bgp_peers") || return 1
-    count=$(jq '[.. | objects | .protocol_status? | select(. == "ESTABLISHED")] | length' <<<"$response") || return 1
+    count=$(jq '[.. | objects | .protocol_status? | select(type == "string" and ascii_upcase == "ESTABLISHED")] | length' <<<"$response") || return 1
     total=$((total + count))
   done
   printf '%s' "$total"
