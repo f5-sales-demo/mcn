@@ -2,8 +2,8 @@
 # SMSv2 configuration, health, BGP, and route observations.
 locals {
   aws_smsv2_api_release_commit = join("", [
-    "2b27355ac9bf4683d3a",
-    "321f7d6388676f756c2f5",
+    "a5fa987f876db955666b",
+    "d94fefed35f283bb5364",
   ])
   aws_smsv2_bindings = merge(
     {
@@ -95,7 +95,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
       condition = (
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v3" &&
         data.xcsh_smsv2_contract.aws[0].contract_version == "6.1.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.1" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.2" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )

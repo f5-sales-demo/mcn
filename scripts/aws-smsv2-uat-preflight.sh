@@ -283,11 +283,11 @@ CONTRACT=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH"
   jq -c '.planned_values.outputs.contract.value // empty')
 [ -n "$CONTRACT" ] || block v7_contract_query_failed
 
-EXPECTED_API_COMMIT="2b27355ac9""bf4683d3a3""21f7d63886""76f756c2f5"
+EXPECTED_API_COMMIT="a5fa987f87""6db955666b""d94fefed35""f283bb5364"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_id == "f5xc-ce-automation/v3" and
   .contract_version == "6.1.0" and
-  .api_release_tag == "v6.1.1" and
+  .api_release_tag == "v6.1.2" and
   .api_release_commit == $api_commit and
   .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v7_contract_identity_mismatch
 jq -e '
