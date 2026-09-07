@@ -10,8 +10,18 @@ trap 'rm -rf "$TMP_ROOT" "$INSIDE_EVIDENCE"' EXIT
 BIN="${TMP_ROOT}/bin"
 TF_DIR="${TMP_ROOT}/terraform"
 PLAN_FILE="${TMP_ROOT}/deployment.tfplan"
-mkdir -p "$BIN" "$TF_DIR"
+TF_CALLS="${TMP_ROOT}/terraform-calls.log"
+CANDIDATE_DIR="${TMP_ROOT}/candidate-provider"
+CANDIDATE_BINARY="${CANDIDATE_DIR}/terraform-provider-xcsh"
+mkdir -p "$BIN" "$TF_DIR" "$CANDIDATE_DIR"
 : >"$PLAN_FILE"
+
+cat >"$CANDIDATE_BINARY" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod 755 "$CANDIDATE_BINARY"
+CANDIDATE_SHA256="sha256:$(sha256sum "$CANDIDATE_BINARY" | awk '{print $1}')"
 
 cat >"${BIN}/aws" <<'SH'
 #!/usr/bin/env bash
@@ -23,6 +33,7 @@ cat >"${BIN}/terraform" <<'SH'
 set -euo pipefail
 chdir=${1#-chdir=}
 shift
+printf '%s\t%s\n' "$1" "${TF_CLI_CONFIG_FILE:-unset}" >>"$FAKE_TF_CALLS"
 case "$1" in
 init)
   exit 0
@@ -34,6 +45,9 @@ plan)
   : >"${chdir}/contract.tfplan"
   ;;
 show)
+  if [ "$chdir" != "$FAKE_TF_DIR" ] && [ "${FAKE_MUTATE_CANDIDATE_ON_SHOW:-false}" = true ]; then
+    printf '# changed\n' >>"$FAKE_CANDIDATE_BINARY"
+  fi
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
     site_01_actions=${FAKE_SITE_01_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
@@ -60,6 +74,8 @@ chmod 755 "${BIN}/aws" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
 export FAKE_TF_DIR="$TF_DIR"
+export FAKE_TF_CALLS="$TF_CALLS"
+export FAKE_CANDIDATE_BINARY="$CANDIDATE_BINARY"
 export AWS_REGION="ap-northeast-1"
 export XCSH_API_URL="https://lab.console.ves.volterra.io"
 export XCSH_API_TOKEN="test-token-must-not-leak"
@@ -83,7 +99,7 @@ fail() {
 assert_sanitized() {
   local evidence=$1 output=$2
   [ "$(find "$evidence" -maxdepth 1 -type f -printf '%f\n')" = summary.json ] || fail "evidence contains unexpected files"
-  [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = reason,status,timestamp ] || fail "summary has unexpected keys"
+  [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = provider_mode,provider_sha256,reason,status,timestamp ] || fail "summary has unexpected keys"
   if grep -R -E '111122223333|mcn-ce-ha-aws-ap-northeast-1|test-token-must-not-leak|lab\.console\.ves\.volterra\.io' "$evidence" "$output"; then
     fail "identity or credential leaked into sanitized evidence"
   fi
@@ -99,7 +115,90 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "ready status not recorded"
 [ "$(jq -r .reason "$evidence/summary.json")" = preflight_passed ] || fail "ready reason not recorded"
 assert_sanitized "$evidence" "$output"
+[ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
+[ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
 echo "ok - exact v7 available contract passes with sanitized evidence"
+
+evidence="${TMP_ROOT}/candidate-ready"
+mkdir "$evidence"
+output="${TMP_ROOT}/candidate-ready.out"
+: >"$TF_CALLS"
+if ! TF_CLI_CONFIG_FILE="${TMP_ROOT}/ambient-must-not-be-used.tfrc" "$SCRIPT" \
+  --candidate-provider-binary "$CANDIDATE_BINARY" \
+  --candidate-provider-sha256 "$CANDIDATE_SHA256" \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "matching candidate artifact should pass"
+fi
+assert_sanitized "$evidence" "$output"
+[ "$(jq -r .provider_mode "$evidence/summary.json")" = candidate ] || fail "candidate mode not recorded"
+[ "$(jq -r .provider_sha256 "$evidence/summary.json")" = "$CANDIDATE_SHA256" ] || fail "candidate digest not recorded"
+awk -F '\t' '
+  $1 == "init" { init_found=1; if ($2 !~ /registry\.tfrc$/) bad=1; next }
+  { operation_found=1; if ($2 !~ /candidate\.tfrc$/) bad=1 }
+  END { exit bad || !init_found || !operation_found }
+' "$TF_CALLS" || fail "candidate mode did not isolate registry init from candidate operations"
+if grep -Fq 'ambient-must-not-be-used' "$TF_CALLS"; then
+  fail "ambient Terraform CLI config leaked into candidate validation"
+fi
+echo "ok - matching candidate artifact is selected explicitly and bound to evidence"
+
+candidate_failure() {
+  local name=$1 reason=$2
+  shift 2
+  local evidence="${TMP_ROOT}/${name}" output="${TMP_ROOT}/${name}.out"
+  mkdir "$evidence"
+  if "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" "$@" >"$output" 2>&1; then
+    fail "${name} candidate validation must fail closed"
+  fi
+  [ "$(jq -r .reason "$evidence/summary.json")" = "$reason" ] || fail "${name} reason not recorded"
+  assert_sanitized "$evidence" "$output"
+}
+
+candidate_failure candidate-missing-digest candidate_provider_arguments_incomplete \
+  --candidate-provider-binary "$CANDIDATE_BINARY"
+candidate_failure candidate-missing-binary candidate_provider_arguments_incomplete \
+  --candidate-provider-sha256 "$CANDIDATE_SHA256"
+candidate_failure candidate-malformed-digest candidate_provider_digest_invalid \
+  --candidate-provider-binary "$CANDIDATE_BINARY" --candidate-provider-sha256 sha256:ABC
+candidate_failure candidate-wrong-digest candidate_provider_digest_mismatch \
+  --candidate-provider-binary "$CANDIDATE_BINARY" --candidate-provider-sha256 "sha256:$(printf '0%.0s' {1..64})"
+candidate_failure candidate-unavailable candidate_provider_unavailable \
+  --candidate-provider-binary "${TMP_ROOT}/missing/terraform-provider-xcsh" --candidate-provider-sha256 "$CANDIDATE_SHA256"
+
+NONEXEC_BINARY="${TMP_ROOT}/nonexec/terraform-provider-xcsh"
+mkdir -p "${NONEXEC_BINARY%/*}"
+cp "$CANDIDATE_BINARY" "$NONEXEC_BINARY"
+chmod 600 "$NONEXEC_BINARY"
+NONEXEC_SHA256="sha256:$(sha256sum "$NONEXEC_BINARY" | awk '{print $1}')"
+candidate_failure candidate-nonexecutable candidate_provider_unavailable \
+  --candidate-provider-binary "$NONEXEC_BINARY" --candidate-provider-sha256 "$NONEXEC_SHA256"
+
+WRONG_BINARY="${TMP_ROOT}/wrong-provider-name"
+cp "$CANDIDATE_BINARY" "$WRONG_BINARY"
+chmod 755 "$WRONG_BINARY"
+WRONG_SHA256="sha256:$(sha256sum "$WRONG_BINARY" | awk '{print $1}')"
+candidate_failure candidate-wrong-layout candidate_provider_layout_invalid \
+  --candidate-provider-binary "$WRONG_BINARY" --candidate-provider-sha256 "$WRONG_SHA256"
+
+AMBIGUOUS_DIR="${TMP_ROOT}/ambiguous"
+mkdir "$AMBIGUOUS_DIR"
+cp "$CANDIDATE_BINARY" "$AMBIGUOUS_DIR/terraform-provider-xcsh"
+cp "$CANDIDATE_BINARY" "$AMBIGUOUS_DIR/terraform-provider-xcsh.backup"
+chmod 755 "$AMBIGUOUS_DIR/terraform-provider-xcsh" "$AMBIGUOUS_DIR/terraform-provider-xcsh.backup"
+AMBIGUOUS_SHA256="sha256:$(sha256sum "$AMBIGUOUS_DIR/terraform-provider-xcsh" | awk '{print $1}')"
+candidate_failure candidate-ambiguous-layout candidate_provider_layout_invalid \
+  --candidate-provider-binary "$AMBIGUOUS_DIR/terraform-provider-xcsh" --candidate-provider-sha256 "$AMBIGUOUS_SHA256"
+
+MUTATING_BINARY="${TMP_ROOT}/mutating/terraform-provider-xcsh"
+mkdir -p "${MUTATING_BINARY%/*}"
+cp "$CANDIDATE_BINARY" "$MUTATING_BINARY"
+chmod 755 "$MUTATING_BINARY"
+MUTATING_SHA256="sha256:$(sha256sum "$MUTATING_BINARY" | awk '{print $1}')"
+FAKE_CANDIDATE_BINARY="$MUTATING_BINARY" FAKE_MUTATE_CANDIDATE_ON_SHOW=true \
+  candidate_failure candidate-mutated candidate_provider_changed \
+  --candidate-provider-binary "$MUTATING_BINARY" --candidate-provider-sha256 "$MUTATING_SHA256"
+echo "ok - incomplete, malformed, mismatched, invalid and changing candidates fail closed"
 
 evidence="${TMP_ROOT}/replacement"
 mkdir "$evidence"

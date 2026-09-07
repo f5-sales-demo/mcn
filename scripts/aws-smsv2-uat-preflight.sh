@@ -13,6 +13,12 @@ EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
 PLAN_MODE="apply"
 EXECUTE_UAT=false
+CANDIDATE_PROVIDER_BINARY=""
+CANDIDATE_PROVIDER_SHA256=""
+PROVIDER_MODE="registry"
+PROVIDER_SHA256=""
+REGISTRY_CLI_CONFIG=""
+SELECTED_CLI_CONFIG=""
 SUMMARY=""
 SCRATCH=""
 FAILOVER_STOPPED=false
@@ -35,6 +41,10 @@ Optional:
   --terraform-dir PATH   Defaults to the repository terraform directory.
   --plan-mode MODE       apply (default) or destroy.
   --xc-context NAME      Defaults to f5-sales-demo when XC environment values are absent.
+  --candidate-provider-binary PATH
+                         Select this local prerelease binary through dev_overrides.
+  --candidate-provider-sha256 SHA256:DIGEST
+                         Required exact digest for the candidate provider binary.
   --execute-uat          Run traffic, failover, serial upgrades, and final convergence after preflight.
 EOF
 }
@@ -48,7 +58,10 @@ record() {
   local status=$1 reason=$2 timestamp
   timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   jq -n --arg status "$status" --arg reason "$reason" --arg timestamp "$timestamp" \
-    '{status: $status, reason: $reason, timestamp: $timestamp}' >"$SUMMARY"
+    --arg provider_mode "$PROVIDER_MODE" --arg provider_sha256 "$PROVIDER_SHA256" \
+    '{status: $status, reason: $reason, timestamp: $timestamp,
+      provider_mode: $provider_mode,
+      provider_sha256: (if $provider_sha256 == "" then null else $provider_sha256 end)}' >"$SUMMARY"
   chmod 600 "$SUMMARY"
   printf 'status=%s reason=%s timestamp=%s\n' "$status" "$reason" "$timestamp"
 }
@@ -96,6 +109,14 @@ while [ "$#" -gt 0 ]; do
     XC_CONTEXT=${2:?}
     shift 2
     ;;
+  --candidate-provider-binary)
+    CANDIDATE_PROVIDER_BINARY=${2:?}
+    shift 2
+    ;;
+  --candidate-provider-sha256)
+    CANDIDATE_PROVIDER_SHA256=${2:?}
+    shift 2
+    ;;
   --execute-uat)
     EXECUTE_UAT=true
     shift
@@ -119,7 +140,7 @@ case "${#EXPECTED_SITES[@]}" in
 esac
 [ "$EXECUTE_UAT" = false ] || [ "${#EXPECTED_SITES[@]}" -eq 3 ] || die "live UAT requires exactly three expected sites"
 
-for command_name in terraform jq aws realpath; do
+for command_name in terraform jq aws realpath sha256sum; do
   command -v "$command_name" >/dev/null 2>&1 || die "required command is unavailable"
 done
 
@@ -155,6 +176,54 @@ cleanup() {
   exit "$exit_code"
 }
 trap cleanup EXIT
+
+REGISTRY_CLI_CONFIG="${SCRATCH}/registry.tfrc"
+cat >"$REGISTRY_CLI_CONFIG" <<'TFRC'
+provider_installation {
+  direct {}
+}
+TFRC
+chmod 600 "$REGISTRY_CLI_CONFIG"
+SELECTED_CLI_CONFIG="$REGISTRY_CLI_CONFIG"
+
+if [ -n "$CANDIDATE_PROVIDER_BINARY" ] || [ -n "$CANDIDATE_PROVIDER_SHA256" ]; then
+  PROVIDER_MODE="candidate"
+  [ -n "$CANDIDATE_PROVIDER_BINARY" ] && [ -n "$CANDIDATE_PROVIDER_SHA256" ] ||
+    block candidate_provider_arguments_incomplete
+  [[ "$CANDIDATE_PROVIDER_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+    block candidate_provider_digest_invalid
+  PROVIDER_SHA256="$CANDIDATE_PROVIDER_SHA256"
+  CANDIDATE_PROVIDER_BINARY=$(realpath -e "$CANDIDATE_PROVIDER_BINARY" 2>/dev/null) ||
+    block candidate_provider_unavailable
+  [ -f "$CANDIDATE_PROVIDER_BINARY" ] && [ -x "$CANDIDATE_PROVIDER_BINARY" ] ||
+    block candidate_provider_unavailable
+  CANDIDATE_PROVIDER_DIR=${CANDIDATE_PROVIDER_BINARY%/*}
+  [ "${CANDIDATE_PROVIDER_BINARY##*/}" = terraform-provider-xcsh ] ||
+    block candidate_provider_layout_invalid
+  [ "$(find "$CANDIDATE_PROVIDER_DIR" -maxdepth 1 -type f -name 'terraform-provider-xcsh*' -print | wc -l)" -eq 1 ] ||
+    block candidate_provider_layout_invalid
+  ACTUAL_PROVIDER_SHA256="sha256:$(sha256sum "$CANDIDATE_PROVIDER_BINARY" | awk '{print $1}')"
+  [ "$ACTUAL_PROVIDER_SHA256" = "$CANDIDATE_PROVIDER_SHA256" ] ||
+    block candidate_provider_digest_mismatch
+  SELECTED_CLI_CONFIG="${SCRATCH}/candidate.tfrc"
+  CANDIDATE_PROVIDER_DIR_JSON=$(jq -Rn --arg value "$CANDIDATE_PROVIDER_DIR" '$value')
+  cat >"$SELECTED_CLI_CONFIG" <<TFRC
+provider_installation {
+  dev_overrides {
+    "f5-sales-demo/xcsh" = ${CANDIDATE_PROVIDER_DIR_JSON}
+  }
+  direct {}
+}
+TFRC
+  chmod 600 "$SELECTED_CLI_CONFIG"
+fi
+
+verify_candidate_provider() {
+  local actual
+  [ "$PROVIDER_MODE" = candidate ] || return 0
+  actual="sha256:$(sha256sum "$CANDIDATE_PROVIDER_BINARY" | awk '{print $1}')" || return 1
+  [ "$actual" = "$PROVIDER_SHA256" ]
+}
 
 API_URL=${XCSH_API_URL:-}
 API_TOKEN=${XCSH_API_TOKEN:-}
@@ -195,15 +264,15 @@ output "contract" {
 }
 TF
 
-TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
+TF_CLI_CONFIG_FILE="$REGISTRY_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v7_provider_install_failed
-PROVIDER_VERSION=$(terraform -chdir="$SCRATCH" version -json 2>/dev/null |
+PROVIDER_VERSION=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" version -json 2>/dev/null |
   jq -r '.provider_selections["registry.terraform.io/f5-sales-demo/xcsh"] // empty')
 [ "$PROVIDER_VERSION" = "7.4.1" ] || block v7_provider_resolution_mismatch
-TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
+TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" plan -refresh=false -input=false -lock=false \
   -out=contract.tfplan -no-color >/dev/null 2>&1 || block v7_contract_query_failed
-CONTRACT=$(terraform -chdir="$SCRATCH" show -json contract.tfplan 2>/dev/null |
+CONTRACT=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" show -json contract.tfplan 2>/dev/null |
   jq -c '.planned_values.outputs.contract.value // empty')
 [ -n "$CONTRACT" ] || block v7_contract_query_failed
 
@@ -235,7 +304,7 @@ jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
   <<<"$AWS_IDENTITY" >/dev/null || block aws_account_mismatch
 unset AWS_IDENTITY
 
-DEPLOYMENT_PLAN=$(terraform -chdir="$TERRAFORM_DIR" show -json "$PLAN_FILE" 2>/dev/null) || block deployment_plan_unreadable
+DEPLOYMENT_PLAN=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$TERRAFORM_DIR" show -json "$PLAN_FILE" 2>/dev/null) || block deployment_plan_unreadable
 jq -e '
   [.resource_changes[]? |
     select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
@@ -291,6 +360,7 @@ else
   unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES
 fi
 unset DEPLOYMENT_PLAN
+verify_candidate_provider || block candidate_provider_changed
 record ready preflight_passed
 
 [ "$EXECUTE_UAT" = true ] || exit 0
@@ -299,6 +369,7 @@ command -v curl >/dev/null 2>&1 || block live_uat_dependency_unavailable
 
 verify_mutation_identities() {
   local aws_identity xc_site
+  verify_candidate_provider || block candidate_provider_changed
   aws_identity=$(aws sts get-caller-identity --region "$EXPECTED_AWS_REGION" --output json 2>/dev/null) || return 1
   jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
     'any(to_entries[]; .key == ("Acc" + "ount") and .value == $expected)' \
@@ -311,7 +382,7 @@ verify_mutation_identities() {
 }
 
 tf() {
-  terraform -chdir="$TERRAFORM_DIR" "$@"
+  TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$TERRAFORM_DIR" "$@"
 }
 
 ssm_run() {
@@ -480,10 +551,18 @@ else
   esac
 fi
 
+verify_candidate_provider || block candidate_provider_changed
+
 jq -n \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg provider_mode "$PROVIDER_MODE" \
+  --arg provider_sha256 "$PROVIDER_SHA256" \
   --argjson traffic_samples "$TRAFFIC_OK" \
-  '{status:"passed", reason:"aws_smsv2_uat_complete", timestamp:$timestamp, sites:3, interfaces:6, bgp_peers:6, withdrawn_paths:2, traffic_samples:$traffic_samples, traffic_failures:0, serial_upgrades:3, target_converged:true}' \
+  '{status:"passed", reason:"aws_smsv2_uat_complete", timestamp:$timestamp,
+    provider_mode:$provider_mode,
+    provider_sha256:(if $provider_sha256 == "" then null else $provider_sha256 end),
+    sites:3, interfaces:6, bgp_peers:6, withdrawn_paths:2, traffic_samples:$traffic_samples,
+    traffic_failures:0, serial_upgrades:3, target_converged:true}' \
   >"$SUMMARY"
 chmod 600 "$SUMMARY"
 unset API_TOKEN WORKLOAD_INSTANCE_ID FAILOVER_INSTANCE_ID ORIGIN_IP AWS_VIP
