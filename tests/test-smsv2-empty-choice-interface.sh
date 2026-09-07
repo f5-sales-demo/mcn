@@ -23,10 +23,8 @@ aws_bgp=$(awk '
   capture && (/^data / || (/^resource / && $0 !~ /^resource "xcsh_bgp" "aws_tgw"/)) { exit }
   capture { print }
 ' terraform/aws_tgw_connect.tf)
-grep -Eq '^[[:space:]]*disable_internet_vip[[:space:]]*=[[:space:]]*\{\}[[:space:]]*$' <<<"$aws_bgp" ||
-  fail "AWS TGW BGP does not select the SMSv2 inside-VIP route context"
-if grep -Eq '^[[:space:]]*enable_internet_vip[[:space:]]*=' <<<"$aws_bgp"; then
-  fail "AWS TGW BGP enables the legacy orchestrated-site internet VIP mode"
+if grep -Eq '^[[:space:]]*(enable|disable)_internet_vip[[:space:]]*=' <<<"$aws_bgp"; then
+  fail "AWS TGW BGP sends a legacy orchestrated-site internet VIP choice"
 fi
 
 markers=(

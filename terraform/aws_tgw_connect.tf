@@ -239,9 +239,6 @@ resource "xcsh_bgp" "aws_tgw" {
         name      = xcsh_securemesh_site_v2.aws[each.key].name
         namespace = "system"
       }
-      # SMSv2 realizes the HTTP load balancer address as the site's common
-      # inside VIP. The orchestrated-site internet VIP mode does not apply.
-      disable_internet_vip = {}
     }
   }
   bgp_parameters {
