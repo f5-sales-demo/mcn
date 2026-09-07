@@ -544,7 +544,7 @@ invoke_upgrade() {
   plan_path="${SCRATCH}/invoke-${kind}-${key}.tfplan"
   tf plan -input=false -no-color -lock=false -var='aws_upgrade_wait=false' \
     -var="aws_upgrade_observed_sites=[\"${key}\"]" \
-    -invoke="xcsh_site_upgrade_${kind}.aws[\"${key}\"]" \
+    -invoke="action.xcsh_site_upgrade_${kind}.aws[\"${key}\"]" \
     -out="$plan_path" >/dev/null || return 1
   chmod 600 "$plan_path"
   invoke_plan=$(tf show -json "$plan_path") || return 1

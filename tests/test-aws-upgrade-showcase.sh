@@ -95,6 +95,7 @@ require_text scripts/aws-smsv2-uat-preflight.sh 'site_listener_tgw_route_unavail
 require_text scripts/aws-smsv2-uat-preflight.sh 'failed_site_target_did_not_withdraw'
 require_text scripts/aws-smsv2-uat-preflight.sh '--retry 2 --retry-all-errors --retry-delay 0'
 require_text scripts/aws-smsv2-uat-preflight.sh 'upgrade_invoke_plan_has_resource_changes'
+require_text scripts/aws-smsv2-uat-preflight.sh '-invoke="action.xcsh_site_upgrade_${kind}.aws[\"${key}\"]"'
 require_text scripts/aws-smsv2-uat-preflight.sh '--candidate-provider-binary'
 require_text scripts/aws-smsv2-uat-preflight.sh '--candidate-provider-sha256'
 require_text scripts/aws-smsv2-uat-preflight.sh 'provider_sha256'
