@@ -12,7 +12,7 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
 - **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.16.1`, for
   provider-defined functions and the `check` block that guards the VIP.
-- **The `xcsh` provider at exactly v7.4.1 for normal deployments.** This deployment uses
+- **The `xcsh` provider at exactly v8.0.0 for normal deployments.** This deployment uses
   only the clean-break SMSv2 contract. A release-candidate acceptance run may substitute one
   reviewed local binary through the explicit procedure below. The local `.terraform.lock.hcl`
   remains gitignored; the exact source constraint is authoritative.
@@ -102,9 +102,9 @@ above before you mint another token.
 ## AWS SMSv2 preflight is mandatory
 
 The AWS Transit Gateway path is pinned to the immutable
-[`xcsh` v7.4.1 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v7.4.1).
+[`xcsh` v8.0.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v8.0.0).
 That release publishes contract `f5xc-ce-automation/v3` version `6.1.0` from
-`api-specs-enriched` v6.1.1. Its four AWS SMSv2 capabilities, including
+`api-specs-enriched` v6.1.2. Its four AWS SMSv2 capabilities, including
 `site_upgrade`, must all report `available`; do not bypass a failed gate.
 
 Each AWS site receives its own `xcsh_token.aws` credential with `type = 1` and
@@ -116,10 +116,20 @@ AWS CE AMI retains that hardware-certification configuration.
 
 For a controlled replacement, `aws_bootstrap_site_keys` is intentionally cumulative:
 plan CE01 with `["01"]`, then CE02 with `["01", "02"]`, and CE03 with all three
-keys. This prevents a targeted CE replacement from minting peer-site JWT credentials;
-the three provider-issued cloud-init records remain stable throughout every stage.
+keys. Each stage limits runtime discovery, Connect peers, external connectors, BGP
+configuration, and convergence observation to those admitted sites. It also installs
+the admitted site's SLO and SLI subnet associations before creating XC connectors; both
+GRE transports otherwise cannot reach the TGW. This prevents a
+targeted CE replacement from waiting for absent peer sites or minting their JWT credentials;
+the admitted provider-issued cloud-init records remain stable throughout every stage.
 The default is all three keys for the complete topology; use the saved-plan preflight for
 every partial stage.
+
+Session establishment can be checked during each partial stage. Exact imported workload
+and exported listener routes are enforced only after the complete TGW route table,
+workload attachment association and propagation, and XC load balancer are applied. The
+final status read is ordered behind those resources, so a first complete plan does not
+poll for routes that cannot exist yet.
 
 Before any plan is applied with `enable_aws_tgw_connect = true`, save the reviewed
 plan and run the non-mutating preflight using the complete command in the Apply
@@ -128,7 +138,7 @@ sequence. Put evidence in a new, empty directory outside the repository.
 The gate compares the authenticated AWS account and region, XC tenant, and the explicitly
 expected one-site or three-site stage. It performs no Azure CLI or Azure resource operation; the
 preflight gate itself does not access the backend. It rejects
-every Azure resource change, then installs exactly provider v7.4.1 in a disposable
+every Azure resource change, then installs exactly provider v8.0.0 in a disposable
 directory and reads its compiled contract. The only durable evidence is
 `summary.json`, containing `status`, a fixed reason code, and a UTC timestamp;
 account IDs, subscription IDs, tenant names, endpoints, tokens, and resource
@@ -164,6 +174,14 @@ every five seconds through failover, and upgrade sites `01`, `02`, and `03` seri
 from software `crt-20251002-0027` / OS `9.2026.10` to software
 `crt-20260201-0179` / OS `9.2026.17`. Evidence remains a mode-0600 sanitized summary
 outside Git.
+
+Traffic evidence separates the VIP result with a bounded 45-second retry window, the
+first-attempt VIP transport result, and the direct-origin control result. A retry-backed VIP failure
+blocks continuity. Intermittent origin-control failures remain visible in the
+receipt without being attributed to the VIP path. Use `--continuity-only` together
+with `--execute-uat` to repeat traffic, failover, and reconvergence against sites
+that are already at the target versions. That supplemental receipt reports zero
+serial upgrades and does not replace the complete upgrade receipt.
 
 ## Apply
 

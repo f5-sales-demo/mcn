@@ -2,8 +2,8 @@
 # SMSv2 configuration, health, BGP, and route observations.
 locals {
   aws_smsv2_api_release_commit = join("", [
-    "2b27355ac9bf4683d3a",
-    "321f7d6388676f756c2f5",
+    "a5fa987f876db955666b",
+    "d94fefed35f283bb5364",
   ])
   aws_smsv2_bindings = merge(
     {
@@ -40,9 +40,16 @@ locals {
       }
     },
   )
+  # Keep the live routing graph inside the same cumulative boundary as token
+  # issuance and cloud-init. This lets each CE reach ONLINE and converge before
+  # the next site is admitted without evaluating absent nodes from later stages.
+  aws_bootstrap_smsv2_bindings = {
+    for key, binding in local.aws_smsv2_bindings : key => binding
+    if contains(var.aws_bootstrap_site_keys, binding.site_key)
+  }
   # Session keys are known during planning; AWS supplies the two addresses.
   aws_bgp_sessions = merge([
-    for key, binding in(var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}) : {
+    for key, binding in(var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}) : {
       for endpoint in range(2) : "${key}_${endpoint + 1}" => merge(binding, {
         connector_key = key
         peer_address  = sort(tolist(aws_ec2_transit_gateway_connect_peer.aws[key].bgp_transit_gateway_addresses))[endpoint]
@@ -50,7 +57,7 @@ locals {
     }
   ]...)
   aws_smsv2_nodes = {
-    for key, interface in local.aws_smsv2_bindings : key => {
+    for key, interface in local.aws_bootstrap_smsv2_bindings : key => {
       node = interface.node
       role = interface.role
       mac  = interface.mac
@@ -88,11 +95,11 @@ resource "terraform_data" "aws_tgw_contract_gate" {
       condition = (
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v3" &&
         data.xcsh_smsv2_contract.aws[0].contract_version == "6.1.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.1" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.2" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v7.4.1 must expose the exact immutable SMSv2 v3/API v6.1 contract."
+      error_message = "Provider v8.0.0 must expose the exact immutable SMSv2 v3/API v6.1 contract."
     }
     precondition {
       condition = (
@@ -102,7 +109,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["site_upgrade"], "") == "available"
       )
-      error_message = "Provider v7.4.1 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v8.0.0 must publish all and only the required SMSv2 capabilities as available."
     }
     precondition {
       condition = (
@@ -132,7 +139,7 @@ module "aws_tgw_connect" {
 }
 
 data "xcsh_smsv2_aws_runtime" "aws" {
-  for_each              = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+  for_each              = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
   namespace             = "system"
   site                  = xcsh_securemesh_site_v2.aws[each.key].name
   nodes                 = { for key, node in local.aws_smsv2_nodes : key => node if local.aws_smsv2_bindings[key].site_key == each.key }
@@ -151,20 +158,32 @@ resource "terraform_data" "aws_tgw_runtime_gate" {
     precondition {
       condition = (
         alltrue([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : runtime.healthy]) &&
-        sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)]) == 6 &&
+        sum([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : length(runtime.interfaces)]) == 2 * length(local.aws_bootstrap_sites) &&
         alltrue([
           for interface in flatten([for runtime in values(data.xcsh_smsv2_aws_runtime.aws) : values(runtime.interfaces)]) :
           interface.healthy && interface.mtu == var.aws_smsv2_interface_mtu &&
           contains(["slo", "sli"], interface.role)
         ])
       )
-      error_message = "All six MAC-bound SMSv2 interfaces must agree on node/role/MTU and report healthy before AWS Connect peers are created."
+      error_message = "Every admitted MAC-bound SMSv2 interface must agree on node/role/MTU and report healthy before its AWS Connect peer is created."
     }
   }
 }
 
+# A target rooted at one site's BGP status must still install both subnet
+# associations. Without the SLI association, the SLO GRE sessions establish
+# while both SLI sessions remain down because 100.64.0.0/24 follows the VPC's
+# main route table instead of the TGW route.
+resource "terraform_data" "aws_tgw_site_route_gate" {
+  for_each = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
+  input = {
+    public_association_id  = aws_route_table_association.public[each.key].id
+    private_association_id = aws_route_table_association.private[each.key].id
+  }
+}
+
 resource "aws_ec2_transit_gateway_connect_peer" "aws" {
-  for_each                      = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}
+  for_each                      = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}
   bgp_asn                       = tostring(var.aws_ce_bgp_asn)
   inside_cidr_blocks            = [each.value.inside_cidr_block]
   peer_address                  = each.value.gre_peer_address
@@ -175,7 +194,7 @@ resource "aws_ec2_transit_gateway_connect_peer" "aws" {
 }
 
 resource "xcsh_external_connector" "aws_tgw" {
-  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_smsv2_bindings : {}
+  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}
   name        = "${var.component}-aws-tgw-${replace(each.key, "_", "-")}"
   namespace   = "system"
   description = "AWS TGW Connect GRE tunnel for ${each.key}."
@@ -201,11 +220,11 @@ resource "xcsh_external_connector" "aws_tgw" {
       }
     }
   }
-  depends_on = [aws_route_table.public, aws_route_table.private]
+  depends_on = [terraform_data.aws_tgw_site_route_gate]
 }
 
 resource "xcsh_bgp" "aws_tgw" {
-  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+  for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
   name        = "${each.value.name}-tgw-bgp"
   namespace   = "system"
   description = "Four-session AWS TGW Connect BGP for independent site ${each.value.name}."
@@ -218,7 +237,6 @@ resource "xcsh_bgp" "aws_tgw" {
         name      = xcsh_securemesh_site_v2.aws[each.key].name
         namespace = "system"
       }
-      disable_internet_vip = {}
     }
   }
   bgp_parameters {
@@ -250,21 +268,28 @@ resource "xcsh_bgp" "aws_tgw" {
 }
 
 data "xcsh_site_bgp_status" "aws" {
-  for_each  = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_sites : {}
+  for_each  = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_sites : {}
   namespace = "system"
   site      = xcsh_securemesh_site_v2.aws[each.key].name
   expected_peers = {
     for key, interface in local.aws_bgp_sessions : key => {
-      node            = interface.node
-      role            = interface.payload_role
-      mac             = interface.mac
-      peer_address    = interface.peer_address
-      expected_routes = [var.aws_workload_vpc_cidr]
+      node                     = interface.node
+      role                     = interface.payload_role
+      mac                      = interface.mac
+      peer_address             = interface.peer_address
+      expected_imported_routes = [var.aws_workload_vpc_cidr]
     } if interface.site_key == each.key
   }
-  timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
-  poll_interval_seconds = var.aws_bgp_poll_interval_seconds
-  depends_on            = [xcsh_bgp.aws_tgw]
+  expected_exported_routes = ["${each.value.listener_ip}/32"]
+  timeout_seconds          = var.aws_bgp_convergence_timeout_seconds
+  poll_interval_seconds    = var.aws_bgp_poll_interval_seconds
+  depends_on = [
+    xcsh_bgp.aws_tgw,
+    module.aws_tgw_connect,
+    aws_ec2_transit_gateway_route_table_association.workload,
+    aws_ec2_transit_gateway_route_table_propagation.workload,
+    xcsh_http_loadbalancer.aws,
+  ]
 }
 
 output "aws_tgw_connect_status" {

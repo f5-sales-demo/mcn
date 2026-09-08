@@ -13,6 +13,7 @@ EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
 PLAN_MODE="apply"
 EXECUTE_UAT=false
+CONTINUITY_ONLY=false
 CANDIDATE_PROVIDER_BINARY=""
 CANDIDATE_PROVIDER_SHA256=""
 PROVIDER_MODE="registry"
@@ -46,6 +47,7 @@ Optional:
   --candidate-provider-sha256 SHA256:DIGEST
                          Required exact digest for the candidate provider binary.
   --execute-uat          Run traffic, failover, serial upgrades, and final convergence after preflight.
+  --continuity-only      With --execute-uat, validate an already-upgraded topology and rerun traffic/failover only.
 EOF
 }
 
@@ -68,6 +70,34 @@ record() {
 
 block() {
   record blocked "$1"
+  exit 1
+}
+
+block_traffic() {
+  local reason=$1 timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  jq -n \
+    --arg status blocked \
+    --arg reason "$reason" \
+    --arg timestamp "$timestamp" \
+    --arg provider_mode "$PROVIDER_MODE" \
+    --arg provider_sha256 "$PROVIDER_SHA256" \
+    --argjson traffic_samples "$((VIP_OK + VIP_FAILED))" \
+    --argjson traffic_failures "$VIP_FAILED" \
+    --argjson raw_traffic_samples "$((RAW_TRAFFIC_OK + RAW_TRAFFIC_FAILED))" \
+    --argjson raw_traffic_failures "$RAW_TRAFFIC_FAILED" \
+    --argjson origin_control_samples "$((ORIGIN_OK + ORIGIN_FAILED))" \
+    --argjson origin_control_failures "$ORIGIN_FAILED" \
+    '{status:$status, reason:$reason, timestamp:$timestamp,
+      provider_mode:$provider_mode,
+      provider_sha256:(if $provider_sha256 == "" then null else $provider_sha256 end),
+      traffic_samples:$traffic_samples, traffic_failures:$traffic_failures,
+      raw_transport_samples:$raw_traffic_samples,
+      raw_transport_failures:$raw_traffic_failures,
+      origin_control_samples:$origin_control_samples,
+      origin_control_failures:$origin_control_failures}' >"$SUMMARY"
+  chmod 600 "$SUMMARY"
+  printf 'status=blocked reason=%s timestamp=%s\n' "$reason" "$timestamp"
   exit 1
 }
 
@@ -121,6 +151,10 @@ while [ "$#" -gt 0 ]; do
     EXECUTE_UAT=true
     shift
     ;;
+  --continuity-only)
+    CONTINUITY_ONLY=true
+    shift
+    ;;
   -h | --help)
     usage
     exit 0
@@ -134,6 +168,7 @@ for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXP
 done
 [[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
 [ "$PLAN_MODE" = apply ] || [ "$EXECUTE_UAT" = false ] || die "live UAT requires apply plan mode"
+[ "$CONTINUITY_ONLY" = false ] || [ "$EXECUTE_UAT" = true ] || die "continuity-only requires --execute-uat"
 case "${#EXPECTED_SITES[@]}" in
 1 | 3) ;;
 *) die "plan stage requires exactly one or exactly three --expected-site values" ;;
@@ -243,7 +278,7 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 7.4.1"
+      version = "= 8.0.0"
     }
   }
 }
@@ -265,31 +300,31 @@ output "contract" {
 TF
 
 TF_CLI_CONFIG_FILE="$REGISTRY_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
-  terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v7_provider_install_failed
+  terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v8_provider_install_failed
 PROVIDER_VERSION=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" version -json 2>/dev/null |
   jq -r '.provider_selections["registry.terraform.io/f5-sales-demo/xcsh"] // empty')
-[ "$PROVIDER_VERSION" = "7.4.1" ] || block v7_provider_resolution_mismatch
+[ "$PROVIDER_VERSION" = "8.0.0" ] || block v8_provider_resolution_mismatch
 TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" plan -refresh=false -input=false -lock=false \
-  -out=contract.tfplan -no-color >/dev/null 2>&1 || block v7_contract_query_failed
+  -out=contract.tfplan -no-color >/dev/null 2>&1 || block v8_contract_query_failed
 CONTRACT=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" show -json contract.tfplan 2>/dev/null |
   jq -c '.planned_values.outputs.contract.value // empty')
-[ -n "$CONTRACT" ] || block v7_contract_query_failed
+[ -n "$CONTRACT" ] || block v8_contract_query_failed
 
-EXPECTED_API_COMMIT="2b27355ac9""bf4683d3a3""21f7d63886""76f756c2f5"
+EXPECTED_API_COMMIT="a5fa987f87""6db955666b""d94fefed35""f283bb5364"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_id == "f5xc-ce-automation/v3" and
   .contract_version == "6.1.0" and
-  .api_release_tag == "v6.1.1" and
+  .api_release_tag == "v6.1.2" and
   .api_release_commit == $api_commit and
-  .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v7_contract_identity_mismatch
+  .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v8_contract_identity_mismatch
 jq -e '
   (.f5xc_authorities | sort) == (["smsv2_configuration", "runtime_health", "bgp_peers", "bgp_routes", "simplified_routes", "site_upgrade_observation"] | sort) and
   (.aws_authorities | sort) == (["eni", "transit_gateway", "transit_gateway_connect", "gre_endpoints", "bgp_inside_cidrs", "autonomous_system_numbers"] | sort)' \
-  <<<"$CONTRACT" >/dev/null || block v7_authority_mismatch
+  <<<"$CONTRACT" >/dev/null || block v8_authority_mismatch
 jq -e '
   (.capabilities | keys | sort) == (["aws_ce_create", "runtime_status", "site_upgrade", "tgw_connect"] | sort) and
-  ([.capabilities[]] | all(. == "available"))' <<<"$CONTRACT" >/dev/null || block v7_capabilities_unavailable
+  ([.capabilities[]] | all(. == "available"))' <<<"$CONTRACT" >/dev/null || block v8_capabilities_unavailable
 
 unset CONTRACT
 
@@ -305,6 +340,28 @@ jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
 unset AWS_IDENTITY
 
 DEPLOYMENT_PLAN=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$TERRAFORM_DIR" show -json "$PLAN_FILE" 2>/dev/null) || block deployment_plan_unreadable
+PLAN_AWS_VIP=""
+PLAN_SITE_LISTENERS=""
+PLAN_COMPLETE=$(jq -r 'if .complete == false then "false" else "true" end' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+if [ "$PLAN_MODE" != destroy ] && { [ "$PLAN_COMPLETE" = true ] || [ "$EXECUTE_UAT" = true ]; }; then
+  PLAN_AWS_VIP=$(jq -er '(.planned_values.outputs.aws_vip.value // .prior_state.values.outputs.aws_vip.value) | select(type == "string" and length > 0)' \
+    <<<"$DEPLOYMENT_PLAN" 2>/dev/null) || block plan_vip_identity_unavailable
+  jq -en --arg vip "$PLAN_AWS_VIP" '
+    ($vip | split(".")) as $octets |
+    ($octets | length) == 4 and
+    all($octets[]; test("^(0|[1-9][0-9]{0,2})$") and (tonumber <= 255))' \
+    >/dev/null || block plan_vip_identity_invalid
+  PLAN_SITE_LISTENERS=$(jq -ec '
+    (.planned_values.outputs.aws_smsv2_site_listener_ips.value // .prior_state.values.outputs.aws_smsv2_site_listener_ips.value) |
+    select(type == "object" and (keys | sort) == ["01", "02", "03"]) |
+    select(([.[]] | unique | length) == 3) |
+    select(all(.[];
+      type == "string" and
+      (split(".")) as $octets |
+      ($octets | length) == 4 and
+      all($octets[]; test("^(0|[1-9][0-9]{0,2})$") and (tonumber <= 255))))' \
+    <<<"$DEPLOYMENT_PLAN" 2>/dev/null) || block plan_site_listener_identities_invalid
+fi
 jq -e '
   [.resource_changes[]? |
     select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
@@ -352,12 +409,50 @@ else
       select(.change.after.where.site.ref[0].namespace == "system") |
       .change.after.where.site.ref[0].name
     ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+  KEYED_TASK_SITE_IDENTITIES=$(jq -c '
+    (.planned_values.outputs.aws_site_names.value // .prior_state.values.outputs.aws_site_names.value // {}) as $output_sites |
+    ([.prior_state.values.root_module.resources[]? |
+      select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
+      select(.index | type == "string") |
+      {key:.index, value:.values.name}
+    ] | from_entries) as $state_sites |
+    ($state_sites + $output_sites) as $sites |
+    [.resource_changes[]? |
+      select(
+        (.type == "terraform_data" and .name == "aws_tgw_site_route_gate") or
+        (.type == "xcsh_registration_approval" and .name == "aws")
+      ) |
+      select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
+      select(.index | type == "string") |
+      $sites[.index] |
+      select(type == "string" and length > 0)
+    ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+  CONFIGURED_SITE_IDENTITIES=$(jq -c '
+    [.resource_changes[]? |
+      select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
+      select(.change.after.namespace == "system") |
+      .change.after.name
+    ] | unique | sort' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
+  PLAN_BOUND_SITE_IDENTITIES=$(jq -c '
+    (.planned_values.outputs.aws_site_names.value // .prior_state.values.outputs.aws_site_names.value // {}) |
+    if type == "object" then [.[] | select(type == "string" and length > 0)] | unique | sort else [] end' \
+    <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
   if [ "$DIRECT_SITE_IDENTITIES" = "[]" ]; then
-    [ "$TGW_BGP_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+    if [ "$TGW_BGP_SITE_IDENTITIES" != "[]" ]; then
+      [ "$TGW_BGP_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+    elif [ "$KEYED_TASK_SITE_IDENTITIES" != "[]" ]; then
+      [ "$KEYED_TASK_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+    elif [ "$PLAN_BOUND_SITE_IDENTITIES" != "[]" ]; then
+      [ "$PLAN_BOUND_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+    else
+      jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
+        <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
+      [ "$CONFIGURED_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
+    fi
   else
     [ "$DIRECT_SITE_IDENTITIES" = "$EXPECTED_SITES_JSON" ] || block task_site_identity_mismatch
   fi
-  unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES
+  unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES KEYED_TASK_SITE_IDENTITIES CONFIGURED_SITE_IDENTITIES PLAN_BOUND_SITE_IDENTITIES
 fi
 unset DEPLOYMENT_PLAN
 verify_candidate_provider || block candidate_provider_changed
@@ -382,7 +477,8 @@ verify_mutation_identities() {
 }
 
 tf() {
-  TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$TERRAFORM_DIR" "$@"
+  TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" XCSH_API_TOKEN="$API_TOKEN" \
+    terraform -chdir="$TERRAFORM_DIR" "$@"
 }
 
 ssm_run() {
@@ -415,14 +511,18 @@ ssm_run() {
 }
 
 xc_established_peers() {
-  local total=0 site response count
+  local total=0 reachable=0 site response count
   for site in "${EXPECTED_SITES[@]}"; do
-    response=$(printf 'header = "Authorization: APIToken %s"\n' "$API_TOKEN" |
+    if ! response=$(printf 'header = "Authorization: APIToken %s"\n' "$API_TOKEN" |
       curl -fsS --connect-timeout 10 --max-time 30 --config - \
-        "${API_URL%/}/api/operate/namespaces/system/sites/${site}/ver/bgp_peers") || return 1
-    count=$(jq '[.. | objects | .protocol_status? | select(. == "ESTABLISHED")] | length' <<<"$response") || return 1
+        "${API_URL%/}/api/operate/namespaces/system/sites/${site}/ver/bgp_peers"); then
+      continue
+    fi
+    reachable=$((reachable + 1))
+    count=$(jq '[.. | objects | .protocol_status? | select(type == "string" and ascii_upcase == "ESTABLISHED")] | length' <<<"$response") || return 1
     total=$((total + count))
   done
+  [ "$reachable" -gt 0 ] || return 1
   printf '%s' "$total"
 }
 
@@ -430,6 +530,22 @@ wait_for_peer_count() {
   local expected=$1 deadline=$((SECONDS + 600)) observed
   while ((SECONDS < deadline)); do
     observed=$(xc_established_peers 2>/dev/null || printf 0)
+    [ "$observed" -eq "$expected" ] && return 0
+    sleep 10
+  done
+  return 1
+}
+
+nlb_healthy_targets() {
+  aws elbv2 describe-target-health --region "$EXPECTED_AWS_REGION" \
+    --target-group-arn "$TARGET_GROUP_ARN" --output json 2>/dev/null |
+    jq '[.TargetHealthDescriptions[]? | select(.TargetHealth.State == "healthy")] | length'
+}
+
+wait_for_target_count() {
+  local expected=$1 deadline=$((SECONDS + 600)) observed
+  while ((SECONDS < deadline)); do
+    observed=$(nlb_healthy_targets 2>/dev/null || printf 0)
     [ "$observed" -eq "$expected" ] && return 0
     sleep 10
   done
@@ -474,7 +590,7 @@ invoke_upgrade() {
   plan_path="${SCRATCH}/invoke-${kind}-${key}.tfplan"
   tf plan -input=false -no-color -lock=false -var='aws_upgrade_wait=false' \
     -var="aws_upgrade_observed_sites=[\"${key}\"]" \
-    -invoke="xcsh_site_upgrade_${kind}.aws[\"${key}\"]" \
+    -invoke="action.xcsh_site_upgrade_${kind}.aws[\"${key}\"]" \
     -out="$plan_path" >/dev/null || return 1
   chmod 600 "$plan_path"
   invoke_plan=$(tf show -json "$plan_path") || return 1
@@ -491,7 +607,13 @@ WORKLOAD_INSTANCE_ID=$(tf output -raw aws_workload_instance_id 2>/dev/null) || b
 ORIGIN_IP=$(tf output -raw origin_ip 2>/dev/null) || block origin_identity_unavailable
 [ -n "$ORIGIN_IP" ] || block origin_identity_unavailable
 AWS_VIP=$(tf output -raw aws_vip 2>/dev/null) || block vip_identity_unavailable
-[ "$AWS_VIP" = "198.51.100.10" ] || block vip_identity_mismatch
+[ "$AWS_VIP" = "$PLAN_AWS_VIP" ] || block vip_identity_mismatch
+AWS_LB_DOMAIN=$(tf output -raw aws_lb_domain 2>/dev/null) || block loadbalancer_domain_unavailable
+[ -n "$AWS_LB_DOMAIN" ] || block loadbalancer_domain_unavailable
+SITE_LISTENERS=$(tf output -json aws_smsv2_site_listener_ips 2>/dev/null) || block site_listener_identities_unavailable
+[ "$(jq -cS . <<<"$SITE_LISTENERS")" = "$(jq -cS . <<<"$PLAN_SITE_LISTENERS")" ] || block site_listener_identity_mismatch
+TARGET_GROUP_ARN=$(tf output -raw aws_smsv2_target_group_arn 2>/dev/null) || block nlb_target_group_identity_unavailable
+[ -n "$TARGET_GROUP_ARN" ] || block nlb_target_group_identity_unavailable
 
 TOPOLOGY=$(tf output -json aws_tgw_connect_status 2>/dev/null) || block topology_status_unavailable
 jq -e '.runtime_healthy == true and .bgp_converged == true and .interface_count == 6 and .connect_peer_count == 6 and .bgp_session_count == 12' \
@@ -501,14 +623,24 @@ unset TOPOLOGY
 [ "$(xc_established_peers)" -eq 12 ] || block twelve_bgp_sessions_unavailable
 TGW_ROUTE_TABLE_ID=$(tf output -json 2>/dev/null | jq -r '.aws_tgw_route_table_id.value // empty')
 [ -n "$TGW_ROUTE_TABLE_ID" ] || block tgw_route_table_identity_unavailable
-aws ec2 search-transit-gateway-routes --region "$EXPECTED_AWS_REGION" \
-  --transit-gateway-route-table-id "$TGW_ROUTE_TABLE_ID" \
-  --filters "Name=route-search.exact-match,Values=${AWS_VIP}/32" \
-  --max-results 20 --output json 2>/dev/null |
-  jq -e '[.Routes[]? | select(.State == "active")] | length >= 1' >/dev/null || block vip_tgw_route_unavailable
+while IFS= read -r listener; do
+  aws ec2 search-transit-gateway-routes --region "$EXPECTED_AWS_REGION" \
+    --transit-gateway-route-table-id "$TGW_ROUTE_TABLE_ID" \
+    --filters "Name=route-search.exact-match,Values=${listener}/32" \
+    --max-results 20 --output json 2>/dev/null |
+    jq -e '[.Routes[]? | select(.State == "active" and .Type == "propagated")] | length >= 1' >/dev/null ||
+    block site_listener_tgw_route_unavailable
+done < <(jq -r '.[]' <<<"$SITE_LISTENERS")
+TARGET_HEALTH=$(aws elbv2 describe-target-health --region "$EXPECTED_AWS_REGION" \
+  --target-group-arn "$TARGET_GROUP_ARN" --output json 2>/dev/null) || block nlb_target_health_unavailable
+jq -e --argjson listeners "$SITE_LISTENERS" '
+  ([.TargetHealthDescriptions[]?.Target.Id] | sort) == ([$listeners[]] | sort) and
+  ([.TargetHealthDescriptions[]? | select(.TargetHealth.State == "healthy")] | length) == 3' \
+  <<<"$TARGET_HEALTH" >/dev/null || block nlb_target_set_unhealthy
+unset TARGET_HEALTH
 
 TRAFFIC_MARKER="mcn-smsv2-uat-${RANDOM}${RANDOM}"
-TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null && curl -fsS --connect-timeout 3 --max-time 10 http://${AWS_VIP} >/dev/null; then echo ok; else echo fail; fi >>/var/tmp/${TRAFFIC_MARKER}.log; sleep 5; done' >/dev/null 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
+TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 12 --retry-all-errors --retry-delay 2 --retry-max-time 45 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
 ssm_run "$TRAFFIC_COMMAND" >/dev/null || block ssm_traffic_start_failed
 TRAFFIC_STARTED=true
 
@@ -519,28 +651,62 @@ aws ec2 stop-instances --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER
 FAILOVER_STOPPED=true
 aws ec2 wait instance-stopped --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" || block failover_stop_timeout
 wait_for_peer_count 8 || block four_sessions_did_not_withdraw
+wait_for_target_count 2 || block failed_site_target_did_not_withdraw
 verify_mutation_identities || block mutation_identity_revalidation_failed
 aws ec2 start-instances --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" >/dev/null 2>&1 || block failover_start_failed
 aws ec2 wait instance-running --region "$EXPECTED_AWS_REGION" --instance-ids "$FAILOVER_INSTANCE_ID" || block failover_start_timeout
 FAILOVER_STOPPED=false
 wait_for_peer_count 12 || block twelve_sessions_did_not_reconverge
+wait_for_target_count 3 || block three_site_targets_did_not_recover
 
-for key in 01 02 03; do
-  status_plan "$key" "crt-20251002-0027" "9.2026.10" || block baseline_version_mismatch
-  eligibility_plan "$key" || block upgrade_precheck_or_advertised_target_failed
-  invoke_upgrade sw "$key" || block software_upgrade_invoke_failed
-  status_plan "$key" "crt-20260201-0179" "9.2026.10" || block software_upgrade_convergence_failed
-  invoke_upgrade os "$key" || block os_upgrade_invoke_failed
-  status_plan "$key" "crt-20260201-0179" "9.2026.17" || block os_upgrade_convergence_failed
-done
-
-TRAFFIC_RESULT=$(ssm_run "pid=\$(cat /var/tmp/${TRAFFIC_MARKER}.pid); kill \"\$pid\" 2>/dev/null || true; sleep 6; awk 'BEGIN{o=0;f=0} /^ok$/{o++} /^fail$/{f++} END{printf \"%d %d\",o,f}' /var/tmp/${TRAFFIC_MARKER}.log; rm -f /var/tmp/${TRAFFIC_MARKER}.pid /var/tmp/${TRAFFIC_MARKER}.log") || block ssm_traffic_result_failed
-TRAFFIC_STARTED=false
-TRAFFIC_OK=${TRAFFIC_RESULT%% *}
-TRAFFIC_FAILED=${TRAFFIC_RESULT##* }
-if [ "$TRAFFIC_OK" -lt 2 ] || [ "$TRAFFIC_FAILED" -ne 0 ]; then
-  block ssm_traffic_continuity_failed
+if [ "$CONTINUITY_ONLY" = true ]; then
+  for key in 01 02 03; do
+    status_plan "$key" "crt-20260201-0179" "9.2026.17" || block existing_upgrade_convergence_failed
+  done
+  UAT_REASON=aws_smsv2_continuity_complete
+  SERIAL_UPGRADES=0
+else
+  for key in 01 02 03; do
+    status_plan "$key" "crt-20251002-0027" "9.2026.10" || block baseline_version_mismatch
+    eligibility_plan "$key" || block upgrade_precheck_or_advertised_target_failed
+    invoke_upgrade sw "$key" || block software_upgrade_invoke_failed
+    status_plan "$key" "crt-20260201-0179" "9.2026.10" || block software_upgrade_convergence_failed
+    invoke_upgrade os "$key" || block os_upgrade_invoke_failed
+    status_plan "$key" "crt-20260201-0179" "9.2026.17" || block os_upgrade_convergence_failed
+  done
+  UAT_REASON=aws_smsv2_uat_complete
+  SERIAL_UPGRADES=3
 fi
+
+TRAFFIC_RESULT=$(ssm_run "pid=\$(cat /var/tmp/${TRAFFIC_MARKER}.pid); kill \"\$pid\" 2>/dev/null || true; sleep 6; awk 'BEGIN{vo=0;vf=0;ro=0;rf=0;oo=0;of=0} /^vip_ok$/{vo++} /^vip_fail$/{vf++} /^raw_ok$/{ro++} /^raw_fail$/{rf++} /^origin_ok$/{oo++} /^origin_fail$/{of++} END{printf \"%d %d %d %d %d %d\",vo,vf,ro,rf,oo,of}' /var/tmp/${TRAFFIC_MARKER}.log; rm -f /var/tmp/${TRAFFIC_MARKER}.pid /var/tmp/${TRAFFIC_MARKER}.log") || block ssm_traffic_result_failed
+TRAFFIC_STARTED=false
+read -r VIP_OK VIP_FAILED RAW_TRAFFIC_OK RAW_TRAFFIC_FAILED ORIGIN_OK ORIGIN_FAILED <<<"$TRAFFIC_RESULT"
+if [ "$VIP_OK" -lt 2 ] || [ "$VIP_FAILED" -ne 0 ]; then
+  block_traffic ssm_vip_retry_window_exhausted
+fi
+if [ "$ORIGIN_OK" -lt 2 ]; then
+  block_traffic ssm_origin_control_unavailable
+fi
+
+FINAL_REFRESH_PLAN="${SCRATCH}/final-refresh.tfplan"
+set +e
+tf plan -refresh-only -detailed-exitcode -input=false -no-color -lock=false \
+  -out="$FINAL_REFRESH_PLAN" >/dev/null
+FINAL_REFRESH_EXIT=$?
+set -e
+case "$FINAL_REFRESH_EXIT" in
+0 | 2) ;;
+*) block final_refresh_plan_failed ;;
+esac
+FINAL_REFRESH_JSON=$(tf show -json "$FINAL_REFRESH_PLAN") || block final_refresh_plan_unreadable
+jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
+  <<<"$FINAL_REFRESH_JSON" >/dev/null || block final_refresh_plan_has_resource_changes
+unset FINAL_REFRESH_JSON
+if [ "$FINAL_REFRESH_EXIT" -eq 2 ]; then
+  verify_mutation_identities || block mutation_identity_revalidation_failed
+  tf apply -input=false -no-color -auto-approve "$FINAL_REFRESH_PLAN" >/dev/null || block final_refresh_apply_failed
+fi
+rm -f "$FINAL_REFRESH_PLAN"
 
 if tf plan -detailed-exitcode -input=false -no-color -lock=false >/dev/null; then
   :
@@ -555,15 +721,27 @@ verify_candidate_provider || block candidate_provider_changed
 
 jq -n \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg reason "$UAT_REASON" \
   --arg provider_mode "$PROVIDER_MODE" \
   --arg provider_sha256 "$PROVIDER_SHA256" \
-  --argjson traffic_samples "$TRAFFIC_OK" \
-  '{status:"passed", reason:"aws_smsv2_uat_complete", timestamp:$timestamp,
+  --argjson traffic_samples "$VIP_OK" \
+  --argjson raw_traffic_samples "$RAW_TRAFFIC_OK" \
+  --argjson raw_traffic_failures "$RAW_TRAFFIC_FAILED" \
+  --argjson origin_control_samples "$ORIGIN_OK" \
+  --argjson origin_control_failures "$ORIGIN_FAILED" \
+  --argjson serial_upgrades "$SERIAL_UPGRADES" \
+  '{status:"passed", reason:$reason, timestamp:$timestamp,
     provider_mode:$provider_mode,
     provider_sha256:(if $provider_sha256 == "" then null else $provider_sha256 end),
-    sites:3, interfaces:6, bgp_peers:6, withdrawn_paths:2, traffic_samples:$traffic_samples,
-    traffic_failures:0, serial_upgrades:3, target_converged:true}' \
+    sites:3, interfaces:6, connect_peers:6, bgp_sessions:12, withdrawn_sessions:4,
+    listener_routes:3, healthy_targets_during_failure:2,
+    traffic_samples:$traffic_samples, traffic_failures:0,
+    raw_transport_samples:($raw_traffic_samples + $raw_traffic_failures),
+    raw_transport_failures:$raw_traffic_failures,
+    origin_control_samples:($origin_control_samples + $origin_control_failures),
+    origin_control_failures:$origin_control_failures,
+    serial_upgrades:$serial_upgrades, target_converged:true}' \
   >"$SUMMARY"
 chmod 600 "$SUMMARY"
-unset API_TOKEN WORKLOAD_INSTANCE_ID FAILOVER_INSTANCE_ID ORIGIN_IP AWS_VIP
-printf 'status=passed reason=aws_smsv2_uat_complete\n'
+unset API_TOKEN WORKLOAD_INSTANCE_ID FAILOVER_INSTANCE_ID ORIGIN_IP AWS_VIP AWS_LB_DOMAIN SITE_LISTENERS TARGET_GROUP_ARN
+printf 'status=passed reason=%s\n' "$UAT_REASON"

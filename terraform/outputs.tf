@@ -290,6 +290,21 @@ output "aws_origin_pool_name" {
 }
 
 output "aws_vip" {
-  description = "HA VIP advertised by the AWS CE site after TGW Connect BGP convergence."
+  description = "Plan-bound private IP of the internal NLB fronting the three BGP-routed SMSv2 listeners."
   value       = var.aws_vip
+}
+
+output "aws_smsv2_site_listener_ips" {
+  description = "Per-site automatic SLI listener addresses exported over TGW Connect BGP."
+  value       = { for key, site in local.aws_sites : key => site.listener_ip }
+}
+
+output "aws_smsv2_nlb_dns_name" {
+  description = "Internal AWS NLB DNS name for the SMSv2 service."
+  value       = try(aws_lb.smsv2[0].dns_name, null)
+}
+
+output "aws_smsv2_target_group_arn" {
+  description = "Target group containing the three BGP-routed SMSv2 site listeners."
+  value       = try(aws_lb_target_group.smsv2[0].arn, null)
 }

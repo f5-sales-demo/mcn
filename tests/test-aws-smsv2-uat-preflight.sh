@@ -28,18 +28,27 @@ cat >"${BIN}/aws" <<'SH'
 printf '{"%s":"%s"}\n' 'Acc''ount' "${FAKE_AWS_ACCOUNT:-111122223333}"
 SH
 
+cat >"${BIN}/curl" <<'SH'
+#!/usr/bin/env bash
+status=${FAKE_XC_PROTOCOL_STATUS:-Established}
+printf '{"ver":{"peers":[{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"}]}}\n' \
+  "$status" "$status" "$status" "$status"
+SH
+
 cat >"${BIN}/terraform" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 chdir=${1#-chdir=}
 shift
-printf '%s\t%s\n' "$1" "${TF_CLI_CONFIG_FILE:-unset}" >>"$FAKE_TF_CALLS"
+token_state=unset
+[ -n "${XCSH_API_TOKEN:-}" ] && token_state=present
+printf '%s\t%s\t%s\n' "$1" "${TF_CLI_CONFIG_FILE:-unset}" "$token_state" >>"$FAKE_TF_CALLS"
 case "$1" in
 init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"7.4.1"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"8.0.0"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -49,28 +58,59 @@ show)
     printf '# changed\n' >>"$FAKE_CANDIDATE_BINARY"
   fi
   if [ "$chdir" = "$FAKE_TF_DIR" ]; then
+    plan_vip=${FAKE_PLAN_AWS_VIP_JSON:-'"10.151.1.10"'}
+    plan_listeners=${FAKE_PLAN_SITE_LISTENERS_JSON:-'{"01":"10.150.11.10","02":"10.150.12.10","03":"10.150.13.10"}'}
     site_01_actions=${FAKE_SITE_01_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    if [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
-      printf '{"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n'
+    if [ "${FAKE_TARGETED_BOOTSTRAP:-false}" = true ]; then
+      printf '{"complete":false,"planned_values":{"outputs":{}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}]}\n'
+    elif [ "${FAKE_SHARED_TOPOLOGY_ONLY:-false}" = true ]; then
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_vpc.workload[0]","type":"aws_vpc","name":"workload","index":0,"change":{"actions":["create"],"after":{"cidr_block":"10.151.0.0/16"}}}]}\n' "$plan_vip" "$plan_listeners"
+    elif [ "${FAKE_TARGETED_APPROVAL_NO_OUTPUTS:-false}" = true ]; then
+      printf '{"complete":false,"planned_values":{"outputs":{}},"prior_state":{"values":{"root_module":{"resources":[{"address":"xcsh_securemesh_site_v2.aws[\\"01\\"]","type":"xcsh_securemesh_site_v2","name":"aws","index":"01","values":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}]}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n'
+    elif [ "${FAKE_APPROVAL_ONLY:-false}" = true ]; then
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n' "$plan_vip" "$plan_listeners"
+    elif [ "${FAKE_ROUTE_GATE_ONLY:-false}" = true ]; then
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_route_table_association.private[\\"01\\"]","type":"aws_route_table_association","name":"private","index":"01","change":{"actions":["create"],"after":{}}},{"address":"terraform_data.aws_tgw_site_route_gate[\\"01\\"]","type":"terraform_data","name":"aws_tgw_site_route_gate","index":"01","change":{"actions":["create"],"after":{"input":{"public_association_id":"rtbassoc-public","private_association_id":"rtbassoc-private"}}}}]}\n' "$plan_vip" "$plan_listeners"
+    elif [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
-      printf '{"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     elif [ "${FAKE_INSTANCE_ONLY:-false}" = true ]; then
-      printf '{"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     else
-      printf '{"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
     fi
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
-    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.1\",\"api_release_commit\":\"2b27355ac9bf4683d3a321f7d6388676f756c2f5\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
+    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-ce-automation/v3\",\"contract_version\":\"6.1.0\",\"api_release_tag\":\"v6.1.2\",\"api_release_commit\":\"a5fa987f876db955666bd94fefed35f283bb5364\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
   fi
+  ;;
+output)
+  case "$*" in
+  *'-raw aws_workload_instance_id'*) printf 'i-workload\n' ;;
+  *'-raw origin_ip'*) printf '203.0.113.80\n' ;;
+  *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-10.151.1.10}" ;;
+  *'-raw aws_lb_domain'*) printf 'aws.mcn-ce-ha.example.com\n' ;;
+  *'-raw aws_smsv2_target_group_arn'*) printf 'arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:targetgroup/test/0123456789abcdef\n' ;;
+  *'-json aws_smsv2_site_listener_ips'*) printf '%s\n' "${FAKE_LIVE_SITE_LISTENERS_JSON:-{\"01\":\"10.150.11.10\",\"02\":\"10.150.12.10\",\"03\":\"10.150.13.10\"}}" ;;
+  *'-json aws_tgw_connect_status'*)
+    if [ "${FAKE_TOPOLOGY_CONVERGED:-false}" = true ]; then
+      printf '{"runtime_healthy":true,"bgp_converged":true,"interface_count":6,"connect_peer_count":6,"bgp_session_count":12}\n'
+    else
+      printf '{"runtime_healthy":false,"bgp_converged":false,"interface_count":0,"connect_peer_count":0,"bgp_session_count":0}\n'
+    fi
+    ;;
+  *'-json'*) printf '{"aws_tgw_route_table_id":{"value":null}}\n' ;;
+  *) exit 2 ;;
+  esac
   ;;
 *) exit 2 ;;
 esac
 SH
-chmod 755 "${BIN}/aws" "${BIN}/terraform"
+chmod 755 "${BIN}/aws" "${BIN}/curl" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
 export FAKE_TF_DIR="$TF_DIR"
@@ -96,6 +136,15 @@ fail() {
   exit 1
 }
 
+continuity_only_output="${TMP_ROOT}/continuity-only-without-uat.out"
+if "$SCRIPT" --continuity-only --evidence-dir "${TMP_ROOT}/continuity-only-without-uat" \
+  "${common[@]}" >"$continuity_only_output" 2>&1; then
+  fail "continuity-only mode must require explicit live UAT execution"
+fi
+grep -Fq 'continuity-only requires --execute-uat' "$continuity_only_output" ||
+  fail "continuity-only mode did not report its missing live UAT opt-in"
+echo "ok - continuity-only mode requires explicit live UAT execution"
+
 assert_sanitized() {
   local evidence=$1 output=$2
   [ "$(find "$evidence" -maxdepth 1 -type f -printf '%f\n')" = summary.json ] || fail "evidence contains unexpected files"
@@ -117,7 +166,18 @@ fi
 assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
-echo "ok - exact v7 available contract passes with sanitized evidence"
+echo "ok - exact v8 available contract passes with sanitized evidence"
+
+evidence="${TMP_ROOT}/no-change"
+mkdir "$evidence"
+output="${TMP_ROOT}/no-change.out"
+if ! FAKE_SITE_ACTIONS='"no-op"' "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "no-change plan should prove the exact configured site identities"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "no-change status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - no-change plan is accepted for the exact configured sites"
 
 evidence="${TMP_ROOT}/candidate-ready"
 mkdir "$evidence"
@@ -142,6 +202,28 @@ if grep -Fq 'ambient-must-not-be-used' "$TF_CALLS"; then
   fail "ambient Terraform CLI config leaked into candidate validation"
 fi
 echo "ok - matching candidate artifact is selected explicitly and bound to evidence"
+
+context_home="${TMP_ROOT}/context-home"
+mkdir -p "${context_home}/.config/xcsh/contexts"
+printf '{"apiUrl":"https://lab.console.ves.volterra.io","apiToken":"context-token-must-not-leak"}\n' \
+  >"${context_home}/.config/xcsh/contexts/context-test.json"
+evidence="${TMP_ROOT}/context-auth"
+mkdir "$evidence"
+output="${TMP_ROOT}/context-auth.out"
+: >"$TF_CALLS"
+if env -u XCSH_API_URL -u XCSH_API_TOKEN HOME="$context_home" \
+  "$SCRIPT" --execute-uat --xc-context context-test \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "non-converged fake topology must stop context-auth UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = topology_not_converged ] ||
+  fail "context-auth UAT did not reach topology validation"
+awk -F '\t' '$1 == "output" { found=1; if ($3 != "present") bad=1 } END { exit bad || !found }' "$TF_CALLS" ||
+  fail "context-derived token did not reach live Terraform operations"
+if grep -Fq 'context-token-must-not-leak' "$output" "$evidence/summary.json"; then
+  fail "context-derived token leaked into sanitized output"
+fi
+echo "ok - context-derived authentication reaches live Terraform operations"
 
 candidate_failure() {
   local name=$1 reason=$2
@@ -231,6 +313,17 @@ fi
 assert_sanitized "$evidence" "$output"
 echo "ok - one-site replacement is accepted before the remaining sites"
 
+evidence="${TMP_ROOT}/single-site-no-change"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-site-no-change.out"
+if FAKE_SITE_ACTIONS='"no-op"' "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  fail "one-site no-change plan must reject the three-site configured identity set"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = task_site_identity_mismatch ] ||
+  fail "single-site no-change mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - no-change plan rejects a mismatched stage identity set"
+
 evidence="${TMP_ROOT}/single-token"
 mkdir "$evidence"
 output="${TMP_ROOT}/single-token.out"
@@ -241,6 +334,40 @@ fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site JWT issuance status not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - site-scoped JWT issuance is accepted before the remaining sites"
+
+evidence="${TMP_ROOT}/single-route-gate"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-route-gate.out"
+if ! FAKE_ROUTE_GATE_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "one-site subnet-route repair must prove its site through the keyed route gate"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site route-gate status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - keyed route gate binds a subnet-route repair to one exact site"
+
+evidence="${TMP_ROOT}/single-approval"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-approval.out"
+if ! FAKE_APPROVAL_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "one-site registration approval must prove its site through the keyed approval resource"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site approval status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - keyed registration approval binds an unpredictable registration to one exact site"
+
+evidence="${TMP_ROOT}/single-targeted-approval"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-targeted-approval.out"
+if ! FAKE_TARGETED_APPROVAL_NO_OUTPUTS=true \
+  "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "targeted approval must resolve its keyed site from prior managed state"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "targeted approval ready status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - targeted approval resolves its site from prior managed state"
 
 evidence="${TMP_ROOT}/single-instance"
 mkdir "$evidence"
@@ -265,16 +392,50 @@ fi
 assert_sanitized "$evidence" "$output"
 echo "ok - TGW BGP-only stage is accepted by exact site bindings"
 
+evidence="${TMP_ROOT}/shared-topology"
+mkdir "$evidence"
+output="${TMP_ROOT}/shared-topology.out"
+if ! FAKE_SHARED_TOPOLOGY_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "shared topology changes must bind to the exact plan-bound three-site set"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "shared topology status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - shared topology changes bind to the exact three-site plan output"
+
+evidence="${TMP_ROOT}/single-shared-topology"
+mkdir "$evidence"
+output="${TMP_ROOT}/single-shared-topology.out"
+if FAKE_SHARED_TOPOLOGY_ONLY=true "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
+  fail "shared three-site topology must reject a one-site expected identity"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = task_site_identity_mismatch ] ||
+  fail "single-site shared topology mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - shared topology rejects a mismatched one-site claim"
+
+evidence="${TMP_ROOT}/targeted-bootstrap"
+mkdir "$evidence"
+output="${TMP_ROOT}/targeted-bootstrap.out"
+if ! FAKE_TARGETED_BOOTSTRAP=true "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "incomplete targeted bootstrap plan should not require omitted apply-only outputs"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "targeted bootstrap ready status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - targeted bootstrap accepts omitted apply-only plan outputs"
+
 evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"
 output="${TMP_ROOT}/destroy.out"
-if ! FAKE_SITE_ACTIONS='"delete"' "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+if ! FAKE_SITE_ACTIONS='"delete"' FAKE_PLAN_AWS_VIP_JSON=null FAKE_PLAN_SITE_LISTENERS_JSON='{}' \
+  "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
   cat "$output" >&2
   fail "AWS-only delete plan should pass destroy mode"
 fi
 [ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "destroy ready status not recorded"
 assert_sanitized "$evidence" "$output"
-echo "ok - destroy mode accepts only the three expected site deletions"
+echo "ok - destroy mode accepts only the three expected site deletions without apply-only outputs"
 
 evidence="${TMP_ROOT}/destroy-mixed"
 mkdir "$evidence"
@@ -293,7 +454,7 @@ output="${TMP_ROOT}/unavailable.out"
 if FAKE_CAPABILITY_STATE=unavailable "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
   fail "unavailable capabilities must block"
 fi
-[ "$(jq -r .reason "$evidence/summary.json")" = v7_capabilities_unavailable ] || fail "capability blocker not recorded"
+[ "$(jq -r .reason "$evidence/summary.json")" = v8_capabilities_unavailable ] || fail "capability blocker not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - unavailable capabilities fail closed"
 
@@ -328,6 +489,80 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = plan_resource_outside_aws_allowlist ] || fail "allowlist blocker not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - changes outside the AWS/XC-AWS allowlist fail closed"
+
+plan_vip_failure() {
+  local name=$1 plan_vip=$2 reason=$3
+  local evidence="${TMP_ROOT}/${name}" output="${TMP_ROOT}/${name}.out"
+  mkdir "$evidence"
+  if FAKE_PLAN_AWS_VIP_JSON="$plan_vip" "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+    fail "${name} plan VIP validation must fail closed"
+  fi
+  [ "$(jq -r .reason "$evidence/summary.json")" = "$reason" ] || fail "${name} reason not recorded"
+  assert_sanitized "$evidence" "$output"
+}
+
+plan_vip_failure plan-vip-missing null plan_vip_identity_unavailable
+plan_vip_failure plan-vip-malformed '"not-an-ip"' plan_vip_identity_invalid
+echo "ok - missing and malformed plan-bound VIP identities fail closed"
+
+plan_listener_failure() {
+  local name=$1 listeners=$2
+  local evidence="${TMP_ROOT}/${name}" output="${TMP_ROOT}/${name}.out"
+  mkdir "$evidence"
+  if FAKE_PLAN_SITE_LISTENERS_JSON="$listeners" "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+    fail "${name} plan listener validation must fail closed"
+  fi
+  [ "$(jq -r .reason "$evidence/summary.json")" = plan_site_listener_identities_invalid ] || fail "${name} reason not recorded"
+  assert_sanitized "$evidence" "$output"
+}
+
+plan_listener_failure plan-listeners-missing null
+plan_listener_failure plan-listeners-duplicate '{"01":"10.150.11.10","02":"10.150.11.10","03":"10.150.13.10"}'
+plan_listener_failure plan-listeners-malformed '{"01":"10.150.11.10","02":"not-an-ip","03":"10.150.13.10"}'
+echo "ok - plan-bound listener identities require three distinct site addresses"
+
+evidence="${TMP_ROOT}/matching-vip-override"
+mkdir "$evidence"
+output="${TMP_ROOT}/matching-vip-override.out"
+if FAKE_PLAN_AWS_VIP_JSON='"203.0.113.10"' FAKE_LIVE_AWS_VIP=203.0.113.10 \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "non-converged fake topology must stop live UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = topology_not_converged ] || fail "matching VIP override did not reach topology validation"
+assert_sanitized "$evidence" "$output"
+
+evidence="${TMP_ROOT}/mismatched-vip-override"
+mkdir "$evidence"
+output="${TMP_ROOT}/mismatched-vip-override.out"
+if FAKE_PLAN_AWS_VIP_JSON='"203.0.113.10"' FAKE_LIVE_AWS_VIP=198.51.100.10 \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "plan/live VIP mismatch must stop live UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = vip_identity_mismatch ] || fail "plan/live VIP mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - live UAT binds an overridden VIP to the reviewed plan"
+
+evidence="${TMP_ROOT}/mismatched-site-listeners"
+mkdir "$evidence"
+output="${TMP_ROOT}/mismatched-site-listeners.out"
+if FAKE_LIVE_SITE_LISTENERS_JSON='{"01":"10.150.11.11","02":"10.150.12.10","03":"10.150.13.10"}' \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "plan/live site-listener mismatch must stop live UAT"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = site_listener_identity_mismatch ] || fail "plan/live site-listener mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - live UAT binds all three listener identities to the reviewed plan"
+
+evidence="${TMP_ROOT}/mixed-case-established"
+mkdir "$evidence"
+output="${TMP_ROOT}/mixed-case-established.out"
+if FAKE_TOPOLOGY_CONVERGED=true FAKE_XC_PROTOCOL_STATUS=Established \
+  "$SCRIPT" --execute-uat --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "fake UAT without a TGW route table identity must stop"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = tgw_route_table_identity_unavailable ] || fail "mixed-case established sessions did not pass peer validation"
+assert_sanitized "$evidence" "$output"
+echo "ok - XC mixed-case Established status counts toward twelve sessions"
 
 mkdir "$INSIDE_EVIDENCE"
 if "$SCRIPT" --evidence-dir "$INSIDE_EVIDENCE" "${common[@]}" >/dev/null 2>&1; then

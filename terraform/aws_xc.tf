@@ -6,9 +6,10 @@ locals {
   aws_sites = {
     for index in range(var.enable_aws ? var.aws_ce_count : 0) :
     format("%02d", index + 1) => {
-      index    = index
-      name     = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
-      hostname = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      index       = index
+      name        = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      hostname    = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      listener_ip = cidrhost(cidrsubnet(var.aws_vpc_cidr, 8, index + 11), 10)
     }
   }
   # Bootstrap keys are cumulative during controlled replacement: 01, then
@@ -84,6 +85,11 @@ resource "xcsh_securemesh_site_v2" "aws" {
   no_s2s_connectivity_slo    = {}
   disable_url_categorization = {}
   disable_management_network = {}
+
+  local_vrf {
+    default_config     = {}
+    default_sli_config = {}
+  }
 
   software_settings {
     os {
@@ -163,16 +169,18 @@ resource "xcsh_http_loadbalancer" "aws" {
   http { port = 80 }
 
   advertise_custom {
-    advertise_where {
-      virtual_site_with_vip {
-        ip      = var.aws_vip
-        network = "SITE_NETWORK_SPECIFIED_VIP_INSIDE"
-        virtual_site {
-          name      = xcsh_virtual_site.aws[0].name
-          namespace = data.xcsh_namespace.mcn.name
+    dynamic "advertise_where" {
+      for_each = local.aws_sites
+      content {
+        site {
+          network = "SITE_NETWORK_INSIDE"
+          site {
+            name      = xcsh_securemesh_site_v2.aws[advertise_where.key].name
+            namespace = "system"
+          }
         }
+        use_default_port = {}
       }
-      use_default_port = {}
     }
   }
 
