@@ -6,19 +6,26 @@ sidebar:
   label: Automation contract
 ---
 
-This document is the canonical provider-neutral contract for automating an F5 Distributed Cloud
+This document is the canonical provider-neutral automation policy for automating an F5 Distributed Cloud
 Customer Edge (CE) as a **Secure Mesh Site v2**. Provider integrations must retrieve this exact
 document before planning, validate the receipt below, and bind its normalized content digest into
 every plan.
 
 ```yaml
-contract_id: f5xc-ce-automation
-contract_version: v1
+contract_id: f5xc-ce-automation-policy
+contract_version: v2
 ```
 
-The combined contract identity is `f5xc-ce-automation/v1`. A missing document, an unknown identity
+The combined contract identity is `f5xc-ce-automation-policy/v2`. A missing document, an unknown identity
 or version, or a digest that changes after planning is a fail-closed condition. This document guides
 automation, but it does not grant permissions, approve changes, or weaken executable validation.
+
+The executable API contract has a separate identity, `f5xc-smsv2-api/v1`, published through
+[immutable enriched API releases](https://github.com/f5-sales-demo/api-specs-enriched/releases).
+Its schema mappings describe API requests and responses; they do not prove current cloud image or
+runtime support. Record the actual release tag, commit, checksums, and platform evidence separately.
+Consumers pinned to an older executable contract must upgrade explicitly; this policy does not
+change that pin. AWS acceptance does not establish Azure acceptance.
 
 ## Research and immutable plans
 
@@ -33,9 +40,14 @@ policy, capacity, routing, health, and source receipts. Identical intent and obs
 produce byte-identical plans, hashes, ownership inventories, and commands. Apply operations must reject
 a changed fingerprint or source digest, requiring rediscovery and replanning.
 
-Plans may contain opaque references to session-owned secret material. They must never contain a
+Plans must persist the execution engine, `native` or `terraform`, and may contain opaque references
+to deployment-owned secret material. They must never contain a
 bootstrap token, rendered user data, credential, private key, or any other reusable secret. Plan
-files, logs, diagnostics, command traces, and test artifacts must remain safe to retain.
+summaries, logs, diagnostics, command traces, and exported test artifacts must remain safe to retain.
+Terraform state, binary plans, plan JSON, and rendered bootstrap are sensitive deployment artifacts;
+retain them only in restricted storage and export sanitized summaries. Terraform applies the exact
+reviewed saved plan with state locking, explicit backend identity, provider locks, and an isolated
+CLI configuration that prevents ambient provider overrides.
 
 ## Topology, interfaces, and routing domains
 
@@ -62,25 +74,34 @@ before-state for every allowlisted object. Apply may mutate only the approved in
 tag, subnet, route table, or account discovered near the requested site is not implicit permission
 to modify it.
 
-Owned objects must carry a deployment identifier and the plan digest in addition to the
-provider-specific ownership marker. Reconcile and teardown refuse unowned, ambiguously owned, or
+Owned objects must carry a deployment identifier, owning execution engine, and the plan digest in addition to the
+provider-specific ownership marker. Both engines may observe resources; only the owning engine
+may mutate them. Automatic engine migration is unsupported. Reconcile and teardown refuse unowned, ambiguously owned, or
 cross-scope objects. Brownfield mutations must be reversible: restoration recreates the exact
 recorded routes, associations, propagations, registrations, priorities, and other relationships
 before owned dependencies are removed.
 
 ## Bootstrap material
 
-Bootstrap credentials are opaque, expiring, one-use values. Store them only in a directory owned
-by the current session, with directory mode `0700` and file mode `0600`. An opaque reference binds
-the credential to its digest, expiry, owner, deployment, plan, and permitted operation without
-revealing its value.
+Create the site, issue a JWT bound to that site, retrieve the supported cloud-init material, deploy
+the cloud resources, observe and approve registration, and converge health in separate checkpointed
+stages. Preserve the certified image's `/etc/vpm/config.yaml` and inject the issued
+`/etc/vpm/user_data` material. Do not synthesize an undocumented bootstrap configuration. Validate
+site binding and reject unresolved placeholders. Reconcile an ambiguous issuance before retrying.
+The executable contract and current platform evidence determine which providers support each stage.
 
-Immediately before use, validate every binding and materialize user data only in a session-owned
-`0600` file. Pass the file path to the provider command, never the rendered contents. Consume the
-credential once and delete the materialized file immediately, including on failure. Reject expired,
-reused, wrong-owner, wrong-plan, and wrong-operation references. Do not place bootstrap material in
-arguments, environment snapshots, process output, provider audit-oriented command strings, plans,
-logs, or artifacts.
+Bootstrap credentials are opaque, expiring values issued for the intended registration. Store them
+only in deployment-owned storage, with directory mode `0700` and file mode `0600`. An opaque reference
+binds the credential to its digest, expiry, owner, deployment, site, node, plan, and permitted
+operation without revealing its value. Enforce one-use checkout without assuming that local deletion
+revokes a server-issued JWT.
+
+Immediately before use, validate every binding and materialize user data only in a restricted
+`0600` file. Pass the file path to the provider command, never the rendered contents. Delete transient
+material after use, including on failure. Preserve only restricted artifacts needed for the owning
+engine's durable recovery and state lifecycle. Reject expired, reused, wrong-owner, wrong-plan, and
+wrong-operation references. Do not put bootstrap material in command arguments, environment
+snapshots, process output, exported plans, logs, or diagnostic artifacts.
 
 ## Separate approvals
 
@@ -92,7 +113,10 @@ Approval is specific and non-transitive. Automation keeps these decisions separa
 3. **Active-diagnostic approval** authorizes named probes that create traffic, load, or state.
 4. **Destruction approval** authorizes the exact teardown inventory after restoration is planned.
 
-Interactive confirmation and headless gates must fail closed. Research and discovery are read-only.
+Record authorization durably and preserve its scope across resume; an interruption does not require
+repeating an already granted approval. Marketplace terms acceptance is a legal-policy decision,
+separate from API capability and engine selection. Interactive confirmation and headless gates must
+fail closed when required authorization is absent. Research and discovery are read-only.
 Planning does not authorize apply, legal acceptance, an active probe, or deletion. A plan must list
 all billable resources before mutation approval is requested.
 
@@ -112,7 +136,9 @@ Creation is not success. Progress through explicit gates:
 5. provider load-balancing or routing health, when present;
 6. authorized traffic evidence.
 
-Stop on failed or ambiguous evidence. In a three-node site, lifecycle work proceeds one node at a
+Collect evidence through tools and bind it to the deployment, site, node, resource identities,
+observation time, and source. Caller-supplied health booleans are not evidence. Missing, malformed,
+stale, or partially paginated observations remain unknown. Stop on failed or ambiguous evidence. In a three-node site, lifecycle work proceeds one node at a
 time and must pass every applicable gate before the next node changes. Disruptive single-node work
 requires an explicit maintenance warning because no sibling can carry traffic.
 
@@ -123,7 +149,8 @@ rollback data, and sanitized gate results after every action. Resume reloads the
 all drift and authorization checks, and continues only from a provably completed boundary. It must
 never infer completion from a resource name alone or silently regenerate a changed plan.
 
-Deploy, reconcile, start, stop, resize, network updates, node replacement, repair, and teardown all
+Deploy, reconcile, start, stop, resize, network updates, node replacement, software and OS upgrades,
+planned failover validation, repair, and teardown all
 use the same discovery-plan-approve-apply contract. Lifecycle recommendations require current-source
 research because supported transitions and maintenance requirements can change. Replacement preserves
 topology and interface symmetry and uses the same registration, health, routing, and traffic gates
