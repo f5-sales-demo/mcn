@@ -1,6 +1,6 @@
 ---
 title: Software versions and rebuilds
-description: How ce_sw_version and ce_os_version select the latest Customer Edge software at creation, why Terraform cannot change an installed version, and why the deployment gives the operating-system disk explicit headroom.
+description: How ce_sw_version and ce_os_version select the latest Customer Edge software at creation, how create-time settings differ from provider upgrade actions, and why the deployment gives the operating-system disk explicit headroom.
 sidebar:
   order: 50
   label: Versions and rebuilds
@@ -48,18 +48,25 @@ operating_system_status.available_version    9.2026.14
 After installation, `last_installed_version` matched those selected values on all three sites.
 The site does not move again merely because a later version becomes available.
 
-## Terraform cannot change a version. The API can
+## Create-time settings and upgrade actions
+
+Provider v8 now exposes software and operating-system upgrade actions and a bounded status
+reader. MCN implements and verified the serial AWS path in `aws_upgrade.tf`; see
+[the SMSv2 lifecycle](../smsv2/terraform-lifecycle/). The Azure API observations below are
+historical and do not constitute v8 Azure upgrade acceptance.
+
+### Historical Azure API behavior
 
 These are two separate facts, and conflating them produces the wrong plan.
 
-**Terraform cannot.** `ce_os_version` and `ce_sw_version` are effectively create-time only.
+**Create-time selectors cannot.** `ce_os_version` and `ce_sw_version` are effectively create-time only.
 Change either and apply, and the API rejects the update with
 `[BAD_REQUEST] Invalid request parameters`. `Observed 2026-07-29` on disposable sites, in all
 three directions — pinning **forward** to a newer build, pinning **backward** to an older one,
 and **un-pinning** by clearing both fields. Forward is not a special case.
 
 **The API can.** F5 Distributed Cloud exposes a dedicated upgrade action per site, which
-starts the change in place — no rebuild, and no Terraform involvement:
+starts the change in place. The following historical direct-API example bypasses Terraform:
 
 ```bash
 # software build
@@ -88,9 +95,9 @@ Note the group in that path: these live under **`config`**, not `operate`. The s
 `operate` return `404 API Group could not be determined`, which is a routing message and not a
 statement that no upgrade exists — a distinction that cost this project a wrong conclusion.
 
-<Aside type="caution" title="An API upgrade is outside Terraform's control">
-Terraform does not drive the upgrade actions or reconcile their result. Treat an API upgrade as
-a deliberate operational change, then verify the installed version independently. A subsequent
+<Aside type="caution" title="Direct API upgrades require reconciliation">
+A direct API call bypasses the Terraform action and status workflow. Verify the installed
+version independently, then inspect a refreshed plan. A subsequent
 from-zero deployment with empty version values selects whatever is newest at that later time.
 </Aside>
 

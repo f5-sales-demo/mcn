@@ -9,8 +9,10 @@ sidebar:
 import { Aside, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-A Customer Edge (CE) is an F5 Distributed Cloud node provisioned in Azure via
-`terraform/modules/ce-node`, built from the `volterraedgeservices/volterra-node` marketplace image.
+A Customer Edge (CE) is an F5 Distributed Cloud node deployed in your cloud or local environment.
+Start with the [SMSv2 deployment guide](./smsv2/) for the verified Terraform lifecycle and
+AWS/Azure procedures. The access examples below describe the dated Azure deployment built
+from the `volterraedgeservices/volterra-node` marketplace image.
 
 Each node runs the Argo data plane, the Vega control plane, an Envoy proxy, a Kubernetes stack,
 and `vpm` (the agent that handles node registration and process management).

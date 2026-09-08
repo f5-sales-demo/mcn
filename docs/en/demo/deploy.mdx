@@ -6,9 +6,11 @@ sidebar:
   label: Deploy
 ---
 
-import { Aside, Steps } from "@astrojs/starlight/components";
+import { Aside } from "@astrojs/starlight/components";
 
 ## Prerequisites
+
+Allow tens of minutes for bootstrap and hours for a full serial-upgrade rehearsal.
 
 - **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.16.1`, for
   provider-defined functions and the `check` block that guards the VIP.
@@ -30,12 +32,9 @@ command uses the binary in that directory and **ignores both the version constra
 lock file**. A build a few days old is enough to fail with `Blocks of type "…" are not
 expected here` on configuration that is perfectly valid against the published provider.
 
-Keep it out of the default path and opt in only when you are developing the provider:
-
-```bash
-mv ~/.terraformrc ~/.terraformrc.provider-dev
-TF_CLI_CONFIG_FILE=~/.terraformrc.provider-dev terraform plan   # when you mean it
-```
+Select a task-specific CLI configuration through `TF_CLI_CONFIG_FILE` for registry
+installation. Keep candidate overrides in a separate file, as shown below; do not rename
+a shared global configuration. See [HashiCorp CLI configuration](https://developer.hashicorp.com/terraform/cli/config/config-file).
 
 </Aside>
 
@@ -107,195 +106,128 @@ That release publishes contract `f5xc-ce-automation/v3` version `6.1.0` from
 `api-specs-enriched` v6.1.2. Its four AWS SMSv2 capabilities, including
 `site_upgrade`, must all report `available`; do not bypass a failed gate.
 
-Each AWS site receives its own `xcsh_token.aws` credential with `type = 1` and
-`site_name` set to the exact Secure Mesh Site v2 name. The multipart EC2 user data
-embeds the provider-issued `xcsh_site_cloud_init` payload, which owns
-`/etc/vpm/user_data`. The wrapper may add the early SLI route guard and operator
-SSH access, but it must never create or replace `/etc/vpm/config.yaml`; the certified
-AWS CE AMI retains that hardware-certification configuration.
+Use the [AWS SMSv2 procedure](../../customer-edge/smsv2/aws-tgw-connect/) for
+site-bound bootstrap, certified image ownership, MAC/device discovery, GRE transport,
+inside payload routing, listener realization, and cumulative recovery stages. The
+[general lifecycle](../../customer-edge/smsv2/terraform-lifecycle/) explains when to
+upgrade, stage, or replace a site.
 
-For a controlled replacement, `aws_bootstrap_site_keys` is intentionally cumulative:
-plan CE01 with `["01"]`, then CE02 with `["01", "02"]`, and CE03 with all three
-keys. Each stage limits runtime discovery, Connect peers, external connectors, BGP
-configuration, and convergence observation to those admitted sites. It also installs
-the admitted site's SLO and SLI subnet associations before creating XC connectors; both
-GRE transports otherwise cannot reach the TGW. This prevents a
-targeted CE replacement from waiting for absent peer sites or minting their JWT credentials;
-the admitted provider-issued cloud-init records remain stable throughout every stage.
-The default is all three keys for the complete topology; use the saved-plan preflight for
-every partial stage.
+Before applying an AWS plan, run the non-mutating preflight below. It checks the reviewed
+plan against the expected cloud account, region, XC tenant, site set, and provider artifact;
+it rejects Azure resource changes. Continue only on `ready` / `preflight_passed`.
+Use a new empty evidence directory outside the repository and keep saved plans private.
 
-Session establishment can be checked during each partial stage. Exact imported workload
-and exported listener routes are enforced only after the complete TGW route table,
-workload attachment association and propagation, and XC load balancer are applied. The
-final status read is ordered behind those resources, so a first complete plan does not
-poll for routes that cannot exist yet.
-
-Before any plan is applied with `enable_aws_tgw_connect = true`, save the reviewed
-plan and run the non-mutating preflight using the complete command in the Apply
-sequence. Put evidence in a new, empty directory outside the repository.
-
-The gate compares the authenticated AWS account and region, XC tenant, and the explicitly
-expected one-site or three-site stage. It performs no Azure CLI or Azure resource operation; the
-preflight gate itself does not access the backend. It rejects
-every Azure resource change, then installs exactly provider v8.0.0 in a disposable
-directory and reads its compiled contract. The only durable evidence is
-`summary.json`, containing `status`, a fixed reason code, and a UTC timestamp;
-account IDs, subscription IDs, tenant names, endpoints, tokens, and resource
-values are never written to evidence. The summary also records `provider_mode` and, for a
-local candidate, its expected `provider_sha256` so the evidence identifies the exact tested bytes.
-
-Apply only when the summary says `ready` with reason `preflight_passed`. A blocked
-result is an expected safe outcome and no infrastructure should be changed.
-
-Before planning AWS sites, supply `aws_smsv2_devices` with `slo` and `sli` guest
-device names for site keys `01`, `02`, and `03`. Correlate each guest device with
-its AWS ENI MAC using boot-console or supported node-discovery evidence. Names
-such as `ens5` and `ens6` are observations for a particular image and instance,
-not defaults. Missing site mappings or duplicate devices fail validation.
-
-AWS sites carry the explicit `mcn-topology` label selected by the VIP virtual
-site. Verify the virtual site's selectees before claiming VIP placement;
-registration does not guarantee a `ves.io/siteName` label exists.
-
-Changing a device can regenerate its XC network-interface object. Review the
-site update and dependent connector binding changes serially, and verify actual
-forwarding and BGP state after each change. A successful site write alone does
-not prove connectivity. Existing configurations must supply this new map; there
-are no legacy device-name aliases.
-
-The optional `--execute-uat` phase requires six healthy MAC-bound interfaces and
-six Connect peers with twelve established BGP sessions. Both AWS-assigned BGP
-endpoints are configured on every tunnel. The status output reports
-`connect_peer_count` and `bgp_session_count` separately. During one CE's outage,
-eight sessions must remain established; all twelve must return after recovery.
-The gate also requires detailed and simplified routes to agree, and runs SSM traffic
-every five seconds through failover, and upgrade sites `01`, `02`, and `03` serially
-from software `crt-20251002-0027` / OS `9.2026.10` to software
-`crt-20260201-0179` / OS `9.2026.17`. Evidence remains a mode-0600 sanitized summary
-outside Git.
-
-Traffic evidence separates the VIP result with a bounded 45-second retry window, the
-first-attempt VIP transport result, and the direct-origin control result. A retry-backed VIP failure
-blocks continuity. Intermittent origin-control failures remain visible in the
-receipt without being attributed to the VIP path. Use `--continuity-only` together
-with `--execute-uat` to repeat traffic, failover, and reconvergence against sites
-that are already at the target versions. That supplemental receipt reports zero
-serial upgrades and does not replace the complete upgrade receipt.
+Full UAT requires six physical interfaces, six Connect peers, and twelve established
+BGP sessions. `--execute-uat` is a consequential operation: it stops/restarts one CE,
+drives workload traffic, and invokes upgrades serially. `--continuity-only` with
+`--execute-uat` repeats traffic/failover on already upgraded sites and records zero upgrades.
+See the [dated acceptance baseline](../../customer-edge/smsv2/) for the result and limits.
 
 ## Apply
 
-<Steps>
+Run the following commands from `terraform/`, after supplying `terraform.tfvars` and
+`backend.hcl`. Replace uppercase placeholders with private paths and the exact identities
+from your reviewed plan. On a new deployment, site outputs do not exist yet; take the
+expected names from the plan, not from stale state.
 
-1. **Initialize.** The backend config is not committed; supply your own with
-   `terraform init -upgrade -backend-config=backend.hcl`.
+### AWS saved-plan sequence
 
-2. **Run the AWS SMSv2 preflight when TGW Connect is enabled.** Continue only on `ready`.
-   The first sequence uses the released provider. Add `--execute-uat` only after reviewing the
-   AWS-only saved plan; that mode stops and restarts one CE, drives five-second traffic from the
-   SSM client, and invokes each site's software and OS actions serially. For prerelease acceptance,
-   continue within the same example to select one reviewed local candidate.
+Create a registry-only CLI configuration for this task before initialization or planning:
 
-   ```bash
-   terraform plan -out=/private/path/mcn.tfplan
-   AWS_SITE_01=$(terraform output -json aws_site_names | jq -r '.["01"]')
-   AWS_SITE_02=$(terraform output -json aws_site_names | jq -r '.["02"]')
-   AWS_SITE_03=$(terraform output -json aws_site_names | jq -r '.["03"]')
+```bash
+REGISTRY_TFRC='<REGISTRY_CLI_CONFIG>'
+PLAN_FILE='<PLAN_FILE>'
+EVIDENCE_DIR='<NEW_PRIVATE_EVIDENCE_DIRECTORY>'
+umask 077
+printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
+export TF_CLI_CONFIG_FILE="$REGISTRY_TFRC"
+terraform init -upgrade -backend-config=backend.hcl
+terraform plan -out="$PLAN_FILE"
+terraform show "$PLAN_FILE"
 
-   scripts/aws-smsv2-uat-preflight.sh \
-     --evidence-dir /private/path/mcn-smsv2-evidence \
-     --terraform-dir terraform \
-     --plan-file /private/path/mcn.tfplan \
-     --expected-aws-account '<AWS_ACCOUNT_ID>' \
-     --expected-aws-region ap-northeast-1 \
-     --expected-xc-tenant '<XC_TENANT>' \
-     --expected-site "$AWS_SITE_01" \
-     --expected-site "$AWS_SITE_02" \
-     --expected-site "$AWS_SITE_03"
+../scripts/aws-smsv2-uat-preflight.sh \
+  --evidence-dir "$EVIDENCE_DIR" \
+  --terraform-dir . \
+  --plan-file "$PLAN_FILE" \
+  --expected-aws-account '<AWS_ACCOUNT_ID>' \
+  --expected-aws-region '<AWS_REGION>' \
+  --expected-xc-tenant '<XC_TENANT>' \
+  --expected-site '<AWS_SITE_01>' \
+  --expected-site '<AWS_SITE_02>' \
+  --expected-site '<AWS_SITE_03>'
+```
 
-   # Prerelease candidate acceptance
-   CANDIDATE_BIN=/private/path/provider/terraform-provider-xcsh
-   CANDIDATE_DIR=$(dirname "$CANDIDATE_BIN")
-   CANDIDATE_SHA256="sha256:$(sha256sum "$CANDIDATE_BIN" | awk '{print $1}')"
-   CANDIDATE_TFRC=/private/path/mcn-candidate.tfrc
-   REGISTRY_TFRC=/private/path/mcn-registry-only.tfrc
+Inspect the preflight result. Continue only when it reports `ready` with reason
+`preflight_passed`, then apply that same saved plan:
 
-   printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
-   chmod 600 "$REGISTRY_TFRC"
+```bash
+terraform apply "$PLAN_FILE"
+```
 
-   cat > "$CANDIDATE_TFRC" <<EOF
-   provider_installation {
-     dev_overrides {
-       "f5-sales-demo/xcsh" = "$CANDIDATE_DIR"
-     }
-     direct {}
-   }
-   EOF
-   chmod 600 "$CANDIDATE_TFRC"
+For a partial recovery, set cumulative `aws_bootstrap_site_keys` in the planned inputs
+and pass only those admitted sites as `--expected-site`. Repeat planning and preflight
+for each stage. The full topology's site identities can subsequently be read with
+`terraform output -json aws_site_names`.
 
-   TF_CLI_CONFIG_FILE="$REGISTRY_TFRC" terraform init -upgrade \
-     -backend-config=backend.hcl
-   TF_CLI_CONFIG_FILE="$CANDIDATE_TFRC" terraform plan \
-     -out=/private/path/mcn-candidate.tfplan
+After the complete graph converges, repeat the preflight command with a **new** evidence
+directory and `--execute-uat` to run the authorized disruption/traffic/serial-upgrade
+rehearsal. Keep the reviewed plan and identity flags unchanged. For already upgraded sites,
+add `--continuity-only` when repeating traffic/failover without upgrades.
 
-   ../scripts/aws-smsv2-uat-preflight.sh \
-     --candidate-provider-binary "$CANDIDATE_BIN" \
-     --candidate-provider-sha256 "$CANDIDATE_SHA256" \
-     --evidence-dir /private/path/mcn-candidate-evidence \
-     --terraform-dir . \
-     --plan-file /private/path/mcn-candidate.tfplan \
-     --expected-aws-account '<AWS_ACCOUNT_ID>' \
-     --expected-aws-region ap-northeast-1 \
-     --expected-xc-tenant '<XC_TENANT>' \
-     --expected-site "$AWS_SITE_01" \
-     --expected-site "$AWS_SITE_02" \
-     --expected-site "$AWS_SITE_03"
+### Deliberately selecting a provider candidate
 
-   TF_CLI_CONFIG_FILE="$CANDIDATE_TFRC" terraform apply \
-     /private/path/mcn-candidate.tfplan
+Normal deployments retain the registry configuration above. For a reviewed local candidate,
+compute its digest and create a separate override file:
 
-   ../scripts/aws-smsv2-uat-preflight.sh \
-     --execute-uat \
-     --candidate-provider-binary "$CANDIDATE_BIN" \
-     --candidate-provider-sha256 "$CANDIDATE_SHA256" \
-     --evidence-dir /private/path/mcn-candidate-uat-evidence \
-     --terraform-dir . \
-     --plan-file /private/path/mcn-candidate.tfplan \
-     --expected-aws-account '<AWS_ACCOUNT_ID>' \
-     --expected-aws-region ap-northeast-1 \
-     --expected-xc-tenant '<XC_TENANT>' \
-     --expected-site "$AWS_SITE_01" \
-     --expected-site "$AWS_SITE_02" \
-     --expected-site "$AWS_SITE_03"
-   ```
+```bash
+CANDIDATE_BIN='<CANDIDATE_PROVIDER_BINARY>'
+CANDIDATE_DIR=$(dirname "$CANDIDATE_BIN")
+CANDIDATE_SHA256="sha256:$(sha256sum "$CANDIDATE_BIN" | awk '{print $1}')"
+CANDIDATE_TFRC='<CANDIDATE_CLI_CONFIG>'
+cat > "$CANDIDATE_TFRC" <<EOF_CONFIG
+provider_installation {
+  dev_overrides {
+    "f5-sales-demo/xcsh" = "$CANDIDATE_DIR"
+  }
+  direct {}
+}
+EOF_CONFIG
+chmod 600 "$CANDIDATE_TFRC"
+export TF_CLI_CONFIG_FILE="$CANDIDATE_TFRC"
+terraform plan -out="$PLAN_FILE"
+```
 
-   The preflight ignores ambient Terraform CLI configuration, initializes its contract probe
-   through a registry-only configuration, and selects the candidate for contract and live UAT
-   operations. It checks the digest before accepting the plan and again around live mutations.
-   A missing, ambiguous, changed, or mismatched candidate fails closed. Do not publish a public
-   prerelease to replace this procedure.
+Review this new plan. Repeat preflight with both
+`--candidate-provider-binary "$CANDIDATE_BIN"` and
+`--candidate-provider-sha256 "$CANDIDATE_SHA256"`, a new evidence directory, and the
+same expected identities. Apply only that candidate plan after a passing gate.
+Pass both candidate flags again for live UAT. The gate independently installs its
+registry contract probe and checks candidate bytes around live mutations; a missing,
+ambiguous, changed, or mismatched candidate fails closed.
 
-3. **First apply.** This builds Azure, the CE sites and the registration token, and boots
-   the CEs.
+### Azure registration phases
 
-   ```bash
-   terraform apply
-   ```
+The AWS preflight rejects Azure changes; do not use it to authorize an Azure apply.
+Review a separately scoped Azure plan and apply it. Once the intended nodes register,
+make and review another plan so approval can be included:
 
-4. **Apply again once the CEs have registered.** This is not optional, and the reason is
-   below rather than being something you discover.
+```bash
+terraform plan -out='<AZURE_PLAN_FILE>'
+terraform show '<AZURE_PLAN_FILE>'
+terraform apply '<AZURE_PLAN_FILE>'
+```
 
-   ```bash
-   terraform apply
-   ```
+Repeat that sequence after registration, inspecting the changed plan before applying it.
+The [Azure procedure](../../customer-edge/smsv2/azure-route-server/) describes the
+current implementation and the limits of its dated acceptance evidence.
 
-</Steps>
+## Verify
 
-Then go to [prove it healthy](../verify/) before showing it to anyone.
+Run [the platform-scoped health checks](../verify/) before presenting the deployment.
 
-## Registration approval is automated, and the apply is still two-phase
+## Azure registration approval is automated and two-phase
 
-Registration approval no longer needs a human in the console: the
+The Azure path uses automated registration approval: the
 `xcsh_registration_approval` resource performs it, and the site module resolves which
 registration to approve.
 
@@ -319,7 +251,7 @@ web application firewall block or a revoked token and is neither. Wait, then ret
 This affects a freshly built demo, not a running one.
 </Aside>
 
-## Operator SSH is a build-time decision
+## Azure operator SSH is a build-time decision
 
 The deployment writes an operator key to the appliance `admin` account, whose login shell
 is the Site CLI. It is written by cloud-init `write_files`, which runs once on first boot.

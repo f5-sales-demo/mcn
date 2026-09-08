@@ -1,0 +1,113 @@
+---
+title: AWS Transit Gateway Connect
+description: Deploy and verify MCN SMSv2 with six GRE Connect peers and twelve BGP sessions.
+sidebar:
+  order: 3
+---
+
+## Prerequisites
+
+Use the [Terraform lifecycle](../terraform-lifecycle/) with provider v8.0.0, authorized
+Amazon Web Services (AWS) and F5 Distributed Cloud (XC) access, the certified Amazon
+Machine Image (AMI), and the [MCN deployment commands](../../../demo/deploy/).
+Budget a maintenance window of hours for full user acceptance testing (UAT), including
+failover and serial upgrades. The preflight is read-only unless `--execute-uat` is supplied.
+
+## Understand the accepted topology
+
+MCN deploys three independent single-node Secure Mesh Site v2 (SMSv2) Customer Edge (CE)
+sites. Each has a Site Local Outside (SLO) and Site Local Inside (SLI) physical interface.
+Each interface transports one Generic Routing Encapsulation (GRE) Connect peer to Transit
+Gateway (TGW), and each Connect peer has two Border Gateway Protocol (BGP) sessions.
+
+| Count | Healthy complete topology | One CE stopped |
+| --- | --- | --- |
+| Sites | 3 online | 2 online |
+| Physical interfaces | 6 healthy | 4 on surviving CEs |
+| Connect peers | 6 provisioned | Still 6 provisioned; the stopped CE's tunnels cannot forward |
+| Established BGP sessions | 12 | 8, returning to 12 after recovery |
+
+The internal Network Load Balancer (NLB) frontend is the workload virtual IP (VIP).
+Its targets are three BGP-routed site listener addresses. Distinguish that frontend from
+the listener host routes when checking propagation. The accepted run verified three
+propagated listener routes and two healthy targets during a CE outage.
+[Acceptance receipt summary](https://github.com/f5-sales-demo/mcn/pull/1103).
+
+## Prepare transport before connectors
+
+1. Correlate each cloud network interface's MAC address with the guest device and actual
+   site/node identity. Populate `aws_smsv2_devices`; do not assume `ens5` or `ens6`.
+2. Confirm source/destination checks are disabled on forwarding interfaces as configured
+   in `aws_ce.tf`.
+3. Verify both SLO and SLI subnet route-table associations and reachability to the TGW
+   transport range. A correct route in an unassociated table has no effect.
+4. Verify the transport attachment, role-specific Connect attachments, workload attachment,
+   and their route-table associations and propagations from `modules/aws-tgw-connect`.
+5. Check security groups and network access control lists for the intended GRE transport,
+   BGP, and return traffic. GRE is IP protocol 47, not TCP port 47; BGP uses TCP 179.
+6. Verify observed interface MTU before creating connectors. MCN sets tunnel MTU to the
+   smaller of physical MTU minus 24 bytes and the XC connector limit of 1370.
+
+These dependencies are implemented in `aws_ce.tf`, `aws_vpc.tf`, and
+`aws_tgw_connect.tf`, available in [the source reference](../../../demo/terraform/).
+The route gate installs both subnet associations even during a targeted site recovery.
+
+## Separate GRE transport and payload
+
+The physical interface supplies the GRE outer identity. The connector's inside routing
+context carries the payload. MCN selects SLI payload for both SLO-carried and SLI-carried
+GRE tunnels: XC rejected the observed configuration selecting SLO for both transport and
+payload. A healthy SLO transport therefore does not imply that payload BGP belongs in SLO.
+
+Configure both AWS-assigned BGP endpoints on every Connect peer. AWS requires external
+BGP multihop with time-to-live (TTL) **2**. Established sessions in the acceptance receipt
+do not prove the packet-level TTL implementation; verify rendered configuration or packets
+when investigating that behavior. See the [AWS Connect contract](https://docs.aws.amazon.com/vpc/latest/tgw/tgw-connect.html).
+
+## Realize listener routes
+
+A load balancer object can exist while its listener route is absent. Check each requirement:
+
+- Exact site placement in `advertise_where`; if using a virtual site elsewhere, verify selectees.
+- Inside network selection (`SITE_NETWORK_INSIDE`) for the listener.
+- Enabled route advertisement and the correct BGP payload context
+  (`VIRTUAL_NETWORK_SITE_LOCAL_INSIDE`).
+- An outbound BGP policy that permits the listener VIP; inspect the effective policy and
+  advertised prefixes rather than inferring acceptance from session state.
+- Omission of the legacy internet-VIP choice in this inside-network path.
+- TGW route propagation and workload return reachability.
+
+Use [BGP diagnostics](../../workflows/bgp-diagnostics/) and
+[routing and failover](../../high-availability/routing-and-failover/) to compare local,
+advertised, received, and installed routes. A constructed connector name or a successful
+object write cannot substitute for those observations.
+
+## Stage recovery and acceptance
+
+Follow the saved-plan commands in [Deploy](../../../demo/deploy/). Recover site keys
+cumulatively: `01`, then `01` plus `02`, then all three. Prove sessions in partial stages;
+require workload and listener routes only after the full workload attachment and load
+balancer dependencies exist. Use bounded polling and serial changes.
+
+`--execute-uat` stops and restarts one CE, sends traffic through the workload client,
+and performs serial software and operating-system upgrades. Supply it only for the reviewed
+AWS scope and maintenance window. `--continuity-only` repeats traffic/failover checks on
+already upgraded sites and reports zero upgrades; it does not replace upgrade acceptance.
+
+## Verify
+
+Require six healthy MAC-bound interfaces, six Connect peers, twelve established sessions,
+listener routes, and successful VIP requests with the intended Host header. During one CE
+outage require eight sessions and two healthy targets; after restart require twelve sessions
+and target recovery. Verify installed versions after each of the three serial upgrades,
+then a refresh-enabled no-change plan.
+
+The [v8 baseline](../) recorded 849 traffic samples and no failures within the bounded
+45-second VIP retry window. It separately recorded 26 raw transport transients. Do not
+present that as zero packet loss, universal failover timing, or Azure acceptance.
+
+## Clean up
+
+Review the isolated stack's destroy plan using [Deploy cleanup](../../../demo/deploy/#clean-up).
+Include workload/NLB, TGW attachments, Connect peers, cloud interfaces, and sites in the
+review; preserve shared namespaces and any resources outside that stack.

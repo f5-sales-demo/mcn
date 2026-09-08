@@ -14,13 +14,21 @@ It functions as both an architectural specification and an execution prompt for 
 
 ---
 
+## Evidence scope
+
+The [SMSv2 guide](../../customer-edge/smsv2/) is the operator reference for current AWS
+Transit Gateway Connect behavior: three independent sites, six physical interfaces,
+six Connect peers, and twelve BGP sessions. [PR #1103](https://github.com/f5-sales-demo/mcn/pull/1103)
+proves AWS failover and serial upgrades. Azure observations below retain their dates;
+the final provider-v8 acceptance did not mutate or re-prove Azure end-to-end.
+
 ## 1. System Overview & Objective
 
 Observed 2026-08-05. Architectural specification:
 
 The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC) Customer Edge (CE) Secure Mesh v2 topology** on Microsoft Azure with an Amazon Web Services (AWS) extension, a parallel Canadian regional extension, and an On-Premise KVM extension.
 
-- **Routing Fabric**: CEs originate host routes (`/32`) via eBGP (ASN `64512`) to an Azure Route Server, AWS VPC Router, or containerized ToR BGP router (ASN `65515`). The VNets, VPCs, and local libvirt networks use native ECMP for active/active traffic distribution.
+- **Routing Fabric**: CEs originate host routes (`/32`) via eBGP (ASN `64512`) to an Azure Route Server, AWS Transit Gateway Connect, or containerized ToR BGP router (ASN `65515`). The VNets, VPCs, and local libvirt networks use native ECMP for active/active traffic distribution.
 - **Four Network Paths**:
   1. **Rest of World (ROW)**: Serves `mcn-ce-ha.f5-sales-demo.com` via 3 CEs in `eastus` (`10.0.0.0/16` VNet) with global Public Regional Edge advertisement.
   2. **Canada Extension**: Serves `mcn-ce-ha.f5-sales-demo.ca` via 3 CEs in `canadacentral` (`10.200.0.0/16` VNet) advertised strictly through Canadian Regional Edges (Toronto and Montreal) and Canadian CEs.
@@ -53,7 +61,9 @@ The deployment provisions an **Active/Active eBGP/ECMP F5 Distributed Cloud (XC)
 
 ## 3. Appliance Bootstrapping (`cloud-init/ce-node.yaml`)
 
-Each CE virtual machine renders a `#cloud-config` template on first boot:
+Each Azure CE virtual machine renders this Azure-specific `#cloud-config` template on first boot.
+AWS uses the separate [site-bound JWT and certified-image flow](../../customer-edge/smsv2/terraform-lifecycle/),
+which preserves `/etc/vpm/config.yaml` and injects `/etc/vpm/user_data`:
 
 - **VPM Configuration**: Writes `/etc/vpm/config.yaml` (`0600`, `root:root`) containing:
   - `Vpm`: `ClusterType: ce`, `ClusterName: ${cluster_name}`, `Token: ${token}`
@@ -119,7 +129,7 @@ Pure-computation module expanding `ce_count` (1..3) into per-CE node maps:
 
 ### Rest of World App Tier
 
-- **Registration Token**: Tenant-scoped `xcsh_token.ce` (`mcn-ce-registration` in `system` namespace, no `type` argument).
+- **Azure Registration Token**: Tenant-scoped `xcsh_token.ce` (`mcn-ce-registration` in `system` namespace, no `type` argument).
 - **Namespace Lookup**: Read-only lookup `data.xcsh_namespace.mcn` (`var.xc_app_namespace` defaulting to `multi-cloud-networking`, `namespace = ""`).
 - **Origin Pool**: `xcsh_origin_pool.this` targeting `var.origin_ip:var.origin_port` with `ROUND_ROBIN` and `DISTRIBUTED` selection.
 - **HTTP Load Balancer**: `xcsh_http_loadbalancer.this` (`mcn-ce-ha-f5se`) serving `var.lb_domain` with `advertise_custom` advertising VIP `10.250.0.10` on `SITE_NETWORK_OUTSIDE` per CE site, with explicit `depends_on = [module.xc_site]`.

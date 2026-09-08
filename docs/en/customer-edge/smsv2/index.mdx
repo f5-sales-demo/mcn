@@ -1,0 +1,73 @@
+---
+title: Secure Mesh Site v2 deployment guide
+description: Verified SMSv2 Terraform lifecycle, cloud topology, evidence baseline, and support boundaries.
+sidebar:
+  order: 1
+---
+
+F5 Distributed Cloud (XC) Secure Mesh Site v2 (SMSv2) connects Customer Edge (CE)
+nodes to the control plane and application networks. Use this guide to separate
+site configuration, node registration, realized interfaces, and working traffic.
+A successful Terraform apply proves only the operations that its graph actually checks.
+
+## Topology and terminology
+
+| Term | Operator meaning |
+| --- | --- |
+| Site | The XC configuration and lifecycle boundary; it is not the virtual machine. |
+| Single-node site | One node with high availability (HA) disabled. MCN's AWS path uses three independent sites. |
+| Three-node site | One HA cluster. Three independent sites do not become a cluster by sharing a virtual-site selector. |
+| Site Local Outside (SLO) | Required outside/control-plane network. A cloud NIC called management can still be SLO. |
+| Site Local Inside (SLI) | Inside application routing context; keep it distinct from the physical transport of an encapsulated tunnel. |
+| Management network | A separate management interface/virtual routing and forwarding (VRF) context, supported for single-node sites, not three-node clusters. |
+| Virtual site | A selector over sites. Verify its actual selectees before relying on placement. |
+
+F5 provisions SMSv2 with one control node or three HA control nodes. Supported worker
+nodes can be added after an HA site is online. Nodes require the same interface count
+and corresponding interfaces in the same network/VRF; HA is a creation decision.
+See the [F5 creation guide](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)
+and [SMSv2 FAQ](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/faqs/smsv2-faqs).
+Use the [interface model](../interface-model/) for interface ordering and management
+constraints, and [HA comparison](../high-availability/) for clustering versus independent sites.
+
+## Explicit and discovered nodes
+
+Provider v8 accepts omitted or empty AWS `not_managed` node lists for registration-time
+discovery. Explicit nodes declare their hostname and interfaces. Neither mode proves
+that a physical interface has appeared or that a route is installed.
+
+Correlate actual site ownership, node, media access control (MAC) address, role, and
+maximum transmission unit (MTU). Guest device names are observations from the selected
+image and virtual hardware. Discover the realized XC interface object; constructing
+its likely name is not health evidence. The [provider parity record](https://github.com/f5-sales-demo/terraform-provider-xcsh/blob/v8.0.0/docs/smsv2-parity-status.md)
+describes discovery validation and the limits of structural parity.
+
+rSeries is excluded as a verified platform removal: the observed API response was
+`Rseries provider is not supported for SecureMeshSite`. This is evidence of rejection,
+not an inference from deprecation. Other platforms require their own acceptance evidence.
+
+## Tested baseline
+
+Baseline: the release acceptance merged on **2026-09-08 UTC**. Earlier Azure observations
+retain their original dates. These are test results, not a promise for every image or tenant.
+
+| Surface | Evidence and limit |
+| --- | --- |
+| Release identity | Provider **v8.0.0**, enriched API **v6.1.2**; immutable release chain in [MCN PR #1103](https://github.com/f5-sales-demo/mcn/pull/1103). |
+| Independent parity | 1,699 legacy paths classified; zero unclassified paths and zero generated-provider gaps. This inventory alone does not establish runtime parity on every platform. [Parity record](https://github.com/f5-sales-demo/terraform-provider-xcsh/blob/v8.0.0/docs/smsv2-parity-status.md). |
+| AWS topology | 3 sites, 6 physical interfaces, 6 Connect peers, 12 established Border Gateway Protocol (BGP) sessions. One CE outage left 8 sessions; recovery restored 12. |
+| AWS traffic | 849 samples, no retry-window virtual IP (VIP) failures, 26 separately counted raw transport transients, zero origin-control failures. This does not mean every first attempt succeeded. |
+| AWS lifecycle | 3 completed serial software/operating-system upgrades and a final refresh-enabled no-change plan. |
+| Azure | Observations through **2026-08-08** cover registration, routes, and traffic. Final provider-v8 acceptance did **not** mutate or re-prove Azure end-to-end. |
+
+AWS results above come from [PR #1103](https://github.com/f5-sales-demo/mcn/pull/1103).
+Azure evidence remains in [verification](../../demo/verify/) and the dated
+[version/disk observations](../lifecycle/). Do not generalize AWS failover acceptance
+to Azure or Kernel-based Virtual Machine (KVM) deployments.
+
+## Choose a procedure
+
+- [Terraform lifecycle](./terraform-lifecycle/): identity, bootstrap, staging, replacement, and upgrades.
+- [AWS Transit Gateway Connect](./aws-tgw-connect/): MCN transport, twelve sessions, listener routes, and acceptance.
+- [Azure Route Server](./azure-route-server/): marketplace deployment, three NICs, registration, and dated evidence.
+- [Troubleshooting and FAQ](./troubleshooting/): diagnose the first failing layer before rebuilding.
