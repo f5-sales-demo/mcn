@@ -40,6 +40,10 @@ while [ $# -gt 0 ]; do
     BASE_REF=${2:?--base needs a commit}
     shift 2
     ;;
+  --changed)
+    FULL_CORPUS=0
+    shift
+    ;;
   --all)
     FULL_CORPUS=1
     shift
@@ -58,14 +62,25 @@ if [ -n "$BASE_REF" ]; then
   FULL_CORPUS=0
 elif [ "$FULL_CORPUS" -eq 0 ]; then
   if git -C "$ROOT" rev-parse --verify --quiet origin/main >/dev/null; then
-    BASE_REF=$(git -C "$ROOT" merge-base origin/main HEAD)
+    BASE_REF=$(git -C "$ROOT" merge-base origin/main HEAD) || BASE_REF=""
   fi
   if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "$(git -C "$ROOT" rev-parse HEAD)" ]; then
-    BASE_REF=$(git -C "$ROOT" rev-parse --verify HEAD^)
+    # CI checks out a depth-one PR merge commit. Its raw first parent is the
+    # exact target-branch commit even when revision walking cannot see it yet.
+    BASE_REF=$(git -C "$ROOT" cat-file -p HEAD |
+      awk 'BEGIN { header=1 } /^$/ { header=0 } header && $1 == "parent" && !seen { print $2; seen=1 }')
   fi
 fi
 if [ "$FULL_CORPUS" -eq 0 ]; then
-  git -C "$ROOT" rev-parse --verify "${BASE_REF}^{commit}" >/dev/null
+  if ! git -C "$ROOT" cat-file -e "${BASE_REF}^{commit}" 2>/dev/null; then
+    if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository)" = true ] &&
+      [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+      # Fetch only the missing immutable comparison commit. A failed fetch is
+      # an error, never permission to skip changed-locale validation.
+      git -C "$ROOT" fetch --quiet --no-tags --depth=1 origin "$BASE_REF"
+    fi
+    git -C "$ROOT" cat-file -e "${BASE_REF}^{commit}"
+  fi
 fi
 
 LOCALES="fr es de pt-br ja ko zh-cn zh-tw ar it hi th"
@@ -180,6 +195,17 @@ if [ "$SELF_TEST" -eq 1 ]; then
     echo "FAIL: full-corpus audit ignored stale locale structure"
     exit 1
   fi
-  echo "PASS: English-only, changed-locale, and full-corpus regression cases"
+  git clone --quiet --depth=1 "file://$fixture" "$fixture/shallow"
+  bash "$REPO_ROOT/tests/test-translation-parity.sh" --root "$fixture/shallow" --changed >/dev/null || {
+    echo "FAIL: depth-one checkout could not validate changed locale"
+    exit 1
+  }
+  printf '%s\n' 'Changed locale missing its source structure.' >"$fixture/shallow/docs/fr/index.mdx"
+  git -C "$fixture/shallow" add docs/fr
+  if bash "$REPO_ROOT/tests/test-translation-parity.sh" --root "$fixture/shallow" --changed >/dev/null; then
+    echo "FAIL: depth-one checkout accepted malformed changed locale"
+    exit 1
+  fi
+  echo "PASS: English-only, changed-locale, full-corpus, and shallow-checkout regression cases"
 fi
 exit "$FAIL"
