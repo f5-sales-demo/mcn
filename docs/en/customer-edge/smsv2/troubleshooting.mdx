@@ -1,0 +1,76 @@
+---
+title: SMSv2 troubleshooting and FAQ
+description: Locate the first failing layer from provider selection through bootstrap, routing, traffic, and lifecycle.
+sidebar:
+  order: 5
+---
+
+Diagnose Secure Mesh Site v2 (SMSv2) from the earliest failing layer. An empty observation
+is a symptom; it does not establish an external platform defect or justify a rebuild.
+
+## Ordered symptom-to-layer matrix
+
+| Order / symptom | Check next | Evidence needed before continuing |
+| --- | --- | --- |
+| 1. Valid syntax rejected | Provider source/version, binary digest, global `dev_overrides`, `TF_CLI_CONFIG_FILE` | Intended v8 binary and nullable empty-choice attributes. |
+| 2. Token or authorization fails | Tenant endpoint, cloud identity, site existence, token type/site binding | Site created before its AWS JWT; no credential dump. |
+| 3. Node never registers | Boot/serial output, certified image, cloud-init ownership, outside default route | AWS `/etc/vpm/config.yaml` preserved; provider payload injected. |
+| 4. Registration pending or duplicate | Actual registration name, site/node identity, approval phase, stale replacement ownership | Approved intended node; VM/site lifecycle coupling intact. |
+| 5. Site online but interface absent | Site ownership, node, MAC, observed device, role, MTU | Unique realized physical interface with healthy status. |
+| 6. GRE tunnel fails | Outer endpoints, both subnet associations, source/destination checks, security, MTU | Transport reachability distinct from inside payload context. |
+| 7. BGP missing or partial | Rendered peers, both service endpoints, connector/context, multihop | AWS: two sessions per Connect peer, twelve for the complete graph. |
+| 8. Sessions up, route absent | Received/advertised prefixes, policies, route-table association and propagation | Expected listener and workload routes installed, not merely configured. |
+| 9. Listener VIP absent | Exact site placement, inside network, advertisement, outbound policy, legacy internet-VIP choice | Listener route visible in the intended routing context. |
+| 10. Routes present, traffic fails | Host header, listener, origin health, return path, flow/drop counters | Distinguish retry-window VIP failure, raw transport transient, and origin-control failure. |
+| 11. Upgrade stalls | Eligibility, prechecks, installed version, phase, deadline, disk | Per-site convergence before the next serial action; no unbounded retry. |
+| 12. Repeated drift or false success | Full refreshed plan after staging, defaults, immutable fields, runtime observations | No-change plan plus routing and traffic verification. |
+
+GRE means Generic Routing Encapsulation; BGP means Border Gateway Protocol; VIP means
+virtual IP; MAC means media access control; MTU means maximum transmission unit; JWT means
+JSON Web Token. The [overview](../) defines site, node, and network roles.
+
+## Which diagnostics should I use?
+
+Use [registration](../../workflows/registration/) before the operate API is available.
+Then follow [interfaces](../../interface-model/), [BGP](../../workflows/bgp-diagnostics/),
+[routing and failover](../../high-availability/routing-and-failover/), and
+[data-plane diagnostics](../../workflows/dataplane-diagnostics/). Avoid duplicating raw
+node dumps in issues: publish only sanitized outcomes and the source/test that supports them.
+
+## Does a successful apply prove the site works?
+
+Only if the graph explicitly checked the necessary runtime behavior. Successful object
+creation and a constructed interface name do not prove realization. A refresh-enabled
+no-change plan still needs session, route, and traffic checks.
+
+## Are six Connect peers six sessions?
+
+No. The accepted AWS topology has six GRE peers and twelve BGP sessions. A single CE
+outage removes four sessions, leaving eight; recovery must restore twelve.
+See [AWS acceptance](../aws-tgw-connect/).
+
+## Do established sessions prove AWS TTL 2?
+
+No. AWS requires external BGP multihop TTL 2, but session establishment alone does not
+measure the packet-level time-to-live (TTL). Inspect rendered configuration or a supported
+packet capture when that implementation detail is the question.
+
+## Can I reuse the AWS bootstrap template on Azure?
+
+No. Preserve the platform-specific ownership described in [Terraform lifecycle](../terraform-lifecycle/).
+Current MCN Azure uses its historical tenant-scoped bootstrap; the final v8 receipt covers
+AWS site-bound bootstrap and does not re-prove Azure.
+
+## Should I nuke and pave after a failed plan?
+
+First identify the failing layer. Use targeted, cumulative staging for recovery and serial
+changes with bounded observation. Rebuild for an immutable change, a diagnosed stuck
+create-time installation, or intentional from-zero proof. A bad route association or
+incorrect provider override survives a rebuild unchanged.
+
+## Has failover been tested?
+
+AWS v8 acceptance exercised one CE outage, route withdrawal, traffic, restoration, and
+three serial upgrades. Azure observations through 2026-08-08 establish routing and traffic;
+the final v8 run did not mutate or re-prove Azure end-to-end. Neither result establishes
+even traffic distribution or a universal recovery interval. See [the dated baseline](../).

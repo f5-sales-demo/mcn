@@ -15,7 +15,7 @@ fail() {
 }
 
 tracked_terraform() {
-  git -C "$1" ls-files 'terraform/*.tf' 'terraform/**/*.tf' | LC_ALL=C sort -u
+  git -C "$1" ls-files 'terraform/*.tf' 'terraform/**/*.tf' 'terraform/cloud-init/ce-node-aws.multipart.tpl' | LC_ALL=C sort -u
 }
 
 manifest_terraform() {
@@ -95,14 +95,16 @@ check_tree() {
 
 new_fixture() {
   local root=$1
-  mkdir -p "$root/terraform/modules/thing" "$root/docs/en" \
+  mkdir -p "$root/terraform/modules/thing" "$root/terraform/cloud-init" "$root/docs/en" \
     "$root/tests" "$root/.github/workflows"
   printf 'locals {}\n' >"$root/terraform/main.tf"
+  printf '${site_cloud_init}\n' >"$root/terraform/cloud-init/ce-node-aws.multipart.tpl"
   printf 'output "x" {}\n' >"$root/terraform/modules/thing/outputs.tf"
   printf 'secret = "never publish"\n' >"$root/terraform/terraform.tfvars"
   printf '# lock\n' >"$root/terraform/.terraform.lock.hcl"
   printf '%s\n' \
     'terraform/main.tf -> terraform/main.tf' \
+    'terraform/cloud-init/ce-node-aws.multipart.tpl -> terraform/cloud-init/ce-node-aws.multipart.tpl' \
     'terraform/modules/thing/outputs.tf -> terraform/modules/thing/outputs.tf' \
     >"$root/docs/_imports"
   printf 'import source from "../../_data/terraform/main.tf?raw";\n' \
@@ -140,6 +142,10 @@ check_tree "$WORK/valid"
 cp -a "$WORK/valid" "$WORK/missing"
 sed -i '/modules\/thing\/outputs.tf/d' "$WORK/missing/docs/_imports"
 expect_rejected missing
+
+cp -a "$WORK/valid" "$WORK/missing-template"
+sed -i '/ce-node-aws.multipart.tpl/d' "$WORK/missing-template/docs/_imports"
+expect_rejected missing-template
 
 cp -a "$WORK/valid" "$WORK/tfvars"
 printf '%s\n' 'terraform/terraform.tfvars -> terraform/terraform.tfvars' \

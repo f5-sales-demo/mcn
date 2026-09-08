@@ -9,10 +9,11 @@ sidebar:
 import { Aside, Steps, CardGrid } from "@astrojs/starlight/components";
 import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 
-The claim this demo supports is narrow and worth stating precisely, because a wider one will
-not survive questions:
+Present the platform-specific evidence, including its date and limits:
 
-> Customer Edges in Azure, AWS, and On-Premise KVM advertise the same host route by eBGP (or load balance via Azure ILB), and the native routing fabric installs all of them as equal-cost next hops. Traffic distribution and node removal are therefore properties of the routing fabric — there is no cloud load balancer required in front of the CEs for BGP/ECMP topologies.
+- Azure observations through 2026-08-08 show BGP routes and working traffic. They do not measure node-failure recovery time.
+- [AWS v8 acceptance](https://github.com/f5-sales-demo/mcn/pull/1103) covers three independent sites, six Transit Gateway Connect peers, twelve BGP sessions, and an internal NLB in front of three routed listeners.
+- The final v8 run did not mutate or re-prove Azure or KVM end-to-end. See the [SMSv2 baseline](../../customer-edge/smsv2/).
 
 Run [the four health checks](../verify/) first. Everything below assumes they passed.
 
@@ -93,23 +94,19 @@ front of an audience is hard to walk back from even though nothing is wrong.
 
 </Steps>
 
-## What this demo cannot yet show
+## Failover evidence and remaining limits
 
-Stated here rather than discovered live. All three are absences of evidence, not known
-failures.
+AWS acceptance stopped one CE: established BGP sessions fell from twelve to eight and
+returned to twelve after restart. The receipt includes 849 traffic samples, no retry-window
+VIP failures, and 26 separately reported raw transport transients. Three serial upgrades
+completed. This is not zero first-attempt loss or a universal recovery-time guarantee.
 
-<Aside type="danger" title="Do not rehearse a failover story from these pages">
-**Failover has not been tested.** The equal-cost next hops are verified installed; what
-happens to the route table when a CE is stopped or stops advertising has not been exercised
-against this deployment. The intended mechanism is to withdraw one CE's advertisement and
-watch the next-hop count drop, but until that has actually been run and measured it is a
-plan, not a result — so do not promise it, and do not improvise it in front of an audience.
+Azure's dated route and traffic evidence does not establish its node-failure interval.
+Use [routing and failover](../../customer-edge/high-availability/routing-and-failover/)
+for the mechanism and the [AWS procedure](../../customer-edge/smsv2/aws-tgw-connect/)
+for the accepted rehearsal. Schedule live disruptions within the authorized demo window.
 
-Testing it needs a window when nobody else is using the environment, since it changes live
-advertisement state. Until then, use the generic
-[routing and failover guide](../../customer-edge/high-availability/routing-and-failover/)
-to explain the intended mechanism without presenting it as an observed result from this demo.
-</Aside>
+The remaining Azure observations are scoped to the historical deployment:
 
 - **Traffic distribution across the next hops has not been measured.** The from-zero UAT sent
   160 requests to the VIP, and earlier testing sent 1,470 more. The

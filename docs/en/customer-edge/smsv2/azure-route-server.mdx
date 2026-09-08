@@ -1,0 +1,94 @@
+---
+title: Azure Route Server
+description: Deploy the MCN Azure marketplace topology and interpret its dated registration and routing evidence.
+sidebar:
+  order: 4
+---
+
+## Prerequisites
+
+Use authorized Microsoft Azure and F5 Distributed Cloud (XC) access, marketplace image
+terms, and the [MCN Terraform prerequisites](../../../demo/deploy/). Allow tens of minutes
+for registration and potentially hours for a version-installation investigation.
+The current source pins provider v8.0.0, but its final release acceptance did **not** mutate
+or re-prove Azure end-to-end. Retain the dates below when presenting Azure results.
+
+## Deploy the marketplace shape
+
+The `ce-node` module selects `volterraedgeservices/volterra-node/volterra-node` with the
+required marketplace `plan` block. It attaches three network interface cards (NICs), enables
+IP forwarding, disables accelerated networking, and enables boot diagnostics.
+
+| Attachment order | MCN cloud role | Address and XC interpretation |
+| --- | --- | --- |
+| First | `mgmt` | Static private address and public IP; explicit `eth0` Site Local Outside (SLO), also the BGP source. This is not a separate management network. |
+| Second | `external` | Dynamic private address; inspect the realized Site Local Inside (SLI) assignment. |
+| Third | `internal` | Dynamic private address; inspect the realized SLI assignment. |
+
+Do not infer host addresses solely from cloud NIC order. On the observed appliance builds,
+SLO appears on `vhost0`, and the internal address can appear on different guest interfaces.
+Read [the interface model](../../interface-model/) and refresh `ce_sli_private_ips` after
+replacement. The [source reference](../../../demo/terraform/) contains the authoritative
+`ce-node`, `xc-site`, and `azure-hub` modules.
+
+## Configure Route Server and BGP
+
+Azure Route Server requires a dedicated `RouteServerSubnet`. Do not associate a network
+security group (NSG) or user-defined route (UDR) table with that subnet. Peer every network
+virtual appliance with both Route Server service addresses and advertise the same routes
+to each. Configure multihop external Border Gateway Protocol (BGP); the service endpoints
+are not a directly attached neighbor pair. See [Microsoft's Route Server guidance](https://learn.microsoft.com/en-us/azure/route-server/route-server-faq).
+
+MCN creates one Azure BGP connection per CE and expands both service addresses into XC
+peers. Its explicit SLO Ethernet definition includes the management NIC's MAC address so
+XC can realize the referenced interface. The Azure module still derives an interface object
+name; verify actual site/node/MAC ownership and rendered BGP before accepting that reference.
+The AWS runtime-discovery receipt does not validate Azure's derived name.
+
+## Register in phases
+
+1. Review the plan for the intended Azure scope and supply the deployment variables.
+2. Apply the bootstrap resources using [Deploy](../../../demo/deploy/).
+3. Observe registration by exact site and hostname using [registration diagnostics](../../workflows/registration/).
+4. Re-plan after registration exists so `xcsh_registration_approval` can approve its runtime identity.
+5. Verify `ONLINE`, then both BGP sessions per CE and installed routes.
+
+Current Azure bootstrap uses the tenant-scoped `xcsh_token.ce` and Azure-specific
+`cloud-init/ce-node.yaml`. It does not implement AWS's site-bound JWT flow. Keep this
+limitation visible when adapting the [general lifecycle](../terraform-lifecycle/).
+Do not add a dependency to the plan-time registration lookup that makes approval count unknown.
+
+## Preserve replacement and version behavior
+
+Changes to Azure VM `custom_data` replace the VM. MCN's site lifecycle follows the VM
+instance identity, retiring stale site registrations before replacement registration can
+converge. A replacement also changes SSH host keys and can reassign dynamic SLI addresses.
+Refresh connection information instead of reusing a prior address.
+
+Observed 2026-07-29: the tested software/operating-system pair failed on the marketplace
+image's 31 GiB disk and installed at tested sizes from 33 GB upward. The module defaults
+to 64 GB and rejects values below 40 GB. Those results are not a universal disk minimum.
+Observed 2026-08-03: a clean rebuild with empty version selectors installed the then-advertised
+versions and reached `ONLINE` on all three nodes with a clean plan.
+
+Marketplace `latest` selects the image at creation; empty XC version selectors select the
+then-advertised installation target. Editing create-time selectors is not an upgrade action.
+Provider v8 now exposes upgrade actions, but the final three-site upgrade acceptance was AWS.
+Keep Azure's dated [version and disk evidence](../../lifecycle/) separate.
+
+## Verify
+
+Use [the verification commands](../../../demo/verify/) to inspect XC BGP, both Route Server
+peer addresses, learned routes, client NIC effective routes, and virtual IP (VIP) traffic.
+Keep the VIP outside the configured virtual-network ranges as required by the MCN guards.
+
+Observed 2026-08-08: the guide records Azure route and HTTP verification. That proves the
+dated path, not node-failure timing, even distribution across next hops, or v8 from-zero
+acceptance. Finish current operations with live routing/traffic checks and a refresh-enabled
+no-change plan; label new results with their date and artifact identity.
+
+## Clean up
+
+Review the stack's destroy plan and follow [Deploy cleanup](../../../demo/deploy/#clean-up).
+The shared app namespace is read rather than managed. Preserve unrelated Azure resources
+and remove private bootstrap artifacts according to the backend's retention policy.

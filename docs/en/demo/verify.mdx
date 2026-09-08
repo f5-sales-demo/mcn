@@ -36,6 +36,18 @@ AWS_VIP=$(terraform output -raw aws_vip)
 AWS_LB_NAME=$(terraform output -raw aws_loadbalancer_name)
 ```
 
+## Platform evidence scope
+
+The checks below retain Azure observations through 2026-08-08. Final provider-v8 acceptance
+did not mutate or re-prove Azure end-to-end. Use the [AWS SMSv2 verification procedure](../../customer-edge/smsv2/aws-tgw-connect/#verify)
+for the accepted three-site, six-interface, six-Connect-peer, twelve-session topology.
+One AWS CE outage must leave eight sessions; recovery must restore twelve.
+
+[PR #1103](https://github.com/f5-sales-demo/mcn/pull/1103) records 849 traffic samples,
+no retry-window VIP failures, 26 raw transport transients, zero origin-control failures,
+three serial upgrades, and a refresh-enabled no-change plan. Keep those outcomes separate
+from the historical Azure checks below and from any unmeasured traffic distribution.
+
 ## Four checks, in this order
 
 <Steps>
