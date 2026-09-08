@@ -331,8 +331,9 @@ resource "aws_security_group" "smsv2_nlb" {
 }
 
 resource "aws_lb" "smsv2" {
+  #checkov:skip=CKV2_AWS_20:Internal TCP NLB; HTTP redirects are an ALB listener capability.
   #checkov:skip=CKV_AWS_91:Ephemeral private development NLB; protected evidence captures health and traffic.
-  #checkov:skip=CKV_AWS_150:Ephemeral nuke-and-pave development topology.
+  #checkov:skip=CKV_AWS_150:Ephemeral development topology; deletion protection would block authorized teardown.
   count                            = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
   name                             = "${var.component}-smsv2"
   internal                         = true
