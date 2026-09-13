@@ -9,7 +9,7 @@ locals {
 # before Terraform tracks it, so acceptance uses an idempotent PUT action rather
 # than a create-managed resource and remains inside Terraform apply.
 data "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
-  type        = "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01"
+  type        = "Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01"
   resource_id = local.f5xc_customer_edge_marketplace_agreement_id
   action      = ""
   method      = "GET"
@@ -18,7 +18,7 @@ data "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
 }
 
 resource "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
-  type        = "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01"
+  type        = "Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01"
   resource_id = local.f5xc_customer_edge_marketplace_agreement_id
   action      = ""
   method      = "PUT"

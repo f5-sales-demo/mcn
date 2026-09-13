@@ -36,7 +36,7 @@ run "fixed_customer_edge_marketplace_agreement" {
 
   assert {
     condition = (
-      data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement.type == "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01" &&
+      data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement.type == "Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01" &&
       data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement.resource_id == "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/offerTypes/virtualmachine/publishers/f5-networks/offers/f5xc_customer_edge/plans/f5xc-ce-crt-20260201/agreements/current" &&
       data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement.method == "GET"
     )
@@ -45,7 +45,7 @@ run "fixed_customer_edge_marketplace_agreement" {
 
   assert {
     condition = (
-      azapi_resource_action.f5xc_customer_edge_marketplace_agreement.type == "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01" &&
+      azapi_resource_action.f5xc_customer_edge_marketplace_agreement.type == "Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01" &&
       azapi_resource_action.f5xc_customer_edge_marketplace_agreement.resource_id == "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/offerTypes/virtualmachine/publishers/f5-networks/offers/f5xc_customer_edge/plans/f5xc-ce-crt-20260201/agreements/current" &&
       azapi_resource_action.f5xc_customer_edge_marketplace_agreement.action == "" &&
       azapi_resource_action.f5xc_customer_edge_marketplace_agreement.method == "PUT" &&
