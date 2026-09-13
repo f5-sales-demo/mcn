@@ -2,8 +2,7 @@
 # configuration.  The agreement identity is deliberately fixed: callers cannot
 # substitute a publisher, offer, or plan through an input variable.
 locals {
-  f5xc_customer_edge_marketplace_agreement_name = "f5-networks/offers/f5xc_customer_edge/plans/f5xc-ce-crt-20260201"
-  f5xc_customer_edge_marketplace_agreement_id   = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/${local.f5xc_customer_edge_marketplace_agreement_name}"
+  f5xc_customer_edge_marketplace_agreement_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/offerTypes/virtualmachine/publishers/f5-networks/offers/f5xc_customer_edge/plans/f5xc-ce-crt-20260201/agreements/current"
 }
 
 # Read the exact subscription agreement first. Azure exposes this object even
