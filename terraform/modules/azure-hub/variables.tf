@@ -39,6 +39,12 @@ variable "route_server_name" {
   default     = "ce-ha-lab-rrs"
 }
 
+variable "enable_route_server" {
+  description = "Create Azure Route Server resources. Keep false for the supported ILB-based SMSv2 showcase; true requires the separately validated eBGP multihop contract gate."
+  type        = bool
+  default     = false
+}
+
 variable "bastion_subnet_prefix" {
   description = "AzureBastionSubnet prefix (/26 or larger, named literally AzureBastionSubnet, no NSG and no route table). Only read when enable_bastion is true."
   type        = string

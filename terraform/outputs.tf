@@ -35,6 +35,16 @@ output "route_server_name" {
   value       = local.route_server_name
 }
 
+output "azure_ilb_private_ip" {
+  description = "Azure US ILB private address for supported CE Site Console health and traffic verification; null when disabled."
+  value       = try(azurerm_lb.azure_ilb[0].frontend_ip_configuration[0].private_ip_address, null)
+}
+
+output "canada_ilb_private_ip" {
+  description = "Canadian ILB private address for supported CE Site Console health and traffic verification; null when disabled."
+  value       = try(azurerm_lb.ca_ilb[0].frontend_ip_configuration[0].private_ip_address, null)
+}
+
 output "client_vm_name" {
   description = "Test client VM name — the -n argument of `az vm run-command invoke` when driving traffic at the VIP from inside the VNet."
   value       = local.client_vm_name

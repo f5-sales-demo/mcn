@@ -32,18 +32,40 @@ run "hub_names_and_subnets" {
   }
 
   assert {
-    condition     = azurerm_subnet.route_server.name == "RouteServerSubnet"
-    error_message = "Route Server subnet must be named literally RouteServerSubnet."
+    condition     = length(azurerm_subnet.route_server) == 0 && length(azurerm_route_server.this) == 0
+    error_message = "The supported default must plan no Azure Route Server resources."
+  }
+}
+
+run "route_server_enabled_shape" {
+  command = plan
+
+  module {
+    source = "./modules/azure-hub"
+  }
+
+  variables {
+    resource_group_name        = "rg-mcn-ce-ha-testdeployer"
+    location                   = "eastus"
+    hub_cidr                   = "10.0.0.0/16"
+    mgmt_subnet_prefix         = "10.0.1.0/26"
+    external_subnet_prefix     = "10.0.2.0/26"
+    internal_subnet_prefix     = "10.0.3.0/26"
+    route_server_subnet_prefix = "10.0.4.0/27"
+    route_server_name          = "mcn-ce-ha-rs"
+    enable_route_server        = true
+    bastion_subnet_prefix      = "10.0.5.0/26"
+    tags                       = {}
   }
 
   assert {
-    condition     = azurerm_subnet.route_server.address_prefixes[0] == "10.0.4.0/27"
-    error_message = "RouteServerSubnet must be a /27."
+    condition     = azurerm_subnet.route_server[0].name == "RouteServerSubnet" && azurerm_subnet.route_server[0].address_prefixes[0] == "10.0.4.0/27"
+    error_message = "Enabled Route Server must retain its literal /27 subnet."
   }
 
   assert {
-    condition     = azurerm_route_server.this.sku == "Standard"
-    error_message = "Route Server must use the Standard SKU."
+    condition     = azurerm_route_server.this[0].sku == "Standard"
+    error_message = "Enabled Route Server must use the Standard SKU."
   }
 }
 

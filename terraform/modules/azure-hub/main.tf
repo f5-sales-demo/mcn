@@ -36,6 +36,7 @@ resource "azurerm_subnet" "internal" {
 # RouteServerSubnet: name is literal, /27, and has NO NSG and NO route table
 # association (both are unsupported on the Route Server subnet).
 resource "azurerm_subnet" "route_server" {
+  count                = var.enable_route_server ? 1 : 0
   name                 = "RouteServerSubnet"
   resource_group_name  = azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.hub.name
@@ -43,6 +44,7 @@ resource "azurerm_subnet" "route_server" {
 }
 
 resource "azurerm_public_ip" "route_server" {
+  count               = var.enable_route_server ? 1 : 0
   name                = "${var.route_server_name}-pip"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
@@ -54,12 +56,13 @@ resource "azurerm_public_ip" "route_server" {
 # Azure Route Server. ASN is fixed by Azure at 65515; virtual_router_ips are the
 # two BGP peer addresses (10.0.4.4 / 10.0.4.5) the CEs peer to.
 resource "azurerm_route_server" "this" {
+  count                = var.enable_route_server ? 1 : 0
   name                 = var.route_server_name
   location             = azurerm_resource_group.this.location
   resource_group_name  = azurerm_resource_group.this.name
   sku                  = "Standard"
-  public_ip_address_id = azurerm_public_ip.route_server.id
-  subnet_id            = azurerm_subnet.route_server.id
+  public_ip_address_id = azurerm_public_ip.route_server[0].id
+  subnet_id            = azurerm_subnet.route_server[0].id
   tags                 = var.tags
 }
 

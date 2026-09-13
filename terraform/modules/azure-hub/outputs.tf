@@ -35,22 +35,22 @@ output "internal_subnet_id" {
 
 output "route_server_subnet_id" {
   description = "RouteServerSubnet subnet ID."
-  value       = azurerm_subnet.route_server.id
+  value       = one(azurerm_subnet.route_server[*].id)
 }
 
 output "route_server_id" {
   description = "Azure Route Server resource ID."
-  value       = azurerm_route_server.this.id
+  value       = one(azurerm_route_server.this[*].id)
 }
 
 output "rs_peer_ips" {
   description = "The two Route Server BGP peer IPs (virtual_router_ips) the CEs peer to."
-  value       = azurerm_route_server.this.virtual_router_ips
+  value       = flatten(azurerm_route_server.this[*].virtual_router_ips)
 }
 
 output "rs_asn" {
   description = "Route Server ASN (fixed by Azure at 65515)."
-  value       = azurerm_route_server.this.virtual_router_asn
+  value       = one(azurerm_route_server.this[*].virtual_router_asn)
 }
 
 output "bastion_name" {

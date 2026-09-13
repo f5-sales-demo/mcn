@@ -1,8 +1,8 @@
-# MCN CE-HA (BGP/ECMP) — top-level wiring.
+# MCN SMSv2 multi-site showcase — top-level wiring.
 #
-# N single-node Secure Mesh v2 CE sites, each originating the LB VIP 10.250.0.10/32
-# via eBGP (ASN 64512) to Azure Route Server (ASN 65515). Equal-cost advertisements
-# from multiple CEs program ECMP (active/active) into the hub VNet.
+# The supported Azure path uses an Internal Load Balancer to reach CE Site Console
+# health endpoints. Azure Route Server is opt-in and deliberately fails closed until
+# the immutable F5 contract supplies writable eBGP multihop semantics.
 #
 # Deploy-time ordering: Azure (VNet/subnets/RS/NICs/VMs) -> XC site (explicit
 # interface) -> token -> CE cloud-init boot -> CE registers -> registration
@@ -105,7 +105,8 @@ module "ce_topology" {
   site_prefix        = local.site_prefix
 }
 
-# Hub: RG, VNet, four subnets, Azure Route Server.
+# Hub: RG, VNet, and CE subnets. Route Server is created only for the explicitly
+# requested (and currently rejected) BGP topology.
 module "azure_hub" {
   source = "./modules/azure-hub"
 
@@ -119,6 +120,7 @@ module "azure_hub" {
   internal_subnet_prefix     = var.internal_subnet_prefix
   route_server_subnet_prefix = var.route_server_subnet_prefix
   route_server_name          = local.route_server_name
+  enable_route_server        = var.enable_bgp
   bastion_subnet_prefix      = var.bastion_subnet_prefix
   enable_bastion             = var.enable_bastion
   bastion_name               = local.bastion_name
@@ -226,7 +228,7 @@ module "xc_site" {
 # The Azure side of each eBGP session (Route Server -> CE eth0/SLO IP).
 module "azure_route_server_bgp" {
   source   = "./modules/azure-route-server-bgp"
-  for_each = module.ce_topology.ce_nodes
+  for_each = var.enable_bgp ? module.ce_topology.ce_nodes : {}
 
   name            = "${each.key}-bgp"
   route_server_id = module.azure_hub.route_server_id
@@ -377,7 +379,7 @@ module "ce_topology_ca" {
   site_prefix        = local.ca_site_prefix
 }
 
-# Canada Hub: RG, VNet, four subnets, Azure Route Server.
+# Canada Hub: RG, VNet, and CE subnets; Route Server remains opt-in.
 module "azure_hub_ca" {
   count  = var.enable_canada ? 1 : 0
   source = "./modules/azure-hub"
@@ -392,6 +394,7 @@ module "azure_hub_ca" {
   internal_subnet_prefix     = var.ca_internal_subnet_prefix
   route_server_subnet_prefix = var.ca_route_server_subnet_prefix
   route_server_name          = local.ca_route_server_name
+  enable_route_server        = var.enable_bgp
   bastion_subnet_prefix      = var.ca_bastion_subnet_prefix
   enable_bastion             = var.enable_bastion
   bastion_name               = local.ca_bastion_name
@@ -480,7 +483,7 @@ module "xc_site_ca" {
 
 # Azure Route Server eBGP session for Canadian CEs.
 module "azure_route_server_bgp_ca" {
-  for_each = try(module.ce_topology_ca[0].ce_nodes, {})
+  for_each = var.enable_bgp ? try(module.ce_topology_ca[0].ce_nodes, {}) : {}
   source   = "./modules/azure-route-server-bgp"
 
   name            = "${each.key}-bgp"

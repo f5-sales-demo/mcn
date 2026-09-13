@@ -23,10 +23,10 @@ override_data {
   override_during = plan
   target          = data.xcsh_smsv2_contract.aws[0]
   values = {
-    contract_id         = "f5xc-ce-automation/v3"
-    contract_version    = "6.1.0"
-    api_release_tag     = "v6.1.2"
-    api_release_commit  = "a5fa987f876db955666b${"d94fefed35f283bb5364"}"
+    contract_id         = "f5xc-smsv2-api/v1"
+    contract_version    = "7.0.0"
+    api_release_tag     = "v7.0.1"
+    api_release_commit  = "2513fe498149c98fb737ff2ab207704b8a86fec6"
     telemetry_schema_id = "f5xc-smsv2-aws-tgw-telemetry/v2"
     capabilities = {
       aws_ce_create  = "available"
