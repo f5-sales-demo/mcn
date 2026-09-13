@@ -21,7 +21,7 @@ data "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
 resource "azapi_resource" "f5xc_customer_edge_marketplace_agreement" {
   type      = "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01"
   parent_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/f5-networks/offers/f5xc_customer_edge"
-  name      = "plans/f5xc-ce-crt-20260201"
+  name      = "f5xc-ce-crt-20260201"
 
   # AzAPI 2.12.0 does not embed the Marketplace Ordering schema. The ARM API
   # version and fixed resource identity remain explicit and are validated by
