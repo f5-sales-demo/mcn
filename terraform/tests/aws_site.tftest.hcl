@@ -81,6 +81,7 @@ variables {
   aws_ssh_public_key  = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAwsSpecificKeyMaterialOnlyForTests aws-plan-test-only"
   xc_app_namespace    = "multi-cloud-networking"
   aws_ce_ami_id       = "ami-0123456789abcdef0"
+  aws_workload_ami_id = "ami-0123456789abcdef0"
   aws_smsv2_devices = {
     "01" = { slo = "ens5", sli = "ens6" }
     "02" = { slo = "ens5", sli = "ens6" }
@@ -125,6 +126,11 @@ run "aws_site_and_resources" {
   assert {
     condition     = aws_instance.ce[0].ami == "ami-0123456789abcdef0"
     error_message = "AWS CE instances must use the explicitly approved AMI, not a dynamic discovery result."
+  }
+
+  assert {
+    condition     = aws_instance.workload[0].ami == var.aws_workload_ami_id
+    error_message = "AWS workload instances must use the explicitly approved AMI, not a dynamic discovery result."
   }
 
   assert {

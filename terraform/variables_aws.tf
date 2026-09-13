@@ -20,6 +20,18 @@ variable "aws_ce_ami_id" {
   }
 }
 
+variable "aws_workload_ami_id" {
+  description = "Explicit approved Amazon Linux AMI ID for the AWS workload client. A deployment must not select the most-recent image dynamically because that causes unrelated reconciliation replacements."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.aws_workload_ami_id == null || can(regex("^ami-[0-9a-f]+$", var.aws_workload_ami_id))
+    error_message = "aws_workload_ami_id must be an AWS AMI ID such as ami-0123456789abcdef0."
+  }
+}
+
 variable "aws_ssh_public_key" {
   description = "Optional AWS-only SSH public key material. When empty, the shared ssh_public_key input is used."
   type        = string

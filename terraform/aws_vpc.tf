@@ -423,25 +423,10 @@ resource "aws_iam_instance_profile" "workload" {
   role  = aws_iam_role.workload[0].name
 }
 
-data "aws_ami" "amazon_linux_2023" {
-  count       = var.enable_aws ? 1 : 0
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-2023.*-x86_64"]
-  }
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-}
-
 resource "aws_instance" "workload" {
   #checkov:skip=CKV_AWS_88:The ingress-free UAT client needs an explicit public IP for SSM and Internet origin checks without a NAT gateway.
   count                       = var.enable_aws ? 1 : 0
-  ami                         = data.aws_ami.amazon_linux_2023[0].id
+  ami                         = var.aws_workload_ami_id
   instance_type               = "t3.micro"
   subnet_id                   = aws_subnet.workload[0].id
   ebs_optimized               = true
@@ -456,6 +441,13 @@ resource "aws_instance" "workload" {
 
   root_block_device {
     encrypted = true
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.aws_workload_ami_id != null
+      error_message = "AWS workload deployment requires an explicit approved aws_workload_ami_id; dynamic AMI selection is not allowed."
+    }
   }
 
   tags = merge(local.tags, { Name = "${var.component}-aws-ssm-client" })
