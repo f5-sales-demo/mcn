@@ -17,6 +17,7 @@ mock_provider "aws" {
 }
 
 mock_provider "xcsh" {}
+mock_provider "azapi" {}
 
 override_data {
   override_during = plan

@@ -10,14 +10,21 @@ sidebar:
 Use authorized Microsoft Azure and F5 Distributed Cloud (XC) access, marketplace image
 terms, and the [MCN Terraform prerequisites](../../../demo/deploy/). Allow tens of minutes
 for registration and potentially hours for a version-installation investigation.
-The current source pins provider v8.0.0, but its final release acceptance did **not** mutate
-or re-prove Azure end-to-end. Retain the dates below when presenting Azure results.
+The current source pins `f5-sales-demo/xcsh` v9.0.0, which consumes immutable
+`api-specs-enriched` v7.0.1. It intentionally does **not** claim current Azure Route
+Server convergence: the contract has no schema-valid writable eBGP-multihop control.
+Retain the dates below when presenting Azure observations.
 
 ## Deploy the marketplace shape
 
-The `ce-node` module selects `volterraedgeservices/volterra-node/volterra-node` with the
-required marketplace `plan` block. It attaches three network interface cards (NICs), enables
-IP forwarding, disables accelerated networking, and enables boot diagnostics.
+The `ce-node` module selects the fixed certified tuple
+`f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1`, with the
+matching Marketplace plan. Terraform first reads and then idempotently writes `accepted = true`
+for exactly `f5-networks/offers/f5xc_customer_edge/plans/f5xc-ce-crt-20260201` through
+AzAPI 2.12.0; Azure foundation resources transitively depend on that agreement. Operators
+must not accept terms in the portal or CLI, import an agreement, edit state, taint resources,
+or substitute an arbitrary offer. The module attaches three network interface cards (NICs),
+enables IP forwarding, disables accelerated networking, and enables boot diagnostics.
 
 | Attachment order | MCN cloud role | Address and XC interpretation |
 | --- | --- | --- |
@@ -31,7 +38,7 @@ Read [the interface model](../../interface-model/) and refresh `ce_sli_private_i
 replacement. The [source reference](../../../demo/terraform/) contains the authoritative
 `ce-node`, `xc-site`, and `azure-hub` modules.
 
-## Configure Route Server and BGP
+## Route Server and BGP: current stop condition
 
 Azure Route Server requires a dedicated `RouteServerSubnet`. Do not associate a network
 security group (NSG) or user-defined route (UDR) table with that subnet. Peer every network
@@ -39,19 +46,22 @@ virtual appliance with both Route Server service addresses and advertise the sam
 to each. Configure multihop external Border Gateway Protocol (BGP); the service endpoints
 are not a directly attached neighbor pair. See [Microsoft's Route Server guidance](https://learn.microsoft.com/en-us/azure/route-server/route-server-faq).
 
-MCN creates one Azure BGP connection per CE and expands both service addresses into XC
-peers. Its explicit SLO Ethernet definition includes the management NIC's MAC address so
-XC can realize the referenced interface. The Azure module still derives an interface object
-name; verify actual site/node/MAC ownership and rendered BGP before accepting that reference.
-The AWS runtime-discovery receipt does not validate Azure's derived name.
+MCN retains the topology code and observations, but does not permit its Route Server BGP
+path to apply. `enable_bgp` defaults to `false`. Setting it to `true` requires the immutable
+`azure_route_server_ebgp_multihop` capability and fails during planning, before Terraform,
+Azure, or F5 mutation, with enforcement `reject_before_mutation` and reason
+`no_schema_valid_ebgp_multihop_request_control`.
+
+Do not add multihop, time-to-live, `target_service`, or `family_inet_v6` inputs to work around
+this boundary. A future release must supply the precise request schema, field path, value
+semantics, validation, and live acceptance before this path can be enabled.
 
 ## Register in phases
 
-1. Review the plan for the intended Azure scope and supply the deployment variables.
-2. Apply the bootstrap resources using [Deploy](../../../demo/deploy/).
-3. Observe registration by exact site and hostname using [registration diagnostics](../../workflows/registration/).
-4. Re-plan after registration exists so `xcsh_registration_approval` can approve its runtime identity.
-5. Verify `ONLINE`, then both BGP sessions per CE and installed routes.
+1. Leave `enable_bgp = false` while the multihop capability is unavailable.
+2. Treat a plan with `enable_bgp = true` as the authoritative pre-mutation rejection check,
+   not as a bootstrap or apply request.
+3. Preserve existing sanitized Azure observations; do not rerun the blocked deployment.
 
 Current Azure bootstrap uses the tenant-scoped `xcsh_token.ce` and Azure-specific
 `cloud-init/ce-node.yaml`. It does not implement AWS's site-bound JWT flow. Keep this
@@ -78,9 +88,9 @@ Keep Azure's dated [version and disk evidence](../../lifecycle/) separate.
 
 ## Verify
 
-Use [the verification commands](../../../demo/verify/) to inspect XC BGP, both Route Server
-peer addresses, learned routes, client NIC effective routes, and virtual IP (VIP) traffic.
-Keep the VIP outside the configured virtual-network ranges as required by the MCN guards.
+Do not perform Route Server BGP, learned-route, VIP-traffic, failover, replacement, or upgrade
+acceptance while the multihop gate is unavailable. Keep the VIP outside the configured
+virtual-network ranges as required by the MCN guards for future supported validation.
 
 Observed 2026-08-08: the guide records Azure route and HTTP verification. That proves the
 dated path, not node-failure timing, even distribution across next hops, or v8 from-zero

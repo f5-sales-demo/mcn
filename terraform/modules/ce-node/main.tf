@@ -108,17 +108,17 @@ resource "azurerm_linux_virtual_machine" "this" {
   }
 
   source_image_reference {
-    publisher = "volterraedgeservices"
-    offer     = "volterra-node"
-    sku       = "volterra-node"
-    version   = "latest"
+    publisher = "f5-networks"
+    offer     = "f5xc_customer_edge"
+    sku       = "f5xc-ce-crt-20260201"
+    version   = "20260201.0178.1"
   }
 
-  # Marketplace plan is REQUIRED for the volterra-node image or VM create fails.
+  # Marketplace plan is REQUIRED for this exact certified Customer Edge image.
   plan {
-    name      = "volterra-node"
-    product   = "volterra-node"
-    publisher = "volterraedgeservices"
+    name      = "f5xc-ce-crt-20260201"
+    product   = "f5xc_customer_edge"
+    publisher = "f5-networks"
   }
 
   custom_data = var.custom_data
