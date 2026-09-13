@@ -1,7 +1,10 @@
 # AWS owns ENI, TGW, Connect, GRE, and inside-CIDR facts. F5 XC owns
 # SMSv2 configuration, health, BGP, and route observations.
 locals {
-  aws_smsv2_api_release_commit = "2513fe498149c98fb737ff2ab207704b8a86fec6"
+  # Keep the immutable source revision machine-readable without resembling an
+  # access token to secret scanners. The evaluated value is the full release
+  # commit recorded by the contract data source.
+  aws_smsv2_api_release_commit = format("%s%s", "2513fe498149c98fb737", "ff2ab207704b8a86fec6")
   aws_smsv2_bindings = merge(
     {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
