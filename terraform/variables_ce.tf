@@ -59,7 +59,7 @@ variable "rs_asn" {
 }
 
 variable "enable_bgp" {
-  description = "Enable the Azure Route Server BGP topology. Defaults false because Azure Route Server requires eBGP multihop and the immutable SMSv2 contract does not yet publish a schema-valid writable multihop control. Setting true fails during planning, before Terraform, Azure, or F5 mutation, with the authoritative contract reason."
+  description = "Enable the unsupported Azure Route Server BGP topology. Defaults false: the supported showcase uses Azure ILB instead. Setting true fails during planning, before Terraform, Azure, or F5 mutation, with the authoritative multihop-contract reason."
   type        = bool
   default     = false
 }

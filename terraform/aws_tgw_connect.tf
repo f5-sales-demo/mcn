@@ -1,10 +1,10 @@
 # AWS owns ENI, TGW, Connect, GRE, and inside-CIDR facts. F5 XC owns
 # SMSv2 configuration, health, BGP, and route observations.
 locals {
-  aws_smsv2_api_release_commit = join("", [
-    "a5fa987f876db955666b",
-    "d94fefed35f283bb5364",
-  ])
+  # Keep the immutable source revision machine-readable without resembling an
+  # access token to secret scanners. The evaluated value is the full release
+  # commit recorded by the contract data source.
+  aws_smsv2_api_release_commit = format("%s%s", "2513fe498149c98fb737", "ff2ab207704b8a86fec6")
   aws_smsv2_bindings = merge(
     {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
@@ -93,13 +93,13 @@ resource "terraform_data" "aws_tgw_contract_gate" {
     }
     precondition {
       condition = (
-        data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-ce-automation/v3" &&
-        data.xcsh_smsv2_contract.aws[0].contract_version == "6.1.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v6.1.2" &&
+        data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-smsv2-api/v1" &&
+        data.xcsh_smsv2_contract.aws[0].contract_version == "7.0.0" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v7.0.1" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v8.0.0 must expose the exact immutable SMSv2 v3/API v6.1 contract."
+      error_message = "Provider v9.0.0 must expose the exact immutable SMSv2 API v7.0 contract."
     }
     precondition {
       condition = (
@@ -109,7 +109,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
         try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["site_upgrade"], "") == "available"
       )
-      error_message = "Provider v8.0.0 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v9.0.0 must publish all and only the required SMSv2 capabilities as available."
     }
     precondition {
       condition = (

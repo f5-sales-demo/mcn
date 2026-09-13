@@ -31,6 +31,12 @@ variable "enable_canada_ilb" {
   default     = true
 }
 
+variable "enable_azure_ilb" {
+  description = "Deploy the Azure US Internal Load Balancer used by the supported non-Route-Server SMSv2 showcase path."
+  type        = bool
+  default     = true
+}
+
 variable "ca_location" {
   description = "Azure region for Canadian regional resources."
   type        = string

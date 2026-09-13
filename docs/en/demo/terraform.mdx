@@ -33,6 +33,7 @@ import modulesAwsTgwConnectOutputs from "../../_data/terraform/modules/aws-tgw-c
 import modulesAwsTgwConnectVariables from "../../_data/terraform/modules/aws-tgw-connect/variables.tf?raw";
 import modulesAwsTgwConnectVersions from "../../_data/terraform/modules/aws-tgw-connect/versions.tf?raw";
 import variablesAws from "../../_data/terraform/variables_aws.tf?raw";
+import azureIlb from "../../_data/terraform/azure_ilb.tf?raw";
 import caIlb from "../../_data/terraform/ca_ilb.tf?raw";
 import modulesAzureHubMain from "../../_data/terraform/modules/azure-hub/main.tf?raw";
 import modulesAzureHubOutputs from "../../_data/terraform/modules/azure-hub/outputs.tf?raw";
@@ -184,6 +185,13 @@ Subscription, region, CIDRs, Bastion, Canadian ILB variant option, and the Azure
 Azure Internal Load Balancer (ILB) variant configuration for the Canadian regional path (`enable_canada_ilb`).
 
 <Code code={caIlb} lang="hcl" title="terraform/ca_ilb.tf" />
+
+### `terraform/azure_ilb.tf`
+
+Azure US Standard Internal Load Balancer for the supported non-Route-Server CE
+health and Site Console traffic path (`enable_azure_ilb`).
+
+<Code code={azureIlb} lang="hcl" title="terraform/azure_ilb.tf" />
 
 ### `terraform/variables_ce.tf`
 

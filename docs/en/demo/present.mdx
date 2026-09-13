@@ -75,9 +75,9 @@ front of an audience is hard to walk back from even though nothing is wrong.
 
 <Steps>
 
-1. **Frame the 4-path hybrid architecture.** One VIP per regional path, several CEs, and no cloud load balancer needed for BGP/ECMP:
-   - **ROW (`eastus`)**: Azure Route Server + eBGP/ECMP (`f5-sales-demo.com`)
-   - **Canada (`canadacentral`)**: Canadian Regional Edge Virtual Site (`f5-sales-demo.ca`) supporting Azure Route Server (eBGP/ECMP) or Azure Internal Load Balancer (`enable_canada_ilb`)
+1. **Frame the 4-path hybrid architecture.** AWS and KVM demonstrate routed BGP; both Azure regions use supported ILB health and CE Site Console traffic while Route Server multihop remains explicitly deferred:
+   - **ROW (`eastus`)**: Azure Standard ILB (`enable_azure_ilb`)
+   - **Canada (`canadacentral`)**: Azure Standard ILB (`enable_canada_ilb`) and Canadian Regional Edge Virtual Site (`f5-sales-demo.ca`)
    - **AWS (`ap-northeast-1`)**: AWS VPC + EC2 CEs (`m5.2xlarge`) (`aws.mcn-ce-ha.f5-sales-demo.com`)
    - **On-Premise KVM**: Local libvirt bridge + FRR ToR BGP router (`10.100.0.1`, ASN `65515`, `maximum-paths 4`)
 2. **Show the advertisement side.** Loop the peerings ([check 2](../verify/)) — each CE

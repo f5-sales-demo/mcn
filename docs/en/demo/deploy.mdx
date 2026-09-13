@@ -21,7 +21,7 @@ Allow tens of minutes for bootstrap and hours for a full serial-upgrade rehearsa
 - **An F5 XC API credential** for the tenant in `var.expected_xc_tenant`, exported as
   `XCSH_API_TOKEN` (or the P12/PEM pair). Export the credential only, never a URL — see
   below.
-- **Azure credentials** with rights to create a resource group, VNet, Route Server and VMs.
+- **Azure credentials** with rights to create a resource group, VNet, Internal Load Balancer and VMs.
 - **A pre-existing F5 XC namespace** for the app tier. The deployment *reads* it and never
   creates or destroys it, so a namespace holding unrelated demos can never land on this
   stack's destroy list.
@@ -102,8 +102,8 @@ above before you mint another token.
 
 The AWS Transit Gateway path is pinned to the immutable
 [`xcsh` v9.0.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v9.0.0).
-That release publishes contract `f5xc-ce-automation/v3` version `6.1.0` from
-`api-specs-enriched` v6.1.2. Its four AWS SMSv2 capabilities, including
+That release publishes contract `f5xc-smsv2-api/v1` version `7.0.0` from
+`api-specs-enriched` v7.0.1. Its four AWS SMSv2 capabilities, including
 `site_upgrade`, must all report `available`; do not bypass a failed gate.
 
 Use the [AWS SMSv2 procedure](../../customer-edge/smsv2/aws-tgw-connect/) for
