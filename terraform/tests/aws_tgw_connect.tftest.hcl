@@ -102,14 +102,15 @@ override_data {
 }
 
 variables {
-  lb_domain      = "mcn-ce-ha.example.com"
-  aws_lb_domain  = "aws.mcn-ce-ha.example.com"
-  origin_ip      = "203.0.113.10"
-  deployer       = "tester"
-  enable_bastion = false
-  ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
-  aws_ce_ami_id  = "ami-0123456789abcdef0"
-  aws_vip        = "10.151.1.10"
+  lb_domain           = "mcn-ce-ha.example.com"
+  aws_lb_domain       = "aws.mcn-ce-ha.example.com"
+  origin_ip           = "203.0.113.10"
+  deployer            = "tester"
+  enable_bastion      = false
+  ssh_public_key      = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
+  aws_ce_ami_id       = "ami-0123456789abcdef0"
+  aws_workload_ami_id = "ami-0123456789abcdef0"
+  aws_vip             = "10.151.1.10"
   aws_smsv2_devices = {
     "01" = { slo = "ens5", sli = "ens6" }
     "02" = { slo = "ens5", sli = "ens6" }
