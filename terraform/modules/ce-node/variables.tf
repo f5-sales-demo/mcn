@@ -84,12 +84,12 @@ variable "tags" {
 # figure. That check gates Console UI upgrades only and does not apply to the API
 # path; applied here it predicts 48 GB would fail, and 48 GB installs cleanly.
 variable "os_disk_size_gb" {
-  description = "CE OS disk size in GB. The marketplace image default of 31 GiB is measured to FAIL the version pair F5 advertises (#714); 33 GB is the smallest size that works and this default carries headroom above it."
+  description = "CE OS disk size in GB. The pinned f5xc-ce-crt-20260201:20260201.0178.1 marketplace image requires at least 78 GiB; the default retains a small deterministic margin."
   type        = number
-  default     = 64
+  default     = 80
 
   validation {
-    condition     = var.os_disk_size_gb >= 40
-    error_message = "os_disk_size_gb must be at least 40 GB. The image default of 31 GiB fails the advertised version pair, and 33 GB — the measured minimum — leaves no margin for a larger future payload (#714)."
+    condition     = var.os_disk_size_gb >= 78
+    error_message = "os_disk_size_gb must be at least 78 GB because the pinned f5xc-ce-crt-20260201:20260201.0178.1 marketplace image cannot create a smaller OS disk."
   }
 }

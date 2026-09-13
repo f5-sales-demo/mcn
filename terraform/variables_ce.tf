@@ -84,13 +84,13 @@ variable "registration_token" {
 }
 
 variable "ce_os_version" {
-  description = "CE OS version, set at create time. Empty deliberately selects the newest version advertised by F5 Distributed Cloud; the clean 2026-08-03 rebuild verified that policy on the 64 GB CE disk default. A concrete value is for reproducing an older build. Terraform cannot change this field afterwards: updates are rejected in every direction, including un-pinning. The platform can change it in place through the site upgrade_os action, but the provider cannot drive that action yet (xcsh#1390)."
+  description = "CE OS version, set at create time. Empty deliberately selects the newest version advertised by F5 Distributed Cloud; the CE module now enforces an 80 GB disk default for the pinned Marketplace image. A concrete value is for reproducing an older build. Terraform cannot change this field afterwards: updates are rejected in every direction, including un-pinning. The platform can change it in place through the site upgrade_os action, but the provider cannot drive that action yet (xcsh#1390)."
   type        = string
   default     = ""
 }
 
 variable "ce_sw_version" {
-  description = "CE F5 Distributed Cloud software version, set at create time. Empty deliberately selects the newest advertised build; the clean 2026-08-03 rebuild verified that policy on the 64 GB CE disk default. A concrete value is for reproducing an older build. The node always installs a destination build on first boot. Terraform cannot change this field afterwards, but the platform can change it in place through the site upgrade_sw action (xcsh#1390)."
+  description = "CE F5 Distributed Cloud software version, set at create time. Empty deliberately selects the newest advertised build; the CE module now enforces an 80 GB disk default for the pinned Marketplace image. A concrete value is for reproducing an older build. The node always installs a destination build on first boot. Terraform cannot change this field afterwards, but the platform can change it in place through the site upgrade_sw action (xcsh#1390)."
   type        = string
   default     = ""
 }
