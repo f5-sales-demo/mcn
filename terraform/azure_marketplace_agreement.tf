@@ -24,10 +24,10 @@ resource "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
   method      = "PUT"
 
   body = {
-    properties = {
-      accepted  = true
-      signature = try(data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement.output.properties.signature, null)
-    }
+    properties = merge(
+      try(data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement.output.properties, {}),
+      { accepted = true },
+    )
   }
 
   response_export_values = ["*"]
