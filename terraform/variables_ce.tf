@@ -59,9 +59,9 @@ variable "rs_asn" {
 }
 
 variable "enable_bgp" {
-  description = "Create the per-CE xcsh_bgp objects. Defaults true — BGP/ECMP is the point of this deployment — and nothing gates it: the object-ref name length blocker that once forced it false was removed in provider v3.74.0. Retained only as an escape hatch for planning or deploying the topology without BGP."
+  description = "Enable the Azure Route Server BGP topology. Defaults false because Azure Route Server requires eBGP multihop and the immutable SMSv2 contract does not yet publish a schema-valid writable multihop control. Setting true fails during planning, before Terraform, Azure, or F5 mutation, with the authoritative contract reason."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "approve_registration" {

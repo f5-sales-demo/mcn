@@ -6,6 +6,7 @@
 mock_provider "azurerm" {}
 mock_provider "azuread" {}
 mock_provider "xcsh" {}
+mock_provider "azapi" {}
 mock_provider "aws" {}
 mock_provider "libvirt" {}
 
@@ -32,21 +33,23 @@ variables {
   origin_ip              = "203.0.113.10"
   enable_aws             = false
   enable_aws_tgw_connect = false
+  # Route Server BGP is intentionally unavailable until F5 publishes a
+  # schema-valid multihop request control. Structural root tests must exercise
+  # the supported non-BGP graph; the unavailable boundary is verified below.
+  enable_bgp = false
 }
 
 run "root_plans_end_to_end" {
   command = plan
 
   variables {
-    ce_count = 2
-    deployer = "tester"
+    ce_count   = 2
+    deployer   = "tester"
+    enable_bgp = false
     # Explicit, not defaulted: `terraform test` auto-loads a root terraform.tfvars,
     # so relying on the default here would make the run's result depend on whether
     # the workstation has Bastion switched on locally.
     enable_bastion = false
-    # enable_bgp is left at its true default so the root integration test plans the WHOLE
-    # graph, bgp objects included. It used to be forced false only to dodge the provider's
-    # object-ref name length cap, relaxed in v3.74.0 (see modules/xc-site/main.tf).
     ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
   }
 
@@ -136,6 +139,7 @@ run "bastion_subnet_prefix_rejects_too_small" {
   variables {
     ce_count              = 1
     deployer              = "tester"
+    enable_bgp            = false
     ssh_public_key        = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
     bastion_subnet_prefix = "10.0.5.0/27"
   }
@@ -149,6 +153,7 @@ run "bastion_enabled_root_wiring" {
   variables {
     ce_count       = 1
     deployer       = "tester"
+    enable_bgp     = false
     ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzwDqvgRGHaZqbo57o/AxuuqRNPT9MqeYNYsK1Owh8l plan-test-only"
     enable_bastion = true
   }

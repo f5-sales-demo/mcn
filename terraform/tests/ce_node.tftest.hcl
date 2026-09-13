@@ -53,8 +53,22 @@ run "ce_vm_and_nics" {
   }
 
   assert {
-    condition     = azurerm_linux_virtual_machine.this.plan[0].name == "volterra-node"
-    error_message = "The volterra-node marketplace plan block is required."
+    condition = (
+      azurerm_linux_virtual_machine.this.source_image_reference[0].publisher == "f5-networks" &&
+      azurerm_linux_virtual_machine.this.source_image_reference[0].offer == "f5xc_customer_edge" &&
+      azurerm_linux_virtual_machine.this.source_image_reference[0].sku == "f5xc-ce-crt-20260201" &&
+      azurerm_linux_virtual_machine.this.source_image_reference[0].version == "20260201.0178.1"
+    )
+    error_message = "CE VM must use the fixed certified F5 XC Customer Edge image tuple."
+  }
+
+  assert {
+    condition = (
+      azurerm_linux_virtual_machine.this.plan[0].publisher == "f5-networks" &&
+      azurerm_linux_virtual_machine.this.plan[0].product == "f5xc_customer_edge" &&
+      azurerm_linux_virtual_machine.this.plan[0].name == "f5xc-ce-crt-20260201"
+    )
+    error_message = "CE VM marketplace plan must exactly match its fixed image tuple."
   }
 
   assert {

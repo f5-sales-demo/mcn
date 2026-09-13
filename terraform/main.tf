@@ -50,6 +50,15 @@ data "external" "xc_env_tenant" {
   }
 }
 
+# Azure Route Server requires eBGP multihop, but the immutable SMSv2 contract
+# currently supplies no schema-valid request control for it.  Keeping this
+# requirement in a data source validates it during planning, before Terraform
+# can evaluate any Azure or F5 resource mutation.
+# tflint-ignore: terraform_unused_declarations
+data "xcsh_smsv2_contract" "azure_route_server" {
+  required_capabilities = var.enable_bgp ? ["azure_route_server_ebgp_multihop"] : []
+}
+
 # Guard: the HA VIP MUST be outside every VNet CIDR, or Azure prefers the VNet
 # system route over the more-specific BGP /32. Masks the VIP to each CIDR's prefix
 # length and compares network addresses (a correct containment test for any prefix).
@@ -99,6 +108,8 @@ module "ce_topology" {
 # Hub: RG, VNet, four subnets, Azure Route Server.
 module "azure_hub" {
   source = "./modules/azure-hub"
+
+  depends_on = [azapi_resource.f5xc_customer_edge_marketplace_agreement]
 
   resource_group_name        = local.resource_group_name
   location                   = var.location
@@ -370,6 +381,8 @@ module "ce_topology_ca" {
 module "azure_hub_ca" {
   count  = var.enable_canada ? 1 : 0
   source = "./modules/azure-hub"
+
+  depends_on = [azapi_resource.f5xc_customer_edge_marketplace_agreement]
 
   resource_group_name        = local.ca_resource_group_name
   location                   = var.ca_location

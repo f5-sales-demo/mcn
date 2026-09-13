@@ -7,6 +7,7 @@
 mock_provider "azurerm" {}
 mock_provider "azuread" {}
 mock_provider "xcsh" {}
+mock_provider "azapi" {}
 mock_provider "aws" {}
 mock_provider "libvirt" {}
 
