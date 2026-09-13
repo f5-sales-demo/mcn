@@ -25,7 +25,8 @@ resource "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
 
   body = {
     properties = {
-      accepted = true
+      accepted  = true
+      signature = try(data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement.output.properties.signature, null)
     }
   }
 
