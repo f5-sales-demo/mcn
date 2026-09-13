@@ -54,6 +54,7 @@ data "external" "xc_env_tenant" {
 # currently supplies no schema-valid request control for it.  Keeping this
 # requirement in a data source validates it during planning, before Terraform
 # can evaluate any Azure or F5 resource mutation.
+# tflint-ignore: terraform_unused_declarations
 data "xcsh_smsv2_contract" "azure_route_server" {
   required_capabilities = var.enable_bgp ? ["azure_route_server_ebgp_multihop"] : []
 }
