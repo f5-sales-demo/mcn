@@ -7,8 +7,8 @@ locals {
 }
 
 # Read the exact subscription agreement first. Azure exposes this object even
-# when its accepted property is false, which makes the subsequent PUT naturally
-# idempotent and keeps agreement acceptance inside Terraform apply.
+# before Terraform tracks it, so acceptance uses an idempotent PUT action rather
+# than a create-managed resource and remains inside Terraform apply.
 data "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
   type        = "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01"
   resource_id = local.f5xc_customer_edge_marketplace_agreement_id
@@ -18,21 +18,19 @@ data "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
   response_export_values = ["*"]
 }
 
-resource "azapi_resource" "f5xc_customer_edge_marketplace_agreement" {
-  type      = "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01"
-  parent_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/f5-networks/offers/f5xc_customer_edge"
-  name      = "f5xc-ce-crt-20260201"
-
-  # AzAPI 2.12.0 does not embed the Marketplace Ordering schema. The ARM API
-  # version and fixed resource identity remain explicit and are validated by
-  # the agreement GET plus Terraform tests below.
-  schema_validation_enabled = false
+resource "azapi_resource_action" "f5xc_customer_edge_marketplace_agreement" {
+  type        = "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01"
+  resource_id = local.f5xc_customer_edge_marketplace_agreement_id
+  action      = ""
+  method      = "PUT"
 
   body = {
     properties = {
       accepted = true
     }
   }
+
+  response_export_values = ["*"]
 
   depends_on = [data.azapi_resource_action.f5xc_customer_edge_marketplace_agreement]
 }

@@ -45,10 +45,11 @@ run "fixed_customer_edge_marketplace_agreement" {
 
   assert {
     condition = (
-      azapi_resource.f5xc_customer_edge_marketplace_agreement.type == "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01" &&
-      azapi_resource.f5xc_customer_edge_marketplace_agreement.parent_id == "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/f5-networks/offers/f5xc_customer_edge" &&
-      azapi_resource.f5xc_customer_edge_marketplace_agreement.name == "f5xc-ce-crt-20260201" &&
-      azapi_resource.f5xc_customer_edge_marketplace_agreement.body.properties.accepted == true
+      azapi_resource_action.f5xc_customer_edge_marketplace_agreement.type == "Microsoft.MarketplaceOrdering/agreements/offers/plans@2021-01-01" &&
+      azapi_resource_action.f5xc_customer_edge_marketplace_agreement.resource_id == "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/f5-networks/offers/f5xc_customer_edge/plans/f5xc-ce-crt-20260201" &&
+      azapi_resource_action.f5xc_customer_edge_marketplace_agreement.action == "" &&
+      azapi_resource_action.f5xc_customer_edge_marketplace_agreement.method == "PUT" &&
+      azapi_resource_action.f5xc_customer_edge_marketplace_agreement.body.properties.accepted == true
     )
     error_message = "Terraform must PUT accepted=true for the exact fixed Customer Edge agreement."
   }
