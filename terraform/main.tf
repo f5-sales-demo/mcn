@@ -109,7 +109,7 @@ module "ce_topology" {
 module "azure_hub" {
   source = "./modules/azure-hub"
 
-  depends_on = [azapi_resource.f5xc_customer_edge_marketplace_agreement]
+  depends_on = [azapi_resource_action.f5xc_customer_edge_marketplace_agreement]
 
   resource_group_name        = local.resource_group_name
   location                   = var.location
@@ -382,7 +382,7 @@ module "azure_hub_ca" {
   count  = var.enable_canada ? 1 : 0
   source = "./modules/azure-hub"
 
-  depends_on = [azapi_resource.f5xc_customer_edge_marketplace_agreement]
+  depends_on = [azapi_resource_action.f5xc_customer_edge_marketplace_agreement]
 
   resource_group_name        = local.ca_resource_group_name
   location                   = var.ca_location
