@@ -234,7 +234,7 @@ run "ce_os_disk_is_sized_for_the_advertised_versions" {
   }
 
   assert {
-    condition     = azurerm_linux_virtual_machine.this.os_disk[0].disk_size_gb >= 40
-    error_message = "The CE OS disk must be at least 40 GB. 33 GB is the smallest size measured to work, so this floor is deliberate headroom: a build with a slightly larger payload would fail at the minimum with no configuration change (#714)."
+    condition     = azurerm_linux_virtual_machine.this.os_disk[0].disk_size_gb >= 78
+    error_message = "The CE OS disk must be at least 78 GB: Azure rejects a smaller disk for the pinned f5xc-ce-crt-20260201:20260201.0178.1 Marketplace image before VM creation."
   }
 }

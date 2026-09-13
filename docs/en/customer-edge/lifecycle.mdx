@@ -30,8 +30,7 @@ preserve existing versions on new deployments; the server automatically selects 
 
 **Latest requires capacity headroom.** On 2026-07-29, the advertised pair failed on the
 marketplace image's 31 GiB disk and installed on every tested size from 33 GB through 64 GB.
-The deployment therefore sets an explicit 64 GB default and rejects values below 40 GB. With
-that prerequisite enforced, leaving the version values empty is both intentional and verified.
+The pinned Marketplace image `f5xc-ce-crt-20260201:20260201.0178.1` now requires at least 78 GiB at Azure VM creation. The deployment therefore sets an explicit 80 GB default and rejects values below 78 GB before Azure can reject the VM. With that prerequisite enforced, leaving the version values empty is both intentional and verified.
 
 **After first boot, nothing upgrades on its own.** F5 Distributed Cloud advertises a newer
 build and waits. That is where "the node stays where it landed" holds — after the create, not
@@ -169,9 +168,7 @@ the same pair installs on **33 GB** and every larger size tested. So the newer b
 unsupported here, and neither is the newer operating system; together they need slightly more
 disk than a default node has.
 
-`terraform/modules/ce-node` now sets `disk_size_gb` explicitly. The variable defaults to
-64 GB and rejects values below 40 GB, so a normal deployment cannot fall back to the failing
-image default.
+`terraform/modules/ce-node` sets `disk_size_gb` explicitly. For the pinned `f5xc-ce-crt-20260201:20260201.0178.1` Marketplace image, the variable defaults to 80 GB and rejects values below 78 GB. Azure therefore cannot reject the VM for an image-disk mismatch.
 
 The margin is the surprising part, and it is why this looked like a version problem for so long.
 The default is **31 GiB** (the `health` command reports `size_gb: 31`, and `/var` is 29 G with

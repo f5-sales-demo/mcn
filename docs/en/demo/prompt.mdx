@@ -85,7 +85,7 @@ Write the complete, modular, production-grade Terraform codebase under `terrafor
      `azurerm_linux_virtual_machine`
      (`volterraedgeservices/`
       `volterra-node/volterra-node`,
-      64GB `StandardSSD_LRS` OS disk,
+      80GB `StandardSSD_LRS` OS disk (the pinned image requires at least 78 GiB),
       `custom_data = base64encode(cloud_init)`).
    - `xc-site`: `xcsh_securemesh_site_v2` (explicit eth0 interface in `azure.not_managed.node_list.interface_list` with `ethernet_interface` and `network_option.site_local_network` bound to mgmt NIC MAC,
      `terraform_data.ce_vm` parking VM instance ID for `lifecycle { replace_triggered_by = [terraform_data.ce_vm] }`), `data.xcsh_site_registration`, and `xcsh_registration_approval` (when found). BGP is unavailable in this iteration because Azure Route Server requires unpublished eBGP multihop request semantics.
