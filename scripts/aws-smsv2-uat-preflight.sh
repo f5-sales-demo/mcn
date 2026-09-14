@@ -278,7 +278,7 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 9.0.1"
+      version = "= 9.1.0"
     }
   }
 }
@@ -303,7 +303,7 @@ TF_CLI_CONFIG_FILE="$REGISTRY_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOK
   terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v9_provider_install_failed
 PROVIDER_VERSION=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" version -json 2>/dev/null |
   jq -r '.provider_selections["registry.terraform.io/f5-sales-demo/xcsh"] // empty')
-[ "$PROVIDER_VERSION" = "9.0.1" ] || block v9_provider_resolution_mismatch
+[ "$PROVIDER_VERSION" = "9.1.0" ] || block v9_provider_resolution_mismatch
 TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" plan -refresh=false -input=false -lock=false \
   -out=contract.tfplan -no-color >/dev/null 2>&1 || block v9_contract_query_failed
@@ -313,11 +313,11 @@ CONTRACT=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH"
 
 # This immutable Git revision is public provenance, not a credential. Keep it
 # assembled so generic token heuristics do not mistake it for one.
-EXPECTED_API_COMMIT="$(printf '%s%s' '2513fe498149c98fb737' 'ff2ab207704b8a86fec6')"
+EXPECTED_API_COMMIT="$(printf '%s%s' '76973b4ef84f73d41b648' 'a27f38c2735a8c255ef')"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_id == "f5xc-smsv2-api/v1" and
   .contract_version == "7.0.0" and
-  .api_release_tag == "v7.0.1" and
+  .api_release_tag == "v7.0.2" and
   .api_release_commit == $api_commit and
   .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v9_contract_identity_mismatch
 jq -e '

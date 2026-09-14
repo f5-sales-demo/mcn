@@ -333,9 +333,10 @@ bash scripts/capture-sitecli.sh --check \
 
 Only run this after Terraform has completed a saved KVM plan and F5 reports the
 site `ONLINE`. A running libvirt domain alone is not a successful CE deployment.
-The current Sales Demo tenant prerequisite is exactly one valid `maurice_config`;
-when the image data source reports that it is not one, stop before mutation and
-repair the tenant-owned prerequisite before retrying the same plan.
+The Sales Demo tenant prerequisite is exactly one valid `maurice_config`; when
+`xcsh` v9.1.0 reports `External tenant prerequisite unavailable`, stop before
+apply and request repair of that tenant-owned prerequisite before retrying the
+same saved-plan sequence.
 
 For a controlled KVM teardown, set `enable_kvm = false` and create a saved destroy
 plan. This removes only Terraform-owned KVM resources without evaluating the
