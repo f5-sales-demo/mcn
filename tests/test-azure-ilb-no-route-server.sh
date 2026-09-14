@@ -10,7 +10,7 @@ for region in '' '_ca'; do
 done
 
 grep -Eq 'count[[:space:]]*=[[:space:]]*var\.enable_route_server \? 1 : 0' terraform/modules/azure-hub/main.tf
-grep -Fq 'for_each = var.enable_bgp ? module.ce_topology.ce_nodes : {}' terraform/main.tf
+grep -Fq 'for_each = var.enable_azure && var.enable_bgp ? module.ce_topology.ce_nodes : {}' terraform/main.tf
 grep -Fq 'for_each = var.enable_bgp ? try(module.ce_topology_ca[0].ce_nodes, {}) : {}' terraform/main.tf
 grep -Fq 'resource "azurerm_lb" "azure_ilb"' terraform/azure_ilb.tf
 grep -Fq 'resource "azurerm_lb" "ca_ilb"' terraform/ca_ilb.tf
