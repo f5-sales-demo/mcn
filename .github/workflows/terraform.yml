@@ -24,6 +24,7 @@ on:
       - 'tests/test-aws-smsv2-uat-preflight.sh'
       - 'tests/test-aws-upgrade-showcase.sh'
       - 'tests/test-azure-ilb-no-route-server.sh'
+      - 'tests/test-kvm-frr-lifecycle.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - '.github/workflows/terraform.yml'
   push:
@@ -39,6 +40,7 @@ on:
       - 'tests/test-aws-smsv2-uat-preflight.sh'
       - 'tests/test-aws-upgrade-showcase.sh'
       - 'tests/test-azure-ilb-no-route-server.sh'
+      - 'tests/test-kvm-frr-lifecycle.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - '.github/workflows/terraform.yml'
 
@@ -84,6 +86,10 @@ jobs:
       - name: Azure ILB and Route Server boundary
         working-directory: .
         run: bash tests/test-azure-ilb-no-route-server.sh
+
+      - name: KVM FRR lifecycle contract
+        working-directory: .
+        run: bash tests/test-kvm-frr-lifecycle.sh
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
