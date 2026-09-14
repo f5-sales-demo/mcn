@@ -196,8 +196,8 @@ run "aws_site_and_resources" {
   assert {
     condition = toset([
       for site in values(xcsh_securemesh_site_v2.aws) : site.name
-    ]) == toset(["mcn-ce-ha-aws-ap-northeast-1-01", "mcn-ce-ha-aws-ap-northeast-1-02", "mcn-ce-ha-aws-ap-northeast-1-03"])
-    error_message = "AWS must use the three canonical independent site names."
+    ]) == toset(["mcn-ce-ha-smsv2-aws-ap-northeast-1-01", "mcn-ce-ha-smsv2-aws-ap-northeast-1-02", "mcn-ce-ha-smsv2-aws-ap-northeast-1-03"])
+    error_message = "AWS must use the released SMSv2 identity generation for all independent site names."
   }
 
   assert {

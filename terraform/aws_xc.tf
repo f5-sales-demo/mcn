@@ -7,8 +7,8 @@ locals {
     for index in range(var.enable_aws ? var.aws_ce_count : 0) :
     format("%02d", index + 1) => {
       index       = index
-      name        = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
-      hostname    = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      name        = format("%s-aws-%s-%02d", local.site_prefix, var.aws_location, index + 1)
+      hostname    = format("%s-aws-%s-%02d", local.site_prefix, var.aws_location, index + 1)
       listener_ip = cidrhost(cidrsubnet(var.aws_vpc_cidr, 8, index + 11), 10)
     }
   }

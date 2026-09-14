@@ -81,6 +81,11 @@ run "canada_regional_virtual_sites_and_lb" {
   }
 
   assert {
+    condition     = output.ca_xc_site_names["canadacentral01"] == "mcn-ce-ha-smsv2-ca-canadacentral01"
+    error_message = "Canada must use the released SMSv2 identity generation instead of the legacy collision-prone site names."
+  }
+
+  assert {
     condition     = xcsh_http_loadbalancer.canada[0].http.dns_volterra_managed == null
     error_message = "The Canada showcase HTTP LB must remain a non-delegated Sales Demo domain."
   }

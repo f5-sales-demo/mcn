@@ -89,8 +89,8 @@ run "cloud_init_still_writes_the_vpm_config" {
   }
 
   assert {
-    condition     = strcontains(local.ce_cloud_init["eastus01"], "    ClusterName: mcn-ce-ha-eastus01\n")
-    error_message = "CE cloud-init must still carry the per-node XC site name as ClusterName."
+    condition     = strcontains(local.ce_cloud_init["eastus01"], "    ClusterName: mcn-ce-ha-smsv2-eastus01\n")
+    error_message = "CE cloud-init must carry the generated SMSv2 site identity as ClusterName."
   }
 
   assert {

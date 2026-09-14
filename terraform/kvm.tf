@@ -106,7 +106,7 @@ resource "libvirt_cloudinit_disk" "ce_cloudinit" {
         content: |
           Vpm:
             ClusterType: ce
-            ClusterName: onprem-kvm-site
+            ClusterName: ${local.kvm_site_name}
             Token: ${local.ce_registration_token}
             MauriceEndpoint: https://register.ves.volterra.io
             MauricePrivateEndpoint: https://register-tls.ves.volterra.io
