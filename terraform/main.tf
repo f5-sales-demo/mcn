@@ -317,7 +317,7 @@ resource "xcsh_http_loadbalancer" "this" {
 
   http {
     port                 = 80
-    dns_volterra_managed = false
+    dns_volterra_managed = true
   }
 
   # Advertise the VIP on the outside network of every CE site.
@@ -466,7 +466,7 @@ module "xc_site_ca" {
   for_each = try(module.ce_topology_ca[0].ce_nodes, {})
   source   = "./modules/xc-site"
 
-  create_site          = false
+  create_site          = true
   site_name            = each.value.site_name
   hostname             = each.value.hostname
   interface_name       = each.value.interface_name
@@ -563,7 +563,7 @@ resource "xcsh_http_loadbalancer" "canada" {
 
   http {
     port                 = 80
-    dns_volterra_managed = false
+    dns_volterra_managed = true
   }
 
   advertise_custom {

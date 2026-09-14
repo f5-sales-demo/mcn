@@ -325,4 +325,9 @@ run "aws_vip_selects_explicitly_labelled_sites" {
     ]) && toset(xcsh_virtual_site.aws[0].site_selector.expressions) == toset(["mcn-topology in (${var.component}-aws)"])
     error_message = "The virtual site must select an explicit topology label present on every AWS SMSv2 site."
   }
+
+  assert {
+    condition     = xcsh_http_loadbalancer.aws[0].http.dns_volterra_managed
+    error_message = "The AWS showcase HTTP LB must enable F5-managed DNS."
+  }
 }

@@ -72,6 +72,14 @@ run "loadbalancer_advertise_and_pool" {
     condition     = xcsh_origin_pool.this.port == 80
     error_message = "Origin pool port should be 80."
   }
+
+  # A public showcase hostname is part of this test's advertised data-plane
+  # contract.  The F5 DNS zone is authoritative only when this marker is set;
+  # leaving it implicit makes an otherwise READY virtual host unresolvable.
+  assert {
+    condition     = xcsh_http_loadbalancer.this.http.dns_volterra_managed
+    error_message = "The US showcase HTTP LB must enable F5-managed DNS."
+  }
 }
 
 # The app namespace is read, never owned (#634, #637): a managed xcsh_namespace

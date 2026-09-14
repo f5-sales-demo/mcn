@@ -166,7 +166,10 @@ resource "xcsh_http_loadbalancer" "aws" {
   namespace = data.xcsh_namespace.mcn.name
   domains   = [var.aws_lb_domain]
 
-  http { port = 80 }
+  http {
+    port                 = 80
+    dns_volterra_managed = true
+  }
 
   advertise_custom {
     dynamic "advertise_where" {
