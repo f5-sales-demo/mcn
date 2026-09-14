@@ -20,7 +20,7 @@ reject_text() {
 }
 
 require_text terraform/versions.tf 'required_version = ">= 1.16.1"'
-require_text terraform/versions.tf 'version = "= 9.0.0"'
+require_text terraform/versions.tf 'version = "= 9.0.1"'
 require_text terraform/aws_xc.tf 'disable_ha                 = {}'
 require_text terraform/aws_xc.tf 'cluster_size = 1'
 require_text terraform/aws_xc.tf 'operating_system_version = var.aws_baseline_os_version'
