@@ -38,6 +38,11 @@ Content-Type: text/x-shellscript; charset="us-ascii"
 
 #!/bin/sh
 set -eu
+# Terraform keeps this immutable-site fingerprint in user data so a requested
+# version change replaces the paired appliance and reruns the provider-issued
+# VPM cloud-init. These shell no-ops do not alter VPM configuration.
+: "mcn_smsv2_software_version=${software_version}"
+: "mcn_smsv2_os_version=${os_version}"
 hostnamectl set-hostname "${fqdn}"
 install -d -m 0700 -o admin -g admin /var/home/admin/.ssh
 cat >/var/home/admin/.ssh/authorized_keys <<'EOF'

@@ -119,8 +119,8 @@ Use a new empty evidence directory outside the repository and keep saved plans p
 
 Full UAT requires six physical interfaces, six Connect peers, and twelve established
 BGP sessions. `--execute-uat` is a consequential operation: it stops/restarts one CE,
-drives workload traffic, and invokes upgrades serially. `--continuity-only` with
-`--execute-uat` repeats traffic/failover on already upgraded sites and records zero upgrades.
+drives workload traffic, and verifies the runtime pair configured at first boot. It never
+introduces an intermediate version before the CE is healthy.
 See the [dated acceptance baseline](../../customer-edge/smsv2/) for the result and limits.
 
 ## Apply
@@ -187,9 +187,10 @@ for each stage. The full topology's site identities can subsequently be read wit
 `terraform output -json aws_site_names`.
 
 After the complete graph converges, repeat the preflight command with a **new** evidence
-directory and `--execute-uat` to run the authorized disruption/traffic/serial-upgrade
-rehearsal. Keep the reviewed plan and identity flags unchanged. For already upgraded sites,
-add `--continuity-only` when repeating traffic/failover without upgrades.
+directory and `--execute-uat` to run the authorized disruption/traffic/failover and configured-
+version convergence rehearsal. Keep the reviewed plan and identity flags unchanged. The sites
+request the proven runtime pair on first boot; the UAT never introduces an intermediate version
+that could leave a newly created CE waiting for an upgrade before runtime health exists.
 
 ### Deliberately selecting a provider candidate
 

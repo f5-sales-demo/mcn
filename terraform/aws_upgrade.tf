@@ -7,7 +7,7 @@ action "xcsh_site_upgrade_sw" "aws" {
   config {
     name      = each.value.name
     namespace = "system"
-    version   = var.aws_target_software_version
+    version   = var.aws_software_version
     force     = false
   }
 }
@@ -18,7 +18,7 @@ action "xcsh_site_upgrade_os" "aws" {
   config {
     name      = each.value.name
     namespace = "system"
-    version   = var.aws_target_os_version
+    version   = var.aws_os_version
     force     = false
   }
 }
@@ -28,8 +28,8 @@ data "xcsh_site_upgrade_status" "aws" {
 
   namespace                 = "system"
   site                      = xcsh_securemesh_site_v2.aws[each.key].name
-  expected_software_version = var.aws_target_software_version
-  expected_os_version       = var.aws_target_os_version
+  expected_software_version = var.aws_software_version
+  expected_os_version       = var.aws_os_version
   wait                      = var.aws_upgrade_wait
   timeout_seconds           = var.aws_upgrade_timeout_seconds
   poll_interval_seconds     = var.aws_upgrade_poll_interval_seconds
@@ -64,13 +64,11 @@ output "aws_site_upgrade_status" {
 }
 
 output "aws_upgrade_convergence" {
-  description = "Aggregate target and baseline identities for the serial three-site upgrade run."
+  description = "Aggregate configured runtime identities and current convergence for the AWS sites."
   value = var.enable_aws ? {
-    baseline_software = var.aws_baseline_software_version
-    baseline_os       = var.aws_baseline_os_version
-    target_software   = var.aws_target_software_version
-    target_os         = var.aws_target_os_version
-    all_ready         = alltrue([for status in values(data.xcsh_site_upgrade_status.aws) : status.ready])
-    all_converged     = alltrue([for status in values(data.xcsh_site_upgrade_status.aws) : status.target_converged])
+    software      = var.aws_software_version
+    os            = var.aws_os_version
+    all_ready     = alltrue([for status in values(data.xcsh_site_upgrade_status.aws) : status.ready])
+    all_converged = alltrue([for status in values(data.xcsh_site_upgrade_status.aws) : status.target_converged])
   } : null
 }

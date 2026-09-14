@@ -156,6 +156,11 @@ resource "aws_instance" "ce" {
     sli_mac         = aws_network_interface.sli[count.index].mac_address
     fqdn            = "${local.aws_sites[format("%02d", count.index + 1)].hostname}.${var.aws_location}.compute.internal"
     ssh_public_key  = chomp(local.aws_ssh_public_key)
+    # These non-secret fingerprints make the EC2 lifecycle follow immutable
+    # site-version changes. A replacement site needs a first-boot CE, never a
+    # VM that has already consumed the former cloud-init.
+    software_version = var.aws_software_version
+    os_version       = var.aws_os_version
   })
 
   tags = merge(local.tags, {

@@ -122,9 +122,9 @@ variable "aws_smsv2_interface_mtu" {
 }
 
 variable "aws_bgp_convergence_timeout_seconds" {
-  description = "Maximum bounded wait for authoritative BGP and route convergence."
+  description = "Maximum bounded wait for first-boot runtime readiness and authoritative BGP/route convergence. This covers the platform-managed installation of the explicit CE software and OS pair."
   type        = number
-  default     = 600
+  default     = 7200
 }
 
 variable "aws_bgp_poll_interval_seconds" {
@@ -191,26 +191,14 @@ variable "aws_workload_vpc_cidr" {
   default     = "10.151.0.0/16"
 }
 
-variable "aws_baseline_software_version" {
-  description = "Verified software version installed before the showcase upgrade."
-  type        = string
-  default     = "crt-20251002-0027"
-}
-
-variable "aws_baseline_os_version" {
-  description = "Verified operating-system version installed before the showcase upgrade."
-  type        = string
-  default     = "9.2026.10"
-}
-
-variable "aws_target_software_version" {
-  description = "Tenant-advertised software version selected for the showcase upgrade."
+variable "aws_software_version" {
+  description = "Field-proven F5 Distributed Cloud software version requested on first boot for every AWS SMSv2 CE. Do not use an intermediate baseline: first-boot health is a prerequisite for later actions."
   type        = string
   default     = "crt-20260201-0179"
 }
 
-variable "aws_target_os_version" {
-  description = "Tenant-advertised operating-system version selected for the showcase upgrade."
+variable "aws_os_version" {
+  description = "Field-proven F5 Distributed Cloud operating-system version requested on first boot for every AWS SMSv2 CE."
   type        = string
   default     = "9.2026.17"
 }

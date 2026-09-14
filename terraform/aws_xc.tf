@@ -92,11 +92,14 @@ resource "xcsh_securemesh_site_v2" "aws" {
   }
 
   software_settings {
+    # First boot must request the field-proven runtime pair.  A staged
+    # baseline leaves a newly created CE in UPGRADE_IN_PROGRESS before the
+    # post-bootstrap action stage can observe or recover it.
     os {
-      operating_system_version = var.aws_baseline_os_version
+      operating_system_version = var.aws_os_version
     }
     sw {
-      volterra_software_version = var.aws_baseline_software_version
+      volterra_software_version = var.aws_software_version
     }
   }
 }

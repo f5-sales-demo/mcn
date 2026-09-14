@@ -13,7 +13,6 @@ EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
 PLAN_MODE="apply"
 EXECUTE_UAT=false
-CONTINUITY_ONLY=false
 CANDIDATE_PROVIDER_BINARY=""
 CANDIDATE_PROVIDER_SHA256=""
 PROVIDER_MODE="registry"
@@ -46,8 +45,7 @@ Optional:
                          Select this local prerelease binary through dev_overrides.
   --candidate-provider-sha256 SHA256:DIGEST
                          Required exact digest for the candidate provider binary.
-  --execute-uat          Run traffic, failover, serial upgrades, and final convergence after preflight.
-  --continuity-only      With --execute-uat, validate an already-upgraded topology and rerun traffic/failover only.
+  --execute-uat          Run traffic, failover, configured-version convergence, and final no-change verification after preflight.
 EOF
 }
 
@@ -151,10 +149,6 @@ while [ "$#" -gt 0 ]; do
     EXECUTE_UAT=true
     shift
     ;;
-  --continuity-only)
-    CONTINUITY_ONLY=true
-    shift
-    ;;
   -h | --help)
     usage
     exit 0
@@ -168,7 +162,6 @@ for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXP
 done
 [[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
 [ "$PLAN_MODE" = apply ] || [ "$EXECUTE_UAT" = false ] || die "live UAT requires apply plan mode"
-[ "$CONTINUITY_ONLY" = false ] || [ "$EXECUTE_UAT" = true ] || die "continuity-only requires --execute-uat"
 case "${#EXPECTED_SITES[@]}" in
 1 | 3) ;;
 *) die "plan stage requires exactly one or exactly three --expected-site values" ;;
@@ -560,47 +553,12 @@ status_plan() {
   tf plan -refresh-only -input=false -no-color -lock=false \
     -var='aws_upgrade_wait=true' \
     -var="aws_upgrade_observed_sites=[\"${key}\"]" \
-    -var="aws_target_software_version=${software}" \
-    -var="aws_target_os_version=${os}" \
+    -var="aws_software_version=${software}" \
+    -var="aws_os_version=${os}" \
     -out="$plan_path" >/dev/null || return 1
   tf show -json "$plan_path" | jq -e --arg key "$key" '
     .planned_values.outputs.aws_site_upgrade_status.value[$key] |
     .ready == true and .target_converged == true' >/dev/null
-  rm -f "$plan_path"
-}
-
-eligibility_plan() {
-  local key=$1 plan_path
-  plan_path="${SCRATCH}/eligibility-${key}.tfplan"
-  tf plan -refresh-only -input=false -no-color -lock=false \
-    -var='aws_upgrade_wait=false' \
-    -var="aws_upgrade_observed_sites=[\"${key}\"]" \
-    -var='aws_target_software_version=crt-20260201-0179' \
-    -var='aws_target_os_version=9.2026.17' \
-    -out="$plan_path" >/dev/null || return 1
-  tf show -json "$plan_path" | jq -e --arg key "$key" '
-    .planned_values.outputs.aws_site_upgrade_status.value[$key] |
-    .ready == true and .eligible == true and
-    .software_available_version == "crt-20260201-0179" and
-    .os_available_version == "9.2026.17" and
-    (.failed_precheck_names | length) == 0' >/dev/null
-  rm -f "$plan_path"
-}
-
-invoke_upgrade() {
-  local kind=$1 key=$2 plan_path invoke_plan
-  plan_path="${SCRATCH}/invoke-${kind}-${key}.tfplan"
-  tf plan -input=false -no-color -lock=false -var='aws_upgrade_wait=false' \
-    -var="aws_upgrade_observed_sites=[\"${key}\"]" \
-    -invoke="action.xcsh_site_upgrade_${kind}.aws[\"${key}\"]" \
-    -out="$plan_path" >/dev/null || return 1
-  chmod 600 "$plan_path"
-  invoke_plan=$(tf show -json "$plan_path") || return 1
-  jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length == 0' \
-    <<<"$invoke_plan" >/dev/null || block upgrade_invoke_plan_has_resource_changes
-  unset invoke_plan
-  verify_mutation_identities || return 1
-  tf apply -input=false -no-color -auto-approve "$plan_path" >/dev/null || return 1
   rm -f "$plan_path"
 }
 
@@ -661,24 +619,14 @@ FAILOVER_STOPPED=false
 wait_for_peer_count 12 || block twelve_sessions_did_not_reconverge
 wait_for_target_count 3 || block three_site_targets_did_not_recover
 
-if [ "$CONTINUITY_ONLY" = true ]; then
-  for key in 01 02 03; do
-    status_plan "$key" "crt-20260201-0179" "9.2026.17" || block existing_upgrade_convergence_failed
-  done
-  UAT_REASON=aws_smsv2_continuity_complete
-  SERIAL_UPGRADES=0
-else
-  for key in 01 02 03; do
-    status_plan "$key" "crt-20251002-0027" "9.2026.10" || block baseline_version_mismatch
-    eligibility_plan "$key" || block upgrade_precheck_or_advertised_target_failed
-    invoke_upgrade sw "$key" || block software_upgrade_invoke_failed
-    status_plan "$key" "crt-20260201-0179" "9.2026.10" || block software_upgrade_convergence_failed
-    invoke_upgrade os "$key" || block os_upgrade_invoke_failed
-    status_plan "$key" "crt-20260201-0179" "9.2026.17" || block os_upgrade_convergence_failed
-  done
-  UAT_REASON=aws_smsv2_uat_complete
-  SERIAL_UPGRADES=3
-fi
+# The site resource requests this exact pair on first boot.  Do not create a
+# legacy baseline and then attempt to upgrade a runtime that has not become
+# healthy yet; that circular sequence was the source of the failed rollout.
+for key in 01 02 03; do
+  status_plan "$key" "crt-20260201-0179" "9.2026.17" || block configured_version_convergence_failed
+done
+UAT_REASON=aws_smsv2_uat_complete
+SERIAL_UPGRADES=0
 
 TRAFFIC_RESULT=$(ssm_run "pid=\$(cat /var/tmp/${TRAFFIC_MARKER}.pid); kill \"\$pid\" 2>/dev/null || true; sleep 6; awk 'BEGIN{vo=0;vf=0;ro=0;rf=0;oo=0;of=0} /^vip_ok$/{vo++} /^vip_fail$/{vf++} /^raw_ok$/{ro++} /^raw_fail$/{rf++} /^origin_ok$/{oo++} /^origin_fail$/{of++} END{printf \"%d %d %d %d %d %d\",vo,vf,ro,rf,oo,of}' /var/tmp/${TRAFFIC_MARKER}.log; rm -f /var/tmp/${TRAFFIC_MARKER}.pid /var/tmp/${TRAFFIC_MARKER}.log") || block ssm_traffic_result_failed
 TRAFFIC_STARTED=false
