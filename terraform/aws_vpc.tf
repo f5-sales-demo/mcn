@@ -126,7 +126,7 @@ resource "aws_security_group" "ce" {
   #checkov:skip=CKV2_AWS_5:Attached to every CE SLO and SLI ENI; Checkov does not follow counted expression references.
   count = var.enable_aws ? 1 : 0
 
-  name        = "${var.component}-aws-ce-sg"
+  name        = "${local.aws_resource_prefix}-aws-ce-sg"
   description = "Security group for F5 XC Customer Edge nodes in AWS"
   vpc_id      = aws_vpc.aws[0].id
 
@@ -265,7 +265,7 @@ resource "aws_ec2_transit_gateway_route_table_propagation" "workload" {
 resource "aws_security_group" "workload" {
   #checkov:skip=CKV2_AWS_5:Attached directly to the workload instance through vpc_security_group_ids; Checkov does not follow the counted expression.
   count       = var.enable_aws ? 1 : 0
-  name        = "${var.component}-aws-workload-ssm"
+  name        = "${local.aws_resource_prefix}-aws-workload-ssm"
   description = "Egress-only SSM workload client; no ingress rules"
   vpc_id      = aws_vpc.workload[0].id
 
@@ -307,7 +307,7 @@ resource "aws_security_group" "workload" {
 resource "aws_security_group" "smsv2_nlb" {
   #checkov:skip=CKV2_AWS_5:Attached directly to the internal SMSv2 network load balancer.
   count       = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
-  name        = "${var.component}-aws-smsv2-nlb"
+  name        = "${local.aws_resource_prefix}-aws-smsv2-nlb"
   description = "Workload access to the SMSv2 site-local listeners"
   vpc_id      = aws_vpc.workload[0].id
 
@@ -335,7 +335,7 @@ resource "aws_lb" "smsv2" {
   #checkov:skip=CKV_AWS_91:Ephemeral private development NLB; protected evidence captures health and traffic.
   #checkov:skip=CKV_AWS_150:Ephemeral development topology; deletion protection would block authorized teardown.
   count                            = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
-  name                             = "${var.component}-smsv2"
+  name                             = "${local.aws_resource_prefix}-aws-nlb"
   internal                         = true
   load_balancer_type               = "network"
   security_groups                  = [aws_security_group.smsv2_nlb[0].id]
@@ -358,7 +358,7 @@ resource "aws_lb" "smsv2" {
 
 resource "aws_lb_target_group" "smsv2" {
   count       = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
-  name        = "${var.component}-smsv2"
+  name        = "${local.aws_resource_prefix}-aws-nlb"
   port        = 80
   protocol    = "TCP"
   target_type = "ip"
@@ -399,7 +399,7 @@ resource "aws_lb_listener" "smsv2" {
 
 resource "aws_iam_role" "workload" {
   count = var.enable_aws ? 1 : 0
-  name  = "${var.component}-aws-workload-ssm"
+  name  = "${local.aws_resource_prefix}-aws-workload-ssm"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -419,7 +419,7 @@ resource "aws_iam_role_policy_attachment" "workload_ssm" {
 
 resource "aws_iam_instance_profile" "workload" {
   count = var.enable_aws ? 1 : 0
-  name  = "${var.component}-aws-workload-ssm"
+  name  = "${local.aws_resource_prefix}-aws-workload-ssm"
   role  = aws_iam_role.workload[0].name
 }
 

@@ -138,6 +138,7 @@ Create a registry-only CLI configuration for this task before initialization or 
 REGISTRY_TFRC='<REGISTRY_CLI_CONFIG>'
 PLAN_FILE='<PLAN_FILE>'
 EVIDENCE_DIR='<NEW_PRIVATE_EVIDENCE_DIRECTORY>'
+COLLISION_EVIDENCE_DIR='<NEW_PRIVATE_COLLISION_EVIDENCE_DIRECTORY>'
 umask 077
 printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
 export TF_CLI_CONFIG_FILE="$REGISTRY_TFRC"
@@ -146,6 +147,19 @@ terraform init -upgrade -backend-config=backend.hcl
 # Azure US, Azure Canada, Marketplace, and KVM resources without Terraform targeting.
 terraform plan -var='enable_azure=false' -var='enable_kvm=false' -out="$PLAN_FILE"
 terraform show "$PLAN_FILE"
+
+# The collision guard renders this exact saved plan to a separate private
+# directory. It rejects any existing AWS or F5 object with the planned name,
+# including objects that are demonstrably owned by this deployment identity.
+# A collision is never imported or adopted.
+mkdir -p "$COLLISION_EVIDENCE_DIR"
+terraform show -json "$PLAN_FILE" > "$COLLISION_EVIDENCE_DIR/reviewed-plan.json"
+../scripts/aws-smsv2-owned-collision-preflight.sh \
+  --plan-json "$COLLISION_EVIDENCE_DIR/reviewed-plan.json" \
+  --aws-region '<AWS_REGION>' \
+  --xc-tenant '<XC_TENANT>' \
+  --creator-id "$XCSH_USERNAME" \
+  --manifest "$COLLISION_EVIDENCE_DIR/manifest.json"
 
 ../scripts/aws-smsv2-uat-preflight.sh \
   --evidence-dir "$EVIDENCE_DIR" \
@@ -159,8 +173,9 @@ terraform show "$PLAN_FILE"
   --expected-site '<AWS_SITE_03>'
 ```
 
-Inspect the preflight result. Continue only when it reports `ready` with reason
-`preflight_passed`, then apply that same saved plan:
+Inspect both preflight results. Continue only when the collision guard reports
+`ready` and the UAT guard reports `ready` with reason `preflight_passed`, then
+apply that same saved plan:
 
 ```bash
 terraform apply "$PLAN_FILE"
