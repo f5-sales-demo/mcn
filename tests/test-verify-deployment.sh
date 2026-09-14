@@ -29,11 +29,14 @@ case "${1:-} ${2:-} ${3:-}" in
 "output -json xc_site_names")
   printf '{"eastus01":"site-01","eastus02":"site-02","eastus03":"site-03"}\n'
   ;;
-"output -json ce_mgmt_private_ips")
-  printf '{"eastus01":"10.0.1.4","eastus02":"10.0.1.5","eastus03":"10.0.1.6"}\n'
+"output -json ca_xc_site_names")
+  printf '{"canadacentral01":"ca-site-01","canadacentral02":"ca-site-02","canadacentral03":"ca-site-03"}\n'
   ;;
 "output -json ce_vm_names")
   printf '{"eastus01":"ce-01","eastus02":"ce-02","eastus03":"ce-03"}\n'
+  ;;
+"output -json ca_ce_vm_names")
+  printf '{"canadacentral01":"ca-ce-01","canadacentral02":"ca-ce-02","canadacentral03":"ca-ce-03"}\n'
   ;;
 "output -json ce_vm_ids")
   printf '{"eastus01":"/subscriptions/000/resourceGroups/rg-example/providers/Microsoft.Compute/virtualMachines/ce-01","eastus02":"/subscriptions/000/resourceGroups/rg-example/providers/Microsoft.Compute/virtualMachines/ce-02","eastus03":"/subscriptions/000/resourceGroups/rg-example/providers/Microsoft.Compute/virtualMachines/ce-03"}\n'
@@ -45,10 +48,13 @@ case "${1:-} ${2:-} ${3:-}" in
   printf '{"xc_site_names":{"sensitive":false,"value":{"eastus01":"site-01","eastus02":"site-02","eastus03":"site-03"}}}\n'
   ;;
 "output -raw resource_group_name") printf 'rg-example\n' ;;
-"output -raw route_server_name") printf 'route-server-example\n' ;;
 "output -raw client_vm_name") printf 'client-example\n' ;;
-"output -raw client_nic_name") printf 'client-nic-example\n' ;;
+"output -raw ca_resource_group_name") printf 'rg-ca-example\n' ;;
+"output -raw ca_client_vm_name") printf 'ca-client-example\n' ;;
+"output -raw azure_ilb_private_ip") printf '10.0.1.10\n' ;;
+"output -raw canada_ilb_private_ip") printf '10.200.1.10\n' ;;
 "output -raw lb_domain") printf 'mcn.example.com\n' ;;
+"output -raw ca_lb_domain") printf 'mcn-ca.example.com\n' ;;
 "output -raw vip") printf '10.250.0.10\n' ;;
 "output -raw origin_ip") printf '198.51.100.10\n' ;;
 "output -raw bastion_name") printf 'bastion-example\n' ;;
@@ -103,35 +109,22 @@ case "$*" in
     printf 'Succeeded\n'
   fi
   ;;
-*"routeserver peering list-learned-routes"*)
-  key=""
-  while [ "$#" -gt 0 ]; do
-    if [ "$1" = "--name" ]; then key=${2%-bgp}; break; fi
-    shift
-  done
-  case "$key" in
-  eastus01) hop=10.0.1.4 ;;
-  eastus02) hop=10.0.1.5 ;;
-  eastus03) hop=10.0.1.6 ;;
-  *) exit 2 ;;
-  esac
-  if [ "${AZ_ROUTE_MODE:-ok}" = "missing" ] && [ "$key" = "eastus03" ]; then
-    printf '[]\n'
-  else
-    printf '[{"network":"10.250.0.10/32","nextHop":"%s"}]\n' "$hop"
-  fi
-  ;;
-*"network nic show-effective-route-table"*)
-  printf '{"value":[{"addressPrefix":["10.250.0.10/32"],"nextHopIpAddress":["10.0.1.6","10.0.1.4","10.0.1.5"],"state":"Active"}]}\n'
-  ;;
 *"vm run-command invoke"*)
+  if [[ "$*" == *"MCN_ILB"* ]]; then
+    if [ "${AZ_ILB_MODE:-ok}" = "missing" ]; then
+      printf 'MCN_ILB reachable=0\n'
+    else
+      printf 'MCN_ILB reachable=1\n'
+    fi
+    exit 0
+  fi
   if [ "${AZ_RUN_COMMAND_MODE:-ok}" = "conflict-once" ] &&
     [ ! -e "${AZ_RUN_COMMAND_COUNT_FILE:?}" ]; then
     : >"$AZ_RUN_COMMAND_COUNT_FILE"
     printf '%s\n' 'ERROR: (Conflict) Run command extension execution is in progress. Please wait for completion before invoking a run command.' >&2
     exit 1
   fi
-  printf 'MCN_UAT vip_ok=50 vip_fail=0 origin_ok=25 origin_fail=0\n'
+  printf 'MCN_UAT vip_ok=50 vip_fail=0 ca_lb_ok=50 ca_lb_fail=0 origin_ok=25 origin_fail=0\n'
   ;;
 *"network bastion tunnel"*)
   sleep 30
@@ -157,14 +150,14 @@ run_uat() {
 
 echo "1. healthy deployment passes every aggregate gate"
 if OUT=$(run_uat healthy 2>&1); then
-  for expected in 'sites_online=3/3' 'azure_vms_running=3/3' 'password_extensions_succeeded=3/3' 'peerings_with_vip=3/3' 'effective_next_hops=3/3' 'vip_samples=150' 'origin_failures=0' 'converged=yes'; do
+  for expected in 'sites_online=6/6' 'azure_vms_running=6/6' 'password_extensions_succeeded=6/6' 'us_ilb_reachable=yes' 'canada_ilb_reachable=yes' 'vip_samples=150' 'ca_lb_samples=150' 'ca_lb_failures=0' 'origin_failures=0' 'converged=yes'; do
     if grep -qF "$expected" <<<"$OUT"; then
       ok "reported ${expected}"
     else
       bad "missing ${expected} from output"
     fi
   done
-  if jq -e '.sites_online == 3 and .azure_vms_running == 3 and .password_extensions_succeeded == 3 and .peerings_with_vip == 3 and .vip_samples == 150 and .converged == true' "${WORK}/evidence-healthy/summary.json" >/dev/null; then
+  if jq -e '.sites_online == 6 and .azure_vms_running == 6 and .password_extensions_succeeded == 6 and .us_ilb_reachable == "yes" and .canada_ilb_reachable == "yes" and .vip_samples == 150 and .ca_lb_samples == 150 and .ca_lb_failures == 0 and .converged == true' "${WORK}/evidence-healthy/summary.json" >/dev/null; then
     ok "wrote a machine-readable aggregate summary"
   else
     bad "aggregate summary is missing or incorrect"
@@ -192,11 +185,11 @@ else
   ok "rejected the stuck Azure VM extension"
 fi
 
-echo "4. a missing per-peering VIP route fails the UAT"
-if AZ_ROUTE_MODE=missing run_uat missing-route >/dev/null 2>&1; then
-  bad "UAT passed with one peering missing its VIP route"
+echo "4. an unreachable ILB fails the UAT"
+if AZ_ILB_MODE=missing run_uat missing-ilb >/dev/null 2>&1; then
+  bad "UAT passed with an unreachable ILB"
 else
-  ok "rejected the missing per-peering route"
+  ok "rejected the unreachable ILB"
 fi
 
 echo "5. fewer than 100 possible samples is rejected before any API call"
@@ -246,6 +239,18 @@ if OUT=$(PATH="${WORK}/bin:${PATH}" \
   done
 else
   bad "Site Console UAT failed: ${OUT}"
+fi
+
+echo "8. the default verifier uses only the supported ILB topology"
+if rg -qi 'routeserver peering|show-effective-route-table|effective_next_hops|peerings_with_vip' "$SCRIPT"; then
+  bad "default verifier still contains an Azure Route Server verification path"
+else
+  ok "default verifier contains no Azure Route Server verification path"
+fi
+if rg -q 'azure_ilb_private_ip' "$SCRIPT" && rg -q 'canada_ilb_private_ip' "$SCRIPT"; then
+  ok "default verifier requires both US and Canada ILB endpoints"
+else
+  bad "default verifier does not require both supported ILB endpoints"
 fi
 
 if [ "$FAIL" -eq 0 ]; then
