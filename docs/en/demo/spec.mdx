@@ -118,7 +118,8 @@ Pure-computation module expanding `ce_count` (1..3) into per-CE node maps:
 
 - **libvirt Provider**: `provider "libvirt"` targeting local QEMU hypervisor (`qemu:///system`).
 - **Network Bridge**: `libvirt_network.ce_bgp_net` creates a generation-named NAT bridge from the declared MAC/IP reservation map, with DHCP and DNS enabled.
-- **Base Image & Storage**: `libvirt_volume.base_cloud` imports only the F5-issued KVM appliance URL from `xcsh_site_image`; `libvirt_volume.ce_disk` provisions 20 GB root overlay disks per CE (`onprem-ce-01`, `02`, `03`). The image query requires exactly one valid Sales Demo tenant `maurice_config`; v9.1.0 reports `External tenant prerequisite unavailable` before any apply when that externally owned prerequisite is absent.
+- **Base Image & Storage**: `libvirt_volume.base_cloud` imports only the F5-issued KVM appliance URL from `xcsh_site_image`; `libvirt_volume.ce_disk` provisions 20 GB root overlay disks per CE (`onprem-ce-01`, `02`, `03`). The image query requires exactly one valid Sales Demo tenant `maurice_config`.
+  With v9.1.0, it reports `External tenant prerequisite unavailable` before any apply when that externally owned prerequisite is absent.
 - **Cloud-Init ISO Seed**: `libvirt_cloudinit_disk.ce_cloudinit` injecting `/etc/vpm/config.yaml` with `ClusterName: onprem-kvm-site` and `ClusterType: ce`.
 - **KVM Domains**: `libvirt_domain.ce_node` defining 2 vCPU / 2048 MB RAM VMs with autostart enabled, attached to `ce-bgp-net`.
 - **F5 XC Site & eBGP**: `xcsh_securemesh_site_v2.onprem_kvm` (`onprem-kvm-site`) and `xcsh_bgp.onprem_ebgp` peer CE ASN `64512` to the Terraform-owned FRR router (`10.100.0.2`, ASN `65515`) on port 179 over `eth0`; `10.100.0.1` remains the libvirt NAT gateway.
