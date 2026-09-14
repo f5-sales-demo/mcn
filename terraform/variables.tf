@@ -24,3 +24,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_kvm" {
+  description = "Enable the local KVM/libvirt SMSv2 site. Set false for a KVM-only destroy or when the tenant-owned KVM image prerequisite is unavailable; no KVM image lookup occurs while disabled."
+  type        = bool
+  default     = false
+}
