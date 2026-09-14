@@ -60,6 +60,16 @@ require_text terraform/aws_xc.tf 'resource "xcsh_token" "aws"'
 require_text terraform/aws_xc.tf 'type        = 1'
 require_text terraform/aws_xc.tf 'site_name   = xcsh_securemesh_site_v2.aws[each.key].name'
 require_text terraform/aws_xc.tf 'provider_ref              = "aws"'
+runtime_observation=$(sed -n '/data "xcsh_smsv2_aws_runtime" "aws" {/,/^}/p' terraform/aws_tgw_connect.tf)
+grep -Fq 'depends_on = [aws_instance.ce]' <<<"$runtime_observation" || {
+  printf 'AWS runtime observation must wait for CE instances before polling F5 runtime health\n' >&2
+  exit 1
+}
+upgrade_observation=$(sed -n '/data "xcsh_site_upgrade_status" "aws" {/,/^}/p' terraform/aws_upgrade.tf)
+grep -Fq 'depends_on = [aws_instance.ce, xcsh_registration_approval.aws]' <<<"$upgrade_observation" || {
+  printf 'AWS upgrade observation must wait for CE instances before polling F5 upgrade status\n' >&2
+  exit 1
+}
 require_text terraform/aws_ce.tf '"{{ .token }}"'
 require_text terraform/aws_ce.tf 'aws_ce_site_cloud_init = {'
 require_text terraform/aws_ce.tf 'try(xcsh_token.aws[key].uid, "{{ .Token }}")'

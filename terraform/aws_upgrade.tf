@@ -34,7 +34,10 @@ data "xcsh_site_upgrade_status" "aws" {
   timeout_seconds           = var.aws_upgrade_timeout_seconds
   poll_interval_seconds     = var.aws_upgrade_poll_interval_seconds
 
-  depends_on = [xcsh_registration_approval.aws]
+  # Site-status APIs can block while a just-created site has no CE runtime.
+  # Keep observations downstream of the EC2 bootstrap so their polling cannot
+  # consume Terraform's worker capacity before the appliance is launched.
+  depends_on = [aws_instance.ce, xcsh_registration_approval.aws]
 }
 
 output "aws_site_upgrade_status" {
