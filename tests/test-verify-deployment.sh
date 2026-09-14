@@ -70,6 +70,8 @@ if [[ "$*" == *"%{http_code}"* ]]; then
   factory=$(printf 'admin:%s' '<FACTORY_SITE_CONSOLE_PASSWORD>' | base64)
   if grep -qF "$factory" <<<"$header"; then
     printf '401'
+  elif [[ "$*" == *"mcn-ca.example.com"* ]] && [ "${CURL_CANADA_LB_MODE:-ok}" = "fail" ]; then
+    printf '503'
   else
     printf '200'
   fi
@@ -124,7 +126,11 @@ case "$*" in
     printf '%s\n' 'ERROR: (Conflict) Run command extension execution is in progress. Please wait for completion before invoking a run command.' >&2
     exit 1
   fi
-  printf 'MCN_UAT vip_ok=50 vip_fail=0 ca_lb_ok=50 ca_lb_fail=0 origin_ok=25 origin_fail=0\n'
+  if [ "${CURL_CANADA_LB_MODE:-ok}" = "fail" ]; then
+    printf 'MCN_UAT vip_ok=50 vip_fail=0 ca_lb_ok=0 ca_lb_fail=50 origin_ok=25 origin_fail=0\n'
+  else
+    printf 'MCN_UAT vip_ok=50 vip_fail=0 ca_lb_ok=50 ca_lb_fail=0 origin_ok=25 origin_fail=0\n'
+  fi
   ;;
 *"network bastion tunnel"*)
   sleep 30
@@ -192,7 +198,14 @@ else
   ok "rejected the unreachable ILB"
 fi
 
-echo "5. fewer than 100 possible samples is rejected before any API call"
+echo "5. Canadian advertised-LB traffic loss fails the UAT"
+if CURL_CANADA_LB_MODE=fail run_uat canada-lb-failure >/dev/null 2>&1; then
+  bad "UAT passed with Canadian advertised-LB traffic loss"
+else
+  ok "rejected Canadian advertised-LB traffic loss"
+fi
+
+echo "6. fewer than 100 possible samples is rejected before any API call"
 if PATH="${WORK}/bin:${PATH}" MCN_UAT_TEST_MODE=1 bash "$SCRIPT" \
   --terraform-dir terraform \
   --evidence-dir "${WORK}/evidence-too-small" \
@@ -205,7 +218,7 @@ else
   ok "enforced the 100-sample minimum"
 fi
 
-echo "6. a transient Azure Run Command conflict is retried"
+echo "7. a transient Azure Run Command conflict is retried"
 if OUT=$(AZ_RUN_COMMAND_MODE=conflict-once \
   AZ_RUN_COMMAND_COUNT_FILE="${WORK}/run-command-conflict-seen" \
   run_uat transient-conflict 2>&1); then
@@ -218,7 +231,7 @@ else
   bad "transient Azure conflict aborted the UAT: ${OUT}"
 fi
 
-echo "7. factory credentials fail and generated credentials pass on every console"
+echo "8. factory credentials fail and generated credentials pass on every console"
 if OUT=$(PATH="${WORK}/bin:${PATH}" \
   XCSH_API_URL="https://example.invalid" \
   XCSH_API_TOKEN="<XC_API_TOKEN>" \
@@ -241,7 +254,7 @@ else
   bad "Site Console UAT failed: ${OUT}"
 fi
 
-echo "8. the default verifier uses only the supported ILB topology"
+echo "9. the default verifier uses only the supported ILB topology"
 if rg -qi 'routeserver peering|show-effective-route-table|effective_next_hops|peerings_with_vip' "$SCRIPT"; then
   bad "default verifier still contains an Azure Route Server verification path"
 else
