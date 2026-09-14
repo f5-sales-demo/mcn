@@ -89,7 +89,7 @@ check "ca_vip_outside_vnet_cidrs" {
 # registration is resolved by site name and approved in the post-registration
 # phase (see modules/xc-site/main.tf and the deploy ordering above).
 resource "xcsh_token" "ce" {
-  name        = "mcn-ce-registration"
+  name        = "${local.site_prefix}-registration"
   namespace   = "system"
   description = "MCN CE-HA registration token (tenant-scoped, reusable across CE sites)"
 }

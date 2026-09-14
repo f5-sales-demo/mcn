@@ -92,11 +92,14 @@ resource "xcsh_securemesh_site_v2" "aws" {
   }
 
   software_settings {
+    # First boot must request the field-proven runtime pair.  A staged
+    # baseline leaves a newly created CE in UPGRADE_IN_PROGRESS before the
+    # post-bootstrap action stage can observe or recover it.
     os {
-      operating_system_version = var.aws_baseline_os_version
+      operating_system_version = var.aws_os_version
     }
     sw {
-      volterra_software_version = var.aws_baseline_software_version
+      volterra_software_version = var.aws_software_version
     }
   }
 }
@@ -136,7 +139,7 @@ resource "xcsh_registration_approval" "aws" {
 
 resource "xcsh_virtual_site" "aws" {
   count     = var.enable_aws ? 1 : 0
-  name      = "${var.component}-aws-vsite"
+  name      = "${local.aws_resource_prefix}-aws-vsite"
   namespace = data.xcsh_namespace.mcn.name
 
   site_type = "CUSTOMER_EDGE"
@@ -147,7 +150,7 @@ resource "xcsh_virtual_site" "aws" {
 
 resource "xcsh_origin_pool" "aws" {
   count       = var.enable_aws ? 1 : 0
-  name        = "${var.component}-aws-pool"
+  name        = "${local.aws_resource_prefix}-aws-pool"
   namespace   = data.xcsh_namespace.mcn.name
   description = "AWS origin pool serving the three-site TGW showcase"
   port        = var.origin_port
@@ -164,7 +167,7 @@ resource "xcsh_origin_pool" "aws" {
 
 resource "xcsh_http_loadbalancer" "aws" {
   count     = var.enable_aws ? 1 : 0
-  name      = "${var.component}-aws-lb"
+  name      = "${local.aws_resource_prefix}-aws-lb"
   namespace = data.xcsh_namespace.mcn.name
   domains   = [var.aws_lb_domain]
 

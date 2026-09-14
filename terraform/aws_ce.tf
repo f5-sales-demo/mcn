@@ -23,7 +23,7 @@ locals {
 
 resource "aws_key_pair" "ce" {
   count      = var.enable_aws ? 1 : 0
-  key_name   = "${var.component}-aws-ce-key"
+  key_name   = "${local.aws_resource_prefix}-aws-ce-key"
   public_key = local.aws_ssh_public_key
 
   tags = local.tags
@@ -31,7 +31,7 @@ resource "aws_key_pair" "ce" {
 
 resource "aws_iam_role" "ce" {
   count = var.enable_aws ? 1 : 0
-  name  = "${var.component}-aws-ce-role"
+  name  = "${local.aws_resource_prefix}-aws-ce-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -49,7 +49,7 @@ resource "aws_iam_role" "ce" {
 
 resource "aws_iam_role_policy" "ce" {
   count = var.enable_aws ? 1 : 0
-  name  = "${var.component}-aws-ce-policy"
+  name  = "${local.aws_resource_prefix}-aws-ce-policy"
   role  = aws_iam_role.ce[0].id
 
   policy = jsonencode({
@@ -70,7 +70,7 @@ resource "aws_iam_role_policy" "ce" {
 
 resource "aws_iam_instance_profile" "ce" {
   count = var.enable_aws ? 1 : 0
-  name  = "${var.component}-aws-ce-profile"
+  name  = "${local.aws_resource_prefix}-aws-ce-profile"
   role  = aws_iam_role.ce[0].id
 
   tags = local.tags
@@ -156,6 +156,11 @@ resource "aws_instance" "ce" {
     sli_mac         = aws_network_interface.sli[count.index].mac_address
     fqdn            = "${local.aws_sites[format("%02d", count.index + 1)].hostname}.${var.aws_location}.compute.internal"
     ssh_public_key  = chomp(local.aws_ssh_public_key)
+    # These non-secret fingerprints make the EC2 lifecycle follow immutable
+    # site-version changes. A replacement site needs a first-boot CE, never a
+    # VM that has already consumed the former cloud-init.
+    software_version = var.aws_software_version
+    os_version       = var.aws_os_version
   })
 
   tags = merge(local.tags, {

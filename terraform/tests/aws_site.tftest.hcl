@@ -108,14 +108,22 @@ run "aws_site_and_resources" {
     error_message = "AWS HTTP Load Balancer domain should be aws.mcn-ce-ha.f5-sales-demo.com."
   }
 
+  # The complete AWS graph, not just the three Secure Mesh sites, must use the
+  # immutable SMSv2 generation.  Otherwise a clean recovery can collide with
+  # stale component-scoped IAM, NLB, or F5 objects before it reaches bootstrap.
   assert {
-    condition     = output.aws_loadbalancer_name == "mcn-ce-ha-aws-lb"
-    error_message = "AWS HTTP Load Balancer name should be mcn-ce-ha-aws-lb."
-  }
-
-  assert {
-    condition     = output.aws_origin_pool_name == "mcn-ce-ha-aws-pool"
-    error_message = "AWS Origin Pool name should be mcn-ce-ha-aws-pool."
+    condition = (
+      output.aws_loadbalancer_name == "mcn-ce-ha-smsv2-aws-lb" &&
+      output.aws_origin_pool_name == "mcn-ce-ha-smsv2-aws-pool" &&
+      aws_key_pair.ce[0].key_name == "mcn-ce-ha-smsv2-aws-ce-key" &&
+      aws_iam_role.ce[0].name == "mcn-ce-ha-smsv2-aws-ce-role" &&
+      aws_iam_instance_profile.ce[0].name == "mcn-ce-ha-smsv2-aws-ce-profile" &&
+      aws_iam_role.workload[0].name == "mcn-ce-ha-smsv2-aws-workload-ssm" &&
+      aws_iam_instance_profile.workload[0].name == "mcn-ce-ha-smsv2-aws-workload-ssm" &&
+      xcsh_virtual_site.aws[0].name == "mcn-ce-ha-smsv2-aws-vsite" &&
+      xcsh_token.ce.name == "mcn-ce-ha-smsv2-registration"
+    )
+    error_message = "Every singleton AWS/F5 object must use the immutable SMSv2 generation instead of a collision-prone component-only name."
   }
 
   assert {
@@ -214,6 +222,16 @@ run "aws_requires_an_explicit_ami_before_any_instance_plan" {
   }
 
   expect_failures = [aws_instance.ce]
+}
+
+run "aws_runtime_readiness_cannot_be_shortened" {
+  command = plan
+
+  variables {
+    aws_bgp_convergence_timeout_seconds = 600
+  }
+
+  expect_failures = [var.aws_bgp_convergence_timeout_seconds]
 }
 
 run "aws_bootstrap_stage_issues_only_the_first_site" {

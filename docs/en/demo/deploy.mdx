@@ -119,8 +119,8 @@ Use a new empty evidence directory outside the repository and keep saved plans p
 
 Full UAT requires six physical interfaces, six Connect peers, and twelve established
 BGP sessions. `--execute-uat` is a consequential operation: it stops/restarts one CE,
-drives workload traffic, and invokes upgrades serially. `--continuity-only` with
-`--execute-uat` repeats traffic/failover on already upgraded sites and records zero upgrades.
+drives workload traffic, and verifies the runtime pair configured at first boot. It never
+introduces an intermediate version before the CE is healthy.
 See the [dated acceptance baseline](../../customer-edge/smsv2/) for the result and limits.
 
 ## Apply
@@ -138,6 +138,7 @@ Create a registry-only CLI configuration for this task before initialization or 
 REGISTRY_TFRC='<REGISTRY_CLI_CONFIG>'
 PLAN_FILE='<PLAN_FILE>'
 EVIDENCE_DIR='<NEW_PRIVATE_EVIDENCE_DIRECTORY>'
+COLLISION_EVIDENCE_DIR='<NEW_PRIVATE_COLLISION_EVIDENCE_DIRECTORY>'
 umask 077
 printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
 export TF_CLI_CONFIG_FILE="$REGISTRY_TFRC"
@@ -146,6 +147,19 @@ terraform init -upgrade -backend-config=backend.hcl
 # Azure US, Azure Canada, Marketplace, and KVM resources without Terraform targeting.
 terraform plan -var='enable_azure=false' -var='enable_kvm=false' -out="$PLAN_FILE"
 terraform show "$PLAN_FILE"
+
+# The collision guard renders this exact saved plan to a separate private
+# directory. It rejects any existing AWS or F5 object with the planned name,
+# including objects that are demonstrably owned by this deployment identity.
+# A collision is never imported or adopted.
+mkdir -p "$COLLISION_EVIDENCE_DIR"
+terraform show -json "$PLAN_FILE" > "$COLLISION_EVIDENCE_DIR/reviewed-plan.json"
+../scripts/aws-smsv2-owned-collision-preflight.sh \
+  --plan-json "$COLLISION_EVIDENCE_DIR/reviewed-plan.json" \
+  --aws-region '<AWS_REGION>' \
+  --xc-tenant '<XC_TENANT>' \
+  --creator-id "$XCSH_USERNAME" \
+  --manifest "$COLLISION_EVIDENCE_DIR/manifest.json"
 
 ../scripts/aws-smsv2-uat-preflight.sh \
   --evidence-dir "$EVIDENCE_DIR" \
@@ -159,8 +173,9 @@ terraform show "$PLAN_FILE"
   --expected-site '<AWS_SITE_03>'
 ```
 
-Inspect the preflight result. Continue only when it reports `ready` with reason
-`preflight_passed`, then apply that same saved plan:
+Inspect both preflight results. Continue only when the collision guard reports
+`ready` and the UAT guard reports `ready` with reason `preflight_passed`, then
+apply that same saved plan:
 
 ```bash
 terraform apply "$PLAN_FILE"
@@ -172,9 +187,10 @@ for each stage. The full topology's site identities can subsequently be read wit
 `terraform output -json aws_site_names`.
 
 After the complete graph converges, repeat the preflight command with a **new** evidence
-directory and `--execute-uat` to run the authorized disruption/traffic/serial-upgrade
-rehearsal. Keep the reviewed plan and identity flags unchanged. For already upgraded sites,
-add `--continuity-only` when repeating traffic/failover without upgrades.
+directory and `--execute-uat` to run the authorized disruption/traffic/failover and configured-
+version convergence rehearsal. Keep the reviewed plan and identity flags unchanged. The sites
+request the proven runtime pair on first boot; the UAT never introduces an intermediate version
+that could leave a newly created CE waiting for an upgrade before runtime health exists.
 
 ### Deliberately selecting a provider candidate
 

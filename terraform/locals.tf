@@ -54,7 +54,11 @@ locals {
   # SMSv2 site identities have their own immutable generation. The previous
   # mcn-ce-ha-* generation has unrecoverable generic-name reservations in Sales
   # Demo, so a fresh complete showcase must never attempt to recreate it.
-  site_prefix         = coalesce(var.site_prefix, "${var.component}-${var.smsv2_site_generation}")
+  site_prefix = coalesce(var.site_prefix, "${var.component}-${var.smsv2_site_generation}")
+  # AWS has account-global names for key pairs, IAM identities, and ELBv2
+  # objects. Keep them in the same immutable generation as the site names so
+  # a clean deployment cannot collide with stale component-only resources.
+  aws_resource_prefix = local.site_prefix
   resource_group_name = coalesce(var.resource_group_name, "rg-${var.component}-${local.deployer}")
   route_server_name   = coalesce(var.route_server_name, "${var.component}-rs")
   bastion_name        = coalesce(var.bastion_name, "${var.component}-bastion")

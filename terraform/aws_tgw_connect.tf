@@ -145,7 +145,11 @@ data "xcsh_smsv2_aws_runtime" "aws" {
   nodes                 = { for key, node in local.aws_smsv2_nodes : key => node if local.aws_smsv2_bindings[key].site_key == each.key }
   timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
   poll_interval_seconds = var.aws_bgp_poll_interval_seconds
-  depends_on            = [xcsh_securemesh_site_v2.aws]
+  # Runtime health cannot exist until the instance has consumed the site
+  # cloud-init and registered. Without this ordering Terraform can admit all
+  # polling data sources before the EC2 key/profile/instances, starving the
+  # bootstrap graph with waits for a runtime that it has not yet created.
+  depends_on = [aws_instance.ce]
 }
 
 resource "terraform_data" "aws_tgw_runtime_gate" {

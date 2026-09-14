@@ -22,10 +22,12 @@ on:
       - 'tests/test-terraform-imports.sh'
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
+      - 'tests/test-aws-smsv2-owned-collision-preflight.sh'
       - 'tests/test-aws-upgrade-showcase.sh'
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
+      - 'scripts/aws-smsv2-owned-collision-preflight.sh'
       - '.github/workflows/terraform.yml'
   push:
     branches: [main]
@@ -38,10 +40,12 @@ on:
       - 'tests/test-terraform-imports.sh'
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
+      - 'tests/test-aws-smsv2-owned-collision-preflight.sh'
       - 'tests/test-aws-upgrade-showcase.sh'
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
+      - 'scripts/aws-smsv2-owned-collision-preflight.sh'
       - '.github/workflows/terraform.yml'
 
 permissions:
@@ -78,6 +82,10 @@ jobs:
       - name: AWS SMSv2 UAT preflight unit tests
         working-directory: .
         run: bash tests/test-aws-smsv2-uat-preflight.sh
+
+      - name: AWS owned collision preflight unit tests
+        working-directory: .
+        run: bash tests/test-aws-smsv2-owned-collision-preflight.sh
 
       - name: AWS three-site upgrade showcase contract
         working-directory: .
