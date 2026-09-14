@@ -123,13 +123,15 @@ data "xcsh_site_registration" "aws" {
 resource "xcsh_registration_approval" "aws" {
   for_each = {
     for key, registration in data.xcsh_site_registration.aws :
-    key => registration if registration.found
+    key => registration if registration.found && registration.state == "NEW"
   }
 
   namespace    = "system"
   name         = each.value.name
   cluster_size = 1
   state        = "APPROVED"
+
+  depends_on = [xcsh_securemesh_site_v2.aws]
 }
 
 resource "xcsh_virtual_site" "aws" {
@@ -167,8 +169,7 @@ resource "xcsh_http_loadbalancer" "aws" {
   domains   = [var.aws_lb_domain]
 
   http {
-    port                 = 80
-    dns_volterra_managed = true
+    port = 80
   }
 
   advertise_custom {

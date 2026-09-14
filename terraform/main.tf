@@ -316,8 +316,7 @@ resource "xcsh_http_loadbalancer" "this" {
   domains = [var.lb_domain]
 
   http {
-    port                 = 80
-    dns_volterra_managed = true
+    port = 80
   }
 
   # Advertise the VIP on the outside network of every CE site.
@@ -562,8 +561,7 @@ resource "xcsh_http_loadbalancer" "canada" {
   domains = [var.ca_lb_domain]
 
   http {
-    port                 = 80
-    dns_volterra_managed = true
+    port = 80
   }
 
   advertise_custom {

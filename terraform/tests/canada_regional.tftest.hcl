@@ -81,8 +81,8 @@ run "canada_regional_virtual_sites_and_lb" {
   }
 
   assert {
-    condition     = xcsh_http_loadbalancer.canada[0].http.dns_volterra_managed
-    error_message = "The Canada showcase HTTP LB must enable F5-managed DNS."
+    condition     = xcsh_http_loadbalancer.canada[0].http.dns_volterra_managed == null
+    error_message = "The Canada showcase HTTP LB must remain a non-delegated Sales Demo domain."
   }
 }
 

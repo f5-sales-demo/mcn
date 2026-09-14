@@ -327,7 +327,7 @@ run "aws_vip_selects_explicitly_labelled_sites" {
   }
 
   assert {
-    condition     = xcsh_http_loadbalancer.aws[0].http.dns_volterra_managed
-    error_message = "The AWS showcase HTTP LB must enable F5-managed DNS."
+    condition     = xcsh_http_loadbalancer.aws[0].http.dns_volterra_managed == null
+    error_message = "The AWS showcase HTTP LB must remain a non-delegated Sales Demo domain."
   }
 }

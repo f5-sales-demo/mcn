@@ -73,12 +73,12 @@ run "loadbalancer_advertise_and_pool" {
     error_message = "Origin pool port should be 80."
   }
 
-  # A public showcase hostname is part of this test's advertised data-plane
-  # contract.  The F5 DNS zone is authoritative only when this marker is set;
-  # leaving it implicit makes an otherwise READY virtual host unresolvable.
+  # The Sales Demo tenant serves this hostname as a non-delegated domain.
+  # Attempting to change an existing non-delegated domain to tenant-managed DNS
+  # is an unsupported API transition, so the marker must remain omitted.
   assert {
-    condition     = xcsh_http_loadbalancer.this.http.dns_volterra_managed
-    error_message = "The US showcase HTTP LB must enable F5-managed DNS."
+    condition     = xcsh_http_loadbalancer.this.http.dns_volterra_managed == null
+    error_message = "The US showcase HTTP LB must remain a non-delegated Sales Demo domain."
   }
 }
 
