@@ -331,6 +331,16 @@ bash scripts/capture-sitecli.sh --check \
 
 ## On-Premise KVM & FRR BGP Verification
 
+Only run this after Terraform has completed a saved KVM plan and F5 reports the
+site `ONLINE`. A running libvirt domain alone is not a successful CE deployment.
+The current Sales Demo tenant prerequisite is exactly one valid `maurice_config`;
+when the image data source reports that it is not one, stop before mutation and
+repair the tenant-owned prerequisite before retrying the same plan.
+
+For a controlled KVM teardown, set `enable_kvm = false` and create a saved destroy
+plan. This removes only Terraform-owned KVM resources without evaluating the
+image data source; do not use `-target`, import, taint, or state editing.
+
 When the On-Premise KVM extension is deployed, verify hypervisor domain state, ToR router eBGP peering status, and local network reachability:
 
 1. **Verify KVM virtual machine domain state**:
@@ -344,24 +354,24 @@ When the On-Premise KVM extension is deployed, verify hypervisor domain state, T
 2. **Verify FRR ToR BGP Router peering status and ECMP multipath routes**:
 
    ```bash
-   docker exec frr-router vtysh -c "show ip bgp summary"
-   docker exec frr-router vtysh -c "show ip bgp 10.100.0.10/32"
-   docker exec frr-router ip route show 10.100.0.10/32
+   docker exec mcn-kvm-frr-router vtysh -c "show ip bgp summary"
+   docker exec mcn-kvm-frr-router vtysh -c "show ip bgp 10.100.0.10/32"
+   docker exec mcn-kvm-frr-router ip route show 10.100.0.10/32
    ```
 
-   Confirm active eBGP sessions with all three On-Prem CEs (ASN `64512`) on local bridge network `ce-bgp-net` (`10.100.0.0/24`), showing established prefixes.
+   Confirm active eBGP sessions with all three On-Prem CEs (ASN `64512`) on the generated local bridge network, showing established prefixes.
    The `show ip bgp 10.100.0.10/32` command verifies BGP multipath (`*=` entries) installed by `maximum-paths 4`, and `ip route show` confirms ECMP multipath next hops installed in the Linux kernel.
 
 3. **Verify network reachability**:
 
    ```bash
-   ping -c 3 10.100.0.1
+   ping -c 3 10.100.0.2
    for ip in 10.100.0.10 10.100.0.11 10.100.0.12; do
      ping -c 2 "$ip"
    done
    ```
 
-   Confirm local ICMP reachability to the FRR ToR router interface (`10.100.0.1`) and On-Prem CE node IP addresses.
+   Confirm local ICMP reachability to the FRR router interface (`10.100.0.2`) and On-Prem CE node IP addresses.
 
 ## AWS Customer Edge Verification
 

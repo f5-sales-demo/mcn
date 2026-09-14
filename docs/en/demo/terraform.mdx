@@ -11,6 +11,7 @@ import { Code } from "@astrojs/starlight/components";
 import backend from "../../_data/terraform/backend.tf?raw";
 import data from "../../_data/terraform/data.tf?raw";
 import kvm from "../../_data/terraform/kvm.tf?raw";
+import kvmFrr from "../../_data/terraform/kvm_frr.tf?raw";
 import locals from "../../_data/terraform/locals.tf?raw";
 import main from "../../_data/terraform/main.tf?raw";
 import onpremKvm from "../../_data/terraform/onprem_kvm.tf?raw";
@@ -81,9 +82,30 @@ Read-only lookups, including the Azure AD identity used to derive the deployer.
 
 ### `terraform/kvm.tf`
 
-Declarative KVM & libvirt infrastructure managed natively via `dmacvicar/libvirt` (`v0.8.3`). Provisions local network bridge `ce-bgp-net` (`10.100.0.0/24`), base cloud storage volumes, per-CE overlay disks, cloud-init seed ISOs containing `/etc/vpm/config.yaml` bootstrap configs, and KVM virtual machine domains (`onprem-ce-01`, `02`, `03`).
+Declarative KVM & libvirt infrastructure managed natively via `dmacvicar/libvirt`.
+The network name and bridge are generated from the stable CE MAC/IP map; each CE
+therefore receives the same reserved address after a replacement. The base volume
+uses the F5-issued KVM appliance URL from `xcsh_site_image`, never a generic cloud
+OS image.
+
+<Aside type="caution" title="Sales Demo image prerequisite">
+The KVM image lookup is deliberately fail-closed. The Sales Demo tenant must expose
+exactly one valid tenant-owned `maurice_config`; this is a platform prerequisite,
+not Terraform-managed infrastructure. Until it is repaired, planning stops before
+libvirt, Docker, Azure, or F5 configuration mutation. Keep `enable_kvm = false`
+(the default) to omit KVM from an unrelated apply or to produce a KVM-only destroy
+plan without querying that image endpoint.
+</Aside>
 
 <Code code={kvm} lang="hcl" title="terraform/kvm.tf" />
+
+### `terraform/kvm_frr.tf`
+
+The router is a Terraform-owned, digest-pinned FRR container attached to the
+generated libvirt bridge through Docker macvlan. Its exclusive BGP address is
+`10.100.0.2`; `10.100.0.1` remains the libvirt NAT gateway.
+
+<Code code={kvmFrr} lang="hcl" title="terraform/kvm_frr.tf" />
 
 ### `terraform/locals.tf`
 
@@ -99,7 +121,7 @@ Top-level wiring, the tenant guard and the VIP-outside-the-VNet check. The deplo
 
 ### `terraform/onprem_kvm.tf`
 
-On-Premise KVM SecureMesh v2 Site (`xcsh_securemesh_site_v2.onprem_kvm`) and eBGP peering configuration (`xcsh_bgp.onprem_ebgp`). Connects on-premise CEs (ASN `64512`) over `eth0` to containerized FRR ToR BGP router (`10.100.0.1`, ASN `65515`).
+On-Premise KVM SecureMesh v2 Site (`xcsh_securemesh_site_v2.onprem_kvm`) and eBGP peering configuration (`xcsh_bgp.onprem_ebgp`). Connects on-premise CEs (ASN `64512`) over `eth0` to the Terraform-owned FRR router (`10.100.0.2`, ASN `65515`) only after the domains and router exist.
 
 <Code code={onpremKvm} lang="hcl" title="terraform/onprem_kvm.tf" />
 

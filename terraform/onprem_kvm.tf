@@ -1,5 +1,7 @@
 # On-Prem KVM SecureMesh Site v2
 resource "xcsh_securemesh_site_v2" "onprem_kvm" {
+  count = var.enable_kvm ? 1 : 0
+
   name        = "onprem-kvm-site"
   namespace   = "system"
   description = "On-Prem KVM SecureMesh Site v2"
@@ -23,6 +25,8 @@ resource "xcsh_securemesh_site_v2" "onprem_kvm" {
 
 # eBGP Peering configuration for On-Prem KVM Site
 resource "xcsh_bgp" "onprem_ebgp" {
+  count = var.enable_kvm ? 1 : 0
+
   name      = "onprem-kvm-ebgp"
   namespace = "system"
 
@@ -30,7 +34,7 @@ resource "xcsh_bgp" "onprem_ebgp" {
     site {
       network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
       ref {
-        name      = xcsh_securemesh_site_v2.onprem_kvm.name
+        name      = xcsh_securemesh_site_v2.onprem_kvm[0].name
         namespace = "system"
       }
       disable_internet_vip = {}
@@ -48,7 +52,7 @@ resource "xcsh_bgp" "onprem_ebgp" {
     }
     external {
       asn     = 65515
-      address = "10.100.0.1"
+      address = "10.100.0.2"
       port    = 179
 
       interface {
@@ -61,4 +65,11 @@ resource "xcsh_bgp" "onprem_ebgp" {
     passive_mode_disabled = {}
     bfd_disabled          = {}
   }
+
+  # Do not redirect the F5-side peer until both the Terraform-owned router and
+  # the CE interfaces with the declared static identities are ready.
+  depends_on = [
+    docker_container.kvm_frr,
+    libvirt_domain.ce_node,
+  ]
 }
