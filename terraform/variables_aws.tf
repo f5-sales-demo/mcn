@@ -125,6 +125,11 @@ variable "aws_bgp_convergence_timeout_seconds" {
   description = "Maximum bounded wait for first-boot runtime readiness and authoritative BGP/route convergence. This covers the platform-managed installation of the explicit CE software and OS pair."
   type        = number
   default     = 7200
+
+  validation {
+    condition     = var.aws_bgp_convergence_timeout_seconds == 7200
+    error_message = "aws_bgp_convergence_timeout_seconds is fixed at 7200 seconds so a fresh SMSv2 CE has the full platform-managed first-boot convergence budget."
+  }
 }
 
 variable "aws_bgp_poll_interval_seconds" {
