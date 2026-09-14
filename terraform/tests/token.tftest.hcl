@@ -49,8 +49,8 @@ run "generated_token_is_used" {
 
   # The xcsh_token.ce resource is planned with the expected metadata.
   assert {
-    condition     = xcsh_token.ce.name == "mcn-ce-registration"
-    error_message = "The CE registration token resource must be named mcn-ce-registration."
+    condition     = xcsh_token.ce.name == "mcn-ce-ha-smsv2-registration"
+    error_message = "The CE registration token resource must use the permanent mcn-ce-ha-smsv2 identity."
   }
 
   assert {
