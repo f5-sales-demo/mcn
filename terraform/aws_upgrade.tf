@@ -34,10 +34,11 @@ data "xcsh_site_upgrade_status" "aws" {
   timeout_seconds           = var.aws_upgrade_timeout_seconds
   poll_interval_seconds     = var.aws_upgrade_poll_interval_seconds
 
-  # Site-status APIs can block while a just-created site has no CE runtime.
-  # Keep observations downstream of the EC2 bootstrap so their polling cannot
-  # consume Terraform's worker capacity before the appliance is launched.
-  depends_on = [aws_instance.ce, xcsh_registration_approval.aws]
+  # A fresh site has no status object until its CE runtime is published.  The
+  # runtime gate is the authoritative readiness boundary; polling an upgrade
+  # status sooner can fail independently and mask an otherwise recoverable
+  # first-boot installation.
+  depends_on = [terraform_data.aws_tgw_runtime_gate]
 }
 
 output "aws_site_upgrade_status" {

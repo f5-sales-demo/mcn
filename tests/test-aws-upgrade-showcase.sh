@@ -70,8 +70,8 @@ grep -Fq 'depends_on = [aws_instance.ce]' <<<"$runtime_observation" || {
   exit 1
 }
 upgrade_observation=$(sed -n '/data "xcsh_site_upgrade_status" "aws" {/,/^}/p' terraform/aws_upgrade.tf)
-grep -Fq 'depends_on = [aws_instance.ce, xcsh_registration_approval.aws]' <<<"$upgrade_observation" || {
-  printf 'AWS upgrade observation must wait for CE instances before polling F5 upgrade status\n' >&2
+grep -Fq 'depends_on = [terraform_data.aws_tgw_runtime_gate]' <<<"$upgrade_observation" || {
+  printf 'AWS upgrade observation must wait for the authoritative runtime gate before polling F5 upgrade status\n' >&2
   exit 1
 }
 require_text terraform/aws_ce.tf '"{{ .token }}"'
