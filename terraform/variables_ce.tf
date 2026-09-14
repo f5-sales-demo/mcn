@@ -41,9 +41,20 @@ variable "region_short" {
 }
 
 variable "site_prefix" {
-  description = "Prefix for XC site names (site = <prefix>-<region_short>0<n>). Leave null (the default) to use var.component, which is what keeps every object name descending from one value. Set it only to hold existing site names steady: renaming a site replaces the CE VM, because the site name is the ClusterName baked into cloud-init and cloud-init only runs on first boot."
+  description = "Prefix for XC site names (site = <prefix>-<region_short>0<n>). Leave null to use the released SMSv2 identity generation derived from var.component. Renaming a site replaces the CE VM, because the site name is the ClusterName baked into cloud-init and cloud-init only runs on first boot."
   type        = string
   default     = null
+}
+
+variable "smsv2_site_generation" {
+  description = "Immutable identity generation appended to the default SMSv2 site prefix. The released default deliberately avoids the legacy mcn-ce-ha-* global-name reservations; do not decrement or reuse an earlier generation."
+  type        = string
+  default     = "smsv2"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", var.smsv2_site_generation))
+    error_message = "smsv2_site_generation must be a DNS-style label: lowercase alphanumerics and hyphens, not starting or ending with a hyphen."
+  }
 }
 
 variable "ce_asn" {

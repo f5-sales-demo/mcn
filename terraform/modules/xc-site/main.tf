@@ -205,24 +205,23 @@ data "xcsh_site_registration" "this" {
 # and registers via the token, so the first apply plans no approval; re-apply
 # once the CE has registered (see the deploy ordering in main.tf).
 #
-# ADOPTING AN ALREADY-APPROVED CE: the approve action only legitimately moves a
-# registration out of NEW, so applying this against a CE that is already
-# APPROVED/ONLINE would POST a redundant approve (which the API may reject —
-# xcsh #1278). Import the existing approval instead of letting Terraform create
-# it, using namespace/name with the RUNTIME registration name (the site name
-# 404s — read it from the data source's `registration_name` output):
+# The action only legitimately transitions a NEW registration. Retired and
+# already-admitted registrations are observations, never approval targets.
+# Keeping the guard in the module rather than relying on provider selection also
+# protects installed provider versions that predate terminal-state filtering.
 #
-#   terraform import 'module.xc_site["eastus01"].xcsh_registration_approval.this[0]' \
-#     system/r-dcec2400-52d5-4154-9fd0-4b042d3fe18d
-#
-# Or set approve_registration = false to keep approval out of the graph entirely.
+# Approval can auto-provision a site in XC, so it must wait for Terraform's
+# explicit site creation. The data source deliberately has no dependency: its
+# result determines this resource's plan-known count.
 resource "xcsh_registration_approval" "this" {
-  count = var.approve_registration && data.xcsh_site_registration.this.found ? 1 : 0
+  count = var.approve_registration && data.xcsh_site_registration.this.found && data.xcsh_site_registration.this.state == "NEW" ? 1 : 0
 
   namespace    = "system"
   name         = data.xcsh_site_registration.this.name
   cluster_size = 1
   state        = "APPROVED"
+
+  depends_on = [xcsh_securemesh_site_v2.this]
 }
 
 # One bgp object per CE site: eBGP from the CE (ASN var.ce_asn) to the Azure

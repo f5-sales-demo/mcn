@@ -61,9 +61,9 @@ run "no_approval_before_the_ce_registers" {
   }
 }
 
-# Gate 2 — the CE has registered. Exactly one approval is planned, carrying the
+# Gate 2 — the CE has registered in NEW. Exactly one approval is planned, carrying the
 # resolved r-<uuid> name (NOT the site name) in the system namespace.
-run "approval_uses_the_resolved_registration_name" {
+run "new_registration_uses_the_resolved_registration_name" {
   command = plan
 
   module {
@@ -88,7 +88,7 @@ run "approval_uses_the_resolved_registration_name" {
     values = {
       found = true
       name  = "r-dcec2400-52d5-4154-9fd0-4b042d3fe18d"
-      state = "ONLINE"
+      state = "NEW"
     }
   }
 
@@ -118,8 +118,8 @@ run "approval_uses_the_resolved_registration_name" {
   }
 
   assert {
-    condition     = output.registration_state == "ONLINE"
-    error_message = "registration_state must expose the state reported by XC."
+    condition     = output.registration_state == "NEW"
+    error_message = "registration_state must expose the NEW state reported by XC."
   }
 }
 
@@ -162,5 +162,43 @@ run "approve_registration_false_plans_no_approval" {
   assert {
     condition     = output.registration_name == "r-dcec2400-52d5-4154-9fd0-4b042d3fe18d"
     error_message = "The lookup still resolves the registration name when approval is disabled."
+  }
+}
+
+# Gate 4 — terminal registrations are retained by some installed provider
+# versions, but XC forbids RETIRED -> APPROVED. The module itself must keep the
+# action out of the graph so a stale registration cannot fail a recovery apply.
+run "retired_registration_plans_no_approval" {
+  command = plan
+
+  module {
+    source = "./modules/xc-site"
+  }
+
+  variables {
+    site_name            = "mcn-ce-ha-eastus01"
+    hostname             = "f5-xc-ce-vm-01"
+    interface_name       = "ves-io-securemesh-site-v2-mcn-ce-ha-eastus01-network-f5-xc-ce-vm-01-eth0-0"
+    mgmt_nic_mac         = "7c:1e:52:18:c1:77"
+    ce_vm_instance_id    = "89e6c538-6bc2-4c2c-a37e-d6149c1708ce"
+    rs_peer_ips          = ["10.0.4.4", "10.0.4.5"]
+    ce_asn               = 64512
+    rs_asn               = 65515
+    enable_bgp           = false
+    approve_registration = true
+  }
+
+  override_data {
+    target = data.xcsh_site_registration.this
+    values = {
+      found = true
+      name  = "r-dcec2400-52d5-4154-9fd0-4b042d3fe18d"
+      state = "RETIRED"
+    }
+  }
+
+  assert {
+    condition     = length(xcsh_registration_approval.this) == 0
+    error_message = "A RETIRED registration must never plan an APPROVED transition."
   }
 }

@@ -7,8 +7,8 @@ locals {
     for index in range(var.enable_aws ? var.aws_ce_count : 0) :
     format("%02d", index + 1) => {
       index       = index
-      name        = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
-      hostname    = format("%s-aws-%s-%02d", var.component, var.aws_location, index + 1)
+      name        = format("%s-aws-%s-%02d", local.site_prefix, var.aws_location, index + 1)
+      hostname    = format("%s-aws-%s-%02d", local.site_prefix, var.aws_location, index + 1)
       listener_ip = cidrhost(cidrsubnet(var.aws_vpc_cidr, 8, index + 11), 10)
     }
   }
@@ -123,13 +123,15 @@ data "xcsh_site_registration" "aws" {
 resource "xcsh_registration_approval" "aws" {
   for_each = {
     for key, registration in data.xcsh_site_registration.aws :
-    key => registration if registration.found
+    key => registration if registration.found && registration.state == "NEW"
   }
 
   namespace    = "system"
   name         = each.value.name
   cluster_size = 1
   state        = "APPROVED"
+
+  depends_on = [xcsh_securemesh_site_v2.aws]
 }
 
 resource "xcsh_virtual_site" "aws" {
@@ -166,7 +168,9 @@ resource "xcsh_http_loadbalancer" "aws" {
   namespace = data.xcsh_namespace.mcn.name
   domains   = [var.aws_lb_domain]
 
-  http { port = 80 }
+  http {
+    port = 80
+  }
 
   advertise_custom {
     dynamic "advertise_where" {

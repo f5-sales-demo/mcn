@@ -72,6 +72,14 @@ run "loadbalancer_advertise_and_pool" {
     condition     = xcsh_origin_pool.this.port == 80
     error_message = "Origin pool port should be 80."
   }
+
+  # The Sales Demo tenant serves this hostname as a non-delegated domain.
+  # Attempting to change an existing non-delegated domain to tenant-managed DNS
+  # is an unsupported API transition, so the marker must remain omitted.
+  assert {
+    condition     = xcsh_http_loadbalancer.this.http.dns_volterra_managed == null
+    error_message = "The US showcase HTTP LB must remain a non-delegated Sales Demo domain."
+  }
 }
 
 # The app namespace is read, never owned (#634, #637): a managed xcsh_namespace

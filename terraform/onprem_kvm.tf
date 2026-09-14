@@ -2,7 +2,7 @@
 resource "xcsh_securemesh_site_v2" "onprem_kvm" {
   count = var.enable_kvm ? 1 : 0
 
-  name        = "onprem-kvm-site"
+  name        = local.kvm_site_name
   namespace   = "system"
   description = "On-Prem KVM SecureMesh Site v2"
 

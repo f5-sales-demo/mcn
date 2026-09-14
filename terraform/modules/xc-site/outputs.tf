@@ -3,6 +3,11 @@ output "site_name" {
   value       = var.site_name
 }
 
+output "site_created" {
+  description = "Whether this module instance manages its Secure Mesh Site v2 object."
+  value       = length(xcsh_securemesh_site_v2.this) == 1
+}
+
 output "bgp_name" {
   description = "XC bgp object name (null when enable_bgp is false)."
   value       = one(xcsh_bgp.this[*].name)

@@ -65,6 +65,11 @@ run "kvm_frr_and_ce_identity_plan" {
     condition     = xcsh_bgp.onprem_ebgp[0].peers[0].external.address == output.kvm_bgp_fabric.router_ip
     error_message = "The F5-side KVM BGP object must peer with the Terraform-owned FRR router."
   }
+
+  assert {
+    condition     = xcsh_securemesh_site_v2.onprem_kvm[0].name == "mcn-ce-ha-smsv2-kvm"
+    error_message = "KVM must use the released SMSv2 identity generation, not the legacy onprem-kvm-site name."
+  }
 }
 
 run "kvm_disabled_skips_the_image_lookup_and_plans_no_kvm_resources" {

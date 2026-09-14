@@ -50,8 +50,11 @@ locals {
   # can carry a customer's or an individual's name by accident: change
   # var.component and the sites, load balancer, origin pool, Route Server, Bastion
   # and resource group all follow.
-  region_short        = coalesce(var.region_short, var.location)
-  site_prefix         = coalesce(var.site_prefix, var.component)
+  region_short = coalesce(var.region_short, var.location)
+  # SMSv2 site identities have their own immutable generation. The previous
+  # mcn-ce-ha-* generation has unrecoverable generic-name reservations in Sales
+  # Demo, so a fresh complete showcase must never attempt to recreate it.
+  site_prefix         = coalesce(var.site_prefix, "${var.component}-${var.smsv2_site_generation}")
   resource_group_name = coalesce(var.resource_group_name, "rg-${var.component}-${local.deployer}")
   route_server_name   = coalesce(var.route_server_name, "${var.component}-rs")
   bastion_name        = coalesce(var.bastion_name, "${var.component}-bastion")
@@ -62,7 +65,8 @@ locals {
 
   # --- Derived Canada object names ---
   ca_region_short        = coalesce(var.ca_region_short, var.ca_location)
-  ca_site_prefix         = coalesce(var.ca_site_prefix, "${var.component}-ca")
+  ca_site_prefix         = coalesce(var.ca_site_prefix, "${local.site_prefix}-ca")
+  kvm_site_name          = "${local.site_prefix}-kvm"
   ca_resource_group_name = coalesce(var.ca_resource_group_name, "rg-${var.component}-ca-${local.deployer}")
   ca_route_server_name   = coalesce(var.ca_route_server_name, "${var.component}-ca-rs")
   ca_bastion_name        = coalesce(var.ca_bastion_name, "${var.component}-ca-bastion")

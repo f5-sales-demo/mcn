@@ -45,6 +45,16 @@ output "canada_ilb_private_ip" {
   value       = try(azurerm_lb.ca_ilb[0].frontend_ip_configuration[0].private_ip_address, null)
 }
 
+output "ca_resource_group_name" {
+  description = "Canadian Azure resource group used for supported ILB verification."
+  value       = try(module.azure_hub_ca[0].resource_group_name, null)
+}
+
+output "ca_client_vm_name" {
+  description = "Canadian test client VM used to probe the Canadian ILB."
+  value       = try(module.client_vm_ca[0].vm_name, null)
+}
+
 output "client_vm_name" {
   description = "Test client VM name — the -n argument of `az vm run-command invoke` when driving traffic at the VIP from inside the VNet."
   value       = local.client_vm_name
@@ -137,6 +147,16 @@ output "xc_env_tenant" {
 output "xc_site_names" {
   description = "Per-CE XC site names."
   value       = { for k, m in module.xc_site : k => m.site_name }
+}
+
+output "ca_xc_site_names" {
+  description = "Per-CE Canadian XC site names."
+  value       = { for k, m in module.xc_site_ca : k => m.site_name }
+}
+
+output "ca_ce_vm_names" {
+  description = "Per-CE Canadian VM names used for Azure runtime and extension verification."
+  value       = { for k, m in module.ce_node_ca : k => m.vm_name }
 }
 
 # Makes the site-to-node binding that closes #674 observable from the CLI. Each

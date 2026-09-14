@@ -6,7 +6,7 @@
 #   bash scripts/verify-deployment.sh --evidence-dir /private/path/mcn-evidence
 #
 # The default run verifies the rotated Site Console credentials as well as XC,
-# Azure routing, and traffic. Set MCN_FACTORY_PASSWORD in the environment; the
+# Azure ILB connectivity, and traffic. Set MCN_FACTORY_PASSWORD in the environment; the
 # value is read from stdin by curl and never enters a command line or output.
 set -euo pipefail
 
@@ -145,10 +145,10 @@ STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 "${TF[@]}" output -json >"${EVIDENCE_DIR}/terraform-output.json"
 
 SITES=$(tf_json xc_site_names)
-CE_IPS=$(tf_json ce_mgmt_private_ips)
+CA_SITES=$(tf_json ca_xc_site_names)
 SITE_COUNT=$(jq 'length' <<<"$SITES")
 [ "$SITE_COUNT" -eq 3 ] || die "expected three XC sites, found $SITE_COUNT"
-[ "$(jq 'length' <<<"$CE_IPS")" -eq "$SITE_COUNT" ] || die "site and CE address maps differ in size"
+[ "$(jq 'length' <<<"$CA_SITES")" -eq 3 ] || die "expected three Canadian XC sites, found $(jq 'length' <<<"$CA_SITES")"
 
 sites_online=0
 while IFS= read -r key; do
@@ -157,20 +157,32 @@ while IFS= read -r key; do
   [ "$state" = "ONLINE" ] || die "one or more XC sites are not ONLINE"
   sites_online=$((sites_online + 1))
 done < <(jq -r 'keys[]' <<<"$SITES")
-printf 'sites_online=%s/%s\n' "$sites_online" "$SITE_COUNT"
+while IFS= read -r key; do
+  site=$(jq -r --arg key "$key" '.[$key]' <<<"$CA_SITES")
+  state=$(api_get "${API_URL}/api/config/namespaces/system/sites/${site}" | jq -r '.spec.site_state // .get_spec.site_state // empty')
+  [ "$state" = "ONLINE" ] || die "one or more Canadian XC sites are not ONLINE"
+  sites_online=$((sites_online + 1))
+done < <(jq -r 'keys[]' <<<"$CA_SITES")
+printf 'sites_online=%s/%s\n' "$sites_online" "$((SITE_COUNT * 2))"
 
 RG=$(tf_raw resource_group_name)
-RS=$(tf_raw route_server_name)
 CLIENT=$(tf_raw client_vm_name)
-NIC=$(tf_raw client_nic_name)
+CA_RG=$(tf_raw ca_resource_group_name)
+CA_CLIENT=$(tf_raw ca_client_vm_name)
+US_ILB=$(tf_raw azure_ilb_private_ip)
+CA_ILB=$(tf_raw canada_ilb_private_ip)
 DOMAIN=$(tf_raw lb_domain)
-VIP=$(tf_raw vip)
+CA_DOMAIN=$(tf_raw ca_lb_domain)
 ORIGIN=$(tf_raw origin_ip)
 CE_VM_NAMES=$(tf_json ce_vm_names)
+CA_CE_VM_NAMES=$(tf_json ca_ce_vm_names)
 [[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "lb_domain contains characters unsafe for the remote verifier"
-[[ "$VIP" =~ ^[0-9.]+$ ]] || die "vip is not an IPv4 literal"
+[[ "$CA_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "ca_lb_domain contains characters unsafe for the remote verifier"
+[[ "$US_ILB" =~ ^[0-9.]+$ ]] || die "azure_ilb_private_ip is not an IPv4 literal"
+[[ "$CA_ILB" =~ ^[0-9.]+$ ]] || die "canada_ilb_private_ip is not an IPv4 literal"
 [[ "$ORIGIN" =~ ^[0-9.]+$ ]] || die "origin_ip is not an IPv4 literal"
 [ "$(jq 'length' <<<"$CE_VM_NAMES")" -eq "$SITE_COUNT" ] || die "site and CE VM name maps differ in size"
+[ "$(jq 'length' <<<"$CA_CE_VM_NAMES")" -eq 3 ] || die "Canadian site and CE VM name maps differ in size"
 
 # Terraform and the XC API can both become ready while Azure still reports a VM
 # or extension transition. Query Azure directly so a stuck control-plane
@@ -201,42 +213,53 @@ while IFS= read -r key; do
     die "one Site Console password extension is not complete in Azure (provisioning=${extension_state:-unknown})"
   password_extensions_succeeded=$((password_extensions_succeeded + 1))
 done < <(jq -r 'keys[]' <<<"$SITES")
-printf 'azure_vms_running=%s/%s\n' "$azure_vms_running" "$SITE_COUNT"
-printf 'password_extensions_succeeded=%s/%s\n' "$password_extensions_succeeded" "$SITE_COUNT"
-
-peerings_with_vip=0
-learned_hops='[]'
 while IFS= read -r key; do
-  expected_hop=$(jq -r --arg key "$key" '.[$key]' <<<"$CE_IPS")
-  routes=$(az network routeserver peering list-learned-routes \
-    --name "${key}-bgp" \
-    --routeserver "$RS" \
-    --resource-group "$RG" \
-    --query "RouteServiceRole_IN_0[?network=='${VIP}/32']" \
+  vm_name=$(jq -r --arg key "$key" '.[$key]' <<<"$CA_CE_VM_NAMES")
+  instance_view=$(az vm get-instance-view \
+    --resource-group "$CA_RG" \
+    --name "$vm_name" \
+    --query '{provisioningState:provisioningState,powerState:instanceView.statuses[?starts_with(code, `PowerState/`)].code | [0]}' \
     --output json)
-  route_count=$(jq 'length' <<<"$routes")
-  [ "$route_count" -eq 1 ] || die "one Route Server peering does not expose exactly one VIP route"
-  actual_hop=$(jq -r '.[0].nextHop // empty' <<<"$routes")
-  [ "$actual_hop" = "$expected_hop" ] || die "one Route Server peering exposes the wrong VIP next hop"
-  learned_hops=$(jq -c --arg hop "$actual_hop" '. + [$hop]' <<<"$learned_hops")
-  peerings_with_vip=$((peerings_with_vip + 1))
-done < <(jq -r 'keys[]' <<<"$SITES")
-[ "$(jq 'unique | length' <<<"$learned_hops")" -eq "$SITE_COUNT" ] || die "per-peering VIP next hops are not distinct"
-printf 'peerings_with_vip=%s/%s\n' "$peerings_with_vip" "$SITE_COUNT"
+  provisioning_state=$(jq -r '.provisioningState // empty' <<<"$instance_view")
+  power_state=$(jq -r '.powerState // empty' <<<"$instance_view")
+  if [ "$provisioning_state" != "Succeeded" ] || [ "$power_state" != "PowerState/running" ]; then
+    die "one Canadian CE VM is not fully running in Azure (provisioning=${provisioning_state:-unknown}, power=${power_state:-unknown})"
+  fi
+  azure_vms_running=$((azure_vms_running + 1))
 
-effective_raw=$(az network nic show-effective-route-table \
-  --resource-group "$RG" \
-  --name "$NIC" \
-  --query "value[?addressPrefix[0]=='${VIP}/32']" \
-  --output json)
-effective_routes=$(jq -c 'if type == "array" then . else (.value // []) end' <<<"$effective_raw")
-effective_hops=$(jq -c --arg prefix "${VIP}/32" '[.[] | select((.addressPrefix[0] // "") == $prefix and (.state // "Active") == "Active") | .nextHopIpAddress[]?] | unique | sort' <<<"$effective_routes")
-expected_hops=$(jq -c '[.[]] | unique | sort' <<<"$CE_IPS")
-[ "$effective_hops" = "$expected_hops" ] || die "the client effective route does not contain every CE next hop"
-printf 'effective_next_hops=%s/%s\n' "$(jq 'length' <<<"$effective_hops")" "$SITE_COUNT"
+  extension_state=$(az vm extension show \
+    --resource-group "$CA_RG" \
+    --vm-name "$vm_name" \
+    --name site-console-admin-password \
+    --query provisioningState \
+    --output tsv)
+  [ "$extension_state" = "Succeeded" ] ||
+    die "one Canadian Site Console password extension is not complete in Azure (provisioning=${extension_state:-unknown})"
+  password_extensions_succeeded=$((password_extensions_succeeded + 1))
+done < <(jq -r 'keys[]' <<<"$CA_SITES")
+printf 'azure_vms_running=%s/%s\n' "$azure_vms_running" "$((SITE_COUNT * 2))"
+printf 'password_extensions_succeeded=%s/%s\n' "$password_extensions_succeeded" "$((SITE_COUNT * 2))"
+
+verify_ilb_endpoint() {
+  local region=$1 resource_group=$2 client=$3 ilb=$4 output
+  output=$(az_vm_run_command \
+    --resource-group "$resource_group" \
+    --name "$client" \
+    --command-id RunShellScript \
+    --query 'value[0].message' \
+    --output tsv \
+    --scripts "timeout 10 bash -c '</dev/tcp/${ilb}/65500' && echo MCN_ILB reachable=1")
+  grep -qF 'MCN_ILB reachable=1' <<<"$output" || die "${region} ILB does not accept TCP/65500 from its Terraform-managed client"
+  printf '%s_ilb_reachable=yes\n' "$region"
+}
+
+verify_ilb_endpoint us "$RG" "$CLIENT" "$US_ILB"
+verify_ilb_endpoint canada "$CA_RG" "$CA_CLIENT" "$CA_ILB"
 
 vip_ok=0
 vip_fail=0
+ca_lb_ok=0
+ca_lb_fail=0
 origin_ok=0
 origin_fail=0
 zero_streak=0
@@ -248,10 +271,11 @@ origin_samples=$((SAMPLES_PER_BATCH / 2))
 while [ "$batches" -lt "$MAX_BATCHES" ]; do
   batches=$((batches + 1))
   remote_script=$(printf '%s' \
-    "vip_ok=0; vip_fail=0; origin_ok=0; origin_fail=0; " \
-    "for i in \$(seq 1 ${SAMPLES_PER_BATCH}); do code=\$(curl -sS -o /dev/null -m 10 -w '%{http_code}' -H 'Host: ${DOMAIN}' 'http://${VIP}/' || true); if [ \"\$code\" = 200 ]; then vip_ok=\$((vip_ok+1)); else vip_fail=\$((vip_fail+1)); fi; done; " \
+    "vip_ok=0; vip_fail=0; ca_lb_ok=0; ca_lb_fail=0; origin_ok=0; origin_fail=0; " \
+    "for i in \$(seq 1 ${SAMPLES_PER_BATCH}); do code=\$(curl -sS -o /dev/null -m 10 -w '%{http_code}' 'http://${DOMAIN}/' || true); if [ \"\$code\" = 200 ]; then vip_ok=\$((vip_ok+1)); else vip_fail=\$((vip_fail+1)); fi; done; " \
+    "for i in \$(seq 1 ${SAMPLES_PER_BATCH}); do code=\$(curl -sS -o /dev/null -m 10 -w '%{http_code}' 'http://${CA_DOMAIN}/' || true); if [ \"\$code\" = 200 ]; then ca_lb_ok=\$((ca_lb_ok+1)); else ca_lb_fail=\$((ca_lb_fail+1)); fi; done; " \
     "for i in \$(seq 1 ${origin_samples}); do code=\$(curl -sS -o /dev/null -m 10 -w '%{http_code}' 'http://${ORIGIN}/' || true); if [ \"\$code\" = 200 ]; then origin_ok=\$((origin_ok+1)); else origin_fail=\$((origin_fail+1)); fi; done; " \
-    "echo MCN_UAT vip_ok=\$vip_ok vip_fail=\$vip_fail origin_ok=\$origin_ok origin_fail=\$origin_fail")
+    "echo MCN_UAT vip_ok=\$vip_ok vip_fail=\$vip_fail ca_lb_ok=\$ca_lb_ok ca_lb_fail=\$ca_lb_fail origin_ok=\$origin_ok origin_fail=\$origin_fail")
   message=$(az_vm_run_command \
     --resource-group "$RG" \
     --name "$CLIENT" \
@@ -259,26 +283,31 @@ while [ "$batches" -lt "$MAX_BATCHES" ]; do
     --query 'value[0].message' \
     --output tsv \
     --scripts "$remote_script")
-  result=$(grep -Eo 'MCN_UAT vip_ok=[0-9]+ vip_fail=[0-9]+ origin_ok=[0-9]+ origin_fail=[0-9]+' <<<"$message" | tail -n 1)
+  result=$(grep -Eo 'MCN_UAT vip_ok=[0-9]+ vip_fail=[0-9]+ ca_lb_ok=[0-9]+ ca_lb_fail=[0-9]+ origin_ok=[0-9]+ origin_fail=[0-9]+' <<<"$message" | tail -n 1)
   [ -n "$result" ] || die "client traffic verifier returned no aggregate result"
   batch_vip_ok=$(sed -E 's/.*vip_ok=([0-9]+).*/\1/' <<<"$result")
   batch_vip_fail=$(sed -E 's/.*vip_fail=([0-9]+).*/\1/' <<<"$result")
+  batch_ca_lb_ok=$(sed -E 's/.*ca_lb_ok=([0-9]+).*/\1/' <<<"$result")
+  batch_ca_lb_fail=$(sed -E 's/.*ca_lb_fail=([0-9]+).*/\1/' <<<"$result")
   batch_origin_ok=$(sed -E 's/.*origin_ok=([0-9]+).*/\1/' <<<"$result")
   batch_origin_fail=$(sed -E 's/.*origin_fail=([0-9]+).*/\1/' <<<"$result")
-  [ $((batch_vip_ok + batch_vip_fail)) -eq "$SAMPLES_PER_BATCH" ] || die "VIP batch returned the wrong sample count"
+  [ $((batch_vip_ok + batch_vip_fail)) -eq "$SAMPLES_PER_BATCH" ] || die "load-balancer batch returned the wrong sample count"
+  [ $((batch_ca_lb_ok + batch_ca_lb_fail)) -eq "$SAMPLES_PER_BATCH" ] || die "Canadian load-balancer batch returned the wrong sample count"
   [ $((batch_origin_ok + batch_origin_fail)) -eq "$origin_samples" ] || die "origin batch returned the wrong sample count"
-  [ "$batch_origin_fail" -eq 0 ] || die "origin control failed; VIP results are not attributable"
+  [ "$batch_origin_fail" -eq 0 ] || die "origin control failed; load-balancer results are not attributable"
   vip_ok=$((vip_ok + batch_vip_ok))
   vip_fail=$((vip_fail + batch_vip_fail))
+  ca_lb_ok=$((ca_lb_ok + batch_ca_lb_ok))
+  ca_lb_fail=$((ca_lb_fail + batch_ca_lb_fail))
   origin_ok=$((origin_ok + batch_origin_ok))
   origin_fail=$((origin_fail + batch_origin_fail))
-  if [ "$batch_vip_fail" -eq 0 ]; then
+  if [ "$batch_vip_fail" -eq 0 ] && [ "$batch_ca_lb_fail" -eq 0 ]; then
     zero_streak=$((zero_streak + 1))
   else
     zero_streak=0
   fi
-  printf 'batch=%s vip_ok=%s vip_fail=%s origin_ok=%s origin_fail=%s\n' \
-    "$batches" "$batch_vip_ok" "$batch_vip_fail" "$batch_origin_ok" "$batch_origin_fail"
+  printf 'batch=%s vip_ok=%s vip_fail=%s ca_lb_ok=%s ca_lb_fail=%s origin_ok=%s origin_fail=%s\n' \
+    "$batches" "$batch_vip_ok" "$batch_vip_fail" "$batch_ca_lb_ok" "$batch_ca_lb_fail" "$batch_origin_ok" "$batch_origin_fail"
   if [ $((vip_ok + vip_fail)) -ge 100 ] && [ "$batches" -ge 3 ] && [ "$zero_streak" -ge 2 ]; then
     converged=true
     break
@@ -343,11 +372,13 @@ jq -n \
   --argjson sites_online "$sites_online" \
   --argjson azure_vms_running "$azure_vms_running" \
   --argjson password_extensions_succeeded "$password_extensions_succeeded" \
-  --argjson peerings_with_vip "$peerings_with_vip" \
-  --argjson effective_next_hops "$(jq 'length' <<<"$effective_hops")" \
+  --arg us_ilb_reachable "yes" \
+  --arg canada_ilb_reachable "yes" \
   --argjson batches "$batches" \
   --argjson vip_samples "$((vip_ok + vip_fail))" \
   --argjson vip_failures "$vip_fail" \
+  --argjson ca_lb_samples "$((ca_lb_ok + ca_lb_fail))" \
+  --argjson ca_lb_failures "$ca_lb_fail" \
   --argjson origin_samples "$((origin_ok + origin_fail))" \
   --argjson origin_failures "$origin_fail" \
   --argjson console_factory_rejected "$console_factory_rejected" \
@@ -359,11 +390,13 @@ jq -n \
     sites_online: $sites_online,
     azure_vms_running: $azure_vms_running,
     password_extensions_succeeded: $password_extensions_succeeded,
-    peerings_with_vip: $peerings_with_vip,
-    effective_next_hops: $effective_next_hops,
+    us_ilb_reachable: $us_ilb_reachable,
+    canada_ilb_reachable: $canada_ilb_reachable,
     batches: $batches,
     vip_samples: $vip_samples,
     vip_failures: $vip_failures,
+    ca_lb_samples: $ca_lb_samples,
+    ca_lb_failures: $ca_lb_failures,
     origin_samples: $origin_samples,
     origin_failures: $origin_failures,
     console_factory_rejected: $console_factory_rejected,
@@ -372,6 +405,7 @@ jq -n \
   }' >"${EVIDENCE_DIR}/summary.json"
 
 printf 'vip_samples=%s vip_failures=%s\n' "$((vip_ok + vip_fail))" "$vip_fail"
+printf 'ca_lb_samples=%s ca_lb_failures=%s\n' "$((ca_lb_ok + ca_lb_fail))" "$ca_lb_fail"
 printf 'origin_samples=%s origin_failures=%s\n' "$((origin_ok + origin_fail))" "$origin_fail"
 if [ "$converged" = true ]; then
   echo 'converged=yes'

@@ -92,8 +92,8 @@ run "root_plans_end_to_end" {
   }
 
   assert {
-    condition     = output.xc_site_names["eastus01"] == "mcn-ce-ha-eastus01"
-    error_message = "CE-01 XC site name should be mcn-ce-ha-eastus01."
+    condition     = output.xc_site_names["eastus01"] == "mcn-ce-ha-smsv2-eastus01"
+    error_message = "CE-01 must use the released SMSv2 identity generation instead of the legacy collision-prone site name."
   }
 
   assert {

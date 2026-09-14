@@ -72,6 +72,23 @@ run "canada_regional_virtual_sites_and_lb" {
     condition     = output.ca_vip == "10.250.1.10"
     error_message = "Canada VIP should be 10.250.1.10."
   }
+
+  assert {
+    condition = alltrue([
+      for site in values(module.xc_site_ca) : site.site_created
+    ])
+    error_message = "Every enabled Canadian topology node must have a Terraform-managed SMSv2 site."
+  }
+
+  assert {
+    condition     = output.ca_xc_site_names["canadacentral01"] == "mcn-ce-ha-smsv2-ca-canadacentral01"
+    error_message = "Canada must use the released SMSv2 identity generation instead of the legacy collision-prone site names."
+  }
+
+  assert {
+    condition     = xcsh_http_loadbalancer.canada[0].http.dns_volterra_managed == null
+    error_message = "The Canada showcase HTTP LB must remain a non-delegated Sales Demo domain."
+  }
 }
 
 run "canada_disabled_plans_no_canada_resources" {
