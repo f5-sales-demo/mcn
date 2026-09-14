@@ -164,7 +164,7 @@ run "bastion_enabled_root_wiring" {
   }
 
   assert {
-    condition     = module.azure_hub.bastion_subnet_prefix == "10.0.5.0/26"
+    condition     = module.azure_hub[0].bastion_subnet_prefix == "10.0.5.0/26"
     error_message = "The default Bastion prefix must be 10.0.5.0/26 — the only free /26 left in the hub."
   }
 }

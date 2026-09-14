@@ -52,14 +52,14 @@ locals {
     for node in try(local.ce_interface_evidence.nodes, []) : node.node_hostname => node
   }
 
-  expected_slo_bindings = {
+  expected_slo_bindings = var.enable_azure ? {
     for key, node in module.ce_topology.ce_nodes : node.hostname => {
       cloud_nic_position = 1
       nic_mac            = module.ce_node[key].mgmt_nic_mac
       private_ip         = module.ce_node[key].mgmt_private_ip
-      subnet_resource_id = module.azure_hub.management_subnet_id
+      subnet_resource_id = module.azure_hub[0].management_subnet_id
     }
-  }
+  } : {}
 
   evidence_is_current = local.ce_interface_evidence != null && try(
     timecmp(timestamp(), timeadd(local.ce_interface_evidence.captured_at_utc, "${var.ce_interface_evidence_max_age_hours}h")) < 0,

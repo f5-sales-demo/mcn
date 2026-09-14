@@ -29,7 +29,7 @@ locals {
     : ""
   )
 
-  deployer_from_oid = var.deployer == "" ? try(substr(sha1(data.azuread_client_config.current[0].object_id), 0, 8), "") : ""
+  deployer_from_oid = var.deployer == "" && length(data.azuread_client_config.current) > 0 ? try(substr(sha1(data.azuread_client_config.current[0].object_id), 0, 8), "") : ""
 
   deployer_resolved = coalesce(
     var.deployer,

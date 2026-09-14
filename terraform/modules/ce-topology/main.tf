@@ -18,6 +18,12 @@ variable "ce_count" {
   }
 }
 
+variable "enabled" {
+  description = "Whether this regional topology participates in the current plan. Disabled topologies deliberately expand to no nodes without weakening the 1..3 validation for enabled deployments."
+  type        = bool
+  default     = true
+}
+
 variable "region_short" {
   description = "Short region token (e.g. eastus)."
   type        = string
@@ -47,7 +53,7 @@ variable "site_prefix" {
 }
 
 locals {
-  ce_nodes = {
+  ce_nodes = var.enabled ? {
     for i in range(var.ce_count) : "${var.region_short}0${i + 1}" => {
       index     = i
       hostname  = "${var.hostname_prefix}-0${i + 1}"
@@ -60,7 +66,7 @@ locals {
       # interface. The bgp peer references it by this exact name.
       interface_name = "ves-io-securemesh-site-v2-${var.site_prefix}-${var.region_short}0${i + 1}-network-${var.hostname_prefix}-0${i + 1}-eth0-0"
     }
-  }
+  } : {}
 }
 
 output "ce_nodes" {

@@ -142,7 +142,9 @@ umask 077
 printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
 export TF_CLI_CONFIG_FILE="$REGISTRY_TFRC"
 terraform init -upgrade -backend-config=backend.hcl
-terraform plan -out="$PLAN_FILE"
+# The AWS preflight rejects Azure actions. This supported graph boundary omits
+# Azure US, Azure Canada, Marketplace, and KVM resources without Terraform targeting.
+terraform plan -var='enable_azure=false' -var='enable_kvm=false' -out="$PLAN_FILE"
 terraform show "$PLAN_FILE"
 
 ../scripts/aws-smsv2-uat-preflight.sh \
