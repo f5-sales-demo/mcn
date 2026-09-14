@@ -100,6 +100,7 @@ module "ce_topology" {
   source = "./modules/ce-topology"
 
   ce_count           = var.ce_count
+  enabled            = var.enable_azure
   region_short       = local.region_short
   mgmt_subnet_prefix = var.mgmt_subnet_prefix
   site_prefix        = local.site_prefix
@@ -109,6 +110,7 @@ module "ce_topology" {
 # requested (and currently rejected) BGP topology.
 module "azure_hub" {
   source = "./modules/azure-hub"
+  count  = var.enable_azure ? 1 : 0
 
   depends_on = [azapi_resource_action.f5xc_customer_edge_marketplace_agreement]
 
@@ -133,13 +135,13 @@ module "ce_node" {
   for_each = module.ce_topology.ce_nodes
 
   hostname            = each.value.hostname
-  resource_group_name = module.azure_hub.resource_group_name
-  location            = module.azure_hub.location
+  resource_group_name = module.azure_hub[0].resource_group_name
+  location            = module.azure_hub[0].location
   zone                = each.value.az
   vm_size             = var.ce_vm_size
-  mgmt_subnet_id      = module.azure_hub.management_subnet_id
-  external_subnet_id  = module.azure_hub.external_subnet_id
-  internal_subnet_id  = module.azure_hub.internal_subnet_id
+  mgmt_subnet_id      = module.azure_hub[0].management_subnet_id
+  external_subnet_id  = module.azure_hub[0].external_subnet_id
+  internal_subnet_id  = module.azure_hub[0].internal_subnet_id
   mgmt_private_ip     = each.value.slo_ip
   admin_username      = var.admin_username
   ssh_public_key      = local.ssh_public_key
@@ -216,7 +218,7 @@ module "xc_site" {
   # destroyed instance with it. Must be virtual_machine_id, not the ARM resource
   # id — the latter is name-derived and identical after a replacement.
   ce_vm_instance_id    = module.ce_node[each.key].vm_instance_id
-  rs_peer_ips          = module.azure_hub.rs_peer_ips
+  rs_peer_ips          = module.azure_hub[0].rs_peer_ips
   ce_asn               = var.ce_asn
   rs_asn               = var.rs_asn
   os_version           = var.ce_os_version
@@ -228,10 +230,10 @@ module "xc_site" {
 # The Azure side of each eBGP session (Route Server -> CE eth0/SLO IP).
 module "azure_route_server_bgp" {
   source   = "./modules/azure-route-server-bgp"
-  for_each = var.enable_bgp ? module.ce_topology.ce_nodes : {}
+  for_each = var.enable_azure && var.enable_bgp ? module.ce_topology.ce_nodes : {}
 
   name            = "${each.key}-bgp"
-  route_server_id = module.azure_hub.route_server_id
+  route_server_id = module.azure_hub[0].route_server_id
   peer_asn        = var.ce_asn
   peer_ip         = module.ce_node[each.key].mgmt_private_ip
 }
@@ -239,11 +241,12 @@ module "azure_route_server_bgp" {
 # Test client in snet-hub-internal.
 module "client_vm" {
   source = "./modules/client-vm"
+  count  = var.enable_azure ? 1 : 0
 
   name                = local.client_vm_name
-  resource_group_name = module.azure_hub.resource_group_name
-  location            = module.azure_hub.location
-  subnet_id           = module.azure_hub.internal_subnet_id
+  resource_group_name = module.azure_hub[0].resource_group_name
+  location            = module.azure_hub[0].location
+  subnet_id           = module.azure_hub[0].internal_subnet_id
   admin_username      = var.admin_username
   ssh_public_key      = local.ssh_public_key
   tags                = local.tags
@@ -276,6 +279,7 @@ data "xcsh_namespace" "mcn" {
 }
 
 resource "xcsh_origin_pool" "this" {
+  count       = var.enable_azure ? 1 : 0
   name        = local.origin_pool_name
   namespace   = data.xcsh_namespace.mcn.name
   description = "MCN reference origin pool -> ${var.origin_ip}:${var.origin_port}"
@@ -295,6 +299,7 @@ resource "xcsh_origin_pool" "this" {
 }
 
 resource "xcsh_http_loadbalancer" "this" {
+  count = var.enable_azure ? 1 : 0
   # The advertise_custom block below names each CE site, but it takes those names from
   # module.ce_topology — a pure computation module that only derives strings. The
   # objects themselves come from module.xc_site, and nothing in this resource
@@ -340,7 +345,7 @@ resource "xcsh_http_loadbalancer" "this" {
   default_route_pools {
     pool {
       namespace = data.xcsh_namespace.mcn.name
-      name      = xcsh_origin_pool.this.name
+      name      = xcsh_origin_pool.this[0].name
     }
     weight   = 1
     priority = 1
@@ -369,7 +374,7 @@ resource "xcsh_http_loadbalancer" "this" {
 
 # Pure expansion of ca_ce_count into the per-CE node map for Canada.
 module "ce_topology_ca" {
-  count  = var.enable_canada ? 1 : 0
+  count  = var.enable_azure && var.enable_canada ? 1 : 0
   source = "./modules/ce-topology"
 
   ce_count           = var.ca_ce_count
@@ -380,7 +385,7 @@ module "ce_topology_ca" {
 
 # Canada Hub: RG, VNet, and CE subnets; Route Server remains opt-in.
 module "azure_hub_ca" {
-  count  = var.enable_canada ? 1 : 0
+  count  = var.enable_azure && var.enable_canada ? 1 : 0
   source = "./modules/azure-hub"
 
   depends_on = [azapi_resource_action.f5xc_customer_edge_marketplace_agreement]
@@ -492,7 +497,7 @@ module "azure_route_server_bgp_ca" {
 }
 
 module "client_vm_ca" {
-  count  = var.enable_canada ? 1 : 0
+  count  = var.enable_azure && var.enable_canada ? 1 : 0
   source = "./modules/client-vm"
 
   name                = local.ca_client_vm_name
@@ -509,7 +514,7 @@ module "client_vm_ca" {
 # ---------------------------------------------------------
 
 resource "xcsh_virtual_site" "canada_re" {
-  count     = var.enable_canada ? 1 : 0
+  count     = var.enable_azure && var.enable_canada ? 1 : 0
   name      = local.ca_re_vsite_name
   namespace = data.xcsh_namespace.mcn.name
 
@@ -520,7 +525,7 @@ resource "xcsh_virtual_site" "canada_re" {
 }
 
 resource "xcsh_virtual_site" "canada_ce" {
-  count     = var.enable_canada ? 1 : 0
+  count     = var.enable_azure && var.enable_canada ? 1 : 0
   name      = local.ca_ce_vsite_name
   namespace = data.xcsh_namespace.mcn.name
 
@@ -531,7 +536,7 @@ resource "xcsh_virtual_site" "canada_ce" {
 }
 
 resource "xcsh_origin_pool" "canada" {
-  count       = var.enable_canada ? 1 : 0
+  count       = var.enable_azure && var.enable_canada ? 1 : 0
   name        = local.ca_origin_pool_name
   namespace   = data.xcsh_namespace.mcn.name
   description = "Canada reference origin pool -> ${var.origin_ip}:${var.origin_port}"
@@ -551,7 +556,7 @@ resource "xcsh_origin_pool" "canada" {
 }
 
 resource "xcsh_http_loadbalancer" "canada" {
-  count      = var.enable_canada ? 1 : 0
+  count      = var.enable_azure && var.enable_canada ? 1 : 0
   depends_on = [module.xc_site_ca, xcsh_virtual_site.canada_re, xcsh_virtual_site.canada_ce]
 
   name        = local.ca_lb_name

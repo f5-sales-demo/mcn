@@ -21,6 +21,12 @@ variable "location" {
   default     = "eastus"
 }
 
+variable "enable_azure" {
+  description = "Deploy the Azure US and Canada SMSv2 graphs. Keep true for the full showcase; set false only for the separately reviewed AWS-only saved-plan and preflight stage."
+  type        = bool
+  default     = true
+}
+
 # ---------------------------------------------------------
 # Canada regional Azure placement & CIDRs
 # ---------------------------------------------------------

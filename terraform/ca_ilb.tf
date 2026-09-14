@@ -4,7 +4,7 @@
 
 resource "azurerm_lb" "ca_ilb" {
   #checkov:skip=CKV_AZURE_27:Lab environment ILB - diagnostic logging not required
-  count               = var.enable_canada && var.enable_canada_ilb ? 1 : 0
+  count               = var.enable_azure && var.enable_canada && var.enable_canada_ilb ? 1 : 0
   name                = "${var.component}-ca-ilb"
   location            = var.ca_location
   resource_group_name = module.azure_hub_ca[0].resource_group_name
@@ -21,13 +21,13 @@ resource "azurerm_lb" "ca_ilb" {
 }
 
 resource "azurerm_lb_backend_address_pool" "ca_ce_backend" {
-  count           = var.enable_canada && var.enable_canada_ilb ? 1 : 0
+  count           = var.enable_azure && var.enable_canada && var.enable_canada_ilb ? 1 : 0
   name            = "ca-ce-backend-pool"
   loadbalancer_id = azurerm_lb.ca_ilb[0].id
 }
 
 resource "azurerm_network_interface_backend_address_pool_association" "ca_ce" {
-  for_each = var.enable_canada && var.enable_canada_ilb ? module.ce_topology_ca[0].ce_nodes : {}
+  for_each = var.enable_azure && var.enable_canada && var.enable_canada_ilb ? module.ce_topology_ca[0].ce_nodes : {}
 
   network_interface_id    = module.ce_node_ca[each.key].mgmt_nic_id
   ip_configuration_name   = "ipconfig1"
@@ -35,7 +35,7 @@ resource "azurerm_network_interface_backend_address_pool_association" "ca_ce" {
 }
 
 resource "azurerm_lb_probe" "ca_site_console" {
-  count               = var.enable_canada && var.enable_canada_ilb ? 1 : 0
+  count               = var.enable_azure && var.enable_canada && var.enable_canada_ilb ? 1 : 0
   name                = "site-console-probe"
   loadbalancer_id     = azurerm_lb.ca_ilb[0].id
   protocol            = "Tcp"
@@ -45,7 +45,7 @@ resource "azurerm_lb_probe" "ca_site_console" {
 }
 
 resource "azurerm_lb_rule" "ca_ha_ports" {
-  count                          = var.enable_canada && var.enable_canada_ilb ? 1 : 0
+  count                          = var.enable_azure && var.enable_canada && var.enable_canada_ilb ? 1 : 0
   name                           = "ha-ports-rule"
   loadbalancer_id                = azurerm_lb.ca_ilb[0].id
   frontend_ip_configuration_name = "ca-ilb-frontend"

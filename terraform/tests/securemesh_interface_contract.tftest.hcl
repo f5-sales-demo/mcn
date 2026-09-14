@@ -44,11 +44,11 @@ run "slo_only_is_the_default_logical_shape" {
 
   assert {
     condition = (
-      keys(local.expected_slo_bindings) == [
+      toset(keys(local.expected_slo_bindings)) == toset([
         "f5-xc-ce-vm-01",
         "f5-xc-ce-vm-02",
         "f5-xc-ce-vm-03",
-      ] &&
+      ]) &&
       alltrue([for hostname in keys(local.expected_slo_bindings) :
         local.expected_slo_bindings[hostname].cloud_nic_position == 1
       ])

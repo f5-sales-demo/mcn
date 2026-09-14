@@ -54,22 +54,22 @@ run "loadbalancer_advertise_and_pool" {
   # this run planning cleanly at N=3 — an expansion error would fail the run.
 
   assert {
-    condition     = xcsh_http_loadbalancer.this.namespace == var.xc_app_namespace
+    condition     = xcsh_http_loadbalancer.this[0].namespace == var.xc_app_namespace
     error_message = "LB must live in the app namespace named by xc_app_namespace."
   }
 
   assert {
-    condition     = length(xcsh_http_loadbalancer.this.domains) == 1 && contains(xcsh_http_loadbalancer.this.domains, "mcn-ce-ha.f5-sales-demo.com")
+    condition     = length(xcsh_http_loadbalancer.this[0].domains) == 1 && contains(xcsh_http_loadbalancer.this[0].domains, "mcn-ce-ha.f5-sales-demo.com")
     error_message = "LB should serve exactly mcn-ce-ha.f5-sales-demo.com."
   }
 
   assert {
-    condition     = xcsh_origin_pool.this.namespace == var.xc_app_namespace
+    condition     = xcsh_origin_pool.this[0].namespace == var.xc_app_namespace
     error_message = "Origin pool must live in the app namespace named by xc_app_namespace."
   }
 
   assert {
-    condition     = xcsh_origin_pool.this.port == 80
+    condition     = xcsh_origin_pool.this[0].port == 80
     error_message = "Origin pool port should be 80."
   }
 
@@ -77,7 +77,7 @@ run "loadbalancer_advertise_and_pool" {
   # Attempting to change an existing non-delegated domain to tenant-managed DNS
   # is an unsupported API transition, so the marker must remain omitted.
   assert {
-    condition     = xcsh_http_loadbalancer.this.http.dns_volterra_managed == null
+    condition     = xcsh_http_loadbalancer.this[0].http.dns_volterra_managed == null
     error_message = "The US showcase HTTP LB must remain a non-delegated Sales Demo domain."
   }
 }
@@ -107,12 +107,12 @@ run "app_namespace_is_read_not_owned" {
   }
 
   assert {
-    condition     = xcsh_origin_pool.this.namespace == data.xcsh_namespace.mcn.name
+    condition     = xcsh_origin_pool.this[0].namespace == data.xcsh_namespace.mcn.name
     error_message = "The origin pool must take its namespace from the data source, not a bare variable."
   }
 
   assert {
-    condition     = xcsh_http_loadbalancer.this.namespace == data.xcsh_namespace.mcn.name
+    condition     = xcsh_http_loadbalancer.this[0].namespace == data.xcsh_namespace.mcn.name
     error_message = "The LB must take its namespace from the data source, not a bare variable."
   }
 
@@ -120,7 +120,7 @@ run "app_namespace_is_read_not_owned" {
   # traversals in a reference, never an index step.
   assert {
     condition = alltrue([
-      for route_pool in xcsh_http_loadbalancer.this.default_route_pools :
+      for route_pool in xcsh_http_loadbalancer.this[0].default_route_pools :
       route_pool.pool.namespace == data.xcsh_namespace.mcn.name
     ])
     error_message = "The default route pool reference must resolve through the data source."

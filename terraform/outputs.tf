@@ -18,12 +18,12 @@ output "ce_count" {
 
 output "resource_group_name" {
   description = "Hub resource group name."
-  value       = module.azure_hub.resource_group_name
+  value       = try(module.azure_hub[0].resource_group_name, null)
 }
 
 output "route_server_id" {
   description = "Azure Route Server resource ID."
-  value       = module.azure_hub.route_server_id
+  value       = try(module.azure_hub[0].route_server_id, null)
 }
 
 # The four outputs below exist so the documentation can name nothing. Every
@@ -72,7 +72,7 @@ output "origin_ip" {
 
 output "route_server_peer_ips" {
   description = "Route Server BGP peer IPs (the CE external BGP peer addresses)."
-  value       = module.azure_hub.rs_peer_ips
+  value       = try(module.azure_hub[0].rs_peer_ips, [])
 }
 
 output "ce_mgmt_private_ips" {
@@ -103,17 +103,17 @@ output "site_console_admin_passwords" {
 
 output "bastion_name" {
   description = "Azure Bastion host name, or null when enable_bastion is false. Feed it to `az network bastion tunnel --name`."
-  value       = module.azure_hub.bastion_name
+  value       = try(module.azure_hub[0].bastion_name, null)
 }
 
 output "client_public_ip" {
   description = "Public IP of the test client."
-  value       = module.client_vm.public_ip
+  value       = try(module.client_vm[0].public_ip, null)
 }
 
 output "client_nic_name" {
   description = "Test client NIC name (read effective routes here to prove ECMP)."
-  value       = module.client_vm.nic_name
+  value       = try(module.client_vm[0].nic_name, null)
 }
 
 # ---------------------------------------------------------
@@ -177,12 +177,12 @@ output "xc_interface_names" {
 
 output "loadbalancer_name" {
   description = "HTTP load balancer name."
-  value       = xcsh_http_loadbalancer.this.name
+  value       = try(xcsh_http_loadbalancer.this[0].name, null)
 }
 
 output "origin_pool_name" {
   description = "Origin pool name."
-  value       = xcsh_origin_pool.this.name
+  value       = try(xcsh_origin_pool.this[0].name, null)
 }
 
 output "vip" {
