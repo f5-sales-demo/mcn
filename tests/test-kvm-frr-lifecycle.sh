@@ -7,7 +7,10 @@ frr="$repo_root/terraform/kvm_frr.tf"
 onprem="$repo_root/terraform/onprem_kvm.tf"
 variables="$repo_root/terraform/variables.tf"
 
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
 require() { grep -Fq "$1" "$2" || fail "missing $1 in $2"; }
 reject() { ! grep -Fq "$1" "$2" || fail "unexpected $1 in $2"; }
 
