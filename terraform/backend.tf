@@ -1,11 +1,13 @@
 terraform {
-  # Azure Blob Storage remote state, configured as a PARTIAL backend: no
-  # environment-specific values are hardcoded here. Supply them at init time.
+  # S3 remote state, configured as a PARTIAL backend: no account-specific
+  # values are hardcoded here. Create the dedicated bucket with
+  # bootstrap/state-backend first, then supply backend.hcl at init time.
   #
   #   Local: terraform init -backend-config=backend.hcl   (copy backend.hcl.example; gitignored)
   #   CI:    terraform init -backend=false                (no state; config-validity + plan tests only)
   #
-  # Auth is the storage account access key via the ARM_ACCESS_KEY environment
-  # variable (never committed).
-  backend "azurerm" {}
+  # S3 native locking is enabled in backend.hcl; no DynamoDB lock table is
+  # required. Authenticate with short-lived AWS credentials, never access keys
+  # committed in a backend file.
+  backend "s3" {}
 }

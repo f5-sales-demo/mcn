@@ -130,6 +130,32 @@ Run the following commands from `terraform/`, after supplying `terraform.tfvars`
 from your reviewed plan. On a new deployment, site outputs do not exist yet; take the
 expected names from the plan, not from stale state.
 
+### Bootstrap the dedicated AWS state backend
+
+The former Azure state was retired with the prior deployment. Start with a fresh,
+dedicated S3 bucket; do not reuse a shared bucket or resurrect an old state object.
+The bootstrap stack creates KMS encryption, version recovery, public-access blocks,
+TLS-only bucket access, and Terraform's native S3 lockfile.
+
+Run this once with reviewed AWS identity and a globally unique bucket name. The
+bootstrap initially uses local state only because it creates the backend itself:
+
+```bash
+cd terraform/bootstrap/state-backend
+terraform init -backend=false -input=false
+terraform plan -out='<PRIVATE_BOOTSTRAP_PLAN>' -var 'bucket_name=<UNIQUE_BUCKET_NAME>'
+terraform show '<PRIVATE_BOOTSTRAP_PLAN>'
+terraform apply '<PRIVATE_BOOTSTRAP_PLAN>'
+terraform output -json showcase_backend_hcl
+```
+
+Create the ignored root `terraform/backend.hcl` from that non-secret output, using
+the `mcn-ce-ha-smsv2/showcase.tfstate` key and `use_lockfile = true`. Do not add
+credentials to the file. After the bucket exists, migrate the bootstrap stack's own
+local state with a separate `mcn-ce-ha-smsv2/bootstrap.tfstate` backend key; this is a
+normal Terraform backend migration, not a state edit. The showcase has no old state to
+migrate.
+
 ### AWS saved-plan sequence
 
 Create a registry-only CLI configuration for this task before initialization or planning:

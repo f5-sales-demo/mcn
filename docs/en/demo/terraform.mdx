@@ -70,7 +70,10 @@ Imported, it never enters the page source at all.
 
 ### `terraform/backend.tf`
 
-Azure storage backend; its configuration is supplied at init time and not committed.
+Dedicated AWS S3 backend; its configuration is supplied at init time and not
+committed. The separate `terraform/bootstrap/state-backend` stack creates its
+KMS-encrypted, versioned bucket and native lockfile support before the showcase
+is initialized.
 
 <Code code={backend} lang="hcl" title="terraform/backend.tf" />
 
