@@ -5,6 +5,7 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 backend="$repo_root/terraform/backend.tf"
 example="$repo_root/terraform/backend.hcl.example"
 bootstrap="$repo_root/terraform/bootstrap/state-backend/main.tf"
+bootstrap_versions="$repo_root/terraform/bootstrap/state-backend/versions.tf"
 variables="$repo_root/terraform/bootstrap/state-backend/variables.tf"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
@@ -39,5 +40,6 @@ require 'resource "aws_s3_bucket_policy" "state"' "$bootstrap"
 require 'aws:SecureTransport' "$bootstrap"
 require 'terraform state only after this bootstrap apply succeeds' "$bootstrap"
 require 'variable "bucket_name"' "$variables"
+require 'backend "s3" {}' "$bootstrap_versions"
 
 printf 'PASS: AWS state backend is isolated, encrypted, versioned, and lockfile-protected\n'
