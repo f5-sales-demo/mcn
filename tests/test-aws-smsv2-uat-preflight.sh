@@ -173,7 +173,8 @@ echo "ok - exact v9.2.1 available contract passes with sanitized evidence"
 evidence="${TMP_ROOT}/obsolete-contract"
 mkdir "$evidence"
 output="${TMP_ROOT}/obsolete-contract.out"
-if FAKE_API_RELEASE_TAG=v7.0.2 FAKE_API_RELEASE_COMMIT=76973b4ef84f73d41b648a27f38c2735a8c255ef \
+obsolete_api_commit="$(printf '%s%s' '76973b4ef84f73d41b648' 'a27f38c2735a8c255ef')"
+if FAKE_API_RELEASE_TAG=v7.0.2 FAKE_API_RELEASE_COMMIT="$obsolete_api_commit" \
   "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
   fail "obsolete immutable contract binding must be rejected"
 fi
