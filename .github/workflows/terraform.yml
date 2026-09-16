@@ -27,7 +27,9 @@ on:
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
       - 'tests/test-aws-state-backend.sh'
+      - 'tests/test-configure-aws-state-backend.sh'
       - 'tests/test-terraform-with-aws-sso.sh'
+      - 'scripts/configure-aws-state-backend.sh'
       - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
@@ -48,7 +50,9 @@ on:
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
       - 'tests/test-aws-state-backend.sh'
+      - 'tests/test-configure-aws-state-backend.sh'
       - 'tests/test-terraform-with-aws-sso.sh'
+      - 'scripts/configure-aws-state-backend.sh'
       - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
@@ -67,7 +71,7 @@ env:
 jobs:
   validate:
     name: validate
-    runs-on: managed-socketless
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: terraform
@@ -109,12 +113,22 @@ jobs:
         working-directory: .
         run: bash tests/test-aws-state-backend.sh
 
+      - name: AWS state backend configuration lifecycle
+        working-directory: .
+        run: bash tests/test-configure-aws-state-backend.sh
+
       - name: Terraform AWS SSO credential isolation
         working-directory: .
         run: bash tests/test-terraform-with-aws-sso.sh
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+
+      - name: Terraform state backend bootstrap validation
+        working-directory: terraform/bootstrap/state-backend
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate -no-color
 
       - name: Init (no backend; CI has no cloud credentials)
         run: terraform init -input=false -backend=false
@@ -136,7 +150,7 @@ jobs:
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2
-    runs-on: managed-socketless
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: coverage/smsv2

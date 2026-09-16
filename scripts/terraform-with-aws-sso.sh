@@ -23,6 +23,7 @@ if [ "${1:-}" = "__export_credentials" ]; then
   validate_profile "$source_profile"
   [ -r "$source_config" ] || fail "AWS source config is not readable"
   [ -x "$aws_bin" ] || fail "AWS CLI executable is not available"
+  unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
   export AWS_CONFIG_FILE="$source_config"
   export AWS_SHARED_CREDENTIALS_FILE=/dev/null
   export AWS_SDK_LOAD_CONFIG=1
@@ -32,12 +33,23 @@ if [ "${1:-}" = "__export_credentials" ]; then
 fi
 
 source_profile=${AWS_SSO_SOURCE_PROFILE:-default}
-if [ "${1:-}" = "--profile" ]; then
-  [ "$#" -ge 3 ] || fail "usage: $0 [--profile NAME] -- TERRAFORM_ARGUMENTS..."
-  source_profile=$2
-  shift 2
-fi
-[ "${1:-}" = "--" ] || fail "usage: $0 [--profile NAME] -- TERRAFORM_ARGUMENTS..."
+region=${AWS_REGION:-${AWS_DEFAULT_REGION:-}}
+while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do
+  case "$1" in
+  --profile)
+    [ "$#" -ge 2 ] || fail "--profile requires a value"
+    source_profile=$2
+    shift 2
+    ;;
+  --region)
+    [ "$#" -ge 2 ] || fail "--region requires a value"
+    region=$2
+    shift 2
+    ;;
+  *) fail "usage: $0 [--profile NAME] [--region REGION] -- TERRAFORM_ARGUMENTS..." ;;
+  esac
+done
+[ "${1:-}" = "--" ] || fail "usage: $0 [--profile NAME] [--region REGION] -- TERRAFORM_ARGUMENTS..."
 shift
 [ "$#" -gt 0 ] || fail "at least one Terraform argument is required"
 validate_profile "$source_profile"
@@ -54,7 +66,6 @@ for path_value in "$aws_bin" "$source_config" "$script_path"; do
     fail "credential-process paths may contain only safe absolute-path characters"
 done
 
-region=${AWS_REGION:-${AWS_DEFAULT_REGION:-}}
 if [ -z "$region" ]; then
   region=$(AWS_CONFIG_FILE="$source_config" \
     AWS_SHARED_CREDENTIALS_FILE=/dev/null \
@@ -62,7 +73,7 @@ if [ -z "$region" ]; then
     "$aws_bin" configure get region --profile "$source_profile") ||
     fail "the selected SSO profile does not define a region"
 fi
-[[ "$region" =~ ^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$ ]] || fail "resolved AWS region is invalid"
+[[ "$region" =~ ^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$ ]] || fail "resolved AWS region is invalid"
 
 temporary_root=$(mktemp -d "${TMPDIR:-/tmp}/mcn-terraform-sso.XXXXXX")
 trap 'rm -rf "$temporary_root"' EXIT
@@ -75,10 +86,13 @@ printf '%s\n' \
   >"$config_file"
 
 set +e
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
 AWS_CONFIG_FILE="$config_file" \
   AWS_SHARED_CREDENTIALS_FILE=/dev/null \
   AWS_SDK_LOAD_CONFIG=1 \
   AWS_PROFILE=mcn-terraform \
+  AWS_REGION="$region" \
+  AWS_DEFAULT_REGION="$region" \
   "$terraform_bin" "$@"
 status=$?
 set -e

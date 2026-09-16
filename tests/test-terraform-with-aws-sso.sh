@@ -16,6 +16,9 @@ mkdir -p "$work/bin"
 cat >"$work/bin/aws" <<'AWS'
 #!/usr/bin/env bash
 set -euo pipefail
+for credential_var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN; do
+  [ -z "${!credential_var:-}" ]
+done
 [ "$*" = "configure export-credentials --profile default --format process" ]
 printf '%s\n' '{"Version":1,"AccessKeyId":"test_access","SecretAccessKey":"test_secret","SessionToken":"test_session","Expiration":"2099-01-01T00:00:00Z"}'
 AWS
@@ -25,6 +28,11 @@ set -euo pipefail
 [ "${AWS_PROFILE:-}" = "mcn-terraform" ]
 [ "${AWS_SDK_LOAD_CONFIG:-}" = "1" ]
 [ "${AWS_SHARED_CREDENTIALS_FILE:-}" = "/dev/null" ]
+[ "${AWS_REGION:-}" = "us-iso-east-1" ]
+[ "${AWS_DEFAULT_REGION:-}" = "us-iso-east-1" ]
+for credential_var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN; do
+  [ -z "${!credential_var:-}" ]
+done
 [ -r "${AWS_CONFIG_FILE:-}" ]
 [ "$(stat -c %a "$AWS_CONFIG_FILE" 2>/dev/null || stat -f %Lp "$AWS_CONFIG_FILE")" = "600" ]
 grep -Fq '[profile mcn-terraform]' "$AWS_CONFIG_FILE"
@@ -46,7 +54,6 @@ cat >"$work/source-config" <<'CONFIG'
 sso_session = test
 sso_account_id = 123456789012
 sso_role_name = Users
-region = us-east-1
 [sso-session test]
 sso_start_url = https://example.awsapps.com/start
 sso_region = us-east-1
@@ -57,14 +64,21 @@ CONFIG
 WRAPPER_TEST_ARGS="$work/args" \
   PATH="$work/bin:$PATH" \
   AWS_CONFIG_FILE="$work/source-config" \
-  AWS_REGION="ap-northeast-1" \
-  "$wrapper" --profile default -- plan -out=reviewed.tfplan
+  AWS_ACCESS_KEY_ID=stale_access \
+  AWS_SECRET_ACCESS_KEY=stale_secret \
+  AWS_SESSION_TOKEN=stale_session \
+  AWS_SECURITY_TOKEN=stale_security_token \
+  "$wrapper" --profile default --region us-iso-east-1 -- plan -out=reviewed.tfplan
 
 [ "$(cat "$work/args")" = "plan -out=reviewed.tfplan" ] ||
   fail "Terraform arguments were not preserved"
 
 credentials=$(
   PATH="$work/bin:$PATH" \
+    AWS_ACCESS_KEY_ID=stale_access \
+    AWS_SECRET_ACCESS_KEY=stale_secret \
+    AWS_SESSION_TOKEN=stale_session \
+    AWS_SECURITY_TOKEN=stale_security_token \
     "$wrapper" __export_credentials default "$work/source-config" "$work/bin/aws"
 )
 printf '%s' "$credentials" | jq -e '

@@ -125,7 +125,8 @@ See the [dated acceptance baseline](../../customer-edge/smsv2/) for the result a
 
 ## Apply
 
-Run the following commands from `terraform/`, after supplying `terraform.tfvars` and
+Run the bootstrap commands below from the repository root. After the AWS backend is
+configured, run the saved-plan sequence from `terraform/` with `terraform.tfvars` and
 `backend.hcl`. Replace uppercase placeholders with private paths and the exact identities
 from your reviewed plan. On a new deployment, site outputs do not exist yet; take the
 expected names from the plan, not from stale state.
@@ -157,11 +158,17 @@ backend itself:
 ./scripts/terraform-with-aws-sso.sh -- -chdir=terraform/bootstrap/state-backend output -json showcase_backend_hcl
 ```
 
-Create the ignored root `terraform/backend.hcl` from that non-secret output, using
-the `mcn-ce-ha-smsv2/showcase.tfstate` key and `use_lockfile = true`. Do not add
-credentials to the file. After the bucket exists, migrate the bootstrap stack's own
-local state with a separate `mcn-ce-ha-smsv2/bootstrap.tfstate` backend key; this is a
-normal Terraform backend migration, not a state edit. The showcase has no old state to
+After the reviewed apply, generate both ignored backend configurations and migrate the
+bootstrap stack's local state programmatically:
+
+```bash
+./scripts/configure-aws-state-backend.sh --profile '<AWS_SSO_PROFILE>'
+```
+
+The script verifies that the selected AWS identity owns the KMS key, creates the
+bootstrap and showcase state-key configurations emitted by the module without credentials,
+and uses Terraform's supported `-force-copy` migration. Repeating the command verifies the
+existing remote metadata and reconfigures it idempotently. The showcase has no old state to
 migrate.
 
 ### AWS saved-plan sequence

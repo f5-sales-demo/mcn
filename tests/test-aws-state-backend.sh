@@ -7,6 +7,7 @@ example="$repo_root/terraform/backend.hcl.example"
 bootstrap="$repo_root/terraform/bootstrap/state-backend/main.tf"
 bootstrap_versions="$repo_root/terraform/bootstrap/state-backend/versions.tf"
 variables="$repo_root/terraform/bootstrap/state-backend/variables.tf"
+configure_script="$repo_root/scripts/configure-aws-state-backend.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -58,7 +59,11 @@ require 'terraform state only after this bootstrap apply succeeds' "$bootstrap"
 require 'variable "bucket_name"' "$variables"
 require 'variable "replica_region"' "$variables"
 require 'variable "access_log_retention_days"' "$variables"
-require 'backend "s3" {}' "$bootstrap_versions"
+reject 'backend "s3" {}' "$bootstrap_versions"
 require 'alias  = "replica"' "$bootstrap_versions"
+require 'Terraform state backend bootstrap validation' "$repo_root/.github/workflows/terraform.yml"
+reject 'runs-on: managed-socketless' "$repo_root/.github/workflows/terraform.yml"
+require 'runs-on: ubuntu-latest' "$repo_root/.github/workflows/terraform.yml"
+[ -x "$configure_script" ] || fail "backend configuration script is not executable"
 
 printf 'PASS: AWS state backend is isolated, encrypted, versioned, and lockfile-protected\n'
