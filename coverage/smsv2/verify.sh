@@ -34,8 +34,13 @@ fi
 echo
 reject_files="$(find reject-tests -name '*.tftest.hcl' | wc -l | tr -d ' ')"
 echo "== Phase 2: reject out-of-range input (${reject_files} cases via terraform test -test-directory=reject-tests) =="
-reject_out="$(terraform test -test-directory=reject-tests 2>&1)"
-reject_rc=$?
+# The reject suite is deliberately non-zero.  Capture it in a conditional so
+# the assertion phase also runs when Actions supplies errexit via SHELLOPTS.
+if reject_out="$(terraform test -test-directory=reject-tests 2>&1)"; then
+  reject_rc=0
+else
+  reject_rc=$?
+fi
 echo "${reject_out}"
 
 if [ "${reject_rc}" -eq 0 ]; then
