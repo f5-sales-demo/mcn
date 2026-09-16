@@ -44,6 +44,11 @@ run "aws_only_plan_has_no_azure_or_us_xc_objects" {
   }
 
   assert {
+    condition     = length(libvirt_network.ce_bgp_net) == 0 && length(libvirt_volume.base_cloud) == 0 && length(libvirt_domain.ce_node) == 0 && length(data.xcsh_site_image.kvm) == 0
+    error_message = "AWS-only plans must not initialize KVM resources or issue a KVM appliance-image lookup."
+  }
+
+  assert {
     condition     = length(xcsh_securemesh_site_v2.aws) == 3 && length(aws_instance.ce) == 3 && output.loadbalancer_name == null
     error_message = "AWS-only plans must retain the three-site AWS graph while omitting the Azure HTTP load balancer."
   }

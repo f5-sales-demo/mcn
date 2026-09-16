@@ -48,7 +48,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"9.1.0"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"9.2.1"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -166,7 +166,7 @@ fi
 assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
-echo "ok - exact v9.1.0 available contract passes with sanitized evidence"
+echo "ok - exact v9.2.1 available contract passes with sanitized evidence"
 
 evidence="${TMP_ROOT}/no-change"
 mkdir "$evidence"
