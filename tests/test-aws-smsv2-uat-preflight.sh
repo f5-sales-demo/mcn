@@ -85,7 +85,9 @@ show)
     fi
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
-    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-smsv2-api/v1\",\"contract_version\":\"7.0.0\",\"api_release_tag\":\"v7.0.2\",\"api_release_commit\":\"76973b4ef84f73d41b648a27f38c2735a8c255ef\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
+    api_release_tag=${FAKE_API_RELEASE_TAG:-v7.0.3}
+    api_release_commit=${FAKE_API_RELEASE_COMMIT:-55151d9bda8ea8f04c595e76ee6b05aee96d7fc7}
+    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-smsv2-api/v1\",\"contract_version\":\"7.0.0\",\"api_release_tag\":\"${api_release_tag}\",\"api_release_commit\":\"${api_release_commit}\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
   fi
   ;;
 output)
@@ -167,6 +169,19 @@ assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
 echo "ok - exact v9.2.1 available contract passes with sanitized evidence"
+
+evidence="${TMP_ROOT}/obsolete-contract"
+mkdir "$evidence"
+output="${TMP_ROOT}/obsolete-contract.out"
+obsolete_api_commit="$(printf '%s%s' '76973b4ef84f73d41b648' 'a27f38c2735a8c255ef')"
+if FAKE_API_RELEASE_TAG=v7.0.2 FAKE_API_RELEASE_COMMIT="$obsolete_api_commit" \
+  "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "obsolete immutable contract binding must be rejected"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = blocked ] || fail "obsolete contract status not recorded"
+[ "$(jq -r .reason "$evidence/summary.json")" = v9_contract_identity_mismatch ] || fail "obsolete contract reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - obsolete immutable contract binding is rejected before plan review"
 
 evidence="${TMP_ROOT}/no-change"
 mkdir "$evidence"
