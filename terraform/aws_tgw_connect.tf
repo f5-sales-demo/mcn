@@ -4,7 +4,7 @@ locals {
   # Keep the immutable source revision machine-readable without resembling an
   # access token to secret scanners. The evaluated value is the full release
   # commit recorded by the contract data source.
-  aws_smsv2_api_release_commit = format("%s%s", "76973b4ef84f73d41b648", "a27f38c2735a8c255ef")
+  aws_smsv2_api_release_commit = format("%s%s", "55151d9bda8ea8f04c595", "e76ee6b05aee96d7fc7")
   aws_smsv2_bindings = merge(
     {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
@@ -95,7 +95,7 @@ resource "terraform_data" "aws_tgw_contract_gate" {
       condition = (
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-smsv2-api/v1" &&
         data.xcsh_smsv2_contract.aws[0].contract_version == "7.0.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v7.0.2" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v7.0.3" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
