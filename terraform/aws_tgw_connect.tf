@@ -143,7 +143,7 @@ data "xcsh_smsv2_aws_runtime" "aws" {
   namespace             = "system"
   site                  = xcsh_securemesh_site_v2.aws[each.key].name
   nodes                 = { for key, node in local.aws_smsv2_nodes : key => node if local.aws_smsv2_bindings[key].site_key == each.key }
-  timeout_seconds       = var.aws_bgp_convergence_timeout_seconds
+  timeout_seconds       = var.aws_runtime_convergence_timeout_seconds
   poll_interval_seconds = var.aws_bgp_poll_interval_seconds
   # Runtime health cannot exist until the instance has consumed the site
   # cloud-init and registered. Without this ordering Terraform can admit all

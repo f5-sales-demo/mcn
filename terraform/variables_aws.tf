@@ -121,14 +121,25 @@ variable "aws_smsv2_interface_mtu" {
   default     = 1500
 }
 
-variable "aws_bgp_convergence_timeout_seconds" {
-  description = "Maximum bounded wait for first-boot runtime readiness and authoritative BGP/route convergence. This covers the platform-managed installation of the explicit CE software and OS pair."
+variable "aws_runtime_convergence_timeout_seconds" {
+  description = "Maximum bounded wait for first-boot runtime readiness. This covers the platform-managed installation of the explicit CE software and OS pair."
   type        = number
   default     = 7200
 
   validation {
-    condition     = var.aws_bgp_convergence_timeout_seconds == 7200
-    error_message = "aws_bgp_convergence_timeout_seconds is fixed at 7200 seconds so a fresh SMSv2 CE has the full platform-managed first-boot convergence budget."
+    condition     = var.aws_runtime_convergence_timeout_seconds == 7200
+    error_message = "aws_runtime_convergence_timeout_seconds is fixed at 7200 seconds so a fresh SMSv2 CE has the full platform-managed first-boot convergence budget."
+  }
+}
+
+variable "aws_bgp_convergence_timeout_seconds" {
+  description = "Maximum bounded wait for authoritative BGP and route convergence after the runtime-health gate has passed. This is bounded by the released provider schema."
+  type        = number
+  default     = 1800
+
+  validation {
+    condition     = var.aws_bgp_convergence_timeout_seconds == 1800
+    error_message = "aws_bgp_convergence_timeout_seconds is fixed at 1800 seconds, the maximum accepted by xcsh_site_bgp_status."
   }
 }
 

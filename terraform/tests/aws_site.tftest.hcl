@@ -228,10 +228,10 @@ run "aws_runtime_readiness_cannot_be_shortened" {
   command = plan
 
   variables {
-    aws_bgp_convergence_timeout_seconds = 600
+    aws_runtime_convergence_timeout_seconds = 600
   }
 
-  expect_failures = [var.aws_bgp_convergence_timeout_seconds]
+  expect_failures = [var.aws_runtime_convergence_timeout_seconds]
 }
 
 run "aws_bootstrap_stage_issues_only_the_first_site" {
