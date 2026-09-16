@@ -9,7 +9,9 @@ AWS_REGION=""
 AWS_ACCOUNT_ID=""
 XC_TENANT=""
 CREATOR_ID=""
+COMPONENT=""
 DEPLOYMENT_GENERATION=""
+RECOVERY_MODE="strict"
 MANIFEST=""
 SCRATCH=""
 
@@ -17,11 +19,14 @@ usage() {
   cat <<'EOF' >&2
 Usage: aws-smsv2-owned-collision-preflight.sh \
   --plan-json FILE --aws-region REGION --aws-account-id ACCOUNT_ID \
-  --xc-tenant TENANT --creator-id EMAIL \
-  --deployment-generation GENERATION --manifest FILE
+  --xc-tenant TENANT --creator-id EMAIL --component COMPONENT \
+  --deployment-generation GENERATION [--legacy-unlabelled-recovery] \
+  --manifest FILE
 
 The input must be the JSON rendering of the exact saved Terraform plan under
 review. The manifest is an evidence record only; it never grants mutation.
+Legacy recovery mode is only for adopting a pre-generation deployment through
+reviewed Terraform import blocks before its ownership-verified destruction.
 EOF
   exit 64
 }
@@ -53,9 +58,17 @@ while (($#)); do
     CREATOR_ID=${2:?}
     shift 2
     ;;
+  --component)
+    COMPONENT=${2:?}
+    shift 2
+    ;;
   --deployment-generation)
     DEPLOYMENT_GENERATION=${2:?}
     shift 2
+    ;;
+  --legacy-unlabelled-recovery)
+    RECOVERY_MODE="legacy_unlabelled"
+    shift
     ;;
   --manifest)
     MANIFEST=${2:?}
@@ -66,11 +79,13 @@ while (($#)); do
   esac
 done
 
-for required in PLAN_JSON AWS_REGION AWS_ACCOUNT_ID XC_TENANT CREATOR_ID DEPLOYMENT_GENERATION MANIFEST; do
+for required in PLAN_JSON AWS_REGION AWS_ACCOUNT_ID XC_TENANT CREATOR_ID COMPONENT DEPLOYMENT_GENERATION MANIFEST; do
   [[ -n ${!required} ]] || die "missing required argument"
 done
 [[ $AWS_ACCOUNT_ID =~ ^[0-9]{12}$ ]] || die "aws account ID must contain exactly 12 digits"
 [[ $AWS_REGION =~ ^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$ ]] || die "aws region is invalid"
+[[ $COMPONENT =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] ||
+  die "component must be a 1-32 character DNS-style label"
 [[ $DEPLOYMENT_GENERATION =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] ||
   die "deployment generation must be a 1-32 character DNS-style label"
 [[ "$XC_TENANT" == f5-sales-demo ]] || die "xc tenant must be f5-sales-demo"
@@ -101,28 +116,33 @@ append_aws_collision() {
   local type=$1 address=$2 name=$3 expected_tags=$4 actual_tags=$5 identity=$6
   jq -nc \
     --arg type "$type" --arg address "$address" --arg name "$name" \
-    --arg account_id "$AWS_ACCOUNT_ID" --arg region "$AWS_REGION" \
+    --arg account_id "$AWS_ACCOUNT_ID" --arg region "$AWS_REGION" --arg recovery_mode "$RECOVERY_MODE" \
     --argjson expected_tags "$expected_tags" --argjson observed_tags "$actual_tags" \
     --argjson identity "$identity" \
     '{engine:"aws",type:$type,address:$address,name:$name,namespace:null,
       ownership:"verified",aws_account_id:$account_id,aws_region:$region,
       expected_tags:$expected_tags,observed_tags:$observed_tags,
       resource_uid:$identity.resource_uid,created_at:$identity.created_at,
-      creation_evidence:$identity.creation_evidence}' >>"$collisions_file"
+      creation_evidence:$identity.creation_evidence,
+      generation_binding:(if $recovery_mode == "strict" then "observed_metadata"
+        else "saved_plan_name_and_legacy_ownership" end)}' >>"$collisions_file"
 }
 
 append_f5_collision() {
   local type=$1 address=$2 name=$3 namespace=$4 expected_labels=$5 observed=$6
   jq -nc \
     --arg type "$type" --arg address "$address" --arg name "$name" \
-    --arg namespace "$namespace" --arg tenant "$XC_TENANT" \
+    --arg namespace "$namespace" --arg tenant "$XC_TENANT" --arg recovery_mode "$RECOVERY_MODE" \
     --argjson expected_labels "$expected_labels" --argjson observed "$observed" \
     '{engine:"f5",type:$type,address:$address,name:$name,namespace:$namespace,
       ownership:"verified",xc_tenant:$tenant,
       expected_labels:$expected_labels,observed_labels:$observed.metadata.labels,
       creator_id:$observed.system_metadata.creator_id,
       created_at:$observed.system_metadata.creation_timestamp,
-      resource_uid:$observed.system_metadata.uid}' >>"$collisions_file"
+      creation_evidence:"system_metadata.creation_timestamp",
+      resource_uid:$observed.system_metadata.uid,
+      generation_binding:(if $recovery_mode == "strict" then "observed_metadata"
+        else "saved_plan_name_and_legacy_ownership" end)}' >>"$collisions_file"
 }
 
 aws_not_found() {
@@ -140,13 +160,23 @@ aws_lookup() {
 }
 
 require_aws_ownership() {
-  local expected=$1 actual=$2
-  jq -ne --arg generation "$DEPLOYMENT_GENERATION" --argjson expected "$expected" --argjson actual "$actual" '
+  local expected=$1 actual=$2 name=$3
+  jq -ne --arg component "$COMPONENT" --argjson expected "$expected" --argjson actual "$actual" '
     ($expected | type == "object") and
-    ([$expected.component, $expected.deployer, $expected.managed_by, $expected.deployment_generation] |
+    ([$expected.component, $expected.deployer, $expected.managed_by] |
       all(type == "string" and length > 0)) and
-    $expected.deployment_generation == $generation and
+    $expected.component == $component and
     ($expected | to_entries | all(.[]; $actual[.key] == .value))' >/dev/null
+  if [[ $RECOVERY_MODE == strict ]]; then
+    jq -ne --arg generation "$DEPLOYMENT_GENERATION" --argjson expected "$expected" --argjson actual "$actual" '
+      $expected.deployment_generation == $generation and
+      $actual.deployment_generation == $generation' >/dev/null
+  else
+    [[ $name == "$COMPONENT-$DEPLOYMENT_GENERATION-"* ]] || return 1
+    jq -ne --arg generation "$DEPLOYMENT_GENERATION" --argjson expected "$expected" --argjson actual "$actual" '
+      (($expected.deployment_generation? // $generation) == $generation) and
+      (($actual.deployment_generation? // $generation) == $generation)' >/dev/null
+  fi
 }
 
 aws_identity_for() {
@@ -248,7 +278,7 @@ while IFS= read -r item; do
     error="$SCRATCH/aws-${RANDOM}.err"
     if aws_lookup "$response" "$error" "${lookup[@]}"; then
       actual_tags=$(aws_tags_for "$type" "$response") || die "cannot read tags for existing $address"
-      require_aws_ownership "$expected_tags" "$actual_tags" || die "unowned or ambiguous AWS collision: $address ($name)"
+      require_aws_ownership "$expected_tags" "$actual_tags" "$name" || die "unowned or ambiguous AWS collision: $address ($name)"
       identity=$(aws_identity_for "$type" "$response") || die "cannot read provider identity for existing $address"
       jq -e '.resource_uid | type == "string" and length > 0' <<<"$identity" >/dev/null ||
         die "provider identity is unavailable for existing $address"
@@ -262,9 +292,15 @@ while IFS= read -r item; do
     name=$(jq -er '.name' <<<"$after") || die "planned name is invalid for $address"
     namespace=$(jq -er '.namespace' <<<"$after") || die "planned namespace is invalid for $address"
     expected_labels=$(jq -ec '.labels // {}' <<<"$after") || die "planned labels are invalid for $address"
-    jq -e --arg generation "$DEPLOYMENT_GENERATION" '
-      .["mcn-deployment-generation"] == $generation' <<<"$expected_labels" >/dev/null ||
-      die "planned deployment generation label is missing or mismatched for $address"
+    if [[ $RECOVERY_MODE == strict ]]; then
+      jq -e --arg generation "$DEPLOYMENT_GENERATION" '
+        .["mcn-deployment-generation"] == $generation' <<<"$expected_labels" >/dev/null ||
+        die "planned deployment generation label is missing or mismatched for $address"
+    else
+      jq -e --arg generation "$DEPLOYMENT_GENERATION" '
+        ((.["mcn-deployment-generation"]? // $generation) == $generation)' <<<"$expected_labels" >/dev/null ||
+        die "legacy planned generation label conflicts with the recovery generation for $address"
+    fi
     endpoint=$(f5_endpoint "$type")
     prefix=$(f5_namespace_prefix "$type")
     body="$SCRATCH/f5-${RANDOM}.json"
@@ -274,10 +310,17 @@ while IFS= read -r item; do
     case "$status" in
     404) ;;
     200)
+      if [[ $RECOVERY_MODE == legacy_unlabelled && $name != "$COMPONENT-$DEPLOYMENT_GENERATION-"* ]]; then
+        die "legacy recovery name is not bound to the expected component and generation: $address"
+      fi
       jq -e --arg creator "$CREATOR_ID" --arg name "$name" --arg namespace "$namespace" \
-        --arg generation "$DEPLOYMENT_GENERATION" '
+        --arg generation "$DEPLOYMENT_GENERATION" --arg recovery_mode "$RECOVERY_MODE" '
             .metadata.name == $name and .metadata.namespace == $namespace and
-            .metadata.labels["mcn-deployment-generation"] == $generation and
+            (if $recovery_mode == "strict" then
+              .metadata.labels["mcn-deployment-generation"] == $generation
+            else
+              ((.metadata.labels["mcn-deployment-generation"]? // $generation) == $generation)
+            end) and
             .system_metadata.creator_id == $creator and
             (.system_metadata.uid | type == "string" and length > 0) and
             (.system_metadata.creation_timestamp | type == "string" and length > 0)' "$body" >/dev/null ||
@@ -304,14 +347,20 @@ done < <(jq -c '
 
 collisions=$(jq -sc 'sort_by(.engine, .type, .address)' "$collisions_file")
 plan_sha256="sha256:$(sha256sum "$PLAN_JSON" | awk '{print $1}')"
+inventory_captured_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 if [[ $collisions == '[]' ]]; then status=ready; else status=blocked; fi
 jq -n --argjson collisions "$collisions" --arg status "$status" \
+  --argjson caller_identity "$caller_identity" --arg inventory_captured_at "$inventory_captured_at" \
   --arg plan_sha256 "$plan_sha256" --arg aws_region "$AWS_REGION" \
   --arg aws_account_id "$AWS_ACCOUNT_ID" --arg deployment_generation "$DEPLOYMENT_GENERATION" \
-  --arg xc_tenant "$XC_TENANT" --arg creator_id "$CREATOR_ID" \
-  '{schema_version:1,status:$status,plan_sha256:$plan_sha256,
+  --arg xc_tenant "$XC_TENANT" --arg creator_id "$CREATOR_ID" --arg component "$COMPONENT" \
+  --arg recovery_mode "$RECOVERY_MODE" \
+  '{schema_version:2,status:$status,plan_sha256:$plan_sha256,
     aws_region:$aws_region,aws_account_id:$aws_account_id,
-    xc_tenant:$xc_tenant,creator_id:$creator_id,deployment_generation:$deployment_generation,
+    aws_caller_arn:($caller_identity.Arn // null),
+    aws_caller_user_id:($caller_identity.UserId // null),inventory_captured_at:$inventory_captured_at,
+    xc_tenant:$xc_tenant,creator_id:$creator_id,component:$component,
+    deployment_generation:$deployment_generation,recovery_mode:$recovery_mode,
     collisions:$collisions}' >"$MANIFEST"
 chmod 600 "$MANIFEST"
 

@@ -14,7 +14,7 @@ Allow tens of minutes for bootstrap and hours for a full serial-upgrade rehearsa
 
 - **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.16.1`, for
   provider-defined functions and the `check` block that guards the VIP.
-- **The `xcsh` provider at exactly v9.2.1 for normal deployments.** This deployment uses
+- **The `xcsh` provider at exactly v9.2.2 for normal deployments.** This deployment uses
   only the clean-break SMSv2 contract. A release-candidate acceptance run may substitute one
   reviewed local binary through the explicit procedure below. The local `.terraform.lock.hcl`
   remains gitignored; the exact source constraint is authoritative.
@@ -101,7 +101,7 @@ above before you mint another token.
 ## AWS SMSv2 preflight is mandatory
 
 The AWS Transit Gateway path is pinned to the immutable
-[`xcsh` v9.2.1 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v9.2.1).
+[`xcsh` v9.2.2 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v9.2.2).
 That release publishes contract `f5xc-smsv2-api/v1` version `7.0.0` from
 `api-specs-enriched` v7.0.2. Its four AWS SMSv2 capabilities, including
 `site_upgrade`, must all report `available`; do not bypass a failed gate.
@@ -180,13 +180,15 @@ REGISTRY_TFRC='<REGISTRY_CLI_CONFIG>'
 PLAN_FILE='<PLAN_FILE>'
 EVIDENCE_DIR='<NEW_PRIVATE_EVIDENCE_DIRECTORY>'
 COLLISION_EVIDENCE_DIR='<NEW_PRIVATE_COLLISION_EVIDENCE_DIRECTORY>'
+DEPLOYMENT_GENERATION='<NEW_IMMUTABLE_GENERATION>'
 umask 077
 printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
 export TF_CLI_CONFIG_FILE="$REGISTRY_TFRC"
 ../scripts/terraform-with-aws-sso.sh -- init -upgrade -backend-config=backend.hcl
 # The AWS preflight rejects Azure actions. This supported graph boundary omits
 # Azure US, Azure Canada, Marketplace, and KVM resources without Terraform targeting.
-../scripts/terraform-with-aws-sso.sh -- plan -var='enable_azure=false' -var='enable_kvm=false' -out="$PLAN_FILE"
+../scripts/terraform-with-aws-sso.sh -- plan -var='enable_azure=false' -var='enable_kvm=false' \
+  -var="deployment_generation=$DEPLOYMENT_GENERATION" -out="$PLAN_FILE"
 ../scripts/terraform-with-aws-sso.sh -- show "$PLAN_FILE"
 
 # The collision guard renders this exact saved plan to a separate private
@@ -198,8 +200,11 @@ mkdir -p "$COLLISION_EVIDENCE_DIR"
 ../scripts/aws-smsv2-owned-collision-preflight.sh \
   --plan-json "$COLLISION_EVIDENCE_DIR/reviewed-plan.json" \
   --aws-region '<AWS_REGION>' \
+  --aws-account-id '<AWS_ACCOUNT_ID>' \
   --xc-tenant '<XC_TENANT>' \
   --creator-id "$XCSH_USERNAME" \
+  --component 'mcn-ce-ha' \
+  --deployment-generation "$DEPLOYMENT_GENERATION" \
   --manifest "$COLLISION_EVIDENCE_DIR/manifest.json"
 
 ../scripts/aws-smsv2-uat-preflight.sh \
@@ -221,6 +226,28 @@ apply that same saved plan:
 ```bash
 ../scripts/terraform-with-aws-sso.sh -- apply "$PLAN_FILE"
 ```
+
+If the collision guard finds a prerelease generation whose Terraform state was
+lost by an earlier provider deletion failure, do not select another name. Re-run
+the guard against the exact historical plan with `--legacy-unlabelled-recovery`,
+then use `terraform/recovery/aws-smsv2-orphans`. That root accepts only a schema-v2
+manifest bound to the expected plan digest, AWS account and region, Sales Demo
+tenant, creator, component, generation, provider IDs, and creation evidence. Its
+configuration-driven import blocks must first produce an import-only saved plan.
+Verify that plan with `scripts/verify-aws-smsv2-orphan-recovery-plan.sh` before
+applying it. Destroy the adopted resources only with provider v9.2.2 or newer,
+then prove the recovery state is empty and every manifest identity is absent.
+CLI import, direct API deletion, state editing, taint, console cleanup, and broad
+tag-based deletion are not recovery mechanisms.
+
+The recovery sequence uses its own S3 state key. Generate `backend.hcl` with
+`scripts/configure-aws-state-backend.sh`, initialize the recovery root, and pass
+the immutable identity values explicitly. Render the saved plan to JSON, then
+require the import verifier to produce a `ready` receipt before applying that
+exact plan. After adoption, reuse the unchanged recovery root to create a saved
+destroy plan with `-destroy -parallelism=1`, and verify it in `--mode destroy`
+before applying it. All plans, hashes, receipts, and state inventories stay in
+the private evidence directory.
 
 For a partial recovery, set cumulative `aws_bootstrap_site_keys` in the planned inputs
 and pass only those admitted sites as `--expected-site`. Repeat planning and preflight

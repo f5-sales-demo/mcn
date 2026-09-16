@@ -25,7 +25,7 @@ cat >"$plan" <<'JSON'
       "change": {
         "actions": ["create"],
         "after": {
-          "key_name": "owned-key",
+          "key_name": "mcn-ce-ha-gen-01-key",
           "tags": {
             "component": "mcn-ce-ha",
             "deployment_generation": "gen-01",
@@ -41,7 +41,7 @@ cat >"$plan" <<'JSON'
       "change": {
         "actions": ["create"],
         "after": {
-          "name": "owned-vsite",
+          "name": "mcn-ce-ha-gen-01-vsite",
           "namespace": "multi-cloud-networking",
           "labels": {"mcn-deployment-generation": "gen-01"}
         }
@@ -53,7 +53,7 @@ cat >"$plan" <<'JSON'
       "change": {
         "actions": ["create"],
         "after": {
-          "name": "owned-site",
+          "name": "mcn-ce-ha-gen-01-site",
           "namespace": "system",
           "labels": {"mcn-deployment-generation": "gen-01"}
         }
@@ -65,7 +65,7 @@ cat >"$plan" <<'JSON'
       "change": {
         "actions": ["create"],
         "after": {
-          "name": "owned-bgp",
+          "name": "mcn-ce-ha-gen-01-bgp",
           "namespace": "system",
           "labels": {"mcn-deployment-generation": "gen-01"}
         }
@@ -77,7 +77,7 @@ cat >"$plan" <<'JSON'
       "change": {
         "actions": ["create"],
         "after": {
-          "name": "owned-connector",
+          "name": "mcn-ce-ha-gen-01-connector",
           "namespace": "system",
           "labels": {"mcn-deployment-generation": "gen-01"}
         }
@@ -92,9 +92,9 @@ cat >"$fake_bin/aws" <<'EOF'
 set -euo pipefail
 case "$*" in
   *"sts get-caller-identity"*)
-    printf '{"Account":"%s"}\n' "${FAKE_ACCOUNT_ID:-123456789012}"
+    printf '{"Account":"%s","Arn":"arn:aws:sts::123456789012:assumed-role/test/session","UserId":"TESTUSER:session"}\n' "${FAKE_ACCOUNT_ID:-123456789012}"
     ;;
-  *"describe-key-pairs"*"owned-key"*)
+  *"describe-key-pairs"*"mcn-ce-ha-gen-01-key"*)
     if [[ ${FAKE_ABSENT:-false} == true ]]; then
       printf '%s\n' 'InvalidKeyPair.NotFound' >&2
       exit 255
@@ -121,17 +121,17 @@ while (($#)); do
   esac
 done
 case "$url" in
-  */virtual_sites/owned-vsite)
+  */virtual_sites/mcn-ce-ha-gen-01-vsite)
     if [[ ${FAKE_ABSENT:-false} == true ]]; then
       : >"$output"
       printf 404
       exit 0
     fi
     generation=${FAKE_F5_GENERATION:-gen-01}
-    printf '{"metadata":{"name":"owned-vsite","namespace":"multi-cloud-networking","labels":{"mcn-deployment-generation":"%s"}},"system_metadata":{"uid":"11111111-1111-1111-1111-111111111111","creation_timestamp":"2026-09-16T12:00:00Z","creator_id":"tester@example.test"}}\n' "$generation" >"$output"
+    printf '{"metadata":{"name":"mcn-ce-ha-gen-01-vsite","namespace":"multi-cloud-networking","labels":{"mcn-deployment-generation":"%s"}},"system_metadata":{"uid":"11111111-1111-1111-1111-111111111111","creation_timestamp":"2026-09-16T12:00:00Z","creator_id":"tester@example.test"}}\n' "$generation" >"$output"
     printf 200
     ;;
-  */securemesh_site_v2s/owned-site | */bgps/owned-bgp | */external_connectors/owned-connector)
+  */securemesh_site_v2s/mcn-ce-ha-gen-01-site | */bgps/mcn-ce-ha-gen-01-bgp | */external_connectors/mcn-ce-ha-gen-01-connector)
     if [[ ${FAKE_ABSENT:-false} == true ]]; then
       : >"$output"
       printf 404
@@ -155,25 +155,32 @@ output=$(PATH="$fake_bin:$PATH" CURL_BIN="$fake_bin/curl" \
   XCSH_API_URL=https://f5-sales-demo.console.ves.volterra.io XCSH_API_TOKEN=test-token \
   "$script" --plan-json "$plan" --aws-region ap-northeast-1 --xc-tenant f5-sales-demo \
   --aws-account-id 123456789012 --deployment-generation gen-01 \
+  --component mcn-ce-ha \
   --creator-id tester@example.test --manifest "$manifest" 2>&1)
 status=$?
 set -e
 test "$status" -eq 3 || fail "owned collision must exit 3, got $status: $output"
 [[ "$output" == *"owned collision"* ]] || fail "owned collision diagnostic missing"
 jq -e '
-  .schema_version == 1 and
+  .schema_version == 2 and
   .status == "blocked" and
+  .recovery_mode == "strict" and
   .aws_account_id == "123456789012" and
+  .aws_caller_arn == "arn:aws:sts::123456789012:assumed-role/test/session" and
+  .aws_caller_user_id == "TESTUSER:session" and
+  (.inventory_captured_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T")) and
   .deployment_generation == "gen-01" and
   (.collisions | length) == 5 and
   ([.collisions[].ownership] | all(. == "verified")) and
   ([.collisions[] | select(.engine == "f5") | .creator_id] | all(. == "tester@example.test")) and
   ([.collisions[] | select(.engine == "f5") | .created_at] | all(. == "2026-09-16T12:00:00Z")) and
+  ([.collisions[] | select(.engine == "f5") | .creation_evidence] | all(. == "system_metadata.creation_timestamp")) and
   ([.collisions[] | select(.engine == "f5") | .resource_uid] | all(type == "string" and length > 0)) and
   ([.collisions[] | select(.engine == "aws") | .observed_tags.deployment_generation] | all(. == "gen-01")) and
   ([.collisions[] | select(.engine == "aws") | .resource_uid] | all(type == "string" and length > 0)) and
   ([.collisions[] | select(.engine == "aws") | .created_at] | all(. == "2026-09-16T12:00:00Z")) and
-  ([.collisions[].name] | sort) == ["owned-bgp", "owned-connector", "owned-key", "owned-site", "owned-vsite"]
+  ([.collisions[].generation_binding] | all(. == "observed_metadata")) and
+  ([.collisions[].name] | sort) == ["mcn-ce-ha-gen-01-bgp", "mcn-ce-ha-gen-01-connector", "mcn-ce-ha-gen-01-key", "mcn-ce-ha-gen-01-site", "mcn-ce-ha-gen-01-vsite"]
 ' "$manifest" >/dev/null || fail "manifest must retain the exact verified collision inventory"
 
 empty_manifest="$scratch/empty-manifest.json"
@@ -181,6 +188,7 @@ if ! FAKE_ABSENT=true PATH="$fake_bin:$PATH" CURL_BIN="$fake_bin/curl" \
   XCSH_API_URL=https://f5-sales-demo.console.ves.volterra.io XCSH_API_TOKEN=test-token \
   "$script" --plan-json "$plan" --aws-region ap-northeast-1 --xc-tenant f5-sales-demo \
   --aws-account-id 123456789012 --deployment-generation gen-01 \
+  --component mcn-ce-ha \
   --creator-id tester@example.test --manifest "$empty_manifest" >/dev/null; then
   fail "an absent planned name must pass the collision preflight"
 fi
@@ -196,6 +204,7 @@ expect_rejection() {
     XCSH_API_URL=https://f5-sales-demo.console.ves.volterra.io XCSH_API_TOKEN=test-token \
     "$script" --plan-json "$plan" --aws-region ap-northeast-1 --xc-tenant f5-sales-demo \
     --aws-account-id 123456789012 --deployment-generation gen-01 \
+    --component mcn-ce-ha \
     --creator-id tester@example.test --manifest "$scratch/rejected-$label.json" 2>&1)
   rejected_status=$?
   set -e
@@ -213,10 +222,29 @@ invalid_output=$(PATH="$fake_bin:$PATH" CURL_BIN="$fake_bin/curl" \
   XCSH_API_URL=https://f5-sales-demo.console.ves.volterra.io XCSH_API_TOKEN=test-token \
   "$script" --plan-json "$plan" --aws-region ap-northeast-1 --xc-tenant f5-sales-demo \
   --aws-account-id 123456789012 --deployment-generation INVALID \
+  --component mcn-ce-ha \
   --creator-id tester@example.test --manifest "$scratch/invalid-generation.json" 2>&1)
 invalid_status=$?
 set -e
 test "$invalid_status" -eq 2 || fail "invalid generation must fail closed with exit 2"
 [[ "$invalid_output" == *"deployment generation"* ]] || fail "invalid generation diagnostic is missing"
+
+legacy_plan="$scratch/legacy-plan.json"
+jq '(.resource_changes[].change.after.tags? // {}) |= del(.deployment_generation) |
+    (.resource_changes[].change.after.labels? // {}) |= del(."mcn-deployment-generation")' \
+  "$plan" >"$legacy_plan"
+legacy_manifest="$scratch/legacy-manifest.json"
+set +e
+legacy_output=$(PATH="$fake_bin:$PATH" CURL_BIN="$fake_bin/curl" \
+  XCSH_API_URL=https://f5-sales-demo.console.ves.volterra.io XCSH_API_TOKEN=test-token \
+  "$script" --plan-json "$legacy_plan" --aws-region ap-northeast-1 --xc-tenant f5-sales-demo \
+  --aws-account-id 123456789012 --deployment-generation gen-01 --component mcn-ce-ha \
+  --legacy-unlabelled-recovery --creator-id tester@example.test --manifest "$legacy_manifest" 2>&1)
+legacy_status=$?
+set -e
+test "$legacy_status" -eq 3 || fail "legacy recovery collision must exit 3, got $legacy_status: $legacy_output"
+jq -e '.schema_version == 2 and .recovery_mode == "legacy_unlabelled" and
+  ([.collisions[].generation_binding] | all(. == "saved_plan_name_and_legacy_ownership"))' \
+  "$legacy_manifest" >/dev/null || fail "legacy manifest must disclose its generation evidence boundary"
 
 printf 'PASS: owned AWS and F5 name collisions are rejected before Terraform apply with a verified manifest\n'
