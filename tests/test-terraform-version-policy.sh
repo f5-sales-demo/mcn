@@ -26,7 +26,7 @@ else
 fi
 
 echo "2. every xcsh consumer pins exactly v9.2.1"
-for relative in terraform/versions.tf terraform/modules/xc-site/versions.tf coverage/smsv2/versions.tf; do
+for relative in terraform/versions.tf terraform/aws/versions.tf terraform/modules/xc-site/versions.tf coverage/smsv2/versions.tf; do
   file="${REPO_ROOT}/${relative}"
   block=$(sed -n '/^[[:space:]]*xcsh = {/,/^[[:space:]]*}/p' "$file")
   if printf '%s\n' "$block" | grep -Eq 'version[[:space:]]*=[[:space:]]*"= 9\.2\.1"'; then
@@ -59,10 +59,10 @@ fi
 
 source_count=$(grep -R -lF 'source  = "f5-sales-demo/xcsh"' \
   "${REPO_ROOT}/terraform" "${REPO_ROOT}/coverage/smsv2" --include='*.tf' | wc -l)
-if [ "$source_count" -eq 3 ]; then
-  ok "the three known xcsh consumers are the complete provider surface"
+if [ "$source_count" -eq 4 ]; then
+  ok "the four known xcsh consumers are the complete provider surface"
 else
-  bad "expected exactly three xcsh provider declarations, found ${source_count}"
+  bad "expected exactly four xcsh provider declarations, found ${source_count}"
 fi
 
 echo "3. the v9 clean break has no legacy observation-freshness inputs"

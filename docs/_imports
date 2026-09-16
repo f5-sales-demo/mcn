@@ -47,6 +47,19 @@ sitecli/captures/sitecli-vegactl-introspect-show-election.txt
 sitecli/captures/sitecli-vif.txt
 
 # Terraform source, staged with paths preserved for documentation imports.
+terraform/aws/aws_ce.tf -> terraform/aws/aws_ce.tf
+terraform/aws/aws_tgw_connect.tf -> terraform/aws/aws_tgw_connect.tf
+terraform/aws/aws_upgrade.tf -> terraform/aws/aws_upgrade.tf
+terraform/aws/aws_vpc.tf -> terraform/aws/aws_vpc.tf
+terraform/aws/aws_xc.tf -> terraform/aws/aws_xc.tf
+terraform/aws/backend.tf -> terraform/aws/backend.tf
+terraform/aws/data.tf -> terraform/aws/data.tf
+terraform/aws/locals.tf -> terraform/aws/locals.tf
+terraform/aws/outputs.tf -> terraform/aws/outputs.tf
+terraform/aws/providers.tf -> terraform/aws/providers.tf
+terraform/aws/variables.tf -> terraform/aws/variables.tf
+terraform/aws/variables_aws.tf -> terraform/aws/variables_aws.tf
+terraform/aws/versions.tf -> terraform/aws/versions.tf
 terraform/aws_ce.tf -> terraform/aws_ce.tf
 terraform/aws_upgrade.tf -> terraform/aws_upgrade.tf
 terraform/aws_vpc.tf -> terraform/aws_vpc.tf

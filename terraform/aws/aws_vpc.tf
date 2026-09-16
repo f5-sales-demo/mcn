@@ -17,7 +17,7 @@ resource "aws_vpc" "aws" {
   enable_dns_support   = true
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-vpc"
+    Name = "${local.aws_resource_prefix}-aws-vpc"
   })
 }
 
@@ -27,7 +27,7 @@ resource "aws_internet_gateway" "aws" {
   vpc_id = aws_vpc.aws[0].id
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-igw"
+    Name = "${local.aws_resource_prefix}-aws-igw"
   })
 }
 
@@ -41,7 +41,7 @@ resource "aws_subnet" "public_slo" {
   map_public_ip_on_launch = false
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-slo-subnet-${count.index + 1}"
+    Name = "${local.aws_resource_prefix}-aws-slo-subnet-${count.index + 1}"
   })
 }
 
@@ -54,7 +54,7 @@ resource "aws_subnet" "private_sli" {
   availability_zone = try(data.aws_availability_zones.available[0].names[count.index], "${var.aws_location}${element(["a", "b", "c"], count.index)}")
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-sli-subnet-${count.index + 1}"
+    Name = "${local.aws_resource_prefix}-aws-sli-subnet-${count.index + 1}"
   })
 }
 
@@ -79,7 +79,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-public-rt"
+    Name = "${local.aws_resource_prefix}-aws-public-rt"
   })
 }
 
@@ -111,7 +111,7 @@ resource "aws_route_table" "private" {
   }
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-private-rt"
+    Name = "${local.aws_resource_prefix}-aws-private-rt"
   })
 }
 
@@ -183,7 +183,7 @@ resource "aws_security_group" "ce" {
   }
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-ce-sg"
+    Name = "${local.aws_resource_prefix}-aws-ce-sg"
   })
 }
 
@@ -196,13 +196,13 @@ resource "aws_vpc" "workload" {
   cidr_block           = var.aws_workload_vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags                 = merge(local.tags, { Name = "${var.component}-aws-workload-vpc" })
+  tags                 = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-workload-vpc" })
 }
 
 resource "aws_internet_gateway" "workload" {
   count  = var.enable_aws ? 1 : 0
   vpc_id = aws_vpc.workload[0].id
-  tags   = merge(local.tags, { Name = "${var.component}-aws-workload-igw" })
+  tags   = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-workload-igw" })
 }
 
 resource "aws_subnet" "workload" {
@@ -211,7 +211,7 @@ resource "aws_subnet" "workload" {
   cidr_block              = cidrsubnet(var.aws_workload_vpc_cidr, 8, 1)
   availability_zone       = try(data.aws_availability_zones.available[0].names[0], "${var.aws_location}a")
   map_public_ip_on_launch = false
-  tags                    = merge(local.tags, { Name = "${var.component}-aws-workload-public" })
+  tags                    = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-workload-public" })
 }
 
 resource "aws_route_table" "workload" {
@@ -231,7 +231,7 @@ resource "aws_route_table" "workload" {
     }
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-workload-rt" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-workload-rt" })
 }
 
 resource "aws_route_table_association" "workload" {
@@ -247,7 +247,7 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "workload" {
   transit_gateway_default_route_table_association = false
   transit_gateway_default_route_table_propagation = false
   vpc_id                                          = aws_vpc.workload[0].id
-  tags                                            = merge(local.tags, { Name = "${var.component}-aws-workload-tgw" })
+  tags                                            = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-workload-tgw" })
 }
 
 resource "aws_ec2_transit_gateway_route_table_association" "workload" {
@@ -301,7 +301,7 @@ resource "aws_security_group" "workload" {
     cidr_blocks = ["${cidrhost(var.aws_workload_vpc_cidr, 2)}/32"]
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-workload-ssm" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-workload-ssm" })
 }
 
 resource "aws_security_group" "smsv2_nlb" {
@@ -327,7 +327,7 @@ resource "aws_security_group" "smsv2_nlb" {
     cidr_blocks = [var.aws_vpc_cidr]
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-smsv2-nlb" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-smsv2-nlb" })
 }
 
 resource "aws_lb" "smsv2" {
@@ -353,7 +353,7 @@ resource "aws_lb" "smsv2" {
     }
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-smsv2" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-smsv2" })
 }
 
 resource "aws_lb_target_group" "smsv2" {
@@ -373,7 +373,7 @@ resource "aws_lb_target_group" "smsv2" {
     unhealthy_threshold = 2
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-smsv2" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-smsv2" })
 }
 
 resource "aws_lb_target_group_attachment" "smsv2" {
@@ -451,7 +451,7 @@ resource "aws_instance" "workload" {
     }
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-ssm-client" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-ssm-client" })
 }
 
 # The AWS showcase must not depend on an Azure-era public origin.  This
@@ -530,7 +530,7 @@ resource "aws_security_group" "origin" {
     cidr_blocks = ["${cidrhost(var.aws_workload_vpc_cidr, 2)}/32"]
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-origin" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-origin" })
 }
 
 resource "aws_instance" "origin" {
@@ -569,5 +569,5 @@ resource "aws_instance" "origin" {
     }
   }
 
-  tags = merge(local.tags, { Name = "${var.component}-aws-origin" })
+  tags = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-origin" })
 }

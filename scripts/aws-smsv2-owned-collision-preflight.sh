@@ -6,16 +6,19 @@ set -euo pipefail
 
 PLAN_JSON=""
 AWS_REGION=""
+AWS_ACCOUNT_ID=""
 XC_TENANT=""
 CREATOR_ID=""
+DEPLOYMENT_GENERATION=""
 MANIFEST=""
 SCRATCH=""
 
 usage() {
   cat <<'EOF' >&2
 Usage: aws-smsv2-owned-collision-preflight.sh \
-  --plan-json FILE --aws-region REGION --xc-tenant TENANT \
-  --creator-id EMAIL --manifest FILE
+  --plan-json FILE --aws-region REGION --aws-account-id ACCOUNT_ID \
+  --xc-tenant TENANT --creator-id EMAIL \
+  --deployment-generation GENERATION --manifest FILE
 
 The input must be the JSON rendering of the exact saved Terraform plan under
 review. The manifest is an evidence record only; it never grants mutation.
@@ -38,12 +41,20 @@ while (($#)); do
     AWS_REGION=${2:?}
     shift 2
     ;;
+  --aws-account-id)
+    AWS_ACCOUNT_ID=${2:?}
+    shift 2
+    ;;
   --xc-tenant)
     XC_TENANT=${2:?}
     shift 2
     ;;
   --creator-id)
     CREATOR_ID=${2:?}
+    shift 2
+    ;;
+  --deployment-generation)
+    DEPLOYMENT_GENERATION=${2:?}
     shift 2
     ;;
   --manifest)
@@ -55,9 +66,13 @@ while (($#)); do
   esac
 done
 
-for required in PLAN_JSON AWS_REGION XC_TENANT CREATOR_ID MANIFEST; do
+for required in PLAN_JSON AWS_REGION AWS_ACCOUNT_ID XC_TENANT CREATOR_ID DEPLOYMENT_GENERATION MANIFEST; do
   [[ -n ${!required} ]] || die "missing required argument"
 done
+[[ $AWS_ACCOUNT_ID =~ ^[0-9]{12}$ ]] || die "aws account ID must contain exactly 12 digits"
+[[ $AWS_REGION =~ ^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$ ]] || die "aws region is invalid"
+[[ $DEPLOYMENT_GENERATION =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] ||
+  die "deployment generation must be a 1-32 character DNS-style label"
 [[ "$XC_TENANT" == f5-sales-demo ]] || die "xc tenant must be f5-sales-demo"
 [[ ${XCSH_API_URL:-} == "https://${XC_TENANT}.console.ves.volterra.io" ]] || die "XCSH_API_URL must match the expected Sales Demo tenant"
 [[ -n ${XCSH_API_TOKEN:-} ]] || die "XCSH_API_TOKEN is required"
@@ -70,21 +85,44 @@ mkdir -p "$(dirname "$MANIFEST")"
 [[ ! -e "$MANIFEST" ]] || die "manifest already exists; use a new evidence path"
 jq -e 'type == "object" and (.resource_changes | type == "array")' "$PLAN_JSON" >/dev/null || die "plan JSON is invalid"
 
+caller_identity=$(aws sts get-caller-identity --output json 2>/dev/null) || die "cannot verify AWS caller identity"
+actual_aws_account_id=$(jq -er '.Account | select(type == "string")' <<<"$caller_identity") ||
+  die "AWS caller identity did not include an account ID"
+[[ $actual_aws_account_id == "$AWS_ACCOUNT_ID" ]] ||
+  die "AWS caller account does not match the expected account"
+
 SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/mcn-owned-collision.XXXXXX")
 trap 'rm -rf "$SCRATCH"' EXIT
 umask 077
 collisions_file="$SCRATCH/collisions.jsonl"
 touch "$collisions_file"
 
-append_collision() {
-  local engine=$1 type=$2 address=$3 name=$4 namespace=$5 proof=$6 tags=$7
+append_aws_collision() {
+  local type=$1 address=$2 name=$3 expected_tags=$4 actual_tags=$5 identity=$6
   jq -nc \
-    --arg engine "$engine" --arg type "$type" --arg address "$address" \
-    --arg name "$name" --arg namespace "$namespace" --arg proof "$proof" \
-    --argjson tags "$tags" \
-    '{engine:$engine,type:$type,address:$address,name:$name,
-      namespace:(if $namespace == "" then null else $namespace end),
-      ownership:$proof,expected_tags:$tags}' >>"$collisions_file"
+    --arg type "$type" --arg address "$address" --arg name "$name" \
+    --arg account_id "$AWS_ACCOUNT_ID" --arg region "$AWS_REGION" \
+    --argjson expected_tags "$expected_tags" --argjson observed_tags "$actual_tags" \
+    --argjson identity "$identity" \
+    '{engine:"aws",type:$type,address:$address,name:$name,namespace:null,
+      ownership:"verified",aws_account_id:$account_id,aws_region:$region,
+      expected_tags:$expected_tags,observed_tags:$observed_tags,
+      resource_uid:$identity.resource_uid,created_at:$identity.created_at,
+      creation_evidence:$identity.creation_evidence}' >>"$collisions_file"
+}
+
+append_f5_collision() {
+  local type=$1 address=$2 name=$3 namespace=$4 expected_labels=$5 observed=$6
+  jq -nc \
+    --arg type "$type" --arg address "$address" --arg name "$name" \
+    --arg namespace "$namespace" --arg tenant "$XC_TENANT" \
+    --argjson expected_labels "$expected_labels" --argjson observed "$observed" \
+    '{engine:"f5",type:$type,address:$address,name:$name,namespace:$namespace,
+      ownership:"verified",xc_tenant:$tenant,
+      expected_labels:$expected_labels,observed_labels:$observed.metadata.labels,
+      creator_id:$observed.system_metadata.creator_id,
+      created_at:$observed.system_metadata.creation_timestamp,
+      resource_uid:$observed.system_metadata.uid}' >>"$collisions_file"
 }
 
 aws_not_found() {
@@ -103,10 +141,39 @@ aws_lookup() {
 
 require_aws_ownership() {
   local expected=$1 actual=$2
-  jq -ne --argjson expected "$expected" --argjson actual "$actual" '
+  jq -ne --arg generation "$DEPLOYMENT_GENERATION" --argjson expected "$expected" --argjson actual "$actual" '
     ($expected | type == "object") and
-    ([$expected.component, $expected.deployer, $expected.managed_by] | all(type == "string" and length > 0)) and
+    ([$expected.component, $expected.deployer, $expected.managed_by, $expected.deployment_generation] |
+      all(type == "string" and length > 0)) and
+    $expected.deployment_generation == $generation and
     ($expected | to_entries | all(.[]; $actual[.key] == .value))' >/dev/null
+}
+
+aws_identity_for() {
+  local type=$1 response=$2
+  case "$type" in
+  aws_key_pair)
+    jq -ec '{resource_uid:.KeyPairs[0].KeyPairId,created_at:(.KeyPairs[0].CreateTime // null),
+      creation_evidence:(if .KeyPairs[0].CreateTime then "ec2.describe-key-pairs.CreateTime" else "not_exposed" end)}' "$response"
+    ;;
+  aws_iam_role)
+    jq -ec '{resource_uid:.Role.RoleId,created_at:(.Role.CreateDate // null),
+      creation_evidence:(if .Role.CreateDate then "iam.get-role.CreateDate" else "not_exposed" end)}' "$response"
+    ;;
+  aws_iam_instance_profile)
+    jq -ec '{resource_uid:.InstanceProfile.InstanceProfileId,created_at:(.InstanceProfile.CreateDate // null),
+      creation_evidence:(if .InstanceProfile.CreateDate then "iam.get-instance-profile.CreateDate" else "not_exposed" end)}' "$response"
+    ;;
+  aws_lb)
+    jq -ec '{resource_uid:.LoadBalancers[0].LoadBalancerArn,created_at:(.LoadBalancers[0].CreatedTime // null),
+      creation_evidence:(if .LoadBalancers[0].CreatedTime then "elbv2.describe-load-balancers.CreatedTime" else "not_exposed" end)}' "$response"
+    ;;
+  aws_lb_target_group)
+    jq -ec '{resource_uid:.TargetGroups[0].TargetGroupArn,created_at:null,
+      creation_evidence:"not_exposed_by_elbv2_describe_target_groups"}' "$response"
+    ;;
+  *) return 1 ;;
+  esac
 }
 
 aws_tags_for() {
@@ -137,6 +204,9 @@ f5_endpoint() {
   xcsh_origin_pool) printf 'origin_pools' ;;
   xcsh_http_loadbalancer) printf 'http_loadbalancers' ;;
   xcsh_token) printf 'tokens' ;;
+  xcsh_securemesh_site_v2) printf 'securemesh_site_v2s' ;;
+  xcsh_bgp) printf 'bgps' ;;
+  xcsh_external_connector) printf 'external_connectors' ;;
   *) return 1 ;;
   esac
 }
@@ -179,15 +249,22 @@ while IFS= read -r item; do
     if aws_lookup "$response" "$error" "${lookup[@]}"; then
       actual_tags=$(aws_tags_for "$type" "$response") || die "cannot read tags for existing $address"
       require_aws_ownership "$expected_tags" "$actual_tags" || die "unowned or ambiguous AWS collision: $address ($name)"
-      append_collision aws "$type" "$address" "$name" "" verified "$expected_tags"
+      identity=$(aws_identity_for "$type" "$response") || die "cannot read provider identity for existing $address"
+      jq -e '.resource_uid | type == "string" and length > 0' <<<"$identity" >/dev/null ||
+        die "provider identity is unavailable for existing $address"
+      append_aws_collision "$type" "$address" "$name" "$expected_tags" "$actual_tags" "$identity"
     else
       status=$?
       [[ $status -eq 10 ]] || die "cannot inspect AWS collision candidate: $address"
     fi
     ;;
-  xcsh_virtual_site | xcsh_origin_pool | xcsh_http_loadbalancer | xcsh_token)
+  xcsh_virtual_site | xcsh_origin_pool | xcsh_http_loadbalancer | xcsh_token | xcsh_securemesh_site_v2 | xcsh_bgp | xcsh_external_connector)
     name=$(jq -er '.name' <<<"$after") || die "planned name is invalid for $address"
     namespace=$(jq -er '.namespace' <<<"$after") || die "planned namespace is invalid for $address"
+    expected_labels=$(jq -ec '.labels // {}' <<<"$after") || die "planned labels are invalid for $address"
+    jq -e --arg generation "$DEPLOYMENT_GENERATION" '
+      .["mcn-deployment-generation"] == $generation' <<<"$expected_labels" >/dev/null ||
+      die "planned deployment generation label is missing or mismatched for $address"
     endpoint=$(f5_endpoint "$type")
     prefix=$(f5_namespace_prefix "$type")
     body="$SCRATCH/f5-${RANDOM}.json"
@@ -197,10 +274,18 @@ while IFS= read -r item; do
     case "$status" in
     404) ;;
     200)
-      jq -e --arg creator "$CREATOR_ID" --arg name "$name" --arg namespace "$namespace" '
-            .metadata.name == $name and .metadata.namespace == $namespace and .system_metadata.creator_id == $creator' "$body" >/dev/null ||
+      jq -e --arg creator "$CREATOR_ID" --arg name "$name" --arg namespace "$namespace" \
+        --arg generation "$DEPLOYMENT_GENERATION" '
+            .metadata.name == $name and .metadata.namespace == $namespace and
+            .metadata.labels["mcn-deployment-generation"] == $generation and
+            .system_metadata.creator_id == $creator and
+            (.system_metadata.uid | type == "string" and length > 0) and
+            (.system_metadata.creation_timestamp | type == "string" and length > 0)' "$body" >/dev/null ||
         die "unowned or ambiguous F5 collision: $address ($namespace/$name)"
-      append_collision f5 "$type" "$address" "$name" "$namespace" verified '{}'
+      observed=$(jq -ec '{metadata:{labels:.metadata.labels},system_metadata:{
+        creator_id:.system_metadata.creator_id,creation_timestamp:.system_metadata.creation_timestamp,
+        uid:.system_metadata.uid}}' "$body") || die "cannot normalize F5 ownership evidence for $address"
+      append_f5_collision "$type" "$address" "$name" "$namespace" "$expected_labels" "$observed"
       ;;
     *) die "unexpected F5 response for $address: $status" ;;
     esac
@@ -213,7 +298,8 @@ done < <(jq -c '
          .type == "aws_iam_instance_profile" or .type == "aws_lb" or
          .type == "aws_lb_target_group" or .type == "xcsh_virtual_site" or
          .type == "xcsh_origin_pool" or .type == "xcsh_http_loadbalancer" or
-         .type == "xcsh_token") |
+         .type == "xcsh_token" or .type == "xcsh_securemesh_site_v2" or
+         .type == "xcsh_bgp" or .type == "xcsh_external_connector") |
   {address, type, after:.change.after}' "$PLAN_JSON")
 
 collisions=$(jq -sc 'sort_by(.engine, .type, .address)' "$collisions_file")
@@ -221,9 +307,11 @@ plan_sha256="sha256:$(sha256sum "$PLAN_JSON" | awk '{print $1}')"
 if [[ $collisions == '[]' ]]; then status=ready; else status=blocked; fi
 jq -n --argjson collisions "$collisions" --arg status "$status" \
   --arg plan_sha256 "$plan_sha256" --arg aws_region "$AWS_REGION" \
+  --arg aws_account_id "$AWS_ACCOUNT_ID" --arg deployment_generation "$DEPLOYMENT_GENERATION" \
   --arg xc_tenant "$XC_TENANT" --arg creator_id "$CREATOR_ID" \
   '{schema_version:1,status:$status,plan_sha256:$plan_sha256,
-    aws_region:$aws_region,xc_tenant:$xc_tenant,creator_id:$creator_id,
+    aws_region:$aws_region,aws_account_id:$aws_account_id,
+    xc_tenant:$xc_tenant,creator_id:$creator_id,deployment_generation:$deployment_generation,
     collisions:$collisions}' >"$MANIFEST"
 chmod 600 "$MANIFEST"
 

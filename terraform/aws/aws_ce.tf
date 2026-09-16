@@ -85,7 +85,7 @@ resource "aws_network_interface" "slo" {
   source_dest_check = false
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-ce-${count.index + 1}-slo"
+    Name = "${local.aws_resource_prefix}-aws-ce-${count.index + 1}-slo"
   })
 }
 
@@ -98,7 +98,7 @@ resource "aws_network_interface" "sli" {
   source_dest_check = false
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-ce-${count.index + 1}-sli"
+    Name = "${local.aws_resource_prefix}-aws-ce-${count.index + 1}-sli"
   })
 }
 
@@ -112,7 +112,7 @@ resource "aws_eip" "ce" {
   depends_on = [aws_internet_gateway.aws]
 
   tags = merge(local.tags, {
-    Name = "${var.component}-aws-ce-${count.index + 1}-eip"
+    Name = "${local.aws_resource_prefix}-aws-ce-${count.index + 1}-eip"
   })
 }
 

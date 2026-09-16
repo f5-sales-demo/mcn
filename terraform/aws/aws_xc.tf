@@ -27,6 +27,7 @@ resource "xcsh_token" "aws" {
   name        = "${each.value.name}-registration"
   namespace   = "system"
   description = "Registration token for independent AWS site ${each.value.name}"
+  labels      = local.xc_labels
   type        = 1
   site_name   = xcsh_securemesh_site_v2.aws[each.key].name
 }
@@ -36,7 +37,7 @@ resource "xcsh_securemesh_site_v2" "aws" {
   name        = each.value.name
   namespace   = "system"
   description = "Independent AWS Customer Edge SecureMesh v2 site ${each.key}"
-  labels      = { "mcn-topology" = "${var.component}-aws" }
+  labels      = local.xc_labels
 
   aws {
     not_managed {
@@ -141,10 +142,11 @@ resource "xcsh_virtual_site" "aws" {
   count     = var.enable_aws ? 1 : 0
   name      = "${local.aws_resource_prefix}-aws-vsite"
   namespace = data.xcsh_namespace.mcn.name
+  labels    = local.xc_labels
 
   site_type = "CUSTOMER_EDGE"
   site_selector {
-    expressions = ["mcn-topology in (${var.component}-aws)"]
+    expressions = ["mcn-topology in (${local.site_prefix}-aws)"]
   }
 }
 
@@ -153,6 +155,7 @@ resource "xcsh_origin_pool" "aws" {
   name        = "${local.aws_resource_prefix}-aws-pool"
   namespace   = data.xcsh_namespace.mcn.name
   description = "AWS origin pool serving the three-site TGW showcase"
+  labels      = local.xc_labels
   port        = var.origin_port
 
   origin_servers {
@@ -172,6 +175,7 @@ resource "xcsh_http_loadbalancer" "aws" {
   name      = "${local.aws_resource_prefix}-aws-lb"
   namespace = data.xcsh_namespace.mcn.name
   domains   = [var.aws_lb_domain]
+  labels    = local.xc_labels
 
   http {
     port = 80

@@ -26,14 +26,15 @@ variable "origin_port" {
   type    = number
   default = 80
 }
-variable "site_prefix" {
-  type     = string
-  default  = null
-  nullable = true
-}
-variable "smsv2_site_generation" {
-  type    = string
-  default = "smsv2"
+variable "deployment_generation" {
+  description = "Required immutable identity for this complete AWS/XC deployment generation. Select a new value only after the preceding generation has been ownership-verified and destroyed."
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$", var.deployment_generation))
+    error_message = "deployment_generation must be a 1-32 character DNS-style label: lowercase alphanumerics and hyphens, not starting or ending with a hyphen."
+  }
 }
 variable "ssh_public_key" {
   type    = string
