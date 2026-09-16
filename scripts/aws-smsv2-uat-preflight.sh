@@ -306,11 +306,11 @@ CONTRACT=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH"
 
 # This immutable Git revision is public provenance, not a credential. Keep it
 # assembled so generic token heuristics do not mistake it for one.
-EXPECTED_API_COMMIT="$(printf '%s%s' '76973b4ef84f73d41b648' 'a27f38c2735a8c255ef')"
+EXPECTED_API_COMMIT="$(printf '%s%s' '55151d9bda8ea8f04c595' 'e76ee6b05aee96d7fc7')"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_id == "f5xc-smsv2-api/v1" and
   .contract_version == "7.0.0" and
-  .api_release_tag == "v7.0.2" and
+  .api_release_tag == "v7.0.3" and
   .api_release_commit == $api_commit and
   .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v9_contract_identity_mismatch
 jq -e '
