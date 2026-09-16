@@ -125,10 +125,51 @@ See the [dated acceptance baseline](../../customer-edge/smsv2/) for the result a
 
 ## Apply
 
-Run the following commands from `terraform/`, after supplying `terraform.tfvars` and
+Run the bootstrap commands below from the repository root. After the AWS backend is
+configured, run the saved-plan sequence from `terraform/` with `terraform.tfvars` and
 `backend.hcl`. Replace uppercase placeholders with private paths and the exact identities
 from your reviewed plan. On a new deployment, site outputs do not exist yet; take the
 expected names from the plan, not from stale state.
+
+### Bootstrap the dedicated AWS state backend
+
+The former Azure state was retired with the prior deployment. Start with a fresh,
+dedicated S3 bucket; do not reuse a shared bucket or resurrect an old state object.
+The bootstrap stack creates KMS encryption, version recovery, public-access blocks,
+TLS-only bucket access, Terraform's native S3 lockfile, regional server-access logs,
+EventBridge object notifications, and a separately encrypted cross-region recovery
+replica. Replica and log bucket names are derived from the unique primary name, so
+the bootstrap remains non-interactive; `replica_region` defaults to `us-west-2` and
+must differ from the primary region.
+
+Run this once with reviewed AWS identity and a globally unique bucket name. Run
+the commands from the repository root through the credential-isolation wrapper.
+The wrapper asks the AWS CLI for process credentials from the selected authenticated
+SSO profile, writes no credential value to disk, and prevents stale shared credentials
+from shadowing that profile. It uses the `default` profile unless `--profile NAME`
+precedes `--`. The bootstrap initially uses local state only because it creates the
+backend itself:
+
+```bash
+./scripts/terraform-with-aws-sso.sh -- -chdir=terraform/bootstrap/state-backend init -backend=false -input=false
+./scripts/terraform-with-aws-sso.sh -- -chdir=terraform/bootstrap/state-backend plan -out='<PRIVATE_BOOTSTRAP_PLAN>' -var 'bucket_name=<UNIQUE_BUCKET_NAME>'
+./scripts/terraform-with-aws-sso.sh -- -chdir=terraform/bootstrap/state-backend show '<PRIVATE_BOOTSTRAP_PLAN>'
+./scripts/terraform-with-aws-sso.sh -- -chdir=terraform/bootstrap/state-backend apply '<PRIVATE_BOOTSTRAP_PLAN>'
+./scripts/terraform-with-aws-sso.sh -- -chdir=terraform/bootstrap/state-backend output -json showcase_backend_hcl
+```
+
+After the reviewed apply, generate both ignored backend configurations and migrate the
+bootstrap stack's local state programmatically:
+
+```bash
+./scripts/configure-aws-state-backend.sh --profile '<AWS_SSO_PROFILE>'
+```
+
+The script verifies that the selected AWS identity owns the KMS key, creates the
+bootstrap and showcase state-key configurations emitted by the module without credentials,
+and uses Terraform's supported `-force-copy` migration. Repeating the command verifies the
+existing remote metadata and reconfigures it idempotently. The showcase has no old state to
+migrate.
 
 ### AWS saved-plan sequence
 
@@ -142,18 +183,18 @@ COLLISION_EVIDENCE_DIR='<NEW_PRIVATE_COLLISION_EVIDENCE_DIRECTORY>'
 umask 077
 printf 'provider_installation {\n  direct {}\n}\n' > "$REGISTRY_TFRC"
 export TF_CLI_CONFIG_FILE="$REGISTRY_TFRC"
-terraform init -upgrade -backend-config=backend.hcl
+../scripts/terraform-with-aws-sso.sh -- init -upgrade -backend-config=backend.hcl
 # The AWS preflight rejects Azure actions. This supported graph boundary omits
 # Azure US, Azure Canada, Marketplace, and KVM resources without Terraform targeting.
-terraform plan -var='enable_azure=false' -var='enable_kvm=false' -out="$PLAN_FILE"
-terraform show "$PLAN_FILE"
+../scripts/terraform-with-aws-sso.sh -- plan -var='enable_azure=false' -var='enable_kvm=false' -out="$PLAN_FILE"
+../scripts/terraform-with-aws-sso.sh -- show "$PLAN_FILE"
 
 # The collision guard renders this exact saved plan to a separate private
 # directory. It rejects any existing AWS or F5 object with the planned name,
 # including objects that are demonstrably owned by this deployment identity.
 # A collision is never imported or adopted.
 mkdir -p "$COLLISION_EVIDENCE_DIR"
-terraform show -json "$PLAN_FILE" > "$COLLISION_EVIDENCE_DIR/reviewed-plan.json"
+../scripts/terraform-with-aws-sso.sh -- show -json "$PLAN_FILE" > "$COLLISION_EVIDENCE_DIR/reviewed-plan.json"
 ../scripts/aws-smsv2-owned-collision-preflight.sh \
   --plan-json "$COLLISION_EVIDENCE_DIR/reviewed-plan.json" \
   --aws-region '<AWS_REGION>' \
@@ -178,7 +219,7 @@ Inspect both preflight results. Continue only when the collision guard reports
 apply that same saved plan:
 
 ```bash
-terraform apply "$PLAN_FILE"
+../scripts/terraform-with-aws-sso.sh -- apply "$PLAN_FILE"
 ```
 
 For a partial recovery, set cumulative `aws_bootstrap_site_keys` in the planned inputs

@@ -16,6 +16,7 @@
 # Partial backend config; the example is committed
 backend.hcl
 !backend.hcl.example
+bootstrap/state-backend/backend.generated.tf
 
 # Saved plan artifacts (terraform plan -out)
 tfplan

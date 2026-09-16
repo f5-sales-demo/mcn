@@ -45,7 +45,7 @@ data "external" "xc_env_tenant" {
   lifecycle {
     postcondition {
       condition     = contains(["", var.expected_xc_tenant], self.result.tenant)
-      error_message = "Wrong F5 XC tenant. XCSH_API_URL in this environment names tenant '${self.result.tenant}', but this deployment belongs to '${var.expected_xc_tenant}' (state key mcn.tfstate). Source the credential file for '${var.expected_xc_tenant}', or — if you really do mean to act on '${self.result.tenant}' — say so explicitly with -var expected_xc_tenant=${self.result.tenant} and a state key of its own."
+      error_message = "Wrong F5 XC tenant. XCSH_API_URL in this environment names tenant '${self.result.tenant}', but this deployment belongs to '${var.expected_xc_tenant}'. Source the credential file for '${var.expected_xc_tenant}', or — if you really do mean to act on '${self.result.tenant}' — say so explicitly with -var expected_xc_tenant=${self.result.tenant} and an isolated AWS S3 state key of its own."
     }
   }
 }

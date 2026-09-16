@@ -1,7 +1,10 @@
-# Local backend config for the azurerm remote state (partial backend).
-# Copy to backend.hcl (gitignored) and init:  terraform init -backend-config=backend.hcl
-# Reuses the shared f5-sales-demo state account; only the key differs.
-resource_group_name  = "f5-sales-demo-tfstate"
-storage_account_name = "f5salesdemotfstate"
-container_name       = "tfstate"
-key                  = "mcn.tfstate"
+# Local backend config for the dedicated AWS S3 state backend (partial backend).
+# Copy to backend.hcl (gitignored) after the bootstrap stack reports its outputs:
+#   terraform init -backend-config=backend.hcl
+# Do not share this bucket or key with unrelated projects.
+bucket       = "REPLACE_WITH_BOOTSTRAP_BUCKET"
+key          = "mcn-ce-ha-smsv2/showcase.tfstate"
+region       = "ap-northeast-1"
+encrypt      = true
+kms_key_id   = "REPLACE_WITH_BOOTSTRAP_KMS_KEY_ARN"
+use_lockfile = true
