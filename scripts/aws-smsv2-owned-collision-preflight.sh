@@ -78,13 +78,15 @@ touch "$collisions_file"
 
 append_collision() {
   local engine=$1 type=$2 address=$3 name=$4 namespace=$5 proof=$6 tags=$7
+  local ownership_source=${8:-direct_tags}
   jq -nc \
     --arg engine "$engine" --arg type "$type" --arg address "$address" \
     --arg name "$name" --arg namespace "$namespace" --arg proof "$proof" \
+    --arg ownership_source "$ownership_source" \
     --argjson tags "$tags" \
     '{engine:$engine,type:$type,address:$address,name:$name,
       namespace:(if $namespace == "" then null else $namespace end),
-      ownership:$proof,expected_tags:$tags}' >>"$collisions_file"
+      ownership:$proof,ownership_source:$ownership_source,expected_tags:$tags}' >>"$collisions_file"
 }
 
 aws_not_found() {
@@ -178,9 +180,28 @@ while IFS= read -r item; do
     response="$SCRATCH/aws-${RANDOM}.json"
     error="$SCRATCH/aws-${RANDOM}.err"
     if aws_lookup "$response" "$error" "${lookup[@]}"; then
-      actual_tags=$(aws_tags_for "$type" "$response") || die "cannot read tags for existing $address"
+      ownership_source=direct_tags
+      if [[ $type == aws_iam_instance_profile && $expected_tags == '{}' ]]; then
+        role_name=$(jq -er '.InstanceProfile.Roles | select(length == 1) | .[0].RoleName' "$response") ||
+          die "cannot prove the unique role for existing $address"
+        expected_tags=$(jq -ec --arg role "$role_name" '
+          [.resource_changes[]? |
+            select(.type == "aws_iam_role" and .change.after.name == $role) |
+            (.change.after.tags // .change.before.tags // {})
+          ] | if length == 1 then .[0] else empty end' "$PLAN_JSON") ||
+          die "cannot bind existing $address to one planned role"
+        role_response="$SCRATCH/aws-role-${RANDOM}.json"
+        role_error="$SCRATCH/aws-role-${RANDOM}.err"
+        aws_lookup "$role_response" "$role_error" iam get-role --role-name "$role_name" ||
+          die "cannot inspect ownership role for existing $address"
+        actual_tags=$(aws_tags_for aws_iam_role "$role_response") ||
+          die "cannot read ownership role tags for existing $address"
+        ownership_source="attached_role:${role_name}"
+      else
+        actual_tags=$(aws_tags_for "$type" "$response") || die "cannot read tags for existing $address"
+      fi
       require_aws_ownership "$expected_tags" "$actual_tags" || die "unowned or ambiguous AWS collision: $address ($name)"
-      append_collision aws "$type" "$address" "$name" "" verified "$expected_tags"
+      append_collision aws "$type" "$address" "$name" "" verified "$expected_tags" "$ownership_source"
     else
       status=$?
       [[ $status -eq 10 ]] || die "cannot inspect AWS collision candidate: $address"

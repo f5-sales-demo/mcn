@@ -35,6 +35,32 @@ cat >"$plan" <<'JSON'
       }
     },
     {
+      "address": "aws_iam_role.workload[0]",
+      "type": "aws_iam_role",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "owned-workload-role",
+          "tags": {
+            "component": "mcn-ce-ha",
+            "deployer": "tester",
+            "managed_by": "terraform"
+          }
+        }
+      }
+    },
+    {
+      "address": "aws_iam_instance_profile.workload[0]",
+      "type": "aws_iam_instance_profile",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "owned-workload-role",
+          "tags": {}
+        }
+      }
+    },
+    {
       "address": "xcsh_virtual_site.aws[0]",
       "type": "xcsh_virtual_site",
       "change": {
@@ -59,6 +85,20 @@ case "$*" in
       exit 255
     fi
     printf '%s\n' '{"KeyPairs":[{"Tags":[{"Key":"component","Value":"mcn-ce-ha"},{"Key":"deployer","Value":"tester"},{"Key":"managed_by","Value":"terraform"}]}]}'
+    ;;
+  *"get-instance-profile"*"owned-workload-role"*)
+    if [[ ${FAKE_ABSENT:-false} == true ]]; then
+      printf '%s\n' 'NoSuchEntity' >&2
+      exit 255
+    fi
+    printf '%s\n' '{"InstanceProfile":{"Tags":[],"Roles":[{"RoleName":"owned-workload-role"}]}}'
+    ;;
+  *"get-role"*"owned-workload-role"*)
+    if [[ ${FAKE_ABSENT:-false} == true ]]; then
+      printf '%s\n' 'NoSuchEntity' >&2
+      exit 255
+    fi
+    printf '%s\n' '{"Role":{"Tags":[{"Key":"component","Value":"mcn-ce-ha"},{"Key":"deployer","Value":"tester"},{"Key":"managed_by","Value":"terraform"}]}}'
     ;;
   *)
     printf '%s\n' 'unexpected aws command' >&2
@@ -108,9 +148,10 @@ test "$status" -eq 3 || fail "owned collision must exit 3, got $status: $output"
 jq -e '
   .schema_version == 1 and
   .status == "blocked" and
-  (.collisions | length) == 2 and
+  (.collisions | length) == 4 and
   ([.collisions[].ownership] | all(. == "verified")) and
-  ([.collisions[].name] | sort) == ["owned-key", "owned-vsite"]
+  ([.collisions[].type] | sort) == ["aws_iam_instance_profile", "aws_iam_role", "aws_key_pair", "xcsh_virtual_site"] and
+  ([.collisions[] | select(.type == "aws_iam_instance_profile")][0].ownership_source == "attached_role:owned-workload-role")
 ' "$manifest" >/dev/null || fail "manifest must retain the exact verified collision inventory"
 
 empty_manifest="$scratch/empty-manifest.json"
