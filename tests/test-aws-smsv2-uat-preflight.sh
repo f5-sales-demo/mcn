@@ -88,7 +88,29 @@ show)
     site_02_actions=${FAKE_SITE_02_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
-    if [ "${FAKE_TARGETED_BOOTSTRAP:-false}" = true ]; then
+    if [ "${FAKE_PARTIAL_RECOVERY:-false}" = true ]; then
+      jq -nc \
+        --arg action "${FAKE_PARTIAL_ACTION:-delete}" \
+        --argjson aws_count "${FAKE_PARTIAL_AWS_COUNT:-47}" \
+        --argjson terraform_count "${FAKE_PARTIAL_TERRAFORM_COUNT:-4}" \
+        --arg provider "${FAKE_PARTIAL_PROVIDER:-registry.terraform.io/hashicorp/aws}" '
+        {
+          complete: true,
+          resource_changes:
+            ([range(0; $aws_count) | {
+              address: "aws_test.recovery[\(.)]",
+              type: "aws_test",
+              provider_name: $provider,
+              change: {actions: [$action], before: {}, after: null}
+            }] +
+            [range(0; $terraform_count) | {
+              address: "terraform_data.aws_recovery[\(.)]",
+              type: "terraform_data",
+              provider_name: "terraform.io/builtin/terraform",
+              change: {actions: ["delete"], before: {}, after: null}
+            }])
+        }'
+    elif [ "${FAKE_TARGETED_BOOTSTRAP:-false}" = true ]; then
       printf '{"complete":false,"planned_values":{"outputs":{}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}]}\n'
     elif [ "${FAKE_SHARED_TOPOLOGY_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_vpc.workload[0]","type":"aws_vpc","name":"workload","index":0,"change":{"actions":["create"],"after":{"cidr_block":"10.151.0.0/16"}}}]}\n' "$plan_vip" "$plan_listeners"
@@ -176,7 +198,7 @@ assert_sanitized() {
   evidence_files=$(find "$evidence" -maxdepth 1 -type f)
   [ "$(printf '%s\n' "$evidence_files" | sed '/^$/d' | wc -l | tr -d ' ')" = 1 ] || fail "evidence contains unexpected files"
   [ "$(basename "$evidence_files")" = summary.json ] || fail "evidence contains unexpected files"
-  [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = provider_mode,provider_sha256,reason,status,timestamp ] || fail "summary has unexpected keys"
+  [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = plan_sha256,provider_mode,provider_sha256,reason,status,timestamp ] || fail "summary has unexpected keys"
   if grep -R -E '111122223333|mcn-ce-ha-aws-ap-northeast-1|test-token-must-not-leak|f5-sales-demo\.console\.ves\.volterra\.io' "$evidence" "$output"; then
     fail "identity or credential leaked into sanitized evidence"
   fi
@@ -497,6 +519,73 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = destroy_plan_contains_non_delete_actions ] || fail "mixed destroy blocker not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - destroy mode rejects non-delete actions"
+
+PARTIAL_PLAN_SHA256="sha256:$(sha256sum "$PLAN_FILE" | awk '{print $1}')"
+
+evidence="${TMP_ROOT}/partial-destroy"
+mkdir "$evidence"
+output="${TMP_ROOT}/partial-destroy.out"
+if ! FAKE_PARTIAL_RECOVERY=true "$SCRIPT" --plan-mode partial-destroy \
+  --expected-plan-sha256 "$PARTIAL_PLAN_SHA256" \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "the exact digest-bound 47 AWS plus four Terraform delete plan should pass"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "partial destroy ready status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - exact digest-bound partial destroy plan is admitted"
+
+evidence="${TMP_ROOT}/partial-destroy-wrong-digest"
+mkdir "$evidence"
+output="${TMP_ROOT}/partial-destroy-wrong-digest.out"
+if FAKE_PARTIAL_RECOVERY=true "$SCRIPT" --plan-mode partial-destroy \
+  --expected-plan-sha256 "sha256:$(printf '0%.0s' {1..64})" \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "partial destroy must reject a mismatched plan digest"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = deployment_plan_digest_mismatch ] ||
+  fail "partial destroy digest mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - partial destroy rejects a mismatched saved-plan digest"
+
+evidence="${TMP_ROOT}/partial-destroy-create"
+mkdir "$evidence"
+output="${TMP_ROOT}/partial-destroy-create.out"
+if FAKE_PARTIAL_RECOVERY=true FAKE_PARTIAL_ACTION=create "$SCRIPT" --plan-mode partial-destroy \
+  --expected-plan-sha256 "$PARTIAL_PLAN_SHA256" \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "partial destroy must reject create actions"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = partial_destroy_plan_invalid ] ||
+  fail "partial destroy create rejection reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - partial destroy rejects every non-delete action"
+
+evidence="${TMP_ROOT}/partial-destroy-f5"
+mkdir "$evidence"
+output="${TMP_ROOT}/partial-destroy-f5.out"
+if FAKE_PARTIAL_RECOVERY=true FAKE_PARTIAL_PROVIDER=registry.terraform.io/f5-sales-demo/xcsh \
+  "$SCRIPT" --plan-mode partial-destroy --expected-plan-sha256 "$PARTIAL_PLAN_SHA256" \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "partial destroy must reject F5 resource deletions"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = partial_destroy_plan_invalid ] ||
+  fail "partial destroy F5 rejection reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - partial destroy rejects F5 resource deletions"
+
+evidence="${TMP_ROOT}/partial-destroy-count"
+mkdir "$evidence"
+output="${TMP_ROOT}/partial-destroy-count.out"
+if FAKE_PARTIAL_RECOVERY=true FAKE_PARTIAL_AWS_COUNT=46 "$SCRIPT" --plan-mode partial-destroy \
+  --expected-plan-sha256 "$PARTIAL_PLAN_SHA256" \
+  --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "partial destroy must reject an unexpected deletion count"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = partial_destroy_plan_invalid ] ||
+  fail "partial destroy count rejection reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - partial destroy rejects a non-exact deletion set"
 
 evidence="${TMP_ROOT}/unavailable"
 mkdir "$evidence"

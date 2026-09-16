@@ -13,6 +13,8 @@ CREATOR_ID=""
 EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
 PLAN_MODE="apply"
+EXPECTED_PLAN_SHA256=""
+PLAN_SHA256=""
 EXECUTE_UAT=false
 CANDIDATE_PROVIDER_BINARY=""
 CANDIDATE_PROVIDER_SHA256=""
@@ -41,7 +43,9 @@ Required options:
 
 Optional:
   --terraform-dir PATH   Defaults to the repository terraform directory.
-  --plan-mode MODE       apply (default) or destroy.
+  --plan-mode MODE       apply (default), destroy, or partial-destroy.
+  --expected-plan-sha256 SHA256:DIGEST
+                         Required for partial-destroy; binds admission to one saved plan.
   --xc-context NAME      Defaults to f5-sales-demo when XC environment values are absent.
   --candidate-provider-binary PATH
                          Select this local prerelease binary through dev_overrides.
@@ -61,9 +65,11 @@ record() {
   timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   jq -n --arg status "$status" --arg reason "$reason" --arg timestamp "$timestamp" \
     --arg provider_mode "$PROVIDER_MODE" --arg provider_sha256 "$PROVIDER_SHA256" \
+    --arg plan_sha256 "$PLAN_SHA256" \
     '{status: $status, reason: $reason, timestamp: $timestamp,
       provider_mode: $provider_mode,
-      provider_sha256: (if $provider_sha256 == "" then null else $provider_sha256 end)}' >"$SUMMARY"
+      provider_sha256: (if $provider_sha256 == "" then null else $provider_sha256 end),
+      plan_sha256: (if $plan_sha256 == "" then null else $plan_sha256 end)}' >"$SUMMARY"
   chmod 600 "$SUMMARY"
   printf 'status=%s reason=%s timestamp=%s\n' "$status" "$reason" "$timestamp"
 }
@@ -82,6 +88,7 @@ block_traffic() {
     --arg timestamp "$timestamp" \
     --arg provider_mode "$PROVIDER_MODE" \
     --arg provider_sha256 "$PROVIDER_SHA256" \
+    --arg plan_sha256 "$PLAN_SHA256" \
     --argjson traffic_samples "$((VIP_OK + VIP_FAILED))" \
     --argjson traffic_failures "$VIP_FAILED" \
     --argjson raw_traffic_samples "$((RAW_TRAFFIC_OK + RAW_TRAFFIC_FAILED))" \
@@ -91,6 +98,7 @@ block_traffic() {
     '{status:$status, reason:$reason, timestamp:$timestamp,
       provider_mode:$provider_mode,
       provider_sha256:(if $provider_sha256 == "" then null else $provider_sha256 end),
+      plan_sha256:(if $plan_sha256 == "" then null else $plan_sha256 end),
       traffic_samples:$traffic_samples, traffic_failures:$traffic_failures,
       raw_transport_samples:$raw_traffic_samples,
       raw_transport_failures:$raw_traffic_failures,
@@ -117,6 +125,10 @@ while [ "$#" -gt 0 ]; do
     ;;
   --plan-mode)
     PLAN_MODE=${2:?}
+    shift 2
+    ;;
+  --expected-plan-sha256)
+    EXPECTED_PLAN_SHA256=${2:?}
     shift 2
     ;;
   --expected-aws-account)
@@ -166,8 +178,15 @@ done
 for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXPECTED_XC_TENANT CREATOR_ID; do
   [ -n "${!value}" ] || die "missing required preflight argument"
 done
-[[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
+[[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy || "$PLAN_MODE" == partial-destroy ]] ||
+  die "plan mode must be apply, destroy, or partial-destroy"
 [ "$PLAN_MODE" = apply ] || [ "$EXECUTE_UAT" = false ] || die "live UAT requires apply plan mode"
+if [ "$PLAN_MODE" = partial-destroy ]; then
+  [[ "$EXPECTED_PLAN_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+    die "partial-destroy requires --expected-plan-sha256 SHA256:DIGEST"
+elif [ -n "$EXPECTED_PLAN_SHA256" ]; then
+  die "--expected-plan-sha256 is only valid with partial-destroy"
+fi
 case "${#EXPECTED_SITES[@]}" in
 1 | 3) ;;
 *) die "plan stage requires exactly one or exactly three --expected-site values" ;;
@@ -331,6 +350,11 @@ unset CONTRACT
 
 PLAN_FILE=$(realpath "$PLAN_FILE" 2>/dev/null) || block deployment_plan_unavailable
 [ -f "$PLAN_FILE" ] || block deployment_plan_unavailable
+PLAN_SHA256="sha256:$(sha256sum "$PLAN_FILE" | awk '{print $1}')" ||
+  block deployment_plan_digest_unavailable
+if [ "$PLAN_MODE" = partial-destroy ] && [ "$PLAN_SHA256" != "$EXPECTED_PLAN_SHA256" ]; then
+  block deployment_plan_digest_mismatch
+fi
 
 AWS_REGION_SELECTED=${AWS_REGION:-${AWS_DEFAULT_REGION:-}}
 [ "$AWS_REGION_SELECTED" = "$EXPECTED_AWS_REGION" ] || block aws_region_mismatch
@@ -344,7 +368,7 @@ DEPLOYMENT_PLAN=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$T
 PLAN_AWS_VIP=""
 PLAN_SITE_LISTENERS=""
 PLAN_COMPLETE=$(jq -r 'if .complete == false then "false" else "true" end' <<<"$DEPLOYMENT_PLAN") || block deployment_plan_unreadable
-if [ "$PLAN_MODE" != destroy ] && { [ "$PLAN_COMPLETE" = true ] || [ "$EXECUTE_UAT" = true ]; }; then
+if [ "$PLAN_MODE" = apply ] && { [ "$PLAN_COMPLETE" = true ] || [ "$EXECUTE_UAT" = true ]; }; then
   PLAN_AWS_VIP=$(jq -er '(.planned_values.outputs.aws_vip.value // .prior_state.values.outputs.aws_vip.value) | select(type == "string" and length > 0)' \
     <<<"$DEPLOYMENT_PLAN" 2>/dev/null) || block plan_vip_identity_unavailable
   jq -en --arg vip "$PLAN_AWS_VIP" '
@@ -384,6 +408,27 @@ if [ "$PLAN_MODE" = destroy ]; then
       select(.change.before.namespace == "system") |
       .change.before.name
     ] | sort == $sites' <<<"$DEPLOYMENT_PLAN" >/dev/null || block task_site_identity_mismatch
+elif [ "$PLAN_MODE" = partial-destroy ]; then
+  jq -e '
+    [.resource_changes[]? |
+      select(.change.actions != ["no-op"] and .change.actions != ["read"])
+    ] as $changes |
+    ($changes | length) == 51 and
+    all($changes[]; .change.actions == ["delete"]) and
+    ([$changes[] |
+      select(.provider_name == "registry.terraform.io/hashicorp/aws")
+    ] | length) == 47 and
+    ([$changes[] |
+      select(.provider_name == "terraform.io/builtin/terraform")
+    ] | length) == 4 and
+    all($changes[];
+      if .provider_name == "registry.terraform.io/hashicorp/aws" then
+        (.address | startswith("aws_") or startswith("module.aws_tgw_connect"))
+      elif .provider_name == "terraform.io/builtin/terraform" then
+        .type == "terraform_data" and (.address | startswith("terraform_data.aws"))
+      else
+        false
+      end)' <<<"$DEPLOYMENT_PLAN" >/dev/null || block partial_destroy_plan_invalid
 else
   DIRECT_SITE_IDENTITIES=$(jq -c '
     [.resource_changes[]? |
