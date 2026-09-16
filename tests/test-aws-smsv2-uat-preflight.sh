@@ -93,7 +93,7 @@ show)
 output)
   case "$*" in
   *'-raw aws_workload_instance_id'*) printf 'i-workload\n' ;;
-  *'-raw origin_ip'*) printf '203.0.113.80\n' ;;
+  *'-raw aws_origin_public_ip'*) printf '203.0.113.80\n' ;;
   *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-10.151.1.10}" ;;
   *'-raw aws_lb_domain'*) printf 'aws.mcn-ce-ha.example.com\n' ;;
   *'-raw aws_smsv2_target_group_arn'*) printf 'arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:targetgroup/test/0123456789abcdef\n' ;;
