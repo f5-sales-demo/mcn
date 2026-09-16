@@ -135,7 +135,11 @@ expected names from the plan, not from stale state.
 The former Azure state was retired with the prior deployment. Start with a fresh,
 dedicated S3 bucket; do not reuse a shared bucket or resurrect an old state object.
 The bootstrap stack creates KMS encryption, version recovery, public-access blocks,
-TLS-only bucket access, and Terraform's native S3 lockfile.
+TLS-only bucket access, Terraform's native S3 lockfile, regional server-access logs,
+EventBridge object notifications, and a separately encrypted cross-region recovery
+replica. Replica and log bucket names are derived from the unique primary name, so
+the bootstrap remains non-interactive; `replica_region` defaults to `us-west-2` and
+must differ from the primary region.
 
 Run this once with reviewed AWS identity and a globally unique bucket name. The
 bootstrap initially uses local state only because it creates the backend itself:

@@ -8,6 +8,23 @@ output "kms_key_arn" {
   value       = aws_kms_key.state.arn
 }
 
+output "replica" {
+  description = "Cross-region recovery destination for encrypted state object versions."
+  value = {
+    bucket      = aws_s3_bucket.replica.bucket
+    region      = var.replica_region
+    kms_key_arn = aws_kms_key.replica.arn
+  }
+}
+
+output "access_log_buckets" {
+  description = "Regional server-access log sinks for the primary and replica state buckets."
+  value = {
+    primary = aws_s3_bucket.logging.bucket
+    replica = aws_s3_bucket.replica_logging.bucket
+  }
+}
+
 output "showcase_backend_hcl" {
   description = "Non-secret S3 backend settings for terraform/backend.hcl."
   value = {

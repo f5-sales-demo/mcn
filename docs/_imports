@@ -53,6 +53,10 @@ terraform/aws_vpc.tf -> terraform/aws_vpc.tf
 terraform/aws_xc.tf -> terraform/aws_xc.tf
 terraform/azure_marketplace_agreement.tf -> terraform/azure_marketplace_agreement.tf
 terraform/backend.tf -> terraform/backend.tf
+terraform/bootstrap/state-backend/main.tf -> terraform/bootstrap/state-backend/main.tf
+terraform/bootstrap/state-backend/outputs.tf -> terraform/bootstrap/state-backend/outputs.tf
+terraform/bootstrap/state-backend/variables.tf -> terraform/bootstrap/state-backend/variables.tf
+terraform/bootstrap/state-backend/versions.tf -> terraform/bootstrap/state-backend/versions.tf
 terraform/ca_ilb.tf -> terraform/ca_ilb.tf
 terraform/azure_ilb.tf -> terraform/azure_ilb.tf
 terraform/data.tf -> terraform/data.tf

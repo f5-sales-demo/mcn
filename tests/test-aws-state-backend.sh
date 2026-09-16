@@ -8,7 +8,10 @@ bootstrap="$repo_root/terraform/bootstrap/state-backend/main.tf"
 bootstrap_versions="$repo_root/terraform/bootstrap/state-backend/versions.tf"
 variables="$repo_root/terraform/bootstrap/state-backend/variables.tf"
 
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
 require() { grep -Fq "$1" "$2" || fail "missing $1 in $2"; }
 reject() { ! grep -Fq "$1" "$2" || fail "unexpected $1 in $2"; }
 
@@ -24,6 +27,7 @@ reject 'ARM_ACCESS_KEY' "$example"
 
 require 'resource "aws_kms_key" "state"' "$bootstrap"
 require 'enable_key_rotation' "$bootstrap"
+require 'policy                  = data.aws_iam_policy_document.state_kms.json' "$bootstrap"
 require 'resource "aws_s3_bucket" "state"' "$bootstrap"
 require 'resource "aws_s3_bucket_versioning" "state"' "$bootstrap"
 require 'status = "Enabled"' "$bootstrap"
@@ -38,8 +42,23 @@ require 'resource "aws_s3_bucket_lifecycle_configuration" "state"' "$bootstrap"
 require 'noncurrent_version_expiration' "$bootstrap"
 require 'resource "aws_s3_bucket_policy" "state"' "$bootstrap"
 require 'aws:SecureTransport' "$bootstrap"
+require 'resource "aws_s3_bucket_logging" "state"' "$bootstrap"
+require 'resource "aws_s3_bucket_notification" "state"' "$bootstrap"
+require 'eventbridge = true' "$bootstrap"
+require 'resource "aws_s3_bucket_replication_configuration" "state"' "$bootstrap"
+require 'source_selection_criteria' "$bootstrap"
+require 'sse_kms_encrypted_objects' "$bootstrap"
+require 'resource "aws_iam_role" "replication"' "$bootstrap"
+require 'resource "aws_s3_bucket" "replica"' "$bootstrap"
+require 'resource "aws_kms_key" "replica"' "$bootstrap"
+require 'replica_bucket_name         = "${var.bucket_name}-replica"' "$bootstrap"
+require 'logging_bucket_name         = "${var.bucket_name}-logs"' "$bootstrap"
+require 'replica_logging_bucket_name = "${var.bucket_name}-replica-logs"' "$bootstrap"
 require 'terraform state only after this bootstrap apply succeeds' "$bootstrap"
 require 'variable "bucket_name"' "$variables"
+require 'variable "replica_region"' "$variables"
+require 'variable "access_log_retention_days"' "$variables"
 require 'backend "s3" {}' "$bootstrap_versions"
+require 'alias  = "replica"' "$bootstrap_versions"
 
 printf 'PASS: AWS state backend is isolated, encrypted, versioned, and lockfile-protected\n'

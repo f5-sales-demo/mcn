@@ -9,6 +9,10 @@ sidebar:
 import { Aside } from "@astrojs/starlight/components";
 import { Code } from "@astrojs/starlight/components";
 import backend from "../../_data/terraform/backend.tf?raw";
+import backendBootstrapMain from "../../_data/terraform/bootstrap/state-backend/main.tf?raw";
+import backendBootstrapOutputs from "../../_data/terraform/bootstrap/state-backend/outputs.tf?raw";
+import backendBootstrapVariables from "../../_data/terraform/bootstrap/state-backend/variables.tf?raw";
+import backendBootstrapVersions from "../../_data/terraform/bootstrap/state-backend/versions.tf?raw";
 import data from "../../_data/terraform/data.tf?raw";
 import kvm from "../../_data/terraform/kvm.tf?raw";
 import kvmFrr from "../../_data/terraform/kvm_frr.tf?raw";
@@ -73,9 +77,22 @@ Imported, it never enters the page source at all.
 Dedicated AWS S3 backend; its configuration is supplied at init time and not
 committed. The separate `terraform/bootstrap/state-backend` stack creates its
 KMS-encrypted, versioned bucket and native lockfile support before the showcase
-is initialized.
+is initialized. It also configures server-access logging, EventBridge object
+notifications, and an independently encrypted cross-region recovery replica.
 
 <Code code={backend} lang="hcl" title="terraform/backend.tf" />
+
+### `terraform/bootstrap/state-backend`
+
+The bootstrap is fully declarative. It derives globally unique replica and log
+bucket names from the primary bucket, creates the regional KMS policies and S3
+controls, and exposes non-secret backend settings for both the showcase and the
+bootstrap state.
+
+<Code code={backendBootstrapVersions} lang="hcl" title="terraform/bootstrap/state-backend/versions.tf" />
+<Code code={backendBootstrapVariables} lang="hcl" title="terraform/bootstrap/state-backend/variables.tf" />
+<Code code={backendBootstrapMain} lang="hcl" title="terraform/bootstrap/state-backend/main.tf" />
+<Code code={backendBootstrapOutputs} lang="hcl" title="terraform/bootstrap/state-backend/outputs.tf" />
 
 ### `terraform/data.tf`
 
