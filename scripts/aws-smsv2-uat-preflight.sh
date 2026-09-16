@@ -564,7 +564,7 @@ status_plan() {
 
 WORKLOAD_INSTANCE_ID=$(tf output -raw aws_workload_instance_id 2>/dev/null) || block workload_identity_unavailable
 [ -n "$WORKLOAD_INSTANCE_ID" ] || block workload_identity_unavailable
-ORIGIN_IP=$(tf output -raw origin_ip 2>/dev/null) || block origin_identity_unavailable
+ORIGIN_IP=$(tf output -raw aws_origin_public_ip 2>/dev/null) || block origin_identity_unavailable
 [ -n "$ORIGIN_IP" ] || block origin_identity_unavailable
 AWS_VIP=$(tf output -raw aws_vip 2>/dev/null) || block vip_identity_unavailable
 [ "$AWS_VIP" = "$PLAN_AWS_VIP" ] || block vip_identity_mismatch

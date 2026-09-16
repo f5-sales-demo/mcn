@@ -157,12 +157,14 @@ resource "xcsh_origin_pool" "aws" {
 
   origin_servers {
     labels = {}
-    public_ip { ip = var.origin_ip }
+    public_ip { ip = aws_instance.origin[0].public_ip }
   }
 
   no_tls                 = {}
   loadbalancer_algorithm = "ROUND_ROBIN"
   endpoint_selection     = "DISTRIBUTED"
+
+  depends_on = [aws_instance.origin]
 }
 
 resource "xcsh_http_loadbalancer" "aws" {

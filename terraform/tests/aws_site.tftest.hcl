@@ -15,6 +15,12 @@ override_resource {
 
 override_resource {
   override_during = plan
+  target          = aws_instance.origin
+  values          = { public_ip = "198.51.100.10" }
+}
+
+override_resource {
+  override_during = plan
   target          = xcsh_token.aws["01"]
   values          = { uid = "test-site-token-01" }
 }
@@ -211,6 +217,16 @@ run "aws_site_and_resources" {
   assert {
     condition     = length(aws_vpc.workload) == 1 && length(aws_instance.workload) == 1 && length(aws_security_group.workload) == 1
     error_message = "AWS must plan a dedicated workload VPC and SSM client."
+  }
+
+  assert {
+    condition = (
+      length(aws_instance.origin) == 1 &&
+      length(aws_security_group.origin) == 1 &&
+      aws_instance.origin[0].iam_instance_profile == aws_iam_instance_profile.workload[0].name &&
+      xcsh_origin_pool.aws[0].origin_servers[0].public_ip.ip == aws_instance.origin[0].public_ip
+    )
+    error_message = "AWS-only traffic must use the owned AWS origin rather than the generic cross-cloud origin input."
   }
 }
 

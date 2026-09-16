@@ -279,6 +279,11 @@ output "aws_workload_private_ip" {
   value       = try(aws_instance.workload[0].private_ip, null)
 }
 
+output "aws_origin_public_ip" {
+  description = "Owned AWS HTTP origin used exclusively by the AWS SMSv2 showcase."
+  value       = try(aws_instance.origin[0].public_ip, null)
+}
+
 output "aws_site_names" {
   description = "Canonical independent AWS SecureMesh v2 site names."
   value       = { for key, site in local.aws_sites : key => site.name }
