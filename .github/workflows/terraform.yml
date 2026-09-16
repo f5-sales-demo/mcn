@@ -27,6 +27,8 @@ on:
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
       - 'tests/test-aws-state-backend.sh'
+      - 'tests/test-terraform-with-aws-sso.sh'
+      - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
       - '.github/workflows/terraform.yml'
@@ -46,6 +48,8 @@ on:
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
       - 'tests/test-aws-state-backend.sh'
+      - 'tests/test-terraform-with-aws-sso.sh'
+      - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
       - '.github/workflows/terraform.yml'
@@ -104,6 +108,10 @@ jobs:
       - name: AWS state backend contract
         working-directory: .
         run: bash tests/test-aws-state-backend.sh
+
+      - name: Terraform AWS SSO credential isolation
+        working-directory: .
+        run: bash tests/test-terraform-with-aws-sso.sh
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1

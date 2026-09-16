@@ -137,22 +137,22 @@ resource "aws_s3_bucket" "replica" {
 # S3 server-access log delivery requires an SSE-S3 destination. The logging
 # sink is purpose-specific, receives no application data, and is not recursively
 # logged, notified, or replicated.
-#checkov:skip=CKV_AWS_18: Logging a log-delivery sink would recursively generate access logs.
-#checkov:skip=CKV_AWS_144: The primary state bucket, not its access-log sink, is replicated cross-region.
-#checkov:skip=CKV_AWS_145: S3 server-access log delivery requires SSE-S3 on the destination bucket.
-#checkov:skip=CKV2_AWS_62: EventBridge notifications are enabled on the state bucket, not its log sink.
 resource "aws_s3_bucket" "logging" {
+  #checkov:skip=CKV_AWS_18: Logging a log-delivery sink would recursively generate access logs.
+  #checkov:skip=CKV_AWS_144: The primary state bucket, not its access-log sink, is replicated cross-region.
+  #checkov:skip=CKV_AWS_145: S3 server-access log delivery requires SSE-S3 on the destination bucket.
+  #checkov:skip=CKV2_AWS_62: EventBridge notifications are enabled on the state bucket, not its log sink.
   bucket = local.logging_bucket_name
   lifecycle {
     prevent_destroy = true
   }
 }
 
-#checkov:skip=CKV_AWS_18: Logging a log-delivery sink would recursively generate access logs.
-#checkov:skip=CKV_AWS_144: The replica state bucket, not its access-log sink, is the recovery destination.
-#checkov:skip=CKV_AWS_145: S3 server-access log delivery requires SSE-S3 on the destination bucket.
-#checkov:skip=CKV2_AWS_62: EventBridge notifications are enabled on the replica state bucket, not its log sink.
 resource "aws_s3_bucket" "replica_logging" {
+  #checkov:skip=CKV_AWS_18: Logging a log-delivery sink would recursively generate access logs.
+  #checkov:skip=CKV_AWS_144: The replica state bucket, not its access-log sink, is the recovery destination.
+  #checkov:skip=CKV_AWS_145: S3 server-access log delivery requires SSE-S3 on the destination bucket.
+  #checkov:skip=CKV2_AWS_62: EventBridge notifications are enabled on the replica state bucket, not its log sink.
   provider = aws.replica
   bucket   = local.replica_logging_bucket_name
   lifecycle {
