@@ -49,6 +49,10 @@ reject_text terraform/aws_tgw_connect.tf 'aggregation {'
 reject_text terraform/aws_tgw_connect.tf 'resource "xcsh_bgp_routing_policy" "aws_vip_export" {'
 reject_text terraform/aws_tgw_connect.tf 'routing_policies {'
 bgp_status=$(sed -n '/data "xcsh_site_bgp_status" "aws" {/,/^}/p' terraform/aws_tgw_connect.tf)
+grep -Fq 'timeout_seconds          = var.aws_bgp_convergence_timeout_seconds' <<<"$bgp_status" || {
+  printf 'BGP status must use the provider-bounded BGP convergence timeout\n' >&2
+  exit 1
+}
 for dependency in \
   'module.aws_tgw_connect' \
   'aws_ec2_transit_gateway_route_table_association.workload' \
@@ -60,11 +64,25 @@ for dependency in \
   }
 done
 require_text terraform/aws_ce.tf 'xcsh_site_cloud_init.aws'
+runtime_timeout=$(sed -n '/variable "aws_runtime_convergence_timeout_seconds" {/,/^}/p' terraform/variables_aws.tf)
+grep -Fq 'default     = 7200' <<<"$runtime_timeout" || {
+  printf 'Runtime readiness must retain the full 7200-second first-boot budget\n' >&2
+  exit 1
+}
+bgp_timeout=$(sed -n '/variable "aws_bgp_convergence_timeout_seconds" {/,/^}/p' terraform/variables_aws.tf)
+grep -Fq 'default     = 1800' <<<"$bgp_timeout" || {
+  printf 'BGP convergence must use the provider maximum 1800-second budget\n' >&2
+  exit 1
+}
 require_text terraform/aws_xc.tf 'resource "xcsh_token" "aws"'
 require_text terraform/aws_xc.tf 'type        = 1'
 require_text terraform/aws_xc.tf 'site_name   = xcsh_securemesh_site_v2.aws[each.key].name'
 require_text terraform/aws_xc.tf 'provider_ref              = "aws"'
 runtime_observation=$(sed -n '/data "xcsh_smsv2_aws_runtime" "aws" {/,/^}/p' terraform/aws_tgw_connect.tf)
+grep -Fq 'timeout_seconds       = var.aws_runtime_convergence_timeout_seconds' <<<"$runtime_observation" || {
+  printf 'AWS runtime observation must retain the full first-boot convergence timeout\n' >&2
+  exit 1
+}
 grep -Fq 'depends_on = [aws_instance.ce]' <<<"$runtime_observation" || {
   printf 'AWS runtime observation must wait for CE instances before polling F5 runtime health\n' >&2
   exit 1
