@@ -30,6 +30,29 @@ SH
 
 cat >"${BIN}/curl" <<'SH'
 #!/usr/bin/env bash
+set -euo pipefail
+output=""
+url=""
+while (($#)); do
+  case "$1" in
+  --output) output=$2; shift 2 ;;
+  --write-out) shift 2 ;;
+  -H | --header | --connect-timeout | --max-time | --config) shift 2 ;;
+  --silent | --show-error | -fsS) shift ;;
+  *) url=$1; shift ;;
+  esac
+done
+if [ -n "$output" ]; then
+  if [ "${FAKE_F5_COLLISION:-false}" = true ] && [[ $url == */securemesh_site_v2s/* ]]; then
+    name=${url##*/}
+    printf '{"metadata":{"name":"%s","namespace":"system"},"system_metadata":{"creator_id":"tester@example.test"}}\n' "$name" >"$output"
+    printf 200
+  else
+    : >"$output"
+    printf 404
+  fi
+  exit 0
+fi
 status=${FAKE_XC_PROTOCOL_STATUS:-Established}
 printf '{"ver":{"peers":[{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"}]}}\n' \
   "$status" "$status" "$status" "$status"
@@ -39,6 +62,7 @@ cat >"${BIN}/terraform" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 chdir=${1#-chdir=}
+chdir=$(cd "$chdir" && pwd -P)
 shift
 token_state=unset
 [ -n "${XCSH_API_TOKEN:-}" ] && token_state=present
@@ -77,7 +101,7 @@ show)
     elif [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01-registration","namespace":"system","site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     elif [ "${FAKE_INSTANCE_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     else
@@ -113,11 +137,12 @@ SH
 chmod 755 "${BIN}/aws" "${BIN}/curl" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
-export FAKE_TF_DIR="$TF_DIR"
+export FAKE_TF_DIR
+FAKE_TF_DIR=$(cd "$TF_DIR" && pwd -P)
 export FAKE_TF_CALLS="$TF_CALLS"
 export FAKE_CANDIDATE_BINARY="$CANDIDATE_BINARY"
 export AWS_REGION="ap-northeast-1"
-export XCSH_API_URL="https://lab.console.ves.volterra.io"
+export XCSH_API_URL="https://f5-sales-demo.console.ves.volterra.io"
 export XCSH_API_TOKEN="test-token-must-not-leak"
 
 common=(
@@ -125,7 +150,8 @@ common=(
   --plan-file "$PLAN_FILE"
   --expected-aws-account 111122223333
   --expected-aws-region ap-northeast-1
-  --expected-xc-tenant lab
+  --expected-xc-tenant f5-sales-demo
+  --creator-id tester@example.test
   --expected-site mcn-ce-ha-aws-ap-northeast-1-01
   --expected-site mcn-ce-ha-aws-ap-northeast-1-02
   --expected-site mcn-ce-ha-aws-ap-northeast-1-03
@@ -146,10 +172,12 @@ grep -Fq 'unknown argument' "$continuity_only_output" ||
 echo "ok - retired continuity-only mode is rejected cleanly"
 
 assert_sanitized() {
-  local evidence=$1 output=$2
-  [ "$(find "$evidence" -maxdepth 1 -type f -printf '%f\n')" = summary.json ] || fail "evidence contains unexpected files"
+  local evidence=$1 output=$2 evidence_files
+  evidence_files=$(find "$evidence" -maxdepth 1 -type f)
+  [ "$(printf '%s\n' "$evidence_files" | sed '/^$/d' | wc -l | tr -d ' ')" = 1 ] || fail "evidence contains unexpected files"
+  [ "$(basename "$evidence_files")" = summary.json ] || fail "evidence contains unexpected files"
   [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = provider_mode,provider_sha256,reason,status,timestamp ] || fail "summary has unexpected keys"
-  if grep -R -E '111122223333|mcn-ce-ha-aws-ap-northeast-1|test-token-must-not-leak|lab\.console\.ves\.volterra\.io' "$evidence" "$output"; then
+  if grep -R -E '111122223333|mcn-ce-ha-aws-ap-northeast-1|test-token-must-not-leak|f5-sales-demo\.console\.ves\.volterra\.io' "$evidence" "$output"; then
     fail "identity or credential leaked into sanitized evidence"
   fi
 }
@@ -167,6 +195,27 @@ assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
 echo "ok - exact v9.1.0 available contract passes with sanitized evidence"
+
+evidence="${TMP_ROOT}/owned-collision"
+mkdir "$evidence"
+output="${TMP_ROOT}/owned-collision.out"
+if FAKE_F5_COLLISION=true "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "creator-owned site collisions must block the production preflight"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = owned_name_collision ] ||
+  fail "owned collision reason not recorded"
+[ -f "$evidence/collision-manifest.json" ] || fail "owned collision manifest not retained"
+jq -e '
+  .status == "blocked" and
+  (.collisions | length) == 3 and
+  ([.collisions[].type] | all(. == "xcsh_securemesh_site_v2")) and
+  ([.collisions[].ownership] | all(. == "verified"))
+' "$evidence/collision-manifest.json" >/dev/null ||
+  fail "owned site collision manifest is incomplete"
+if grep -R -Fq 'test-token-must-not-leak' "$evidence" "$output"; then
+  fail "credential leaked into collision evidence"
+fi
+echo "ok - creator-owned site collisions block the production preflight with durable evidence"
 
 evidence="${TMP_ROOT}/no-change"
 mkdir "$evidence"
@@ -205,7 +254,7 @@ echo "ok - matching candidate artifact is selected explicitly and bound to evide
 
 context_home="${TMP_ROOT}/context-home"
 mkdir -p "${context_home}/.config/xcsh/contexts"
-printf '{"apiUrl":"https://lab.console.ves.volterra.io","apiToken":"context-token-must-not-leak"}\n' \
+printf '{"apiUrl":"https://f5-sales-demo.console.ves.volterra.io","apiToken":"context-token-must-not-leak"}\n' \
   >"${context_home}/.config/xcsh/contexts/context-test.json"
 evidence="${TMP_ROOT}/context-auth"
 mkdir "$evidence"
@@ -298,7 +347,8 @@ single_site=(
   --plan-file "$PLAN_FILE"
   --expected-aws-account 111122223333
   --expected-aws-region ap-northeast-1
-  --expected-xc-tenant lab
+  --expected-xc-tenant f5-sales-demo
+  --creator-id tester@example.test
   --expected-site mcn-ce-ha-aws-ap-northeast-1-01
 )
 evidence="${TMP_ROOT}/single-site"

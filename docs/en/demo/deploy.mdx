@@ -148,19 +148,10 @@ terraform init -upgrade -backend-config=backend.hcl
 terraform plan -var='enable_azure=false' -var='enable_kvm=false' -out="$PLAN_FILE"
 terraform show "$PLAN_FILE"
 
-# The collision guard renders this exact saved plan to a separate private
-# directory. It rejects any existing AWS or F5 object with the planned name,
-# including objects that are demonstrably owned by this deployment identity.
-# A collision is never imported or adopted.
-mkdir -p "$COLLISION_EVIDENCE_DIR"
-terraform show -json "$PLAN_FILE" > "$COLLISION_EVIDENCE_DIR/reviewed-plan.json"
-../scripts/aws-smsv2-owned-collision-preflight.sh \
-  --plan-json "$COLLISION_EVIDENCE_DIR/reviewed-plan.json" \
-  --aws-region '<AWS_REGION>' \
-  --xc-tenant '<XC_TENANT>' \
-  --creator-id "$XCSH_USERNAME" \
-  --manifest "$COLLISION_EVIDENCE_DIR/manifest.json"
-
+# The UAT preflight renders this exact saved plan and runs the ownership-aware
+# AWS/F5 name-collision gate before reporting ready. An owned collision retains
+# collision-manifest.json in the evidence directory and blocks apply; it is
+# never imported or adopted.
 ../scripts/aws-smsv2-uat-preflight.sh \
   --evidence-dir "$EVIDENCE_DIR" \
   --terraform-dir . \
@@ -168,14 +159,14 @@ terraform show -json "$PLAN_FILE" > "$COLLISION_EVIDENCE_DIR/reviewed-plan.json"
   --expected-aws-account '<AWS_ACCOUNT_ID>' \
   --expected-aws-region '<AWS_REGION>' \
   --expected-xc-tenant '<XC_TENANT>' \
+  --creator-id "$XCSH_USERNAME" \
   --expected-site '<AWS_SITE_01>' \
   --expected-site '<AWS_SITE_02>' \
   --expected-site '<AWS_SITE_03>'
 ```
 
-Inspect both preflight results. Continue only when the collision guard reports
-`ready` and the UAT guard reports `ready` with reason `preflight_passed`, then
-apply that same saved plan:
+Continue only when the UAT guard reports `ready` with reason
+`preflight_passed`, then apply that same saved plan:
 
 ```bash
 terraform apply "$PLAN_FILE"

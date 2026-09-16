@@ -63,10 +63,10 @@ done
 [[ -n ${XCSH_API_TOKEN:-} ]] || die "XCSH_API_TOKEN is required"
 for command in aws jq sha256sum; do command -v "$command" >/dev/null || die "required command is unavailable: $command"; done
 
-PLAN_JSON=$(realpath -e "$PLAN_JSON" 2>/dev/null) || die "plan JSON is unavailable"
-MANIFEST=$(realpath -m "$MANIFEST")
+PLAN_JSON=$(realpath "$PLAN_JSON" 2>/dev/null) || die "plan JSON is unavailable"
 [[ ! -e "$MANIFEST" ]] || die "manifest already exists; use a new evidence path"
 mkdir -p "$(dirname "$MANIFEST")"
+MANIFEST=$(cd "$(dirname "$MANIFEST")" && pwd)/$(basename "$MANIFEST")
 [[ ! -e "$MANIFEST" ]] || die "manifest already exists; use a new evidence path"
 jq -e 'type == "object" and (.resource_changes | type == "array")' "$PLAN_JSON" >/dev/null || die "plan JSON is invalid"
 
@@ -136,6 +136,7 @@ f5_endpoint() {
   xcsh_virtual_site) printf 'virtual_sites' ;;
   xcsh_origin_pool) printf 'origin_pools' ;;
   xcsh_http_loadbalancer) printf 'http_loadbalancers' ;;
+  xcsh_securemesh_site_v2) printf 'securemesh_site_v2s' ;;
   xcsh_token) printf 'tokens' ;;
   *) return 1 ;;
   esac
@@ -185,7 +186,7 @@ while IFS= read -r item; do
       [[ $status -eq 10 ]] || die "cannot inspect AWS collision candidate: $address"
     fi
     ;;
-  xcsh_virtual_site | xcsh_origin_pool | xcsh_http_loadbalancer | xcsh_token)
+  xcsh_virtual_site | xcsh_origin_pool | xcsh_http_loadbalancer | xcsh_securemesh_site_v2 | xcsh_token)
     name=$(jq -er '.name' <<<"$after") || die "planned name is invalid for $address"
     namespace=$(jq -er '.namespace' <<<"$after") || die "planned namespace is invalid for $address"
     endpoint=$(f5_endpoint "$type")
@@ -213,7 +214,7 @@ done < <(jq -c '
          .type == "aws_iam_instance_profile" or .type == "aws_lb" or
          .type == "aws_lb_target_group" or .type == "xcsh_virtual_site" or
          .type == "xcsh_origin_pool" or .type == "xcsh_http_loadbalancer" or
-         .type == "xcsh_token") |
+         .type == "xcsh_securemesh_site_v2" or .type == "xcsh_token") |
   {address, type, after:.change.after}' "$PLAN_JSON")
 
 collisions=$(jq -sc 'sort_by(.engine, .type, .address)' "$collisions_file")
