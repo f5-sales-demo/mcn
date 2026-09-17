@@ -326,8 +326,14 @@ unset CONTRACT
 PLAN_FILE=$(realpath -m "$PLAN_FILE")
 [ -f "$PLAN_FILE" ] || block deployment_plan_unavailable
 
-AWS_REGION_SELECTED=${AWS_REGION:-${AWS_DEFAULT_REGION:-}}
-[ "$AWS_REGION_SELECTED" = "$EXPECTED_AWS_REGION" ] || block aws_region_mismatch
+if [ -n "${AWS_REGION:-}" ] && [ "$AWS_REGION" != "$EXPECTED_AWS_REGION" ]; then
+  block aws_region_mismatch
+fi
+if [ -n "${AWS_DEFAULT_REGION:-}" ] && [ "$AWS_DEFAULT_REGION" != "$EXPECTED_AWS_REGION" ]; then
+  block aws_region_mismatch
+fi
+export AWS_REGION="$EXPECTED_AWS_REGION"
+export AWS_DEFAULT_REGION="$EXPECTED_AWS_REGION"
 AWS_IDENTITY=$(aws sts get-caller-identity --region "$EXPECTED_AWS_REGION" --output json 2>/dev/null) || block aws_identity_unavailable
 jq -e --arg expected "$EXPECTED_AWS_ACCOUNT" \
   'any(to_entries[]; .key == ("Acc" + "ount") and .value == $expected)' \
