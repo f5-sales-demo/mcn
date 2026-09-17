@@ -202,6 +202,10 @@ aws_identity_for() {
     jq -ec '{resource_uid:.TargetGroups[0].TargetGroupArn,created_at:null,
       creation_evidence:"not_exposed_by_elbv2_describe_target_groups"}' "$response"
     ;;
+  aws_eip)
+    jq -ec '{resource_uid:.Addresses[0].AllocationId,created_at:null,
+      creation_evidence:"not_exposed_by_ec2_describe_addresses"}' "$response"
+    ;;
   *) return 1 ;;
   esac
 }
@@ -224,6 +228,7 @@ aws_tags_for() {
     aws elbv2 describe-tags --resource-arns "$arn" --region "$AWS_REGION" --output json >"$tags_response" 2>/dev/null || return 1
     jq -ec '.TagDescriptions[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$tags_response"
     ;;
+  aws_eip) jq -ec '.Addresses[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
   *) return 1 ;;
   esac
 }
@@ -249,8 +254,9 @@ while IFS= read -r item; do
   type=$(jq -er '.type' <<<"$item") || die "plan resource type is invalid"
   address=$(jq -er '.address' <<<"$item") || die "plan resource address is invalid"
   after=$(jq -ec '.after' <<<"$item") || die "plan resource after value is invalid"
+  expected_tags=""
   case "$type" in
-  aws_key_pair | aws_iam_role | aws_iam_instance_profile | aws_lb | aws_lb_target_group)
+  aws_key_pair | aws_iam_role | aws_iam_instance_profile | aws_lb | aws_lb_target_group | aws_eip)
     case "$type" in
     aws_key_pair)
       name=$(jq -er '.key_name' <<<"$after")
@@ -272,11 +278,26 @@ while IFS= read -r item; do
       name=$(jq -er '.name' <<<"$after")
       lookup=(elbv2 describe-target-groups --names "$name")
       ;;
+    aws_eip)
+      # Elastic IPs have allocation IDs only after creation. The exact
+      # deployment tag tuple is therefore their planned identity; make that
+      # binding explicit in the evidence name for legacy-recovery validation.
+      name="${COMPONENT}-${DEPLOYMENT_GENERATION}-eip-${address}"
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t eip_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#eip_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-addresses --filters "${eip_tag_filters[@]}")
+      ;;
     esac
-    expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+    expected_tags=${expected_tags:-$(jq -ec '.tags // {}' <<<"$after")} || die "planned tags are invalid for $address"
     response="$SCRATCH/aws-${RANDOM}.json"
     error="$SCRATCH/aws-${RANDOM}.err"
     if aws_lookup "$response" "$error" "${lookup[@]}"; then
+      if [[ $type == aws_eip ]]; then
+        eip_matches=$(jq -er '.Addresses | length' "$response") || die "cannot read existing EIP candidates for $address"
+        [[ $eip_matches -eq 0 ]] && continue
+        [[ $eip_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple Elastic IPs match the planned ownership tags)"
+      fi
       actual_tags=$(aws_tags_for "$type" "$response") || die "cannot read tags for existing $address"
       require_aws_ownership "$expected_tags" "$actual_tags" "$name" || die "unowned or ambiguous AWS collision: $address ($name)"
       identity=$(aws_identity_for "$type" "$response") || die "cannot read provider identity for existing $address"
