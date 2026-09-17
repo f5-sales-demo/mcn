@@ -9,6 +9,8 @@ locals {
     "aws_key_pair",
     "aws_lb",
     "aws_lb_target_group",
+    "xcsh_bgp",
+    "xcsh_external_connector",
     "xcsh_http_loadbalancer",
     "xcsh_origin_pool",
     "xcsh_securemesh_site_v2",
