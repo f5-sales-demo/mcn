@@ -71,7 +71,7 @@ env:
 jobs:
   validate:
     name: validate
-    runs-on: managed-socketless
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: terraform
@@ -150,7 +150,7 @@ jobs:
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2
-    runs-on: managed-socketless
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: coverage/smsv2
