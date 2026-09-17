@@ -62,6 +62,15 @@ jq -e '
   ([.collisions[].resource_uid] | all(type == "string" and length > 0))
 ' "$MANIFEST" >/dev/null || die "ownership manifest is invalid or not recovery-authorized"
 
+jq -e '
+  (.collisions) as $collisions |
+  all($collisions[];
+    . as $collision |
+    .type != "aws_eip" or
+    (.attachment_instance_id? // "") == "" or
+    any($collisions[]; .type == "aws_instance" and .resource_uid == $collision.attachment_instance_id)
+  )
+' "$MANIFEST" >/dev/null || die "an attached EIP is missing its owning instance from the recovery manifest"
 jq -e 'type == "object" and (.resource_changes | type == "array")' "$PLAN_JSON" >/dev/null ||
   die "plan JSON is invalid"
 jq -e --arg version "$PATCHED_PROVIDER_VERSION" '
@@ -81,7 +90,8 @@ if [[ $MODE == import ]]; then
     type,
     address:(.type + ".recovery[" + (.address | @json) + "]"),
     id:(if .engine == "f5" then (.namespace + "/" + .name)
-        elif (.type == "aws_lb" or .type == "aws_lb_target_group" or .type == "aws_eip") then .resource_uid
+        elif (.type == "aws_lb" or .type == "aws_lb_target_group" or .type == "aws_eip" or
+              .type == "aws_instance") then .resource_uid
         else .name end)
   }] | sort_by(.address,.type,.id)' "$MANIFEST" >"$scratch/expected.json"
   jq -cS '[.resource_changes[] | {address,type,id:.change.importing.id}] | sort_by(.address,.type,.id)' \
@@ -94,7 +104,7 @@ else
   jq -cS '[.collisions[] | {
     type,
     address:(.type + ".recovery[" + (.address | @json) + "]"),
-    name:(if .type == "aws_eip" then .resource_uid else .name end)
+    name:(if .type == "aws_eip" or .type == "aws_instance" then .resource_uid else .name end)
   }] | sort_by(.address,.type,.name)' "$MANIFEST" >"$scratch/expected.json"
   jq -cS '[.resource_changes[] | {
     address,type,name:(.change.before.name // .change.before.key_name // .change.before.allocation_id // .change.before.id // "")
