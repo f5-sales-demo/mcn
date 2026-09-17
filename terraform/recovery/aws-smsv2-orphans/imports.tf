@@ -69,3 +69,15 @@ import {
   to       = xcsh_http_loadbalancer.recovery[each.key]
   id       = "${each.value.namespace}/${each.value.name}"
 }
+
+import {
+  for_each = local.collisions_by_type.xcsh_external_connector
+  to       = xcsh_external_connector.recovery[each.key]
+  id       = "${each.value.namespace}/${each.value.name}"
+}
+
+import {
+  for_each = local.collisions_by_type.xcsh_bgp
+  to       = xcsh_bgp.recovery[each.key]
+  id       = "${each.value.namespace}/${each.value.name}"
+}

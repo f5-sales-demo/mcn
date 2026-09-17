@@ -187,3 +187,33 @@ resource "xcsh_http_loadbalancer" "recovery" {
     ignore_changes = all
   }
 }
+
+# BGP is intentionally dependent on its connector so a reviewed destroy plan
+# removes the BGP object first, before retiring the connector it references.
+resource "xcsh_external_connector" "recovery" {
+  for_each  = local.collisions_by_type.xcsh_external_connector
+  name      = each.value.name
+  namespace = each.value.namespace
+  labels    = each.value.observed_labels
+  depends_on = [
+    xcsh_securemesh_site_v2.recovery,
+  ]
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
+resource "xcsh_bgp" "recovery" {
+  for_each  = local.collisions_by_type.xcsh_bgp
+  name      = each.value.name
+  namespace = each.value.namespace
+  labels    = each.value.observed_labels
+  depends_on = [
+    xcsh_external_connector.recovery,
+  ]
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
