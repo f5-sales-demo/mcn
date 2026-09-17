@@ -15,6 +15,7 @@ run "plans_two_role_connect_attachments_and_explicit_routing" {
     transit_gateway_cidr_block = "100.64.0.0/24"
     transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-b", "subnet-plan-c"]
     name_prefix                = "mcn-plan-test"
+    ownership_tags             = { "mcn-generation" = "test-generation", "mcn-managed-by" = "terraform" }
   }
 
   assert {
@@ -56,6 +57,7 @@ run "rejects_duplicate_or_incomplete_transport_subnets" {
     transit_gateway_cidr_block = "100.64.0.0/24"
     transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-a", "subnet-plan-b"]
     name_prefix                = "mcn-plan-test"
+    ownership_tags             = { "mcn-generation" = "test-generation", "mcn-managed-by" = "terraform" }
   }
 
   expect_failures = [var.transport_subnet_ids]
@@ -74,6 +76,7 @@ run "rejects_invalid_amazon_side_asn" {
     transit_gateway_cidr_block = "100.64.0.0/24"
     transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-b", "subnet-plan-c"]
     name_prefix                = "mcn-plan-test"
+    ownership_tags             = { "mcn-generation" = "test-generation", "mcn-managed-by" = "terraform" }
   }
 
   expect_failures = [var.amazon_side_asn]
@@ -92,6 +95,7 @@ run "rejects_invalid_tgw_cidr" {
     transit_gateway_cidr_block = "not-a-cidr"
     transport_subnet_ids       = ["subnet-plan-a", "subnet-plan-b", "subnet-plan-c"]
     name_prefix                = "mcn-plan-test"
+    ownership_tags             = { "mcn-generation" = "test-generation", "mcn-managed-by" = "terraform" }
   }
 
   expect_failures = [var.transit_gateway_cidr_block]

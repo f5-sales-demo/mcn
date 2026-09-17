@@ -30,3 +30,8 @@ variable "name_prefix" {
   description = "Non-sensitive prefix used only for AWS resource tags."
   type        = string
 }
+
+variable "ownership_tags" {
+  description = "Immutable parent ownership tags required on every taggable TGW resource."
+  type        = map(string)
+}

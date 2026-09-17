@@ -135,6 +135,7 @@ module "aws_tgw_connect" {
   transit_gateway_cidr_block = var.aws_tgw_gre_cidr
   transport_subnet_ids       = aws_subnet.private_sli[*].id
   name_prefix                = local.aws_resource_prefix
+  ownership_tags             = local.tags
   depends_on                 = [terraform_data.aws_tgw_contract_gate]
 }
 

@@ -340,6 +340,163 @@ while IFS= read -r item; do
     append_aws_collision "$type" "$address" "${role_name}/${policy_arn}" "$expected_tags" "$actual_tags" "$identity"
     continue
   fi
+  if [[ $type == aws_ec2_transit_gateway_route_table_association || $type == aws_ec2_transit_gateway_route_table_propagation ]]; then
+    relation_config_address=$address
+    if [[ $relation_config_address == *'['*']' ]]; then
+      relation_config_address=${relation_config_address%\[*}
+    fi
+    if [[ $relation_config_address == module.* ]]; then
+      relation_config_address=${relation_config_address##*]}
+      relation_config_address=${relation_config_address#.}
+    fi
+    attachment_reference=$(jq -er --arg address "$relation_config_address" '
+      .configuration.root_module | .. | objects | select(.address? == $address) |
+      .expressions.transit_gateway_attachment_id.references[0] // empty
+    ' "$PLAN_JSON") || die "planned TGW relation attachment reference is unavailable for $address"
+    if [[ $attachment_reference == each.value.id ]]; then
+      module_prefix=${address%%.aws_ec2_transit_gateway_route_table_*}
+      jq -e --arg module "$module_prefix" '
+        .resource_changes[] | select(.address | startswith($module + ".aws_ec2_transit_gateway_connect.")) |
+        select(.change.actions == ["create"])
+      ' "$PLAN_JSON" >/dev/null || die "planned TGW module relation is not bound to collision-checked Connect attachments: $address"
+    else
+      attachment_address=${attachment_reference%.id}
+      if [[ $attachment_address == aws_ec2_transit_gateway_* && $address == module.* ]]; then
+        module_prefix=${address%%.aws_ec2_transit_gateway_route_table_*}
+        attachment_address="${module_prefix}.${attachment_address}"
+      fi
+      jq -e --arg address "$attachment_address" '
+        .resource_changes[] | select(.address == $address and
+          (.type == "aws_ec2_transit_gateway_vpc_attachment" or .type == "aws_ec2_transit_gateway_connect") and
+          .change.actions == ["create"])
+      ' "$PLAN_JSON" >/dev/null || die "planned TGW relation is not bound to a collision-checked attachment: $address"
+    fi
+    route_reference=$(jq -er --arg address "$relation_config_address" '
+      .configuration.root_module | .. | objects | select(.address? == $address) |
+      .expressions.transit_gateway_route_table_id.references[0] // empty
+    ' "$PLAN_JSON") || die "planned TGW relation route-table reference is unavailable for $address"
+    route_address=${route_reference%.id}
+    if [[ $route_address == module.*.route_table_id ]]; then
+      module_prefix=${route_address%.route_table_id}
+      route_address="${module_prefix}.aws_ec2_transit_gateway_route_table.this"
+    elif [[ $route_address == aws_ec2_transit_gateway_route_table.* ]]; then
+      module_prefix=${address%%.aws_ec2_transit_gateway_route_table_*}
+      route_address="${module_prefix}.${route_address}"
+    fi
+    jq -e --arg address "$route_address" '
+      .resource_changes[] | select(.address == $address and .type == "aws_ec2_transit_gateway_route_table" and .change.actions == ["create"])
+    ' "$PLAN_JSON" >/dev/null || die "planned TGW relation is not bound to a collision-checked route table: $address"
+    continue
+  fi
+  if [[ $type == aws_lb_listener ]]; then
+    listener_config_address=${address%%\[*}
+    lb_reference=$(jq -er --arg address "$listener_config_address" '.configuration.root_module.resources[] | select(.address == $address) | .expressions.load_balancer_arn.references[0] // empty' "$PLAN_JSON") || die "planned listener load-balancer reference is unavailable for $address"
+    target_reference=$(jq -er --arg address "$listener_config_address" '.configuration.root_module.resources[] | select(.address == $address) | .expressions.default_action[0].target_group_arn.references[0] // empty' "$PLAN_JSON") || die "planned listener target-group reference is unavailable for $address"
+    lb_address=${lb_reference%.arn}
+    target_address=${target_reference%.arn}
+    jq -e --arg lb "$lb_address" --arg target "$target_address" '
+      any(.resource_changes[]; .address == $lb and .type == "aws_lb" and .change.actions == ["create"]) and
+      any(.resource_changes[]; .address == $target and .type == "aws_lb_target_group" and .change.actions == ["create"])
+    ' "$PLAN_JSON" >/dev/null || die "planned listener is not bound to collision-checked NLB and target group: $address"
+    continue
+  fi
+  if [[ $type == aws_ec2_transit_gateway || $type == aws_ec2_transit_gateway_route_table || $type == aws_ec2_transit_gateway_connect ]]; then
+    expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+    name=$(jq -er '.Name' <<<"$expected_tags") || die "planned TGW Name tag is unavailable for $address"
+    response="$SCRATCH/aws-tgw-tagged-${RANDOM}.json"
+    case "$type" in
+    aws_ec2_transit_gateway)
+      aws ec2 describe-transit-gateways --region "$AWS_REGION" --output json >"$response" 2>/dev/null || die "cannot inspect AWS Transit Gateway candidates for $address"
+      collection="TransitGateways"
+      id_field="TransitGatewayId"
+      ;;
+    aws_ec2_transit_gateway_route_table)
+      aws ec2 describe-transit-gateway-route-tables --region "$AWS_REGION" --output json >"$response" 2>/dev/null || die "cannot inspect AWS TGW route-table candidates for $address"
+      collection="TransitGatewayRouteTables"
+      id_field="TransitGatewayRouteTableId"
+      ;;
+    aws_ec2_transit_gateway_connect)
+      aws ec2 describe-transit-gateway-attachments --region "$AWS_REGION" --output json >"$response" 2>/dev/null || die "cannot inspect AWS TGW Connect attachment candidates for $address"
+      collection="TransitGatewayAttachments"
+      id_field="TransitGatewayAttachmentId"
+      ;;
+    esac
+    matches=$(jq -ec --arg collection "$collection" --arg id_field "$id_field" --argjson expected "$expected_tags" '
+      [.[$collection][]? | (.Tags // [] | map({key:.Key,value:.Value}) | from_entries) as $tags |
+       select($tags == $expected) | {id:.[ $id_field ],tags:$tags}]
+    ' "$response") || die "cannot normalize AWS TGW tagged candidates for $address"
+    match_count=$(jq -er 'length' <<<"$matches") || die "cannot count AWS TGW tagged candidates for $address"
+    [[ $match_count -eq 0 ]] && continue
+    [[ $match_count -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple TGW resources match exact ownership tags)"
+    actual_tags=$(jq -ec '.[0].tags' <<<"$matches") || die "cannot read AWS TGW ownership tags for $address"
+    require_aws_ownership "$expected_tags" "$actual_tags" "$name" || die "unowned or ambiguous AWS collision: $address ($name)"
+    identity=$(jq -ec '.[0] | {resource_uid:.id,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_transit_gateway_inventory"}' <<<"$matches") || die "cannot read AWS TGW identity for $address"
+    append_aws_collision "$type" "$address" "$name" "$expected_tags" "$actual_tags" "$identity"
+    continue
+  fi
+  if [[ $type == terraform_data ]]; then
+    case "$address" in
+    terraform_data.aws_tgw_contract_gate[[]0[]] | terraform_data.aws_tgw_runtime_gate[[]0[]] | terraform_data.aws_tgw_site_route_gate[[]*[]])
+      continue
+      ;;
+    *) die "preflight has no complete ownership adapter for internal Terraform data resource: $address" ;;
+    esac
+  fi
+  if [[ $type == aws_lb_target_group_attachment ]]; then
+    attachment_config_address=${address%%\[*}
+    target_group_reference=$(jq -er --arg address "$attachment_config_address" '.configuration.root_module.resources[] | select(.address == $address) | .expressions.target_group_arn.references[0] // empty' "$PLAN_JSON") || die "planned target attachment target-group reference is unavailable for $address"
+    target_group_address=${target_group_reference%.arn}
+    target_id=$(jq -er '.target_id' <<<"$after") || die "planned target attachment target identity is unavailable for $address"
+    jq -e --arg group "$target_group_address" --arg target "$target_id" '
+      any(.resource_changes[]; .address == $group and .type == "aws_lb_target_group" and .change.actions == ["create"]) and
+      any(.resource_changes[]; .type == "aws_network_interface" and (((.change.after.private_ips // []) | index($target)) != null))
+    ' "$PLAN_JSON" >/dev/null || die "planned target attachment is not bound to collision-checked target group and CE listener ENI: $address"
+    continue
+  fi
+  if [[ $type == aws_ec2_transit_gateway_vpc_attachment ]]; then
+    expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+    name=$(jq -er '.Name' <<<"$expected_tags") || die "planned TGW VPC attachment Name tag is unavailable for $address"
+    response="$SCRATCH/aws-tgw-attachments-${RANDOM}.json"
+    aws ec2 describe-transit-gateway-attachments --region "$AWS_REGION" --output json >"$response" 2>/dev/null ||
+      die "cannot inspect AWS TGW attachment candidates for $address"
+    matches=$(jq -ec --argjson expected "$expected_tags" '
+      [.TransitGatewayAttachments[]? |
+       (.Tags // [] | map({key:.Key,value:.Value}) | from_entries) as $tags |
+       select($tags == $expected) |
+       {id:.TransitGatewayAttachmentId,tags:$tags}]
+    ' "$response") || die "cannot normalize AWS TGW attachment candidates for $address"
+    match_count=$(jq -er 'length' <<<"$matches") || die "cannot count AWS TGW attachment candidates for $address"
+    [[ $match_count -eq 0 ]] && continue
+    [[ $match_count -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple TGW attachments match the exact ownership tags)"
+    actual_tags=$(jq -ec '.[0].tags' <<<"$matches") || die "cannot read AWS TGW attachment ownership tags for $address"
+    require_aws_ownership "$expected_tags" "$actual_tags" "$name" || die "unowned or ambiguous AWS collision: $address ($name)"
+    identity=$(jq -ec '.[0] | {resource_uid:.id,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_transit_gateway_attachments"}' <<<"$matches") ||
+      die "cannot read AWS TGW attachment identity for $address"
+    append_aws_collision "$type" "$address" "$name" "$expected_tags" "$actual_tags" "$identity"
+    continue
+  fi
+  if [[ $type == aws_ec2_transit_gateway_connect_peer ]]; then
+    expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+    name=$(jq -er '.Name' <<<"$expected_tags") || die "planned Connect peer Name tag is unavailable for $address"
+    response="$SCRATCH/aws-connect-peers-${RANDOM}.json"
+    aws ec2 describe-transit-gateway-connect-peers --region "$AWS_REGION" --output json >"$response" 2>/dev/null ||
+      die "cannot inspect AWS Connect-peer candidates for $address"
+    matches=$(jq -ec --argjson expected "$expected_tags" '
+      [.TransitGatewayConnectPeers[]? |
+       (.Tags // [] | map({key:.Key,value:.Value}) | from_entries) as $tags |
+       select($tags == $expected) |
+       {id:.TransitGatewayConnectPeerId,tags:$tags}]
+    ' "$response") || die "cannot normalize AWS Connect-peer candidates for $address"
+    match_count=$(jq -er 'length' <<<"$matches") || die "cannot count AWS Connect-peer candidates for $address"
+    [[ $match_count -eq 0 ]] && continue
+    [[ $match_count -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple Connect peers match the exact ownership tags)"
+    actual_tags=$(jq -ec '.[0].tags' <<<"$matches") || die "cannot read AWS Connect-peer ownership tags for $address"
+    require_aws_ownership "$expected_tags" "$actual_tags" "$name" || die "unowned or ambiguous AWS collision: $address ($name)"
+    identity=$(jq -ec '.[0] | {resource_uid:.id,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_transit_gateway_connect_peers"}' <<<"$matches") ||
+      die "cannot read AWS Connect-peer identity for $address"
+    append_aws_collision "$type" "$address" "$name" "$expected_tags" "$actual_tags" "$identity"
+    continue
+  fi
   case "$type" in
   aws_key_pair | aws_iam_role | aws_iam_instance_profile | aws_lb | aws_lb_target_group | aws_eip | aws_instance | aws_internet_gateway | aws_network_interface | aws_route_table | aws_security_group | aws_subnet | aws_vpc | aws_iam_role_policy)
     case "$type" in
