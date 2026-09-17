@@ -1,3 +1,13 @@
+resource "aws_eip" "recovery" {
+  for_each = local.collisions_by_type.aws_eip
+  domain   = "vpc"
+  tags     = each.value.observed_tags
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
 resource "aws_key_pair" "recovery" {
   for_each   = local.collisions_by_type.aws_key_pair
   key_name   = each.value.name

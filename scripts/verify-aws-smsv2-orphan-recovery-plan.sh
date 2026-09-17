@@ -81,7 +81,7 @@ if [[ $MODE == import ]]; then
     type,
     address:(.type + ".recovery[" + (.address | @json) + "]"),
     id:(if .engine == "f5" then (.namespace + "/" + .name)
-        elif (.type == "aws_lb" or .type == "aws_lb_target_group") then .resource_uid
+        elif (.type == "aws_lb" or .type == "aws_lb_target_group" or .type == "aws_eip") then .resource_uid
         else .name end)
   }] | sort_by(.address,.type,.id)' "$MANIFEST" >"$scratch/expected.json"
   jq -cS '[.resource_changes[] | {address,type,id:.change.importing.id}] | sort_by(.address,.type,.id)' \
@@ -94,10 +94,10 @@ else
   jq -cS '[.collisions[] | {
     type,
     address:(.type + ".recovery[" + (.address | @json) + "]"),
-    name:.name
+    name:(if .type == "aws_eip" then .resource_uid else .name end)
   }] | sort_by(.address,.type,.name)' "$MANIFEST" >"$scratch/expected.json"
   jq -cS '[.resource_changes[] | {
-    address,type,name:(.change.before.name // .change.before.key_name // "")
+    address,type,name:(.change.before.name // .change.before.key_name // .change.before.allocation_id // .change.before.id // "")
   }] | sort_by(.address,.type,.name)' "$PLAN_JSON" >"$scratch/actual.json"
   allowed_actions='["delete"]'
 fi

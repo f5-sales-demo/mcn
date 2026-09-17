@@ -20,9 +20,11 @@ import_count=$(grep -hEc '^import \{' "$recovery_root"/*.tf | awk '{ count += $1
 ignore_count=$(grep -hEc '^[[:space:]]*ignore_changes[[:space:]]*=[[:space:]]*all$' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 data_lb_count=$(grep -hEc '^data "aws_lb" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 data_target_group_count=$(grep -hEc '^data "aws_lb_target_group" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
-[[ $resource_count -eq 10 ]] || fail "recovery root must declare exactly ten supported resource types"
-[[ $import_count -eq 10 ]] || fail "recovery root must declare exactly ten configuration-driven import blocks"
-[[ $ignore_count -eq 10 ]] || fail "every recovery resource must ignore drift during adoption"
+[[ $resource_count -eq 11 ]] || fail "recovery root must declare exactly eleven supported resource types"
+[[ $import_count -eq 11 ]] || fail "recovery root must declare exactly eleven configuration-driven import blocks"
+[[ $ignore_count -eq 11 ]] || fail "every recovery resource must ignore drift during adoption"
+grep -Eq 'aws_eip' "$recovery_root/imports.tf" || fail "recovery must import verified legacy EIPs"
+grep -Eq 'aws_eip' "$recovery_root/resources.tf" || fail "recovery must configure verified legacy EIPs"
 [[ $data_lb_count -eq 1 ]] || fail "recovery must read the existing load-balancer shape for an import-only plan"
 [[ $data_target_group_count -eq 1 ]] || fail "recovery must read the existing target-group shape for an import-only plan"
 grep -Eq 'subnets[[:space:]]*=[[:space:]]*data\.aws_lb\.recovery' "$recovery_root/resources.tf" ||
@@ -53,6 +55,10 @@ jq -n '{
      namespace:null,ownership:"verified",resource_uid:"key-0123456789abcdef0",
      created_at:"2026-09-16T12:00:00Z",creation_evidence:"ec2.describe-key-pairs.CreateTime",
      generation_binding:"saved_plan_name_and_legacy_ownership",observed_tags:{component:"mcn-ce-ha"}},
+    {engine:"aws",type:"aws_eip",address:"aws_eip.ce[0]",name:"mcn-ce-ha-aws-ce-1-eip",
+     namespace:null,ownership:"verified",resource_uid:"eipalloc-0123456789abcdef0",
+     created_at:"2026-09-16T12:00:00Z",creation_evidence:"ec2.describe-addresses.AllocationId",
+     generation_binding:"saved_plan_name_and_legacy_ownership",observed_tags:{component:"mcn-ce-ha",managed_by:"terraform"}},
     {engine:"f5",type:"xcsh_token",address:"xcsh_token.aws[\"01\"]",name:"mcn-ce-ha-gen-01-token",
      namespace:"system",ownership:"verified",resource_uid:"11111111-1111-1111-1111-111111111111",
      created_at:"2026-09-16T12:00:00Z",creation_evidence:"system_metadata.creation_timestamp",
@@ -65,12 +71,14 @@ jq -n '{format_version:"1.2",terraform_version:"1.16.3",
   resource_changes:[
   {address:"aws_key_pair.recovery[\"aws_key_pair.ce[0]\"]",type:"aws_key_pair",
    change:{actions:["no-op"],importing:{id:"mcn-ce-ha-gen-01-key"}}},
+  {address:"aws_eip.recovery[\"aws_eip.ce[0]\"]",type:"aws_eip",
+   change:{actions:["no-op"],importing:{id:"eipalloc-0123456789abcdef0"}}},
   {address:"xcsh_token.recovery[\"xcsh_token.aws[\\\"01\\\"]\"]",type:"xcsh_token",
    change:{actions:["no-op"],importing:{id:"system/mcn-ce-ha-gen-01-token"}}}
 ]}' >"$plan"
 
 "$verifier" --mode import --plan-json "$plan" --manifest "$manifest" --receipt "$receipt"
-jq -e '.schema_version == 1 and .status == "ready" and .mode == "import" and .resource_count == 2 and
+jq -e '.schema_version == 1 and .status == "ready" and .mode == "import" and .resource_count == 3 and
   (.plan_sha256 | startswith("sha256:")) and (.manifest_sha256 | startswith("sha256:"))' \
   "$receipt" >/dev/null || fail "recovery receipt does not bind the exact plan and manifest"
 
@@ -96,12 +104,14 @@ jq -n '{format_version:"1.2",terraform_version:"1.16.3",
   resource_changes:[
     {address:"aws_key_pair.recovery[\"aws_key_pair.ce[0]\"]",type:"aws_key_pair",
      change:{actions:["delete"],before:{id:"mcn-ce-ha-gen-01-key",key_name:"mcn-ce-ha-gen-01-key"},after:null}},
+    {address:"aws_eip.recovery[\"aws_eip.ce[0]\"]",type:"aws_eip",
+     change:{actions:["delete"],before:{id:"eipalloc-0123456789abcdef0",allocation_id:"eipalloc-0123456789abcdef0"},after:null}},
     {address:"xcsh_token.recovery[\"xcsh_token.aws[\\\"01\\\"]\"]",type:"xcsh_token",
      change:{actions:["delete"],before:{id:"mcn-ce-ha-gen-01-token",name:"mcn-ce-ha-gen-01-token"},after:null}}
   ]}' >"$destroy_plan"
 "$verifier" --mode destroy --plan-json "$destroy_plan" --manifest "$manifest" \
   --receipt "$destroy_receipt"
-jq -e '.status == "ready" and .mode == "destroy" and .resource_count == 2 and
+jq -e '.status == "ready" and .mode == "destroy" and .resource_count == 3 and
   .allowed_actions == ["delete"]' "$destroy_receipt" >/dev/null ||
   fail "destroy receipt does not prove an exact manifest-bound deletion"
 
