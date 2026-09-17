@@ -108,7 +108,6 @@ if [[ $(jq -er 'length' <<<"$replacement_sites") -ne 0 ]]; then
   die "planned SecureMesh site replacement is prohibited before mutation: $replacement_sites"
 fi
 
-
 caller_identity=$(aws sts get-caller-identity --output json 2>/dev/null) || die "cannot verify AWS caller identity"
 actual_aws_account_id=$(jq -er '.Account | select(type == "string")' <<<"$caller_identity") ||
   die "AWS caller identity did not include an account ID"
