@@ -42,7 +42,9 @@ chdir=${1#-chdir=}
 shift
 token_state=unset
 [ -n "${XCSH_API_TOKEN:-}" ] && token_state=present
-printf '%s\t%s\t%s\n' "$1" "${TF_CLI_CONFIG_FILE:-unset}" "$token_state" >>"$FAKE_TF_CALLS"
+api_url_state=unset
+[ -n "${XCSH_API_URL:-}" ] && api_url_state=present
+printf '%s\t%s\t%s\t%s\n' "$1" "${TF_CLI_CONFIG_FILE:-unset}" "$token_state" "$api_url_state" >>"$FAKE_TF_CALLS"
 case "$1" in
 init)
   exit 0
@@ -236,10 +238,12 @@ fi
   fail "context-auth UAT did not reach topology validation"
 awk -F '\t' '$1 == "output" { found=1; if ($3 != "present") bad=1 } END { exit bad || !found }' "$TF_CALLS" ||
   fail "context-derived token did not reach live Terraform operations"
+awk -F '\t' '$1 == "output" { found=1; if ($4 != "present") bad=1 } END { exit bad || !found }' "$TF_CALLS" ||
+  fail "context-derived API URL did not reach live Terraform operations"
 if grep -Fq 'context-token-must-not-leak' "$output" "$evidence/summary.json"; then
   fail "context-derived token leaked into sanitized output"
 fi
-echo "ok - context-derived authentication reaches live Terraform operations"
+echo "ok - context-derived authentication and API URL reach live Terraform operations"
 
 candidate_failure() {
   local name=$1 reason=$2

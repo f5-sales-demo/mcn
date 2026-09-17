@@ -472,7 +472,7 @@ verify_mutation_identities() {
 }
 
 tf() {
-  TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" XCSH_API_TOKEN="$API_TOKEN" \
+  TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" XCSH_API_URL="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
     terraform -chdir="$TERRAFORM_DIR" "$@"
 }
 
