@@ -36,7 +36,10 @@ locals {
   aws_discovered_networks = {
     for key, registration in data.xcsh_site_registrations_by_site.aws :
     key => flatten([
-      for item in registration.items : try(item.get_spec.infra.hw_info.network, [])
+      # Newly created sites have no registration observation. The data source
+      # represents that as null, which is an empty inventory rather than a
+      # plan-time error; the configured-phase checks below still reject it.
+      for item in coalesce(try(registration.items, null), []) : try(item.get_spec.infra.hw_info.network, [])
     ])
   }
   # Preserve each full matching record so the configured phase can reject a

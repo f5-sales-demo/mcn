@@ -21,6 +21,11 @@ reject "variable \"aws_smsv2_devices\"" "$variables"
 require "data \"xcsh_site_registrations_by_site\" \"aws\"" "$aws_xc"
 require "aws_discovered_device_candidates" "$aws_xc"
 require "aws_discovered_devices" "$aws_xc"
+# A newly created site has no registration observations yet. The provider
+# represents that as items = null, which must mean an empty inventory during
+# planning rather than an iteration error. The later exact-MAC guard remains
+# responsible for rejecting a configured topology before mutation.
+require "for item in coalesce(try(registration.items, null), [])" "$aws_xc"
 require "mac_address" "$aws_xc"
 require "aws_network_interface.slo" "$aws_xc"
 require "aws_network_interface.sli" "$aws_xc"
