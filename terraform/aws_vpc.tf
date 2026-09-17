@@ -421,6 +421,7 @@ resource "aws_iam_instance_profile" "workload" {
   count = var.enable_aws ? 1 : 0
   name  = "${local.aws_resource_prefix}-aws-workload-ssm"
   role  = aws_iam_role.workload[0].name
+  tags  = local.tags
 }
 
 resource "aws_instance" "workload" {

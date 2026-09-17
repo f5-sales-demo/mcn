@@ -25,11 +25,37 @@ CANDIDATE_SHA256="sha256:$(sha256sum "$CANDIDATE_BINARY" | awk '{print $1}')"
 
 cat >"${BIN}/aws" <<'SH'
 #!/usr/bin/env bash
-printf '{"%s":"%s"}\n' 'Acc''ount' "${FAKE_AWS_ACCOUNT:-111122223333}"
+case "$*" in
+*"describe-vpcs"*) printf '{"Vpcs":[]}\n' ;;
+*) printf '{"%s":"%s"}\n' 'Acc''ount' "${FAKE_AWS_ACCOUNT:-111122223333}" ;;
+esac
 SH
 
 cat >"${BIN}/curl" <<'SH'
 #!/usr/bin/env bash
+set -euo pipefail
+output=""
+url=""
+while (($#)); do
+  case "$1" in
+  --output) output=$2; shift 2 ;;
+  --write-out) shift 2 ;;
+  -H | --header | --connect-timeout | --max-time | --config) shift 2 ;;
+  --silent | --show-error | -fsS) shift ;;
+  *) url=$1; shift ;;
+  esac
+done
+if [ -n "$output" ]; then
+  if [ "${FAKE_F5_COLLISION:-false}" = true ] && [[ $url == */securemesh_site_v2s/* ]]; then
+    name=${url##*/}
+    printf '{"metadata":{"name":"%s","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}},"system_metadata":{"creator_id":"tester@example.test","creation_timestamp":"2026-09-16T12:00:00Z","uid":"site-0123456789abcdef"}}\n' "$name" >"$output"
+    printf 200
+  else
+    : >"$output"
+    printf 404
+  fi
+  exit 0
+fi
 status=${FAKE_XC_PROTOCOL_STATUS:-Established}
 printf '{"ver":{"peers":[{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"},{"protocol_status":"%s"}]}}\n' \
   "$status" "$status" "$status" "$status"
@@ -67,23 +93,23 @@ show)
     site_03_actions=${FAKE_SITE_03_ACTIONS:-${FAKE_SITE_ACTIONS:-'"create"'}}
     extra=${FAKE_EXTRA_CHANGE:-}
     if [ "${FAKE_TARGETED_BOOTSTRAP:-false}" = true ]; then
-      printf '{"complete":false,"planned_values":{"outputs":{}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}]}\n'
+      printf '{"complete":false,"planned_values":{"outputs":{}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}}]}\n'
     elif [ "${FAKE_SHARED_TOPOLOGY_ONLY:-false}" = true ]; then
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_vpc.workload[0]","type":"aws_vpc","name":"workload","index":0,"change":{"actions":["create"],"after":{"cidr_block":"10.151.0.0/16"}}}]}\n' "$plan_vip" "$plan_listeners"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_vpc.workload[0]","type":"aws_vpc","name":"workload","index":0,"change":{"actions":["create"],"after":{"cidr_block":"10.151.0.0/16","tags":{"Name":"mcn-ce-ha-gen-01-workload","component":"mcn-ce-ha","deployment_generation":"gen-01","deployer":"tester","managed_by":"terraform"}}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_TARGETED_APPROVAL_NO_OUTPUTS:-false}" = true ]; then
-      printf '{"complete":false,"planned_values":{"outputs":{}},"prior_state":{"values":{"root_module":{"resources":[{"address":"xcsh_securemesh_site_v2.aws[\\"01\\"]","type":"xcsh_securemesh_site_v2","name":"aws","index":"01","values":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}]}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n'
+      printf '{"complete":false,"planned_values":{"outputs":{}},"prior_state":{"values":{"root_module":{"resources":[{"address":"xcsh_securemesh_site_v2.aws[\\"01\\"]","type":"xcsh_securemesh_site_v2","name":"aws","index":"01","values":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}]}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n'
     elif [ "${FAKE_APPROVAL_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"xcsh_registration_approval.aws[\\"01\\"]","type":"xcsh_registration_approval","name":"aws","index":"01","change":{"actions":["create"],"after":{"name":"r-example","namespace":"system","state":"APPROVED"}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_ROUTE_GATE_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s},"aws_site_names":{"value":{"01":"mcn-ce-ha-aws-ap-northeast-1-01","02":"mcn-ce-ha-aws-ap-northeast-1-02","03":"mcn-ce-ha-aws-ap-northeast-1-03"}}}},"resource_changes":[{"address":"aws_route_table_association.private[\\"01\\"]","type":"aws_route_table_association","name":"private","index":"01","change":{"actions":["create"],"after":{}}},{"address":"terraform_data.aws_tgw_site_route_gate[\\"01\\"]","type":"terraform_data","name":"aws_tgw_site_route_gate","index":"01","change":{"actions":["create"],"after":{"input":{"public_association_id":"rtbassoc-public","private_association_id":"rtbassoc-private"}}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_TGW_BGP_ONLY:-false}" = true ]; then
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip" "$plan_listeners"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_bgp.aws_tgw_01","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-gen-01-bgp-01","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"},"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_02","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-gen-01-bgp-02","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"},"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}]}}}}},{"address":"xcsh_bgp.aws_tgw_03","type":"xcsh_bgp","name":"aws_tgw","change":{"actions":["create"],"after":{"name":"mcn-ce-ha-gen-01-bgp-03","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"},"where":{"site":{"ref":[{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}]}}}}}]}\n' "$plan_vip" "$plan_listeners"
     elif [ "${FAKE_TOKEN_ONLY:-false}" = true ]; then
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_token.aws_01","type":"xcsh_token","name":"aws","change":{"actions":[%s],"after":{"site_name":"mcn-ce-ha-aws-ap-northeast-1-01","name":"mcn-ce-ha-gen-01-token-01","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     elif [ "${FAKE_INSTANCE_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     else
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
     fi
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
@@ -122,7 +148,7 @@ export FAKE_TF_DIR
 export FAKE_TF_CALLS="$TF_CALLS"
 export FAKE_CANDIDATE_BINARY="$CANDIDATE_BINARY"
 export AWS_REGION="ap-northeast-1"
-export XCSH_API_URL="https://lab.console.ves.volterra.io"
+export XCSH_API_URL="https://f5-sales-demo.console.ves.volterra.io"
 export XCSH_API_TOKEN="test-token-must-not-leak"
 
 common=(
@@ -130,7 +156,9 @@ common=(
   --plan-file "$PLAN_FILE"
   --expected-aws-account 111122223333
   --expected-aws-region ap-northeast-1
-  --expected-xc-tenant lab
+  --expected-xc-tenant f5-sales-demo
+  --creator-id tester@example.test
+  --deployment-generation gen-01
   --expected-site mcn-ce-ha-aws-ap-northeast-1-01
   --expected-site mcn-ce-ha-aws-ap-northeast-1-02
   --expected-site mcn-ce-ha-aws-ap-northeast-1-03
@@ -154,7 +182,7 @@ assert_sanitized() {
   local evidence=$1 output=$2
   [ "$(find "$evidence" -maxdepth 1 -type f -printf '%f\n')" = summary.json ] || fail "evidence contains unexpected files"
   [ "$(jq -r 'keys | sort | join(",")' "$evidence/summary.json")" = provider_mode,provider_sha256,reason,status,timestamp ] || fail "summary has unexpected keys"
-  if grep -R -E '111122223333|mcn-ce-ha-aws-ap-northeast-1|test-token-must-not-leak|lab\.console\.ves\.volterra\.io' "$evidence" "$output"; then
+  if grep -R -E '111122223333|mcn-ce-ha-aws-ap-northeast-1|test-token-must-not-leak|f5-sales-demo\.console\.ves\.volterra\.io' "$evidence" "$output"; then
     fail "identity or credential leaked into sanitized evidence"
   fi
 }
@@ -246,7 +274,7 @@ echo "ok - matching candidate artifact is selected explicitly and bound to evide
 
 context_home="${TMP_ROOT}/context-home"
 mkdir -p "${context_home}/.config/xcsh/contexts"
-printf '{"apiUrl":"https://lab.console.ves.volterra.io","apiToken":"context-token-must-not-leak"}\n' \
+printf '{"apiUrl":"https://f5-sales-demo.console.ves.volterra.io","apiToken":"context-token-must-not-leak"}\n' \
   >"${context_home}/.config/xcsh/contexts/context-test.json"
 evidence="${TMP_ROOT}/context-auth"
 mkdir "$evidence"
@@ -328,33 +356,33 @@ echo "ok - incomplete, malformed, mismatched, invalid and changing candidates fa
 evidence="${TMP_ROOT}/replacement"
 mkdir "$evidence"
 output="${TMP_ROOT}/replacement.out"
-if ! FAKE_SITE_ACTIONS='"delete","create"' "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
-  cat "$output" >&2
-  fail "site replacement should preserve the checked site identity"
+if FAKE_SITE_ACTIONS='"delete","create"' "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "site replacement must be rejected before any Terraform, AWS, or F5 mutation"
 fi
-[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "replacement status not recorded"
+[ "$(jq -r .reason "$evidence/summary.json")" = collision_preflight_failed ] || fail "replacement rejection reason not recorded"
 assert_sanitized "$evidence" "$output"
-echo "ok - site replacement is accepted when its target identity matches"
+echo "ok - site replacement is rejected before mutation"
 
 single_site=(
   --terraform-dir "$TF_DIR"
   --plan-file "$PLAN_FILE"
   --expected-aws-account 111122223333
   --expected-aws-region ap-northeast-1
-  --expected-xc-tenant lab
+  --expected-xc-tenant f5-sales-demo
+  --creator-id tester@example.test
+  --deployment-generation gen-01
   --expected-site mcn-ce-ha-aws-ap-northeast-1-01
 )
 evidence="${TMP_ROOT}/single-site"
 mkdir "$evidence"
 output="${TMP_ROOT}/single-site.out"
-if ! FAKE_SITE_01_ACTIONS='"delete","create"' FAKE_SITE_02_ACTIONS='"no-op"' FAKE_SITE_03_ACTIONS='"no-op"' \
+if FAKE_SITE_01_ACTIONS='"delete","create"' FAKE_SITE_02_ACTIONS='"no-op"' FAKE_SITE_03_ACTIONS='"no-op"' \
   "$SCRIPT" --evidence-dir "$evidence" "${single_site[@]}" >"$output" 2>&1; then
-  cat "$output" >&2
-  fail "one-site replacement must exclude unchanged peer sites"
+  fail "one-site replacement must be rejected before any Terraform, AWS, or F5 mutation"
 fi
-[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "one-site replacement status not recorded"
+[ "$(jq -r .reason "$evidence/summary.json")" = collision_preflight_failed ] || fail "one-site replacement rejection reason not recorded"
 assert_sanitized "$evidence" "$output"
-echo "ok - one-site replacement is accepted before the remaining sites"
+echo "ok - one-site replacement is rejected before mutation"
 
 evidence="${TMP_ROOT}/single-site-no-change"
 mkdir "$evidence"
