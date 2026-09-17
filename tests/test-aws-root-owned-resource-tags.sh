@@ -26,7 +26,7 @@ require_tgw_module_ownership_tags() {
   local block
   block=$(sed -n '/module \"aws_tgw_connect\" {/,/^}/p' "$source_file")
   grep -Eq '^[[:space:]]*ownership_tags[[:space:]]*=[[:space:]]*local\.tags$' <<<"$block" ||
-    fail "aws_tgw_connect in ${source_file#$repo_root/} must pass immutable ownership tags"
+    fail "aws_tgw_connect in ${source_file#"${repo_root}"/} must pass immutable ownership tags"
 }
 
 require_tgw_module_ownership_tags "$repo_root/terraform/aws/aws_tgw_connect.tf"
