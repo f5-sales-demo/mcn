@@ -93,7 +93,7 @@ show)
 output)
   case "$*" in
   *'-raw aws_workload_instance_id'*) printf 'i-workload\n' ;;
-  *'-raw aws_origin_public_ip'*) printf '203.0.113.80\n' ;;
+  *'-raw aws_origin_dns_name'*) printf 'httpbin.org\n' ;;
   *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-10.151.1.10}" ;;
   *'-raw aws_lb_domain'*) printf 'aws.mcn-ce-ha.example.com\n' ;;
   *'-raw aws_smsv2_target_group_arn'*) printf 'arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:targetgroup/test/0123456789abcdef\n' ;;
@@ -115,7 +115,7 @@ SH
 chmod 755 "${BIN}/aws" "${BIN}/curl" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
-export FAKE_TF_DIR="$TF_DIR"
+export FAKE_TF_DIR="$(cd "$TF_DIR" && pwd)"
 export FAKE_TF_CALLS="$TF_CALLS"
 export FAKE_CANDIDATE_BINARY="$CANDIDATE_BINARY"
 export AWS_REGION="ap-northeast-1"

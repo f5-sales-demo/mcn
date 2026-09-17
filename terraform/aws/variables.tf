@@ -26,6 +26,17 @@ variable "origin_port" {
   type    = number
   default = 80
 }
+variable "aws_origin_dns_name" {
+  description = "DNS name of the public HTTP origin for the AWS SMSv2 load balancer. This is intentionally a name, never a resolved or pinned address."
+  type        = string
+  default     = "httpbin.org"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.aws_origin_dns_name))
+    error_message = "aws_origin_dns_name must be a fully-qualified lowercase DNS name."
+  }
+}
 variable "deployment_generation" {
   description = "Required immutable identity for this complete AWS/XC deployment generation. Select a new value only after the preceding generation has been ownership-verified and destroyed."
   type        = string

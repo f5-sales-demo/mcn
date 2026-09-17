@@ -18,9 +18,9 @@ output "aws_workload_private_ip" {
   value       = try(aws_instance.workload[0].private_ip, null)
 }
 
-output "aws_origin_public_ip" {
-  description = "Owned AWS HTTP origin used exclusively by the AWS SMSv2 showcase."
-  value       = try(aws_instance.origin[0].public_ip, null)
+output "aws_origin_dns_name" {
+  description = "DNS name of the external HTTP origin used by the AWS SMSv2 showcase."
+  value       = var.aws_origin_dns_name
 }
 
 output "aws_site_names" {

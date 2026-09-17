@@ -4,7 +4,7 @@ set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 EVIDENCE_DIR=""
-TERRAFORM_DIR="${REPO_ROOT}/terraform"
+TERRAFORM_DIR="${REPO_ROOT}/terraform/aws"
 PLAN_FILE=""
 EXPECTED_AWS_ACCOUNT=""
 EXPECTED_AWS_REGION=""
@@ -38,7 +38,7 @@ Required options:
   --expected-site NAME       Repeat for the one-site or three-site stage being reviewed.
 
 Optional:
-  --terraform-dir PATH   Defaults to the repository terraform directory.
+  --terraform-dir PATH   Defaults to the dedicated AWS-only Terraform root.
   --plan-mode MODE       apply (default) or destroy.
   --xc-context NAME      Defaults to f5-sales-demo when XC environment values are absent.
   --candidate-provider-binary PATH
@@ -564,8 +564,8 @@ status_plan() {
 
 WORKLOAD_INSTANCE_ID=$(tf output -raw aws_workload_instance_id 2>/dev/null) || block workload_identity_unavailable
 [ -n "$WORKLOAD_INSTANCE_ID" ] || block workload_identity_unavailable
-ORIGIN_IP=$(tf output -raw aws_origin_public_ip 2>/dev/null) || block origin_identity_unavailable
-[ -n "$ORIGIN_IP" ] || block origin_identity_unavailable
+ORIGIN_DNS_NAME=$(tf output -raw aws_origin_dns_name 2>/dev/null) || block origin_identity_unavailable
+[ "$ORIGIN_DNS_NAME" = "httpbin.org" ] || block origin_identity_mismatch
 AWS_VIP=$(tf output -raw aws_vip 2>/dev/null) || block vip_identity_unavailable
 [ "$AWS_VIP" = "$PLAN_AWS_VIP" ] || block vip_identity_mismatch
 AWS_LB_DOMAIN=$(tf output -raw aws_lb_domain 2>/dev/null) || block loadbalancer_domain_unavailable
@@ -600,7 +600,7 @@ jq -e --argjson listeners "$SITE_LISTENERS" '
 unset TARGET_HEALTH
 
 TRAFFIC_MARKER="mcn-smsv2-uat-${RANDOM}${RANDOM}"
-TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 12 --retry-all-errors --retry-delay 2 --retry-max-time 45 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_IP} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
+TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 12 --retry-all-errors --retry-delay 2 --retry-max-time 45 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_DNS_NAME} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
 ssm_run "$TRAFFIC_COMMAND" >/dev/null || block ssm_traffic_start_failed
 TRAFFIC_STARTED=true
 
@@ -693,5 +693,5 @@ jq -n \
     serial_upgrades:$serial_upgrades, target_converged:true}' \
   >"$SUMMARY"
 chmod 600 "$SUMMARY"
-unset API_TOKEN WORKLOAD_INSTANCE_ID FAILOVER_INSTANCE_ID ORIGIN_IP AWS_VIP AWS_LB_DOMAIN SITE_LISTENERS TARGET_GROUP_ARN
+unset API_TOKEN WORKLOAD_INSTANCE_ID FAILOVER_INSTANCE_ID ORIGIN_DNS_NAME AWS_VIP AWS_LB_DOMAIN SITE_LISTENERS TARGET_GROUP_ARN
 printf 'status=passed reason=%s\n' "$UAT_REASON"
