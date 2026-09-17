@@ -64,9 +64,11 @@ jq -e '
 
 jq -e 'type == "object" and (.resource_changes | type == "array")' "$PLAN_JSON" >/dev/null ||
   die "plan JSON is invalid"
-jq -e --arg version "= $PATCHED_PROVIDER_VERSION" '
-  .configuration.provider_config.xcsh.full_name == "f5-sales-demo/xcsh" and
-  .configuration.provider_config.xcsh.version_constraint == $version' "$PLAN_JSON" >/dev/null ||
+jq -e --arg version "$PATCHED_PROVIDER_VERSION" '
+  (.configuration.provider_config.xcsh.full_name == "f5-sales-demo/xcsh" or
+   .configuration.provider_config.xcsh.full_name == "registry.terraform.io/f5-sales-demo/xcsh") and
+  (.configuration.provider_config.xcsh.version_constraint == ("= " + $version) or
+   .configuration.provider_config.xcsh.version_constraint == $version)' "$PLAN_JSON" >/dev/null ||
   die "recovery plan is not pinned to the patched xcsh provider"
 
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/mcn-recovery-plan.XXXXXX")

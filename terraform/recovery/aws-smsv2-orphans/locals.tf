@@ -13,6 +13,14 @@ locals {
     "xcsh_token",
     "xcsh_virtual_site",
   ])
+  discovered_site_labels = toset([
+    "domain",
+    "host-os-version",
+    "hw-model",
+    "hw-serial-number",
+    "hw-vendor",
+    "hw-version",
+  ])
   collisions_by_type = {
     for resource_type in local.supported_types : resource_type => {
       for collision in local.collisions : collision.address => collision

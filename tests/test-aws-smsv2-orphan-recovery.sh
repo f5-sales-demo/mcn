@@ -18,9 +18,21 @@ done
 resource_count=$(grep -hEc '^resource "' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 import_count=$(grep -hEc '^import \{' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 ignore_count=$(grep -hEc '^[[:space:]]*ignore_changes[[:space:]]*=[[:space:]]*all$' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
+data_lb_count=$(grep -hEc '^data "aws_lb" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
+data_target_group_count=$(grep -hEc '^data "aws_lb_target_group" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 [[ $resource_count -eq 10 ]] || fail "recovery root must declare exactly ten supported resource types"
 [[ $import_count -eq 10 ]] || fail "recovery root must declare exactly ten configuration-driven import blocks"
 [[ $ignore_count -eq 10 ]] || fail "every recovery resource must ignore drift during adoption"
+[[ $data_lb_count -eq 1 ]] || fail "recovery must read the existing load-balancer shape for an import-only plan"
+[[ $data_target_group_count -eq 1 ]] || fail "recovery must read the existing target-group shape for an import-only plan"
+rg -q 'subnets[[:space:]]*=[[:space:]]*data\.aws_lb\.recovery' "$recovery_root/resources.tf" ||
+  fail "recovery load balancer must use its observed subnets"
+rg -q 'vpc_id[[:space:]]*=[[:space:]]*data\.aws_lb_target_group\.recovery' "$recovery_root/resources.tf" ||
+  fail "recovery target group must use its observed VPC"
+rg -q 'discovered_site_labels' "$recovery_root/locals.tf" ||
+  fail "recovery must identify F5-discovered site labels"
+rg -q '!contains\(local\.discovered_site_labels, key\)' "$recovery_root/resources.tf" ||
+  fail "recovery must exclude F5-discovered labels from securemesh configuration"
 if rg -n 'terraform[[:space:]]+import|local-exec|curl.+DELETE|aws.+delete-' "$recovery_root" "$verifier"; then
   fail "recovery implementation contains an imperative mutation path"
 fi
@@ -48,8 +60,8 @@ jq -n '{
   ]
 }' >"$manifest"
 
-jq -n '{format_version:"1.2",terraform_version:"1.16.2",
-  configuration:{provider_config:{xcsh:{full_name:"f5-sales-demo/xcsh",version_constraint:"= 9.2.2"}}},
+jq -n '{format_version:"1.2",terraform_version:"1.16.3",
+  configuration:{provider_config:{xcsh:{full_name:"registry.terraform.io/f5-sales-demo/xcsh",version_constraint:"9.2.2"}}},
   resource_changes:[
   {address:"aws_key_pair.recovery[\"aws_key_pair.ce[0]\"]",type:"aws_key_pair",
    change:{actions:["no-op"],importing:{id:"mcn-ce-ha-gen-01-key"}}},
@@ -79,8 +91,8 @@ fi
 
 destroy_plan="$scratch/destroy-plan.json"
 destroy_receipt="$scratch/destroy-receipt.json"
-jq -n '{format_version:"1.2",terraform_version:"1.16.2",
-  configuration:{provider_config:{xcsh:{full_name:"f5-sales-demo/xcsh",version_constraint:"= 9.2.2"}}},
+jq -n '{format_version:"1.2",terraform_version:"1.16.3",
+  configuration:{provider_config:{xcsh:{full_name:"registry.terraform.io/f5-sales-demo/xcsh",version_constraint:"9.2.2"}}},
   resource_changes:[
     {address:"aws_key_pair.recovery[\"aws_key_pair.ce[0]\"]",type:"aws_key_pair",
      change:{actions:["delete"],before:{id:"mcn-ce-ha-gen-01-key",key_name:"mcn-ce-ha-gen-01-key"},after:null}},
