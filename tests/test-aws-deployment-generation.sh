@@ -25,6 +25,7 @@ grep -Eq '^[[:space:]]*nullable[[:space:]]*=[[:space:]]*false$' <<<"$deployment_
 if grep -Eq '^[[:space:]]*default[[:space:]]*=' <<<"$deployment_block"; then
   fail "deployment_generation must not have a reusable default"
 fi
+require_text "$variables" 'length("${var.component}-${var.deployment_generation}-aws-nlb") <= 32'
 
 if rg -n 'smsv2_site_generation|variable "site_prefix"' "$aws_root" --glob '*.tf'; then
   fail "AWS root retains a legacy or bypassable generation input"
@@ -48,4 +49,4 @@ for resource in xcsh_external_connector xcsh_bgp; do
   grep -Fq 'labels' <<<"$block" || fail "$resource must carry deployment-generation labels"
 done
 
-printf 'PASS: every AWS and XC identity is bound to one required immutable deployment generation\n'
+printf 'PASS: every AWS and XC identity is bound to one required immutable deployment generation within AWS naming limits\n'
