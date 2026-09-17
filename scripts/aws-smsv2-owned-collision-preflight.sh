@@ -146,7 +146,7 @@ append_f5_collision() {
 }
 
 aws_not_found() {
-  grep -Eq 'InvalidKeyPair\.NotFound|NoSuchEntity|LoadBalancerNotFound|TargetGroupNotFound' "$1"
+  grep -Eq 'InvalidKeyPair\.NotFound|NoSuchEntity|LoadBalancerNotFound|TargetGroupNotFound|NoSuchEntity' "$1"
 }
 
 aws_lookup() {
@@ -206,6 +206,27 @@ aws_identity_for() {
     jq -ec '{resource_uid:.Addresses[0].AllocationId,created_at:null,
       creation_evidence:"not_exposed_by_ec2_describe_addresses"}' "$response"
     ;;
+  aws_instance)
+    jq -ec '{resource_uid:([.Reservations[].Instances[]? | .InstanceId][0]),created_at:([.Reservations[].Instances[]? | .LaunchTime][0]),creation_evidence:"ec2.describe-instances.LaunchTime"}' "$response"
+    ;;
+  aws_internet_gateway)
+    jq -ec '{resource_uid:.InternetGateways[0].InternetGatewayId,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_internet_gateways"}' "$response"
+    ;;
+  aws_network_interface)
+    jq -ec '{resource_uid:.NetworkInterfaces[0].NetworkInterfaceId,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_network_interfaces"}' "$response"
+    ;;
+  aws_route_table)
+    jq -ec '{resource_uid:.RouteTables[0].RouteTableId,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_route_tables"}' "$response"
+    ;;
+  aws_security_group)
+    jq -ec '{resource_uid:.SecurityGroups[0].GroupId,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_security_groups"}' "$response"
+    ;;
+  aws_subnet)
+    jq -ec '{resource_uid:.Subnets[0].SubnetId,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_subnets"}' "$response"
+    ;;
+  aws_vpc)
+    jq -ec '{resource_uid:.Vpcs[0].VpcId,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_vpcs"}' "$response"
+    ;;
   *) return 1 ;;
   esac
 }
@@ -229,6 +250,13 @@ aws_tags_for() {
     jq -ec '.TagDescriptions[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$tags_response"
     ;;
   aws_eip) jq -ec '.Addresses[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
+  aws_instance) jq -ec '[.Reservations[].Instances[]? | .Tags // []] | flatten | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
+  aws_internet_gateway) jq -ec '.InternetGateways[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
+  aws_network_interface) jq -ec '.NetworkInterfaces[0].TagSet // .NetworkInterfaces[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
+  aws_route_table) jq -ec '.RouteTables[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
+  aws_security_group) jq -ec '.SecurityGroups[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
+  aws_subnet) jq -ec '.Subnets[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
+  aws_vpc) jq -ec '.Vpcs[0].Tags // [] | map({key:.Key,value:.Value}) | from_entries' "$response" ;;
   *) return 1 ;;
   esac
 }
@@ -255,8 +283,65 @@ while IFS= read -r item; do
   address=$(jq -er '.address' <<<"$item") || die "plan resource address is invalid"
   after=$(jq -ec '.after' <<<"$item") || die "plan resource after value is invalid"
   expected_tags=""
+  if [[ $type == aws_route_table_association ]]; then
+    association_config_address=${address%%\[*}
+    route_table_reference=$(jq -er --arg address "$association_config_address" '
+      .configuration.root_module.resources[] | select(.address == $address) |
+      .expressions.route_table_id.references[0] // empty
+    ' "$PLAN_JSON") || die "planned route table association lacks a route-table reference: $address"
+    route_table_resource_address=${route_table_reference%.id}
+    jq -e --arg address "$route_table_resource_address" '
+      .resource_changes[] | select(.address == $address and .type == "aws_route_table" and .change.actions == ["create"])
+    ' "$PLAN_JSON" >/dev/null || die "planned route table association is not bound to a collision-checked route table: $address"
+    continue
+  fi
+  if [[ $type == xcsh_site_cloud_init ]]; then
+    site_name=$(jq -er '.site_name // empty' <<<"$after") || die "planned cloud-init site name is unavailable for $address"
+    jq -e --arg site_name "$site_name" '
+      .resource_changes[] | select(.type == "xcsh_securemesh_site_v2" and .change.actions == ["create"] and .change.after.name == $site_name)
+    ' "$PLAN_JSON" >/dev/null || die "planned cloud-init is not bound to a collision-checked SecureMesh site: $address"
+    continue
+  fi
+  if [[ $type == aws_iam_role_policy_attachment ]]; then
+    attachment_config_address=${address%%\[*}
+    role_reference=$(jq -er --arg address "$attachment_config_address" '
+      .configuration.root_module.resources[] | select(.address == $address) |
+      .expressions.role.references[0] // empty
+    ' "$PLAN_JSON") || die "planned IAM attachment role reference is unavailable for $address"
+    role_resource_address=${role_reference%.name}
+    role_name=$(jq -er --arg address "$role_resource_address" '
+      .resource_changes[] | select(.address == $address) | .change.after.name // empty
+    ' "$PLAN_JSON") || die "planned IAM attachment role is unavailable for $address"
+    policy_arn=$(jq -er --arg address "$attachment_config_address" '
+      .configuration.root_module.resources[] | select(.address == $address) |
+      .expressions.policy_arn.constant_value // empty
+    ' "$PLAN_JSON") || die "planned IAM attachment policy ARN is unavailable for $address"
+    role_response="$SCRATCH/aws-role-${RANDOM}.json"
+    role_error="$SCRATCH/aws-role-${RANDOM}.err"
+    if aws_lookup "$role_response" "$role_error" iam get-role --role-name "$role_name"; then
+      :
+    else
+      status=$?
+      [[ $status -eq 10 ]] && continue
+      die "cannot inspect IAM role ownership for $address"
+    fi
+    attached_response="$SCRATCH/aws-attachments-${RANDOM}.json"
+    aws iam list-attached-role-policies --role-name "$role_name" --region "$AWS_REGION" --output json >"$attached_response" 2>/dev/null ||
+      die "cannot inspect IAM policy attachments for $address"
+    jq -e --arg arn "$policy_arn" '.AttachedPolicies[]? | select(.PolicyArn == $arn)' "$attached_response" >/dev/null || continue
+    actual_tags=$(aws_tags_for aws_iam_role "$role_response") || die "cannot read IAM role tags for existing $address"
+    expected_tags=$(jq -ec --arg role "$role_name" '
+      [.resource_changes[] | select(.type == "aws_iam_role" and .change.after.name == $role) | .change.after.tags][0] // empty
+    ' "$PLAN_JSON") || die "planned parent role tags are unavailable for $address"
+    require_aws_ownership "$expected_tags" "$actual_tags" "$role_name" ||
+      die "unowned or ambiguous AWS collision: $address ($role_name/$policy_arn)"
+    role_identity=$(aws_identity_for aws_iam_role "$role_response") || die "cannot read IAM role identity for existing $address"
+    identity=$(jq -nc --arg role_id "$(jq -r '.resource_uid' <<<"$role_identity")" --arg arn "$policy_arn" '{resource_uid:($role_id + ":" + $arn),created_at:null,creation_evidence:"not_exposed_by_iam_list_attached_role_policies"}')
+    append_aws_collision "$type" "$address" "${role_name}/${policy_arn}" "$expected_tags" "$actual_tags" "$identity"
+    continue
+  fi
   case "$type" in
-  aws_key_pair | aws_iam_role | aws_iam_instance_profile | aws_lb | aws_lb_target_group | aws_eip)
+  aws_key_pair | aws_iam_role | aws_iam_instance_profile | aws_lb | aws_lb_target_group | aws_eip | aws_instance | aws_internet_gateway | aws_network_interface | aws_route_table | aws_security_group | aws_subnet | aws_vpc | aws_iam_role_policy)
     case "$type" in
     aws_key_pair)
       name=$(jq -er '.key_name' <<<"$after")
@@ -288,15 +373,131 @@ while IFS= read -r item; do
       ((${#eip_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
       lookup=(ec2 describe-addresses --filters "${eip_tag_filters[@]}")
       ;;
+    aws_instance)
+      name=$address
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t instance_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#instance_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-instances --filters "${instance_tag_filters[@]}")
+      ;;
+    aws_internet_gateway)
+      name=$address
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t igw_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#igw_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-internet-gateways --filters "${igw_tag_filters[@]}")
+      ;;
+    aws_network_interface)
+      name=$address
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t eni_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#eni_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-network-interfaces --filters "${eni_tag_filters[@]}")
+      ;;
+    aws_route_table)
+      name=$address
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t rt_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#rt_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-route-tables --filters "${rt_tag_filters[@]}")
+      ;;
+    aws_security_group)
+      name=$address
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t sg_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#sg_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-security-groups --filters "${sg_tag_filters[@]}")
+      ;;
+    aws_subnet)
+      name=$address
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t subnet_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#subnet_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-subnets --filters "${subnet_tag_filters[@]}")
+      ;;
+    aws_vpc)
+      name=$address
+      expected_tags=$(jq -ec '.tags // {}' <<<"$after") || die "planned tags are invalid for $address"
+      mapfile -t vpc_tag_filters < <(jq -r 'to_entries[] | "Name=tag:\(.key),Values=\(.value)"' <<<"$expected_tags")
+      ((${#vpc_tag_filters[@]} > 0)) || die "planned tags are incomplete for $address"
+      lookup=(ec2 describe-vpcs --filters "${vpc_tag_filters[@]}")
+      ;;
+    aws_iam_role_policy)
+      name=$(jq -er '.name' <<<"$after") || die "planned inline policy name is invalid for $address"
+      role_name=$(jq -er '.role' <<<"$after" 2>/dev/null || true)
+      if [[ -z $role_name ]]; then
+        policy_config_address=${address%%\[*}
+        role_reference=$(jq -er --arg address "$policy_config_address" '
+          .configuration.root_module.resources[] | select(.address == $address) |
+          .expressions.role.references[0] // empty
+        ' "$PLAN_JSON") || die "planned inline policy role reference is unavailable for $address"
+        role_resource_address=${role_reference%.id}
+        role_name=$(jq -er --arg address "$role_resource_address" '
+          .resource_changes[] | select(.address == $address) | .change.after.name // empty
+        ' "$PLAN_JSON") || die "planned inline policy role is unavailable for $address"
+      fi
+      lookup=(iam get-role-policy --role-name "$role_name" --policy-name "$name")
+      ;;
     esac
     expected_tags=${expected_tags:-$(jq -ec '.tags // {}' <<<"$after")} || die "planned tags are invalid for $address"
     response="$SCRATCH/aws-${RANDOM}.json"
     error="$SCRATCH/aws-${RANDOM}.err"
     if aws_lookup "$response" "$error" "${lookup[@]}"; then
+      if [[ $type == aws_iam_role_policy ]]; then
+        role_response="$SCRATCH/aws-role-${RANDOM}.json"
+        role_error="$SCRATCH/aws-role-${RANDOM}.err"
+        aws_lookup "$role_response" "$role_error" iam get-role --role-name "$role_name" ||
+          die "cannot inspect IAM role ownership for existing $address"
+        actual_tags=$(aws_tags_for aws_iam_role "$role_response") || die "cannot read IAM role tags for existing $address"
+        role_identity=$(aws_identity_for aws_iam_role "$role_response") || die "cannot read IAM role identity for existing $address"
+        expected_tags=$(jq -ec --arg role "$role_name" '
+          [.resource_changes[] | select(.type == "aws_iam_role" and .change.after.name == $role) | .change.after.tags][0] // empty
+        ' "$PLAN_JSON") || die "planned parent role tags are unavailable for $address"
+        require_aws_ownership "$expected_tags" "$actual_tags" "$role_name" ||
+          die "unowned or ambiguous AWS collision: $address ($role_name/$name)"
+        identity=$(jq -nc --arg role "$role_name" --arg policy "$name" --arg role_id "$(jq -r '.resource_uid' <<<"$role_identity")" '{resource_uid:($role_id + ":" + $policy),created_at:null,creation_evidence:"not_exposed_by_iam_get_role_policy"}')
+        append_aws_collision "$type" "$address" "${role_name}/${name}" "$expected_tags" "$actual_tags" "$identity"
+        continue
+      fi
       if [[ $type == aws_eip ]]; then
         eip_matches=$(jq -er '.Addresses | length' "$response") || die "cannot read existing EIP candidates for $address"
         [[ $eip_matches -eq 0 ]] && continue
         [[ $eip_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple Elastic IPs match the planned ownership tags)"
+      fi
+      if [[ $type == aws_instance ]]; then
+        instance_matches=$(jq -er '[.Reservations[].Instances[]?] | length' "$response") || die "cannot read existing instance candidates for $address"
+        [[ $instance_matches -eq 0 ]] && continue
+        [[ $instance_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple instances match the planned ownership tags)"
+      fi
+      if [[ $type == aws_internet_gateway ]]; then
+        igw_matches=$(jq -er '.InternetGateways | length' "$response") || die "cannot read existing internet gateway candidates for $address"
+        [[ $igw_matches -eq 0 ]] && continue
+        [[ $igw_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple internet gateways match the planned ownership tags)"
+      fi
+      if [[ $type == aws_network_interface ]]; then
+        eni_matches=$(jq -er '.NetworkInterfaces | length' "$response") || die "cannot read existing network interface candidates for $address"
+        [[ $eni_matches -eq 0 ]] && continue
+        [[ $eni_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple network interfaces match the planned ownership tags)"
+      fi
+      if [[ $type == aws_route_table ]]; then
+        rt_matches=$(jq -er '.RouteTables | length' "$response") || die "cannot read existing route table candidates for $address"
+        [[ $rt_matches -eq 0 ]] && continue
+        [[ $rt_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple route tables match the planned ownership tags)"
+      fi
+      if [[ $type == aws_security_group ]]; then
+        sg_matches=$(jq -er '.SecurityGroups | length' "$response") || die "cannot read existing security group candidates for $address"
+        [[ $sg_matches -eq 0 ]] && continue
+        [[ $sg_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple security groups match the planned ownership tags)"
+      fi
+      if [[ $type == aws_subnet ]]; then
+        subnet_matches=$(jq -er '.Subnets | length' "$response") || die "cannot read existing subnet candidates for $address"
+        [[ $subnet_matches -eq 0 ]] && continue
+        [[ $subnet_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple subnets match the planned ownership tags)"
+      fi
+      if [[ $type == aws_vpc ]]; then
+        vpc_matches=$(jq -er '.Vpcs | length' "$response") || die "cannot read existing VPC candidates for $address"
+        [[ $vpc_matches -eq 0 ]] && continue
+        [[ $vpc_matches -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple VPCs match the planned ownership tags)"
       fi
       actual_tags=$(aws_tags_for "$type" "$response") || die "cannot read tags for existing $address"
       require_aws_ownership "$expected_tags" "$actual_tags" "$name" || die "unowned or ambiguous AWS collision: $address ($name)"

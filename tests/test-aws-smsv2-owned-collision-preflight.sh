@@ -273,4 +273,13 @@ jq -e '.schema_version == 2 and .recovery_mode == "legacy_unlabelled" and
   ([.collisions[].generation_binding] | all(. == "saved_plan_name_and_legacy_ownership"))' \
   "$legacy_manifest" >/dev/null || fail "legacy manifest must disclose its generation evidence boundary"
 
+for required in \
+  'aws_iam_role_policy_attachment' \
+  'iam list-attached-role-policies' \
+  'planned inline policy role reference is unavailable' \
+  'aws_instance' \
+  'multiple instances match the planned ownership tags'; do
+  grep -Fq "$required" "$script" || fail "collision gate lost required coverage: $required"
+done
+
 printf 'PASS: owned AWS and F5 name collisions are rejected before Terraform apply with a verified manifest\n'
