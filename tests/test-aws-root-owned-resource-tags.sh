@@ -21,4 +21,15 @@ require_block() {
 require_block ce "$repo_root/terraform/aws/aws_ce.tf"
 require_block workload "$repo_root/terraform/aws/aws_vpc.tf"
 
-printf 'PASS: every AWS IAM instance profile in the Azure-free root carries ownership tags\n'
+# The tenant guard must be a dependency of planned object metadata. An unused
+# data source is not evaluated by Terraform, which would let a wrong tenant
+# reach the provider before its postcondition could reject the plan.
+locals_file="$repo_root/terraform/aws/locals.tf"
+grep -Eq "^[[:space:]]*xc_tenant[[:space:]]*=[[:space:]]*data\\.external\\.xc_env_tenant\\.result\\.tenant$" "$locals_file" ||
+  fail "AWS root must bind the active XC tenant guard into shared metadata"
+grep -Eq "^[[:space:]]*xc_tenant[[:space:]]*=[[:space:]]*local\\.xc_tenant$" "$locals_file" ||
+  fail "AWS ownership tags must carry the evaluated XC tenant"
+grep -Fq '"mcn-xc-tenant"             = local.xc_tenant' "$locals_file" ||
+  fail "XC labels must carry the evaluated XC tenant"
+
+printf 'PASS: AWS ownership metadata evaluates and carries the active XC tenant guard\n'

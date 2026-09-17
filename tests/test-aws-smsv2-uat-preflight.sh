@@ -115,7 +115,8 @@ SH
 chmod 755 "${BIN}/aws" "${BIN}/curl" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
-export FAKE_TF_DIR="$(cd "$TF_DIR" && pwd)"
+FAKE_TF_DIR="$(cd "$TF_DIR" && pwd)"
+export FAKE_TF_DIR
 export FAKE_TF_CALLS="$TF_CALLS"
 export FAKE_CANDIDATE_BINARY="$CANDIDATE_BINARY"
 export AWS_REGION="ap-northeast-1"

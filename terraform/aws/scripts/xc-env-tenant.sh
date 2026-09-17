@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
 # Reports the F5 XC tenant named by XCSH_API_URL in the CURRENT ENVIRONMENT.
 #
-# Consumed by data.external.xc_env_tenant in ../main.tf, which fails the plan when
-# the answer disagrees with var.expected_xc_tenant. See the comment on that data
+# Consumed by data.external.xc_env_tenant in ../data.tf, then propagated through
+# shared AWS/XC metadata so its postcondition fails the plan when the answer
+# disagrees with var.expected_xc_tenant. See the comment on that data
 # source for why the guard exists (the whole MCN demo was once silently rehomed to
 # another tenant because nothing in the configuration named the intended one).
 #
