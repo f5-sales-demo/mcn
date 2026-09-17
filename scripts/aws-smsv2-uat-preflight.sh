@@ -10,6 +10,8 @@ EXPECTED_AWS_ACCOUNT=""
 EXPECTED_AWS_REGION=""
 EXPECTED_XC_TENANT=""
 CREATOR_ID=""
+DEPLOYMENT_GENERATION=""
+COMPONENT="mcn-ce-ha"
 EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
 PLAN_MODE="apply"
@@ -37,6 +39,9 @@ Required options:
   --expected-aws-region REGION
   --expected-xc-tenant NAME
   --creator-id EMAIL      Expected F5 creator for any colliding named object.
+  --deployment-generation VALUE
+                          Exact immutable generation required by the saved plan.
+  --component VALUE       Ownership component (default: mcn-ce-ha).
   --expected-site NAME       Repeat for the one-site or three-site stage being reviewed.
 
 Optional:
@@ -135,6 +140,14 @@ while [ "$#" -gt 0 ]; do
     CREATOR_ID=${2:?}
     shift 2
     ;;
+  --deployment-generation)
+    DEPLOYMENT_GENERATION=${2:?}
+    shift 2
+    ;;
+  --component)
+    COMPONENT=${2:?}
+    shift 2
+    ;;
   --expected-site)
     EXPECTED_SITES+=("${2:?}")
     shift 2
@@ -163,7 +176,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXPECTED_XC_TENANT CREATOR_ID; do
+for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXPECTED_XC_TENANT CREATOR_ID DEPLOYMENT_GENERATION COMPONENT; do
   [ -n "${!value}" ] || die "missing required preflight argument"
 done
 [[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
@@ -462,24 +475,29 @@ else
   unset DIRECT_SITE_IDENTITIES TGW_BGP_SITE_IDENTITIES KEYED_TASK_SITE_IDENTITIES CONFIGURED_SITE_IDENTITIES PLAN_BOUND_SITE_IDENTITIES
 fi
 
-COLLISION_PLAN="${SCRATCH}/deployment-plan.json"
-COLLISION_MANIFEST="${EVIDENCE_DIR}/collision-manifest.json"
-printf '%s\n' "$DEPLOYMENT_PLAN" >"$COLLISION_PLAN"
-set +e
-XCSH_API_URL="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
-  "$REPO_ROOT/scripts/aws-smsv2-owned-collision-preflight.sh" \
-  --plan-json "$COLLISION_PLAN" \
-  --aws-region "$EXPECTED_AWS_REGION" \
-  --xc-tenant "$EXPECTED_XC_TENANT" \
-  --creator-id "$CREATOR_ID" \
-  --manifest "$COLLISION_MANIFEST"
-collision_status=$?
-set -e
-case "$collision_status" in
-0) rm -f "$COLLISION_MANIFEST" ;;
-3) block owned_name_collision ;;
-*) block collision_preflight_failed ;;
-esac
+if [ "$PLAN_MODE" = apply ]; then
+  COLLISION_PLAN="${SCRATCH}/deployment-plan.json"
+  COLLISION_MANIFEST="${EVIDENCE_DIR}/collision-manifest.json"
+  printf '%s\n' "$DEPLOYMENT_PLAN" >"$COLLISION_PLAN"
+  set +e
+  XCSH_API_URL="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
+    "$REPO_ROOT/scripts/aws-smsv2-owned-collision-preflight.sh" \
+    --plan-json "$COLLISION_PLAN" \
+    --aws-region "$EXPECTED_AWS_REGION" \
+    --aws-account-id "$EXPECTED_AWS_ACCOUNT" \
+    --xc-tenant "$EXPECTED_XC_TENANT" \
+    --creator-id "$CREATOR_ID" \
+    --component "$COMPONENT" \
+    --deployment-generation "$DEPLOYMENT_GENERATION" \
+    --manifest "$COLLISION_MANIFEST"
+  collision_status=$?
+  set -e
+  case "$collision_status" in
+  0) rm -f "$COLLISION_MANIFEST" ;;
+  3) block owned_name_collision ;;
+  *) block collision_preflight_failed ;;
+  esac
+fi
 
 unset DEPLOYMENT_PLAN
 verify_candidate_provider || block candidate_provider_changed

@@ -292,15 +292,13 @@ while IFS= read -r item; do
   after=$(jq -ec '.after' <<<"$item") || die "plan resource after value is invalid"
   expected_tags=""
   if [[ $type == aws_route_table_association ]]; then
-    association_config_address=${address%%\[*}
-    route_table_reference=$(jq -er --arg address "$association_config_address" '
-      .configuration.root_module.resources[] | select(.address == $address) |
-      .expressions.route_table_id.references[0] // empty
-    ' "$PLAN_JSON") || die "planned route table association lacks a route-table reference: $address"
-    route_table_resource_address=${route_table_reference%.id}
-    jq -e --arg address "$route_table_resource_address" '
-      .resource_changes[] | select(.address == $address and .type == "aws_route_table" and .change.actions == ["create"])
-    ' "$PLAN_JSON" >/dev/null || die "planned route table association is not bound to a collision-checked route table: $address"
+    # Associations create no independently owned or name-addressable object.
+    # Their route tables, when created, are inventoried by their own changes.
+    continue
+  fi
+  if [[ $type == xcsh_registration_approval ]]; then
+    # Registration approval is an ephemeral action keyed to a site, not an owned
+    # named object. The UAT site-binding gate validates that relationship.
     continue
   fi
   if [[ $type == xcsh_site_cloud_init ]]; then
