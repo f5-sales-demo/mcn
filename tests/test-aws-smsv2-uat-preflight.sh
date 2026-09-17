@@ -173,6 +173,29 @@ assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
 echo "ok - exact v9.2.2 available contract passes with sanitized evidence"
 
+evidence="${TMP_ROOT}/no-explicit-region"
+mkdir "$evidence"
+output="${TMP_ROOT}/no-explicit-region.out"
+if ! env -u AWS_REGION -u AWS_DEFAULT_REGION \
+  "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  cat "$output" >&2
+  fail "an unrelated profile default must not override the reviewed expected region"
+fi
+[ "$(jq -r .status "$evidence/summary.json")" = ready ] || fail "no-explicit-region status not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - reviewed region binds UAT when no explicit environment override is present"
+
+evidence="${TMP_ROOT}/explicit-region-mismatch"
+mkdir "$evidence"
+output="${TMP_ROOT}/explicit-region-mismatch.out"
+if AWS_REGION=us-east-1 "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "an explicit conflicting AWS region must fail closed"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = aws_region_mismatch ] ||
+  fail "explicit region mismatch reason not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - explicit region mismatch is rejected before plan review"
+
 evidence="${TMP_ROOT}/obsolete-contract"
 mkdir "$evidence"
 output="${TMP_ROOT}/obsolete-contract.out"
