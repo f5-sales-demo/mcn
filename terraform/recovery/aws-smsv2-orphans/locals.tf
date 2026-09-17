@@ -3,6 +3,7 @@ locals {
   collisions = try(local.manifest.collisions, [])
   supported_types = toset([
     "aws_eip",
+    "aws_ec2_transit_gateway_connect_peer",
     "aws_iam_instance_profile",
     "aws_iam_role",
     "aws_instance",
@@ -94,5 +95,20 @@ check "attached_eip_dependency_closure" {
       )
     ])
     error_message = "An attached EIP must be recovered together with its exact owning EC2 instance; EIP-only recovery is unsafe."
+  }
+}
+
+check "connect_peer_observed_shape" {
+  assert {
+    condition = alltrue([
+      for collision in local.collisions :
+      collision.type != "aws_ec2_transit_gateway_connect_peer" || (
+        can(tolist(try(collision.observed_config.inside_cidr_blocks, null))) &&
+        length(try(collision.observed_config.inside_cidr_blocks, [])) > 0 &&
+        length(try(collision.observed_config.peer_address, "")) > 0 &&
+        length(try(collision.observed_config.transit_gateway_attachment_id, "")) > 0
+      )
+    ])
+    error_message = "A recovered Transit Gateway Connect peer must carry its observed inside CIDRs, peer address and attachment ID."
   }
 }

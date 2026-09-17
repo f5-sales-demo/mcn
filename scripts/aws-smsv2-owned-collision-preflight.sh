@@ -133,7 +133,8 @@ append_aws_collision() {
       resource_uid:$identity.resource_uid,created_at:$identity.created_at,
       creation_evidence:$identity.creation_evidence,
       generation_binding:(if $recovery_mode == "strict" then "observed_metadata"
-        else "saved_plan_name_and_legacy_ownership" end)}' >>"$collisions_file"
+        else "saved_plan_name_and_legacy_ownership" end)} +
+      (if $identity.observed_config == null then {} else {observed_config:$identity.observed_config} end)' >>"$collisions_file"
 }
 
 append_f5_collision() {
@@ -491,14 +492,29 @@ while IFS= read -r item; do
       [.TransitGatewayConnectPeers[]? |
        (.Tags // [] | map({key:.Key,value:.Value}) | from_entries) as $tags |
        select($tags == $expected) |
-       {id:.TransitGatewayConnectPeerId,tags:$tags}]
+       {
+         id:.TransitGatewayConnectPeerId,
+         tags:$tags,
+         observed_config:{
+           inside_cidr_blocks:(.InsideCidrBlocks // []),
+           peer_address:(.PeerAddress // ""),
+           transit_gateway_attachment_id:(.TransitGatewayAttachmentId // ""),
+           bgp_asn:(.BgpAsn | tostring),
+           transit_gateway_address:(.TransitGatewayAddress // "")
+         }
+       }]
     ' "$response") || die "cannot normalize AWS Connect-peer candidates for $address"
     match_count=$(jq -er 'length' <<<"$matches") || die "cannot count AWS Connect-peer candidates for $address"
     [[ $match_count -eq 0 ]] && continue
     [[ $match_count -eq 1 ]] || die "unowned or ambiguous AWS collision: $address (multiple Connect peers match the exact ownership tags)"
     actual_tags=$(jq -ec '.[0].tags' <<<"$matches") || die "cannot read AWS Connect-peer ownership tags for $address"
     require_aws_ownership "$expected_tags" "$actual_tags" "$name" || die "unowned or ambiguous AWS collision: $address ($name)"
-    identity=$(jq -ec '.[0] | {resource_uid:.id,created_at:null,creation_evidence:"not_exposed_by_ec2_describe_transit_gateway_connect_peers"}' <<<"$matches") ||
+    identity=$(jq -ec '.[0] | {
+      resource_uid:.id,
+      created_at:null,
+      creation_evidence:"not_exposed_by_ec2_describe_transit_gateway_connect_peers",
+      observed_config:.observed_config
+    }' <<<"$matches") ||
       die "cannot read AWS Connect-peer identity for $address"
     append_aws_collision "$type" "$address" "$name" "$expected_tags" "$actual_tags" "$identity"
     continue

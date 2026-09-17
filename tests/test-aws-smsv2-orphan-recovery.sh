@@ -20,9 +20,9 @@ import_count=$(grep -hEc '^import \{' "$recovery_root"/*.tf | awk '{ count += $1
 ignore_count=$(grep -hEc '^[[:space:]]*ignore_changes[[:space:]]*=[[:space:]]*all$' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 data_lb_count=$(grep -hEc '^data "aws_lb" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 data_target_group_count=$(grep -hEc '^data "aws_lb_target_group" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
-[[ $resource_count -eq 14 ]] || fail "recovery root must declare exactly fourteen supported resource types"
-[[ $import_count -eq 14 ]] || fail "recovery root must declare exactly fourteen configuration-driven import blocks"
-[[ $ignore_count -eq 14 ]] || fail "every recovery resource must ignore drift during adoption"
+[[ $resource_count -eq 15 ]] || fail "recovery root must declare exactly fifteen supported resource types"
+[[ $import_count -eq 15 ]] || fail "recovery root must declare exactly fifteen configuration-driven import blocks"
+[[ $ignore_count -eq 15 ]] || fail "every recovery resource must ignore drift during adoption"
 grep -Eq 'aws_eip' "$recovery_root/imports.tf" || fail "recovery must import verified legacy EIPs"
 grep -Eq 'aws_eip' "$recovery_root/resources.tf" || fail "recovery must configure verified legacy EIPs"
 [[ $data_lb_count -eq 1 ]] || fail "recovery must read the existing load-balancer shape for an import-only plan"
@@ -51,6 +51,12 @@ grep -Eq 'xcsh_bgp' "$recovery_root/resources.tf" ||
   fail "recovery must configure verified BGP objects"
 grep -Eq 'xcsh_external_connector\.recovery' "$recovery_root/resources.tf" ||
   fail "recovery destroy ordering must terminate BGP before external connectors"
+grep -Eq 'aws_ec2_transit_gateway_connect_peer' "$recovery_root/imports.tf" ||
+  fail "recovery must import manifest-bound Transit Gateway Connect peers"
+grep -Eq 'aws_ec2_transit_gateway_connect_peer' "$recovery_root/resources.tf" ||
+  fail "recovery must configure observed Transit Gateway Connect peer shape"
+grep -Eq 'connect_peer_observed_shape' "$recovery_root/locals.tf" ||
+  fail "recovery must reject Connect peers without observed immutable shape"
 if grep -R --exclude-dir=.terraform -En 'terraform[[:space:]]+import|local-exec|curl.+DELETE|aws.+delete-' "$recovery_root" "$verifier"; then
   fail "recovery implementation contains an imperative mutation path"
 fi
@@ -75,6 +81,11 @@ jq -n '{
      namespace:null,ownership:"verified",resource_uid:"eipalloc-0123456789abcdef0",
      created_at:"2026-09-16T12:00:00Z",creation_evidence:"ec2.describe-addresses.AllocationId",
      generation_binding:"saved_plan_name_and_legacy_ownership",observed_tags:{component:"mcn-ce-ha",managed_by:"terraform"}},
+    {engine:"aws",type:"aws_ec2_transit_gateway_connect_peer",address:"aws_ec2_transit_gateway_connect_peer.aws[\"01-sli\"]",name:"mcn-ce-ha-gen-01-aws-tgw-peer-01-sli",
+     namespace:null,ownership:"verified",resource_uid:"tgw-connect-peer-0123456789abcdef0",
+     created_at:null,creation_evidence:"ec2.describe-transit-gateway-connect-peers.TransitGatewayConnectPeerId",
+     generation_binding:"saved_plan_name_and_legacy_ownership",observed_tags:{component:"mcn-ce-ha",managed_by:"terraform"},
+     observed_config:{inside_cidr_blocks:["169.254.0.0/29"],peer_address:"10.0.0.10",transit_gateway_attachment_id:"tgw-attach-0123456789abcdef0",bgp_asn:"64512",transit_gateway_address:"10.0.0.1"}},
     {engine:"f5",type:"xcsh_token",address:"xcsh_token.aws[\"01\"]",name:"mcn-ce-ha-gen-01-token",
      namespace:"system",ownership:"verified",resource_uid:"11111111-1111-1111-1111-111111111111",
      created_at:"2026-09-16T12:00:00Z",creation_evidence:"system_metadata.creation_timestamp",
@@ -97,6 +108,8 @@ jq -n '{format_version:"1.2",terraform_version:"1.16.3",
    change:{actions:["no-op"],importing:{id:"mcn-ce-ha-gen-01-key"}}},
   {address:"aws_eip.recovery[\"aws_eip.ce[0]\"]",type:"aws_eip",
    change:{actions:["no-op"],importing:{id:"eipalloc-0123456789abcdef0"}}},
+  {address:"aws_ec2_transit_gateway_connect_peer.recovery[\"aws_ec2_transit_gateway_connect_peer.aws[\\\"01-sli\\\"]\"]",type:"aws_ec2_transit_gateway_connect_peer",
+   change:{actions:["no-op"],importing:{id:"tgw-connect-peer-0123456789abcdef0"}}},
   {address:"xcsh_token.recovery[\"xcsh_token.aws[\\\"01\\\"]\"]",type:"xcsh_token",
    change:{actions:["no-op"],importing:{id:"system/mcn-ce-ha-gen-01-token"}}},
   {address:"xcsh_external_connector.recovery[\"xcsh_external_connector.aws_tgw[\\\"01-sli\\\"]\"]",type:"xcsh_external_connector",
@@ -106,7 +119,7 @@ jq -n '{format_version:"1.2",terraform_version:"1.16.3",
 ]}' >"$plan"
 
 "$verifier" --mode import --plan-json "$plan" --manifest "$manifest" --receipt "$receipt"
-jq -e '.schema_version == 1 and .status == "ready" and .mode == "import" and .resource_count == 5 and
+jq -e '.schema_version == 1 and .status == "ready" and .mode == "import" and .resource_count == 6 and
   (.plan_sha256 | startswith("sha256:")) and (.manifest_sha256 | startswith("sha256:"))' \
   "$receipt" >/dev/null || fail "recovery receipt does not bind the exact plan and manifest"
 
@@ -133,6 +146,14 @@ if "$verifier" --mode import --plan-json "$plan" --manifest "$attached_eip_manif
   fail "recovery verifier accepted an attached EIP without its owning instance"
 fi
 
+missing_connect_peer_shape_manifest="$scratch/missing-connect-peer-shape.json"
+jq 'del(.collisions[] | select(.type == "aws_ec2_transit_gateway_connect_peer").observed_config)' \
+  "$manifest" >"$missing_connect_peer_shape_manifest"
+if "$verifier" --mode import --plan-json "$plan" --manifest "$missing_connect_peer_shape_manifest" \
+  --receipt "$scratch/missing-connect-peer-shape-receipt.json" >/dev/null 2>&1; then
+  fail "recovery verifier accepted a Connect peer without observed immutable shape"
+fi
+
 destroy_plan="$scratch/destroy-plan.json"
 destroy_receipt="$scratch/destroy-receipt.json"
 jq -n '{format_version:"1.2",terraform_version:"1.16.3",
@@ -142,6 +163,8 @@ jq -n '{format_version:"1.2",terraform_version:"1.16.3",
      change:{actions:["delete"],before:{id:"mcn-ce-ha-gen-01-key",key_name:"mcn-ce-ha-gen-01-key"},after:null}},
     {address:"aws_eip.recovery[\"aws_eip.ce[0]\"]",type:"aws_eip",
      change:{actions:["delete"],before:{id:"eipalloc-0123456789abcdef0",allocation_id:"eipalloc-0123456789abcdef0"},after:null}},
+    {address:"aws_ec2_transit_gateway_connect_peer.recovery[\"aws_ec2_transit_gateway_connect_peer.aws[\\\"01-sli\\\"]\"]",type:"aws_ec2_transit_gateway_connect_peer",
+     change:{actions:["delete"],before:{id:"tgw-connect-peer-0123456789abcdef0"},after:null}},
     {address:"xcsh_token.recovery[\"xcsh_token.aws[\\\"01\\\"]\"]",type:"xcsh_token",
      change:{actions:["delete"],before:{id:"mcn-ce-ha-gen-01-token",name:"mcn-ce-ha-gen-01-token"},after:null}},
     {address:"xcsh_external_connector.recovery[\"xcsh_external_connector.aws_tgw[\\\"01-sli\\\"]\"]",type:"xcsh_external_connector",
@@ -151,7 +174,7 @@ jq -n '{format_version:"1.2",terraform_version:"1.16.3",
   ]}' >"$destroy_plan"
 "$verifier" --mode destroy --plan-json "$destroy_plan" --manifest "$manifest" \
   --receipt "$destroy_receipt"
-jq -e '.status == "ready" and .mode == "destroy" and .resource_count == 5 and
+jq -e '.status == "ready" and .mode == "destroy" and .resource_count == 6 and
   .allowed_actions == ["delete"]' "$destroy_receipt" >/dev/null ||
   fail "destroy receipt does not prove an exact manifest-bound deletion"
 

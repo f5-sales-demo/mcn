@@ -9,6 +9,20 @@ resource "aws_eip" "recovery" {
   }
 }
 
+resource "aws_ec2_transit_gateway_connect_peer" "recovery" {
+  for_each                      = local.collisions_by_type.aws_ec2_transit_gateway_connect_peer
+  inside_cidr_blocks            = each.value.observed_config.inside_cidr_blocks
+  peer_address                  = each.value.observed_config.peer_address
+  transit_gateway_attachment_id = each.value.observed_config.transit_gateway_attachment_id
+  bgp_asn                       = try(each.value.observed_config.bgp_asn, null)
+  transit_gateway_address       = try(each.value.observed_config.transit_gateway_address, null)
+  tags                          = each.value.observed_tags
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
 resource "aws_instance" "recovery" {
   #checkov:skip=CKV_AWS_135: Import-only recovery must preserve the observed instance configuration until its reviewed destroy plan.
   #checkov:skip=CKV_AWS_126: Import-only recovery must not enable monitoring on a legacy instance before retirement.

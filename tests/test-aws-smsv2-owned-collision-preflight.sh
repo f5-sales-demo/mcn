@@ -51,6 +51,27 @@ cat >"$plan" <<'JSON'
       }
     },
     {
+      "address": "aws_ec2_transit_gateway_connect_peer.aws[\"01-sli\"]",
+      "type": "aws_ec2_transit_gateway_connect_peer",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "bgp_asn": "64512",
+          "inside_cidr_blocks": ["169.254.0.0/29"],
+          "peer_address": "10.0.0.10",
+          "transit_gateway_address": "10.0.0.1",
+          "transit_gateway_attachment_id": "tgw-attach-0123456789abcdef0",
+          "tags": {
+            "Name": "mcn-ce-ha-gen-01-aws-tgw-peer-01-sli",
+            "component": "mcn-ce-ha",
+            "deployment_generation": "gen-01",
+            "deployer": "tester",
+            "managed_by": "terraform"
+          }
+        }
+      }
+    },
+    {
       "address": "xcsh_virtual_site.aws[0]",
       "type": "xcsh_virtual_site",
       "change": {
@@ -125,6 +146,14 @@ case "$*" in
     generation=${FAKE_EIP_GENERATION:-gen-01}
     printf '{"Addresses":[{"AllocationId":"eipalloc-0123456789abcdef0","Tags":[{"Key":"component","Value":"mcn-ce-ha"},{"Key":"deployment_generation","Value":"%s"},{"Key":"deployer","Value":"tester"},{"Key":"managed_by","Value":"terraform"}]}]}\n' "$generation"
     ;;
+  *"describe-transit-gateway-connect-peers"*)
+    if [[ ${FAKE_ABSENT:-false} == true ]]; then
+      printf '{"TransitGatewayConnectPeers":[]}\n'
+      exit 0
+    fi
+    generation=${FAKE_AWS_GENERATION:-gen-01}
+    printf '{"TransitGatewayConnectPeers":[{"TransitGatewayConnectPeerId":"tgw-connect-peer-0123456789abcdef0","BgpAsn":"64512","InsideCidrBlocks":["169.254.0.0/29"],"PeerAddress":"10.0.0.10","TransitGatewayAddress":"10.0.0.1","TransitGatewayAttachmentId":"tgw-attach-0123456789abcdef0","Tags":[{"Key":"Name","Value":"mcn-ce-ha-gen-01-aws-tgw-peer-01-sli"},{"Key":"component","Value":"mcn-ce-ha"},{"Key":"deployment_generation","Value":"%s"},{"Key":"deployer","Value":"tester"},{"Key":"managed_by","Value":"terraform"}]}]}\n' "$generation"
+    ;;
   *)
     printf '%s\n' 'unexpected aws command' >&2
     exit 64
@@ -193,7 +222,7 @@ jq -e '
   .aws_caller_user_id == "TESTUSER:session" and
   (.inventory_captured_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T")) and
   .deployment_generation == "gen-01" and
-  (.collisions | length) == 6 and
+  (.collisions | length) == 7 and
   ([.collisions[].ownership] | all(. == "verified")) and
   ([.collisions[] | select(.engine == "f5") | .creator_id] | all(. == "tester@example.test")) and
   ([.collisions[] | select(.engine == "f5") | .created_at] | all(. == "2026-09-16T12:00:00Z")) and
@@ -201,11 +230,14 @@ jq -e '
   ([.collisions[] | select(.engine == "f5") | .resource_uid] | all(type == "string" and length > 0)) and
   ([.collisions[] | select(.engine == "aws") | .observed_tags.deployment_generation] | all(. == "gen-01")) and
   ([.collisions[] | select(.engine == "aws") | .resource_uid] | all(type == "string" and length > 0)) and
-  ([.collisions[] | select(.engine == "aws" and .type != "aws_eip") | .created_at] | all(. == "2026-09-16T12:00:00Z")) and
+  ([.collisions[] | select(.engine == "aws" and .type != "aws_eip" and .type != "aws_ec2_transit_gateway_connect_peer") | .created_at] | all(. == "2026-09-16T12:00:00Z")) and
   ([.collisions[] | select(.type == "aws_eip") | .resource_uid] | all(. == "eipalloc-0123456789abcdef0")) and
   ([.collisions[] | select(.type == "aws_eip") | .creation_evidence] | all(. == "not_exposed_by_ec2_describe_addresses")) and
   ([.collisions[].generation_binding] | all(. == "observed_metadata")) and
-  ([.collisions[].name] | sort) == ["mcn-ce-ha-gen-01-bgp", "mcn-ce-ha-gen-01-connector", "mcn-ce-ha-gen-01-eip-aws_eip.ce[0]", "mcn-ce-ha-gen-01-key", "mcn-ce-ha-gen-01-site", "mcn-ce-ha-gen-01-vsite"]
+  ([.collisions[] | select(.type == "aws_ec2_transit_gateway_connect_peer")] | length) == 1 and
+  ([.collisions[] | select(.type == "aws_ec2_transit_gateway_connect_peer") | .resource_uid] | all(. == "tgw-connect-peer-0123456789abcdef0")) and
+  ([.collisions[] | select(.type == "aws_ec2_transit_gateway_connect_peer") | .observed_config] | all(.inside_cidr_blocks == ["169.254.0.0/29"] and .peer_address == "10.0.0.10" and .transit_gateway_attachment_id == "tgw-attach-0123456789abcdef0")) and
+  ([.collisions[].name] | sort) == ["mcn-ce-ha-gen-01-aws-tgw-peer-01-sli", "mcn-ce-ha-gen-01-bgp", "mcn-ce-ha-gen-01-connector", "mcn-ce-ha-gen-01-eip-aws_eip.ce[0]", "mcn-ce-ha-gen-01-key", "mcn-ce-ha-gen-01-site", "mcn-ce-ha-gen-01-vsite"]
 ' "$manifest" >/dev/null || fail "manifest must retain the exact verified collision inventory"
 
 empty_manifest="$scratch/empty-manifest.json"
