@@ -99,6 +99,14 @@ MANIFEST=$(realpath -m "$MANIFEST")
 mkdir -p "$(dirname "$MANIFEST")"
 [[ ! -e "$MANIFEST" ]] || die "manifest already exists; use a new evidence path"
 jq -e 'type == "object" and (.resource_changes | type == "array")' "$PLAN_JSON" >/dev/null || die "plan JSON is invalid"
+replacement_sites=$(jq -ec '
+  [.resource_changes[]? |
+   select(.type == "xcsh_securemesh_site_v2" and (.change.actions | index("delete") != null)) |
+   {address, actions:.change.actions, replace_paths:(.change.replace_paths // [])}]
+' "$PLAN_JSON") || die "cannot inspect SecureMesh site lifecycle actions"
+if [[ $(jq -er 'length' <<<"$replacement_sites") -ne 0 ]]; then
+  die "planned SecureMesh site replacement is prohibited before mutation: $replacement_sites"
+fi
 
 caller_identity=$(aws sts get-caller-identity --output json 2>/dev/null) || die "cannot verify AWS caller identity"
 actual_aws_account_id=$(jq -er '.Account | select(type == "string")' <<<"$caller_identity") ||

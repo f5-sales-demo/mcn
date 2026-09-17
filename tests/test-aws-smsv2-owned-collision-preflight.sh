@@ -220,6 +220,26 @@ fi
 jq -e '.status == "ready" and .collisions == []' "$empty_manifest" >/dev/null ||
   fail "no-collision manifest must be explicitly ready and empty"
 
+replacement_plan="$scratch/replacement-plan.json"
+jq '(.resource_changes[] | select(.type == "xcsh_securemesh_site_v2")).change.actions = ["delete", "create"] |
+    (.resource_changes[] | select(.type == "xcsh_securemesh_site_v2")).change.replace_paths = [["aws"]]' \
+  "$plan" >"$replacement_plan"
+replacement_manifest="$scratch/replacement-manifest.json"
+set +e
+replacement_output=$(FAKE_ABSENT=true PATH="$fake_bin:$PATH" CURL_BIN="$fake_bin/curl" \
+  XCSH_API_URL=https://f5-sales-demo.console.ves.volterra.io XCSH_API_TOKEN=test-token \
+  "$script" --plan-json "$replacement_plan" --aws-region ap-northeast-1 --xc-tenant f5-sales-demo \
+  --aws-account-id 123456789012 --deployment-generation gen-01 --component mcn-ce-ha \
+  --creator-id tester@example.test --manifest "$replacement_manifest" 2>&1)
+replacement_status=$?
+set -e
+test "$replacement_status" -eq 2 || fail "securemesh replacement must fail closed with exit 2, got $replacement_status"
+[[ "$replacement_output" == *"SecureMesh site replacement is prohibited before mutation"* ]] ||
+  fail "securemesh replacement diagnostic is missing"
+[[ "$replacement_output" == *'"replace_paths":[["aws"]]'* ]] ||
+  fail "securemesh replacement diagnostic must include replacement paths"
+[[ ! -e "$replacement_manifest" ]] || fail "securemesh replacement must not produce an ownership manifest"
+
 expect_rejection() {
   local label=$1 expected=$2
   shift 2
