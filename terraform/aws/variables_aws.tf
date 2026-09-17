@@ -88,30 +88,20 @@ variable "aws_tgw_inside_cidr" {
   }
 }
 
-variable "aws_smsv2_devices" {
-  description = "Guest ethernet device names by independent AWS site key, verified against each ENI MAC. Required when AWS is enabled; no role-to-device names are inferred."
-  type = map(object({
-    slo = string
-    sli = string
-  }))
-  default  = {}
-  nullable = false
+variable "aws_site_configuration_phase" {
+  description = "Discovery creates registration-time AWS sites without guessed guest devices; configured MAC-joins the registered hardware inventory and enables the full topology."
+  type        = string
+  default     = "discovery"
+  nullable    = false
 
   validation {
-    condition = !var.enable_aws || toset(keys(var.aws_smsv2_devices)) == toset([
-      for index in range(var.aws_ce_count) : format("%02d", index + 1)
-    ])
-    error_message = "Supply aws_smsv2_devices for every enabled AWS site key, with no extra keys."
+    condition     = contains(["discovery", "configured"], var.aws_site_configuration_phase)
+    error_message = "aws_site_configuration_phase must be discovery or configured."
   }
 
   validation {
-    condition = alltrue([for devices in values(var.aws_smsv2_devices) : try(
-      devices.slo != devices.sli &&
-      length(devices.slo) >= 1 && length(devices.slo) <= 64 && trimspace(devices.slo) == devices.slo &&
-      length(devices.sli) >= 1 && length(devices.sli) <= 64 && trimspace(devices.sli) == devices.sli,
-      false
-    )])
-    error_message = "Each site needs distinct, nonempty SLO and SLI guest device names of at most 64 characters without surrounding whitespace."
+    condition     = var.aws_site_configuration_phase == "configured" || !var.enable_aws_tgw_connect
+    error_message = "Discovery creates and registers CEs only; set aws_site_configuration_phase to configured before enabling AWS TGW Connect."
   }
 }
 

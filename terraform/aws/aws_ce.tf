@@ -170,6 +170,11 @@ resource "aws_instance" "ce" {
   })
 
   lifecycle {
+    # The discovery-to-configured site update regenerates cloud-init metadata,
+    # but the already-registered CE must remain in place to receive that
+    # control-plane reconciliation. First creation still uses user_data.
+    ignore_changes = [user_data]
+
     precondition {
       condition     = var.aws_ce_ami_id != null
       error_message = "AWS CE deployment requires an explicit approved aws_ce_ami_id; dynamic AMI selection is not allowed."
