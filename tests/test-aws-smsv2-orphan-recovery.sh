@@ -25,15 +25,15 @@ data_target_group_count=$(grep -hEc '^data "aws_lb_target_group" "recovery"' "$r
 [[ $ignore_count -eq 10 ]] || fail "every recovery resource must ignore drift during adoption"
 [[ $data_lb_count -eq 1 ]] || fail "recovery must read the existing load-balancer shape for an import-only plan"
 [[ $data_target_group_count -eq 1 ]] || fail "recovery must read the existing target-group shape for an import-only plan"
-rg -q 'subnets[[:space:]]*=[[:space:]]*data\.aws_lb\.recovery' "$recovery_root/resources.tf" ||
+grep -Eq 'subnets[[:space:]]*=[[:space:]]*data\.aws_lb\.recovery' "$recovery_root/resources.tf" ||
   fail "recovery load balancer must use its observed subnets"
-rg -q 'vpc_id[[:space:]]*=[[:space:]]*data\.aws_lb_target_group\.recovery' "$recovery_root/resources.tf" ||
+grep -Eq 'vpc_id[[:space:]]*=[[:space:]]*data\.aws_lb_target_group\.recovery' "$recovery_root/resources.tf" ||
   fail "recovery target group must use its observed VPC"
-rg -q 'discovered_site_labels' "$recovery_root/locals.tf" ||
+grep -Eq 'discovered_site_labels' "$recovery_root/locals.tf" ||
   fail "recovery must identify F5-discovered site labels"
-rg -q '!contains\(local\.discovered_site_labels, key\)' "$recovery_root/resources.tf" ||
+grep -Eq '!contains\(local\.discovered_site_labels, key\)' "$recovery_root/resources.tf" ||
   fail "recovery must exclude F5-discovered labels from securemesh configuration"
-if rg -n 'terraform[[:space:]]+import|local-exec|curl.+DELETE|aws.+delete-' "$recovery_root" "$verifier"; then
+if grep -REn 'terraform[[:space:]]+import|local-exec|curl.+DELETE|aws.+delete-' "$recovery_root" "$verifier"; then
   fail "recovery implementation contains an imperative mutation path"
 fi
 
