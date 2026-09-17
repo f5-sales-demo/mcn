@@ -333,16 +333,11 @@ while IFS= read -r item; do
     *) die "unexpected F5 response for $address: $status" ;;
     esac
     ;;
+  *) die "preflight has no complete ownership adapter for planned resource type: $type ($address)" ;;
   esac
 done < <(jq -c '
   .resource_changes[]? |
   select(.change.actions == ["create"]) |
-  select(.type == "aws_key_pair" or .type == "aws_iam_role" or
-         .type == "aws_iam_instance_profile" or .type == "aws_lb" or
-         .type == "aws_lb_target_group" or .type == "xcsh_virtual_site" or
-         .type == "xcsh_origin_pool" or .type == "xcsh_http_loadbalancer" or
-         .type == "xcsh_token" or .type == "xcsh_securemesh_site_v2" or
-         .type == "xcsh_bgp" or .type == "xcsh_external_connector") |
   {address, type, after:.change.after}' "$PLAN_JSON")
 
 collisions=$(jq -sc 'sort_by(.engine, .type, .address)' "$collisions_file")
