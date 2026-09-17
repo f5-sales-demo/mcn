@@ -21,6 +21,47 @@ locals {
   aws_ce_hostnames = [for site in values(local.aws_sites) : site.hostname]
 }
 
+# Discovery sites intentionally omit node_list. The F5 API then records the
+# booted guest hardware inventory, including the authoritative device-name/MAC
+# pairs. A later configured plan MAC-joins that inventory; it never guesses a
+# Linux NIC name from AWS attachment order.
+data "xcsh_site_registrations_by_site" "aws" {
+  for_each = var.enable_aws && var.aws_site_configuration_phase == "configured" ? local.aws_sites : {}
+
+  namespace = "system"
+  site_name = each.value.name
+}
+
+locals {
+  aws_discovered_networks = {
+    for key, registration in data.xcsh_site_registrations_by_site.aws :
+    key => flatten([
+      for item in registration.items : try(item.get_spec.infra.hw_info.network, [])
+    ])
+  }
+  # Preserve each full matching record so the configured phase can reject a
+  # missing or ambiguous inventory rather than silently submitting a null or
+  # guessed device value.
+  aws_discovered_device_candidates = {
+    for key, site in local.aws_sites : key => {
+      slo = [
+        for network in try(local.aws_discovered_networks[key], []) : network
+        if try(lower(network.mac_address), "") == lower(aws_network_interface.slo[site.index].mac_address)
+      ]
+      sli = [
+        for network in try(local.aws_discovered_networks[key], []) : network
+        if try(lower(network.mac_address), "") == lower(aws_network_interface.sli[site.index].mac_address)
+      ]
+    }
+  }
+  aws_discovered_devices = {
+    for key, site in local.aws_sites : key => {
+      slo = try(trimspace(one(local.aws_discovered_device_candidates[key].slo).name), null)
+      sli = try(trimspace(one(local.aws_discovered_device_candidates[key].sli).name), null)
+    }
+  }
+}
+
 resource "xcsh_token" "aws" {
   for_each = local.aws_bootstrap_sites
 
@@ -41,35 +82,39 @@ resource "xcsh_securemesh_site_v2" "aws" {
 
   aws {
     not_managed {
-      node_list {
-        hostname  = each.value.hostname
-        type      = "Control"
-        public_ip = null
+      dynamic "node_list" {
+        for_each = var.aws_site_configuration_phase == "configured" ? [each.value] : []
 
-        interface_list {
-          name = "slo"
-          mtu  = var.aws_smsv2_interface_mtu
-          ethernet_interface {
-            device = try(var.aws_smsv2_devices[each.key].slo, null)
-            mac    = aws_network_interface.slo[each.value.index].mac_address
-          }
-          network_option {
-            site_local_network = {}
-          }
-          dhcp_client = {}
-        }
+        content {
+          hostname  = node_list.value.hostname
+          type      = "Control"
+          public_ip = null
 
-        interface_list {
-          name = "sli"
-          mtu  = var.aws_smsv2_interface_mtu
-          ethernet_interface {
-            device = try(var.aws_smsv2_devices[each.key].sli, null)
-            mac    = aws_network_interface.sli[each.value.index].mac_address
+          interface_list {
+            name = "slo"
+            mtu  = var.aws_smsv2_interface_mtu
+            ethernet_interface {
+              device = local.aws_discovered_devices[each.key].slo
+              mac    = aws_network_interface.slo[node_list.value.index].mac_address
+            }
+            network_option {
+              site_local_network = {}
+            }
+            dhcp_client = {}
           }
-          network_option {
-            site_local_inside_network = {}
+
+          interface_list {
+            name = "sli"
+            mtu  = var.aws_smsv2_interface_mtu
+            ethernet_interface {
+              device = local.aws_discovered_devices[each.key].sli
+              mac    = aws_network_interface.sli[node_list.value.index].mac_address
+            }
+            network_option {
+              site_local_inside_network = {}
+            }
+            dhcp_client = {}
           }
-          dhcp_client = {}
         }
       }
     }
@@ -101,6 +146,19 @@ resource "xcsh_securemesh_site_v2" "aws" {
     }
     sw {
       volterra_software_version = var.aws_software_version
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition = var.aws_site_configuration_phase == "discovery" || (
+        length(local.aws_discovered_device_candidates[each.key].slo) == 1 &&
+        length(local.aws_discovered_device_candidates[each.key].sli) == 1 &&
+        try(length(local.aws_discovered_devices[each.key].slo), 0) > 0 &&
+        try(length(local.aws_discovered_devices[each.key].sli), 0) > 0 &&
+        local.aws_discovered_devices[each.key].slo != local.aws_discovered_devices[each.key].sli
+      )
+      error_message = "Configured AWS SMSv2 requires exactly one nonempty registered hardware device for each Terraform-owned SLO/SLI ENI MAC, with distinct devices. Run and apply the discovery phase, wait for registration inventory, then retry; do not guess guest device names."
     }
   }
 }

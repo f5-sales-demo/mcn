@@ -7,8 +7,8 @@ sidebar:
 
 ## Prerequisites
 
-Use the [Terraform lifecycle](../terraform-lifecycle/) with provider v8.0.0, authorized
-Amazon Web Services (AWS) and F5 Distributed Cloud (XC) access, the certified Amazon
+Use the [Terraform lifecycle](../terraform-lifecycle/) with provider v9.2.2, authorized
+Amazon Web Services (AWS) and F5 Distributed Cloud (XC) access, the approved Amazon
 Machine Image (AMI), and the [MCN deployment commands](../../../demo/deploy/).
 Budget a maintenance window of hours for full user acceptance testing (UAT), including
 failover and serial upgrades. The preflight is read-only unless `--execute-uat` is supplied.
@@ -35,17 +35,24 @@ propagated listener routes and two healthy targets during a CE outage.
 
 ## Prepare transport before connectors
 
-1. Correlate each cloud network interface's MAC address with the guest device and actual
-   site/node identity. Populate `aws_smsv2_devices`; do not assume `ens5` or `ens6`.
-2. Confirm source/destination checks are disabled on forwarding interfaces as configured
+1. Apply the `discovery` phase with `enable_aws_tgw_connect = false`. It creates the
+   sites and CEs without a `node_list`, so XC can record the booted CE hardware inventory.
+2. After the CEs register, apply the `configured` phase. Terraform reads
+   `xcsh_site_registrations_by_site`, MAC-joins each Terraform-owned SLO/SLI ENI to its
+   registered guest device, and writes the explicit interface configuration. It rejects a
+   missing, empty, duplicate, or shared device before any configured-phase mutation. Never
+   enter `ens5`, `ens6`, or another device name by hand.
+3. Enable `enable_aws_tgw_connect` only in the `configured` phase. Discovery deliberately
+   rejects it, because Connect peers require the explicit MAC-bound interface configuration.
+4. Confirm source/destination checks are disabled on forwarding interfaces as configured
    in `aws_ce.tf`.
-3. Verify both SLO and SLI subnet route-table associations and reachability to the TGW
+5. Verify both SLO and SLI subnet route-table associations and reachability to the TGW
    transport range. A correct route in an unassociated table has no effect.
-4. Verify the transport attachment, role-specific Connect attachments, workload attachment,
+6. Verify the transport attachment, role-specific Connect attachments, workload attachment,
    and their route-table associations and propagations from `modules/aws-tgw-connect`.
-5. Check security groups and network access control lists for the intended GRE transport,
+7. Check security groups and network access control lists for the intended GRE transport,
    BGP, and return traffic. GRE is IP protocol 47, not TCP port 47; BGP uses TCP 179.
-6. Verify observed interface MTU before creating connectors. MCN sets tunnel MTU to the
+8. Verify observed interface MTU before creating connectors. MCN sets tunnel MTU to the
    smaller of physical MTU minus 24 bytes and the XC connector limit of 1370.
 
 These dependencies are implemented in `aws_ce.tf`, `aws_vpc.tf`, and
@@ -84,7 +91,10 @@ object write cannot substitute for those observations.
 
 ## Stage recovery and acceptance
 
-Follow the saved-plan commands in [Deploy](../../../demo/deploy/). Recover site keys
+Follow the saved-plan commands in [Deploy](../../../demo/deploy/). First produce and review
+a saved discovery plan, apply it, and wait for all three registration inventories. Then produce
+and review a configured-phase saved plan; Terraform performs the MAC join and rejects absent or
+ambiguous hardware observations without issuing a configured-phase write. Recover site keys
 cumulatively: `01`, then `01` plus `02`, then all three. Prove sessions in partial stages;
 require workload and listener routes only after the full workload attachment and load
 balancer dependencies exist. Use bounded polling and serial changes.

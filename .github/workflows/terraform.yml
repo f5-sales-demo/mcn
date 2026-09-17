@@ -137,6 +137,10 @@ jobs:
         working-directory: .
         run: bash tests/test-configure-aws-state-backend.sh
 
+      - name: AWS SMSv2 device-discovery lifecycle
+        working-directory: .
+        run: bash tests/test-aws-device-discovery.sh
+
       - name: Terraform AWS SSO credential isolation
         working-directory: .
         run: bash tests/test-terraform-with-aws-sso.sh
