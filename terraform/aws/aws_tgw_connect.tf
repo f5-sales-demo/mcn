@@ -129,12 +129,12 @@ resource "terraform_data" "aws_tgw_contract_gate" {
 
 module "aws_tgw_connect" {
   count                      = var.enable_aws && var.enable_aws_tgw_connect ? 1 : 0
-  source                     = "./modules/aws-tgw-connect"
+  source                     = "../modules/aws-tgw-connect"
   vpc_id                     = aws_vpc.aws[0].id
   amazon_side_asn            = var.aws_tgw_asn
   transit_gateway_cidr_block = var.aws_tgw_gre_cidr
   transport_subnet_ids       = aws_subnet.private_sli[*].id
-  name_prefix                = var.component
+  name_prefix                = local.aws_resource_prefix
   depends_on                 = [terraform_data.aws_tgw_contract_gate]
 }
 
@@ -193,15 +193,16 @@ resource "aws_ec2_transit_gateway_connect_peer" "aws" {
   peer_address                  = each.value.gre_peer_address
   transit_gateway_address       = cidrhost(var.aws_tgw_gre_cidr, each.value.order + 1)
   transit_gateway_attachment_id = module.aws_tgw_connect[0].connect_attachment_ids[each.value.role]
-  tags                          = merge(local.tags, { Name = "${var.component}-aws-tgw-peer-${replace(each.key, "_", "-")}" })
+  tags                          = merge(local.tags, { Name = "${local.aws_resource_prefix}-aws-tgw-peer-${replace(each.key, "_", "-")}" })
   depends_on                    = [terraform_data.aws_tgw_runtime_gate]
 }
 
 resource "xcsh_external_connector" "aws_tgw" {
   for_each    = var.enable_aws && var.enable_aws_tgw_connect ? local.aws_bootstrap_smsv2_bindings : {}
-  name        = "${var.component}-aws-tgw-${replace(each.key, "_", "-")}"
+  name        = "${local.aws_resource_prefix}-aws-tgw-${replace(each.key, "_", "-")}"
   namespace   = "system"
   description = "AWS TGW Connect GRE tunnel for ${each.key}."
+  labels      = local.xc_labels
   ce_site_reference {
     name      = xcsh_securemesh_site_v2.aws[each.value.site_key].name
     namespace = "system"
@@ -232,6 +233,7 @@ resource "xcsh_bgp" "aws_tgw" {
   name        = "${each.value.name}-tgw-bgp"
   namespace   = "system"
   description = "Four-session AWS TGW Connect BGP for independent site ${each.value.name}."
+  labels      = local.xc_labels
   where {
     site {
       # The external-connector API accepts TGW payload only in Site Local

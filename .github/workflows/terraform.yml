@@ -23,6 +23,9 @@ on:
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
       - 'tests/test-aws-smsv2-owned-collision-preflight.sh'
+      - 'tests/test-aws-deployment-generation.sh'
+      - 'tests/test-aws-smsv2-orphan-recovery.sh'
+      - 'tests/test-aws-root-owned-resource-tags.sh'
       - 'tests/test-aws-upgrade-showcase.sh'
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
@@ -33,6 +36,7 @@ on:
       - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
+      - 'scripts/verify-aws-smsv2-orphan-recovery-plan.sh'
       - '.github/workflows/terraform.yml'
   push:
     branches: [main]
@@ -46,6 +50,9 @@ on:
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
       - 'tests/test-aws-smsv2-owned-collision-preflight.sh'
+      - 'tests/test-aws-deployment-generation.sh'
+      - 'tests/test-aws-smsv2-orphan-recovery.sh'
+      - 'tests/test-aws-root-owned-resource-tags.sh'
       - 'tests/test-aws-upgrade-showcase.sh'
       - 'tests/test-azure-ilb-no-route-server.sh'
       - 'tests/test-kvm-frr-lifecycle.sh'
@@ -56,6 +63,7 @@ on:
       - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
+      - 'scripts/verify-aws-smsv2-orphan-recovery-plan.sh'
       - '.github/workflows/terraform.yml'
 
 permissions:
@@ -97,6 +105,18 @@ jobs:
         working-directory: .
         run: bash tests/test-aws-smsv2-owned-collision-preflight.sh
 
+      - name: AWS immutable deployment generation contract
+        working-directory: .
+        run: bash tests/test-aws-deployment-generation.sh
+
+      - name: AWS lost-state orphan recovery contract
+        working-directory: .
+        run: bash tests/test-aws-smsv2-orphan-recovery.sh
+
+      - name: AWS root IAM ownership tag contract
+        working-directory: .
+        run: bash tests/test-aws-root-owned-resource-tags.sh
+
       - name: AWS three-site upgrade showcase contract
         working-directory: .
         run: bash tests/test-aws-upgrade-showcase.sh
@@ -130,6 +150,12 @@ jobs:
           terraform init -backend=false -input=false
           terraform validate -no-color
 
+      - name: Terraform orphan recovery root validation
+        working-directory: terraform/recovery/aws-smsv2-orphans
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate -no-color
+
       - name: Init (no backend; CI has no cloud credentials)
         run: terraform init -input=false -backend=false
 
@@ -146,7 +172,7 @@ jobs:
   # xcsh provider, so the provider's own schema validators fire at plan with no XC API call.
   # This job resolves f5-sales-demo/xcsh from the public registry, so it only turns green once
   # the exact clean-break provider version required by
-  # `coverage/smsv2/versions.tf` (`= 9.2.1`) is published in the registry. Locally the same tests run
+  # `coverage/smsv2/versions.tf` (`= 9.2.2`) is published in the registry. Locally the same tests run
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2

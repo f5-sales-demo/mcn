@@ -1,0 +1,217 @@
+# ---------------------------------------------------------
+# Three independent F5 XC SecureMesh v2 sites and AWS VIP
+# ---------------------------------------------------------
+
+locals {
+  aws_sites = {
+    for index in range(var.enable_aws ? var.aws_ce_count : 0) :
+    format("%02d", index + 1) => {
+      index       = index
+      name        = format("%s-aws-%s-%02d", local.site_prefix, var.aws_location, index + 1)
+      hostname    = format("%s-aws-%s-%02d", local.site_prefix, var.aws_location, index + 1)
+      listener_ip = cidrhost(cidrsubnet(var.aws_vpc_cidr, 8, index + 11), 10)
+    }
+  }
+  # Bootstrap keys are cumulative during controlled replacement: 01, then
+  # 01+02, then all three. The default remains the complete topology.
+  aws_bootstrap_sites = {
+    for key, site in local.aws_sites : key => site
+    if contains(var.aws_bootstrap_site_keys, key)
+  }
+  aws_ce_hostnames = [for site in values(local.aws_sites) : site.hostname]
+}
+
+resource "xcsh_token" "aws" {
+  for_each = local.aws_bootstrap_sites
+
+  name        = "${each.value.name}-registration"
+  namespace   = "system"
+  description = "Registration token for independent AWS site ${each.value.name}"
+  labels      = local.xc_labels
+  type        = 1
+  site_name   = xcsh_securemesh_site_v2.aws[each.key].name
+}
+
+resource "xcsh_securemesh_site_v2" "aws" {
+  for_each    = local.aws_sites
+  name        = each.value.name
+  namespace   = "system"
+  description = "Independent AWS Customer Edge SecureMesh v2 site ${each.key}"
+  labels      = local.xc_labels
+
+  aws {
+    not_managed {
+      node_list {
+        hostname  = each.value.hostname
+        type      = "Control"
+        public_ip = null
+
+        interface_list {
+          name = "slo"
+          mtu  = var.aws_smsv2_interface_mtu
+          ethernet_interface {
+            device = try(var.aws_smsv2_devices[each.key].slo, null)
+            mac    = aws_network_interface.slo[each.value.index].mac_address
+          }
+          network_option {
+            site_local_network = {}
+          }
+          dhcp_client = {}
+        }
+
+        interface_list {
+          name = "sli"
+          mtu  = var.aws_smsv2_interface_mtu
+          ethernet_interface {
+            device = try(var.aws_smsv2_devices[each.key].sli, null)
+            mac    = aws_network_interface.sli[each.value.index].mac_address
+          }
+          network_option {
+            site_local_inside_network = {}
+          }
+          dhcp_client = {}
+        }
+      }
+    }
+  }
+
+  disable_ha                 = {}
+  block_all_services         = {}
+  no_network_policy          = {}
+  no_forward_proxy           = {}
+  f5_proxy                   = {}
+  no_proxy_bypass            = {}
+  logs_streaming_disabled    = {}
+  no_s2s_connectivity_sli    = {}
+  no_s2s_connectivity_slo    = {}
+  disable_url_categorization = {}
+  disable_management_network = {}
+
+  local_vrf {
+    default_config     = {}
+    default_sli_config = {}
+  }
+
+  software_settings {
+    # First boot must request the field-proven runtime pair.  A staged
+    # baseline leaves a newly created CE in UPGRADE_IN_PROGRESS before the
+    # post-bootstrap action stage can observe or recover it.
+    os {
+      operating_system_version = var.aws_os_version
+    }
+    sw {
+      volterra_software_version = var.aws_software_version
+    }
+  }
+}
+
+resource "xcsh_site_cloud_init" "aws" {
+  # Cloud-init records remain stable for all sites. Only the sensitive JWT
+  # issuance is staged, so a CE01 replacement cannot delete peer bootstrap
+  # records from state or the XC API.
+  for_each                  = local.aws_sites
+  provider_ref              = "aws"
+  site_name                 = xcsh_securemesh_site_v2.aws[each.key].name
+  enable_management_network = false
+}
+
+data "xcsh_site_registration" "aws" {
+  for_each = local.aws_sites
+
+  site_name = each.value.name
+  hostname  = each.value.hostname
+  namespace = "system"
+
+}
+
+resource "xcsh_registration_approval" "aws" {
+  for_each = {
+    for key, registration in data.xcsh_site_registration.aws :
+    key => registration if registration.found && registration.state == "NEW"
+  }
+
+  namespace    = "system"
+  name         = each.value.name
+  cluster_size = 1
+  state        = "APPROVED"
+
+  depends_on = [xcsh_securemesh_site_v2.aws]
+}
+
+resource "xcsh_virtual_site" "aws" {
+  count     = var.enable_aws ? 1 : 0
+  name      = "${local.aws_resource_prefix}-aws-vsite"
+  namespace = data.xcsh_namespace.mcn.name
+  labels    = local.xc_labels
+
+  site_type = "CUSTOMER_EDGE"
+  site_selector {
+    expressions = ["mcn-topology in (${local.site_prefix}-aws)"]
+  }
+}
+
+resource "xcsh_origin_pool" "aws" {
+  count       = var.enable_aws ? 1 : 0
+  name        = "${local.aws_resource_prefix}-aws-pool"
+  namespace   = data.xcsh_namespace.mcn.name
+  description = "AWS origin pool serving the three-site TGW showcase"
+  labels      = local.xc_labels
+  port        = var.origin_port
+
+  origin_servers {
+    labels = {}
+    public_name { dns_name = var.aws_origin_dns_name }
+  }
+
+  no_tls                 = {}
+  loadbalancer_algorithm = "ROUND_ROBIN"
+  endpoint_selection     = "DISTRIBUTED"
+
+}
+
+resource "xcsh_http_loadbalancer" "aws" {
+  count     = var.enable_aws ? 1 : 0
+  name      = "${local.aws_resource_prefix}-aws-lb"
+  namespace = data.xcsh_namespace.mcn.name
+  domains   = [var.aws_lb_domain]
+  labels    = local.xc_labels
+
+  http {
+    port = 80
+  }
+
+  advertise_custom {
+    dynamic "advertise_where" {
+      for_each = local.aws_sites
+      content {
+        site {
+          network = "SITE_NETWORK_INSIDE"
+          site {
+            name      = xcsh_securemesh_site_v2.aws[advertise_where.key].name
+            namespace = "system"
+          }
+        }
+        use_default_port = {}
+      }
+    }
+  }
+
+  default_route_pools {
+    pool {
+      name      = xcsh_origin_pool.aws[0].name
+      namespace = data.xcsh_namespace.mcn.name
+    }
+    weight   = 1
+    priority = 1
+  }
+
+  round_robin            = {}
+  no_challenge           = {}
+  user_id_client_ip      = {}
+  disable_waf            = {}
+  disable_rate_limit     = {}
+  disable_api_discovery  = {}
+  disable_api_testing    = {}
+  disable_api_definition = {}
+  l7_ddos_protection {}
+}

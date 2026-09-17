@@ -47,6 +47,19 @@ sitecli/captures/sitecli-vegactl-introspect-show-election.txt
 sitecli/captures/sitecli-vif.txt
 
 # Terraform source, staged with paths preserved for documentation imports.
+terraform/aws/aws_ce.tf -> terraform/aws/aws_ce.tf
+terraform/aws/aws_tgw_connect.tf -> terraform/aws/aws_tgw_connect.tf
+terraform/aws/aws_upgrade.tf -> terraform/aws/aws_upgrade.tf
+terraform/aws/aws_vpc.tf -> terraform/aws/aws_vpc.tf
+terraform/aws/aws_xc.tf -> terraform/aws/aws_xc.tf
+terraform/aws/backend.tf -> terraform/aws/backend.tf
+terraform/aws/data.tf -> terraform/aws/data.tf
+terraform/aws/locals.tf -> terraform/aws/locals.tf
+terraform/aws/outputs.tf -> terraform/aws/outputs.tf
+terraform/aws/providers.tf -> terraform/aws/providers.tf
+terraform/aws/variables.tf -> terraform/aws/variables.tf
+terraform/aws/variables_aws.tf -> terraform/aws/variables_aws.tf
+terraform/aws/versions.tf -> terraform/aws/versions.tf
 terraform/aws_ce.tf -> terraform/aws_ce.tf
 terraform/aws_upgrade.tf -> terraform/aws_upgrade.tf
 terraform/aws_vpc.tf -> terraform/aws_vpc.tf
@@ -82,6 +95,13 @@ terraform/modules/xc-site/main.tf -> terraform/modules/xc-site/main.tf
 terraform/modules/xc-site/outputs.tf -> terraform/modules/xc-site/outputs.tf
 terraform/modules/xc-site/variables.tf -> terraform/modules/xc-site/variables.tf
 terraform/modules/xc-site/versions.tf -> terraform/modules/xc-site/versions.tf
+terraform/recovery/aws-smsv2-orphans/backend.tf -> terraform/recovery/aws-smsv2-orphans/backend.tf
+terraform/recovery/aws-smsv2-orphans/imports.tf -> terraform/recovery/aws-smsv2-orphans/imports.tf
+terraform/recovery/aws-smsv2-orphans/locals.tf -> terraform/recovery/aws-smsv2-orphans/locals.tf
+terraform/recovery/aws-smsv2-orphans/providers.tf -> terraform/recovery/aws-smsv2-orphans/providers.tf
+terraform/recovery/aws-smsv2-orphans/resources.tf -> terraform/recovery/aws-smsv2-orphans/resources.tf
+terraform/recovery/aws-smsv2-orphans/variables.tf -> terraform/recovery/aws-smsv2-orphans/variables.tf
+terraform/recovery/aws-smsv2-orphans/versions.tf -> terraform/recovery/aws-smsv2-orphans/versions.tf
 terraform/onprem_kvm.tf -> terraform/onprem_kvm.tf
 terraform/outputs.tf -> terraform/outputs.tf
 terraform/providers.tf -> terraform/providers.tf

@@ -48,7 +48,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"9.2.1"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"9.2.2"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -93,7 +93,7 @@ show)
 output)
   case "$*" in
   *'-raw aws_workload_instance_id'*) printf 'i-workload\n' ;;
-  *'-raw aws_origin_public_ip'*) printf '203.0.113.80\n' ;;
+  *'-raw aws_origin_dns_name'*) printf 'httpbin.org\n' ;;
   *'-raw aws_vip'*) printf '%s\n' "${FAKE_LIVE_AWS_VIP:-10.151.1.10}" ;;
   *'-raw aws_lb_domain'*) printf 'aws.mcn-ce-ha.example.com\n' ;;
   *'-raw aws_smsv2_target_group_arn'*) printf 'arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:targetgroup/test/0123456789abcdef\n' ;;
@@ -115,7 +115,8 @@ SH
 chmod 755 "${BIN}/aws" "${BIN}/curl" "${BIN}/terraform"
 
 export PATH="${BIN}:$PATH"
-export FAKE_TF_DIR="$TF_DIR"
+FAKE_TF_DIR="$(cd "$TF_DIR" && pwd)"
+export FAKE_TF_DIR
 export FAKE_TF_CALLS="$TF_CALLS"
 export FAKE_CANDIDATE_BINARY="$CANDIDATE_BINARY"
 export AWS_REGION="ap-northeast-1"
@@ -168,7 +169,7 @@ fi
 assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
-echo "ok - exact v9.2.1 available contract passes with sanitized evidence"
+echo "ok - exact v9.2.2 available contract passes with sanitized evidence"
 
 evidence="${TMP_ROOT}/obsolete-contract"
 mkdir "$evidence"

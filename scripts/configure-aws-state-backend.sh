@@ -14,6 +14,7 @@ bootstrap_dir="$repo_root/terraform/bootstrap/state-backend"
 metadata="$bootstrap_dir/.terraform/terraform.tfstate"
 bootstrap_hcl="$bootstrap_dir/backend.hcl"
 root_hcl="$repo_root/terraform/backend.hcl"
+recovery_hcl="$repo_root/terraform/recovery/aws-smsv2-orphans/backend.hcl"
 backend_block="$bootstrap_dir/backend.generated.tf"
 profile=default
 requested_region=
@@ -109,6 +110,7 @@ write_backend_hcl() {
 
 write_backend_hcl "$bootstrap_hcl" "$key"
 write_backend_hcl "$root_hcl" "mcn-ce-ha-smsv2/showcase.tfstate"
+write_backend_hcl "$recovery_hcl" "mcn-ce-ha-smsv2/recovery/smsv2-orphans.tfstate"
 
 temporary_block=$(mktemp "${backend_block}.tmp.XXXXXX")
 chmod 600 "$temporary_block"
@@ -132,5 +134,6 @@ jq -e \
    .backend.config.use_lockfile == true' \
   "$metadata" >/dev/null || fail "Terraform backend metadata does not match the generated configuration"
 
-printf 'AWS backend configured: verified_identity=true region=%s bucket=%s bootstrap_key=%s showcase_key=%s\n' \
-  "$region" "$bucket" "$key" "mcn-ce-ha-smsv2/showcase.tfstate"
+printf 'AWS backend configured: verified_identity=true region=%s bucket=%s bootstrap_key=%s showcase_key=%s recovery_key=%s\n' \
+  "$region" "$bucket" "$key" "mcn-ce-ha-smsv2/showcase.tfstate" \
+  "mcn-ce-ha-smsv2/recovery/smsv2-orphans.tfstate"
