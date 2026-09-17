@@ -407,15 +407,18 @@ while IFS= read -r item; do
     case "$type" in
     aws_ec2_transit_gateway)
       aws ec2 describe-transit-gateways --region "$AWS_REGION" --output json >"$response" 2>/dev/null || die "cannot inspect AWS Transit Gateway candidates for $address"
-      collection="TransitGateways"; id_field="TransitGatewayId"
+      collection="TransitGateways"
+      id_field="TransitGatewayId"
       ;;
     aws_ec2_transit_gateway_route_table)
       aws ec2 describe-transit-gateway-route-tables --region "$AWS_REGION" --output json >"$response" 2>/dev/null || die "cannot inspect AWS TGW route-table candidates for $address"
-      collection="TransitGatewayRouteTables"; id_field="TransitGatewayRouteTableId"
+      collection="TransitGatewayRouteTables"
+      id_field="TransitGatewayRouteTableId"
       ;;
     aws_ec2_transit_gateway_connect)
       aws ec2 describe-transit-gateway-attachments --region "$AWS_REGION" --output json >"$response" 2>/dev/null || die "cannot inspect AWS TGW Connect attachment candidates for $address"
-      collection="TransitGatewayAttachments"; id_field="TransitGatewayAttachmentId"
+      collection="TransitGatewayAttachments"
+      id_field="TransitGatewayAttachmentId"
       ;;
     esac
     matches=$(jq -ec --arg collection "$collection" --arg id_field "$id_field" --argjson expected "$expected_tags" '
