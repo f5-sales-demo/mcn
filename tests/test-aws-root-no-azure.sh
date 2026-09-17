@@ -14,6 +14,9 @@ for forbidden in azurerm azapi azuread libvirt docker; do
   fi
 done
 
-TF_DATA_DIR="$data_dir" terraform -chdir="$root" init -backend=false -input=false >/dev/null
+# The AWS root pins the released provider. Refresh an ignored local lock rather
+# than allowing a previous workstation install to make this isolation test
+# report a stale-provider failure.
+TF_DATA_DIR="$data_dir" terraform -chdir="$root" init -backend=false -upgrade -input=false >/dev/null
 
 printf "PASS: AWS root has no Azure, KVM, or Docker provider dependency\\n"
