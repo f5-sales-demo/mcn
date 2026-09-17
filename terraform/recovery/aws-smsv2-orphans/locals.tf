@@ -2,6 +2,7 @@ locals {
   manifest   = jsondecode(file(var.ownership_manifest_path))
   collisions = try(local.manifest.collisions, [])
   supported_types = toset([
+    "aws_eip",
     "aws_iam_instance_profile",
     "aws_iam_role",
     "aws_key_pair",

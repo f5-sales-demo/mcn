@@ -1,4 +1,10 @@
 import {
+  for_each = local.collisions_by_type.aws_eip
+  to       = aws_eip.recovery[each.key]
+  id       = each.value.resource_uid
+}
+
+import {
   for_each = local.collisions_by_type.aws_key_pair
   to       = aws_key_pair.recovery[each.key]
   id       = each.value.name
