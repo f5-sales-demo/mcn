@@ -6,7 +6,10 @@ aws_xc="$repo_root/terraform/aws/aws_xc.tf"
 aws_ce="$repo_root/terraform/aws/aws_ce.tf"
 variables="$repo_root/terraform/aws/variables_aws.tf"
 
-fail() { printf "FAIL: %s\\n" "$*" >&2; exit 1; }
+fail() {
+  printf "FAIL: %s\\n" "$*" >&2
+  exit 1
+}
 require() { grep -Fq "$1" "$2" || fail "missing $1 in $2"; }
 reject() { ! grep -Fq "$1" "$2" || fail "unexpected $1 in $2"; }
 
