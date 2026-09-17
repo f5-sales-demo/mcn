@@ -62,8 +62,8 @@ require 'variable "access_log_retention_days"' "$variables"
 reject 'backend "s3" {}' "$bootstrap_versions"
 require 'alias  = "replica"' "$bootstrap_versions"
 require 'Terraform state backend bootstrap validation' "$repo_root/.github/workflows/terraform.yml"
-require 'runs-on: managed-socketless' "$repo_root/.github/workflows/terraform.yml"
-reject 'runs-on: ubuntu-latest' "$repo_root/.github/workflows/terraform.yml"
+require 'runs-on: ubuntu-latest' "$repo_root/.github/workflows/terraform.yml"
+reject 'runs-on: managed-socketless' "$repo_root/.github/workflows/terraform.yml"
 [ -x "$configure_script" ] || fail "backend configuration script is not executable"
 
 printf 'PASS: AWS state backend is isolated, encrypted, versioned, and lockfile-protected\n'
