@@ -20,12 +20,17 @@ import_count=$(grep -hEc '^import \{' "$recovery_root"/*.tf | awk '{ count += $1
 ignore_count=$(grep -hEc '^[[:space:]]*ignore_changes[[:space:]]*=[[:space:]]*all$' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 data_lb_count=$(grep -hEc '^data "aws_lb" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
 data_target_group_count=$(grep -hEc '^data "aws_lb_target_group" "recovery"' "$recovery_root"/*.tf | awk '{ count += $1 } END { print count + 0 }')
-[[ $resource_count -eq 11 ]] || fail "recovery root must declare exactly eleven supported resource types"
-[[ $import_count -eq 11 ]] || fail "recovery root must declare exactly eleven configuration-driven import blocks"
-[[ $ignore_count -eq 11 ]] || fail "every recovery resource must ignore drift during adoption"
+[[ $resource_count -eq 12 ]] || fail "recovery root must declare exactly twelve supported resource types"
+[[ $import_count -eq 12 ]] || fail "recovery root must declare exactly twelve configuration-driven import blocks"
+[[ $ignore_count -eq 12 ]] || fail "every recovery resource must ignore drift during adoption"
 grep -Eq 'aws_eip' "$recovery_root/imports.tf" || fail "recovery must import verified legacy EIPs"
 grep -Eq 'aws_eip' "$recovery_root/resources.tf" || fail "recovery must configure verified legacy EIPs"
 [[ $data_lb_count -eq 1 ]] || fail "recovery must read the existing load-balancer shape for an import-only plan"
+grep -Eq 'aws_instance' "$recovery_root/imports.tf" || fail "recovery must import EIP-owning instances"
+grep -Eq 'aws_instance' "$recovery_root/resources.tf" || fail "recovery must configure EIP-owning instances"
+grep -Eq 'attached_eip_dependency_closure' "$recovery_root/locals.tf" ||
+  fail "recovery must reject an attached EIP without its owning instance"
+grep -Eq 'depends_on[[:space:]]*=[[:space:]]*\[aws_eip\.recovery\]' "$recovery_root/resources.tf" ||
 [[ $data_target_group_count -eq 1 ]] || fail "recovery must read the existing target-group shape for an import-only plan"
 grep -Eq 'subnets[[:space:]]*=[[:space:]]*data\.aws_lb\.recovery' "$recovery_root/resources.tf" ||
   fail "recovery load balancer must use its observed subnets"
@@ -35,7 +40,7 @@ grep -Eq 'discovered_site_labels' "$recovery_root/locals.tf" ||
   fail "recovery must identify F5-discovered site labels"
 grep -Eq '!contains\(local\.discovered_site_labels, key\)' "$recovery_root/resources.tf" ||
   fail "recovery must exclude F5-discovered labels from securemesh configuration"
-if grep -REn 'terraform[[:space:]]+import|local-exec|curl.+DELETE|aws.+delete-' "$recovery_root" "$verifier"; then
+if grep -R --exclude-dir=.terraform -En 'terraform[[:space:]]+import|local-exec|curl.+DELETE|aws.+delete-' "$recovery_root" "$verifier"; then
   fail "recovery implementation contains an imperative mutation path"
 fi
 
@@ -95,6 +100,14 @@ jq '(.resource_changes[1].change.importing.id) = "system/wrong-token"' "$plan" >
 if "$verifier" --mode import --plan-json "$mismatch_plan" --manifest "$manifest" \
   --receipt "$scratch/mismatch-receipt.json" >/dev/null 2>&1; then
   fail "recovery verifier accepted an import ID mismatch"
+fi
+
+attached_eip_manifest="$scratch/attached-eip-without-instance.json"
+jq '(.collisions[] | select(.type == "aws_eip")).attachment_instance_id = "i-0123456789abcdef0"' \
+  "$manifest" >"$attached_eip_manifest"
+if "$verifier" --mode import --plan-json "$plan" --manifest "$attached_eip_manifest" \
+  --receipt "$scratch/attached-eip-receipt.json" >/dev/null 2>&1; then
+  fail "recovery verifier accepted an attached EIP without its owning instance"
 fi
 
 destroy_plan="$scratch/destroy-plan.json"

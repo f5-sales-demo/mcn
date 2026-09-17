@@ -9,6 +9,30 @@ resource "aws_eip" "recovery" {
   }
 }
 
+resource "aws_instance" "recovery" {
+  #checkov:skip=CKV_AWS_135: Import-only recovery must preserve the observed instance configuration until its reviewed destroy plan.
+  #checkov:skip=CKV_AWS_126: Import-only recovery must not enable monitoring on a legacy instance before retirement.
+  #checkov:skip=CKV_AWS_79: Import-only recovery must not alter observed instance metadata settings before retirement.
+  #checkov:skip=CKV_AWS_8: Import-only recovery must not alter observed EBS settings before retirement.
+  for_each = local.collisions_by_type.aws_instance
+
+  ami                    = each.value.observed_config.ami
+  instance_type          = each.value.observed_config.instance_type
+  subnet_id              = each.value.observed_config.subnet_id
+  vpc_security_group_ids = each.value.observed_config.vpc_security_group_ids
+  iam_instance_profile   = try(each.value.observed_config.iam_instance_profile, null)
+  key_name               = try(each.value.observed_config.key_name, null)
+  tags                   = each.value.observed_tags
+
+  # Terraform reverses this creation edge during the reviewed destroy plan:
+  # instances terminate before their attached EIPs are released.
+  depends_on = [aws_eip.recovery]
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
 resource "aws_key_pair" "recovery" {
   for_each   = local.collisions_by_type.aws_key_pair
   key_name   = each.value.name

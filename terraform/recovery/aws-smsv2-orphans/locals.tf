@@ -5,6 +5,7 @@ locals {
     "aws_eip",
     "aws_iam_instance_profile",
     "aws_iam_role",
+    "aws_instance",
     "aws_key_pair",
     "aws_lb",
     "aws_lb_target_group",
@@ -76,5 +77,20 @@ check "manifest_collision_evidence" {
       )])
     )
     error_message = "The recovery manifest contains unsupported, duplicate, unowned or insufficiently evidenced collisions."
+  }
+}
+
+check "attached_eip_dependency_closure" {
+  assert {
+    condition = alltrue([
+      for collision in local.collisions :
+      collision.type != "aws_eip" ||
+      try(collision.attachment_instance_id, "") == "" ||
+      contains(
+        [for instance in values(local.collisions_by_type.aws_instance) : instance.resource_uid],
+        collision.attachment_instance_id,
+      )
+    ])
+    error_message = "An attached EIP must be recovered together with its exact owning EC2 instance; EIP-only recovery is unsafe."
   }
 }
