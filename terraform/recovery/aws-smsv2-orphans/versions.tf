@@ -8,7 +8,7 @@ terraform {
     }
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 9.2.3"
+      version = "= 9.2.6"
     }
   }
 }
