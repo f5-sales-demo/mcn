@@ -31,6 +31,7 @@ grep -Eq 'aws_instance' "$recovery_root/resources.tf" || fail "recovery must con
 grep -Eq 'attached_eip_dependency_closure' "$recovery_root/locals.tf" ||
   fail "recovery must reject an attached EIP without its owning instance"
 grep -Eq 'depends_on[[:space:]]*=[[:space:]]*\[aws_eip\.recovery\]' "$recovery_root/resources.tf" ||
+  fail "recovery destroy ordering must terminate instances before EIP release"
 [[ $data_target_group_count -eq 1 ]] || fail "recovery must read the existing target-group shape for an import-only plan"
 grep -Eq 'subnets[[:space:]]*=[[:space:]]*data\.aws_lb\.recovery' "$recovery_root/resources.tf" ||
   fail "recovery load balancer must use its observed subnets"
