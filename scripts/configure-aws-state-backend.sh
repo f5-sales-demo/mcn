@@ -13,7 +13,7 @@ wrapper="$repo_root/scripts/terraform-with-aws-sso.sh"
 bootstrap_dir="$repo_root/terraform/bootstrap/state-backend"
 metadata="$bootstrap_dir/.terraform/terraform.tfstate"
 bootstrap_hcl="$bootstrap_dir/backend.hcl"
-root_hcl="$repo_root/terraform/backend.hcl"
+aws_hcl="$repo_root/terraform/aws/backend.hcl"
 recovery_hcl="$repo_root/terraform/recovery/aws-smsv2-orphans/backend.hcl"
 backend_block="$bootstrap_dir/backend.generated.tf"
 profile=default
@@ -109,7 +109,7 @@ write_backend_hcl() {
 }
 
 write_backend_hcl "$bootstrap_hcl" "$key"
-write_backend_hcl "$root_hcl" "mcn-ce-ha-smsv2/showcase.tfstate"
+write_backend_hcl "$aws_hcl" "mcn-ce-ha-smsv2/showcase.tfstate"
 write_backend_hcl "$recovery_hcl" "mcn-ce-ha-smsv2/recovery/smsv2-orphans.tfstate"
 
 temporary_block=$(mktemp "${backend_block}.tmp.XXXXXX")

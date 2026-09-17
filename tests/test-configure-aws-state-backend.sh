@@ -15,7 +15,7 @@ fail() {
 [ -x "$source_script" ] || fail "backend configuration script is not executable"
 
 mkdir -p "$work/repo/scripts" "$work/repo/terraform/bootstrap/state-backend/.terraform" \
-  "$work/repo/terraform/recovery/aws-smsv2-orphans" "$work/bin"
+  "$work/repo/terraform/aws" "$work/repo/terraform/recovery/aws-smsv2-orphans" "$work/bin"
 cp "$source_script" "$work/repo/scripts/"
 cp "$source_wrapper" "$work/repo/scripts/"
 
@@ -91,17 +91,19 @@ fi
 run_configure
 
 bootstrap_hcl="$work/repo/terraform/bootstrap/state-backend/backend.hcl"
-root_hcl="$work/repo/terraform/backend.hcl"
+aws_hcl="$work/repo/terraform/aws/backend.hcl"
+legacy_root_hcl="$work/repo/terraform/backend.hcl"
 recovery_hcl="$work/repo/terraform/recovery/aws-smsv2-orphans/backend.hcl"
 backend_block="$work/repo/terraform/bootstrap/state-backend/backend.generated.tf"
-for generated in "$bootstrap_hcl" "$root_hcl" "$recovery_hcl" "$backend_block"; do
+for generated in "$bootstrap_hcl" "$aws_hcl" "$recovery_hcl" "$backend_block"; do
   [ -f "$generated" ] || fail "missing generated backend file $generated"
   [ "$(stat -c %a "$generated" 2>/dev/null || stat -f %Lp "$generated")" = 600 ] ||
     fail "generated backend file is not mode 600: $generated"
 done
 grep -Fq 'backend "s3" {}' "$backend_block" || fail "generated backend declaration is missing"
 grep -Fq 'key          = "mcn-ce-ha-smsv2/bootstrap.tfstate"' "$bootstrap_hcl" || fail "bootstrap key is wrong"
-grep -Fq 'key          = "mcn-ce-ha-smsv2/showcase.tfstate"' "$root_hcl" || fail "showcase key is wrong"
+grep -Fq "key          = \"mcn-ce-ha-smsv2/showcase.tfstate\"" "$aws_hcl" || fail "showcase key is wrong"
+[ ! -e "$legacy_root_hcl" ] || fail "legacy mixed-cloud root backend must not be generated"
 grep -Fq 'key          = "mcn-ce-ha-smsv2/recovery/smsv2-orphans.tfstate"' "$recovery_hcl" ||
   fail "orphan recovery key is wrong"
 grep -Fq 'init -force-copy -input=false -backend-config=backend.hcl' "$work/calls" || fail "local state was not migrated"
