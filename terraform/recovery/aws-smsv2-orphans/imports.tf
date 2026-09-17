@@ -4,6 +4,12 @@ import {
   id       = each.value.resource_uid
 }
 
+import {
+  for_each = local.collisions_by_type.aws_ec2_transit_gateway_connect_peer
+  to       = aws_ec2_transit_gateway_connect_peer.recovery[each.key]
+  id       = each.value.resource_uid
+}
+
 
 import {
   for_each = local.collisions_by_type.aws_instance

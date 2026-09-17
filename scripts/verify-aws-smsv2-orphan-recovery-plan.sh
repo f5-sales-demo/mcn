@@ -71,6 +71,15 @@ jq -e '
     any($collisions[]; .type == "aws_instance" and .resource_uid == $collision.attachment_instance_id)
   )
 ' "$MANIFEST" >/dev/null || die "an attached EIP is missing its owning instance from the recovery manifest"
+jq -e '
+  all(.collisions[];
+    .type != "aws_ec2_transit_gateway_connect_peer" or
+    ((.observed_config | type == "object") and
+     (.observed_config.inside_cidr_blocks | type == "array" and length > 0 and all(.[]; type == "string" and length > 0)) and
+     (.observed_config.peer_address | type == "string" and length > 0) and
+     (.observed_config.transit_gateway_attachment_id | type == "string" and length > 0))
+  )
+' "$MANIFEST" >/dev/null || die "a Transit Gateway Connect peer is missing its observed immutable recovery shape"
 jq -e 'type == "object" and (.resource_changes | type == "array")' "$PLAN_JSON" >/dev/null ||
   die "plan JSON is invalid"
 jq -e --arg version "$PATCHED_PROVIDER_VERSION" '
@@ -91,7 +100,7 @@ if [[ $MODE == import ]]; then
     address:(.type + ".recovery[" + (.address | @json) + "]"),
     id:(if .engine == "f5" then (.namespace + "/" + .name)
         elif (.type == "aws_lb" or .type == "aws_lb_target_group" or .type == "aws_eip" or
-              .type == "aws_instance") then .resource_uid
+              .type == "aws_instance" or .type == "aws_ec2_transit_gateway_connect_peer") then .resource_uid
         else .name end)
   }] | sort_by(.address,.type,.id)' "$MANIFEST" >"$scratch/expected.json"
   jq -cS '[.resource_changes[] | {address,type,id:.change.importing.id}] | sort_by(.address,.type,.id)' \
@@ -104,7 +113,7 @@ else
   jq -cS '[.collisions[] | {
     type,
     address:(.type + ".recovery[" + (.address | @json) + "]"),
-    name:(if .type == "aws_eip" or .type == "aws_instance" then .resource_uid else .name end)
+    name:(if .type == "aws_eip" or .type == "aws_instance" or .type == "aws_ec2_transit_gateway_connect_peer" then .resource_uid else .name end)
   }] | sort_by(.address,.type,.name)' "$MANIFEST" >"$scratch/expected.json"
   jq -cS '[.resource_changes[] | {
     address,type,name:(.change.before.name // .change.before.key_name // .change.before.allocation_id // .change.before.id // "")
