@@ -1,9 +1,9 @@
 locals {
   roles = toset(["slo", "sli"])
-  tags = {
+  tags = merge(var.ownership_tags, {
     Name      = "${var.name_prefix}-tgw"
     ManagedBy = "terraform"
-  }
+  })
 }
 resource "aws_ec2_transit_gateway" "this" {
   amazon_side_asn                 = var.amazon_side_asn

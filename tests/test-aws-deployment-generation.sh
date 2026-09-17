@@ -17,6 +17,7 @@ require_text() {
 variables="$aws_root/variables.tf"
 locals_file="$aws_root/locals.tf"
 tgw="$aws_root/aws_tgw_connect.tf"
+tgw_module="$repo_root/terraform/modules/aws-tgw-connect"
 xc="$aws_root/aws_xc.tf"
 
 require_text "$variables" 'variable "deployment_generation" {'
@@ -39,6 +40,9 @@ if rg -n '\$\{var\.component\}-aws' "$aws_root" --glob '*.tf'; then
 fi
 require_text "$tgw" 'name_prefix                = local.aws_resource_prefix'
 require_text "$tgw" 'name        = "${local.aws_resource_prefix}-aws-tgw-${replace(each.key, "_", "-")}"'
+require_text "$tgw" 'ownership_tags             = local.tags'
+require_text "$tgw_module/variables.tf" 'variable "ownership_tags" {'
+require_text "$tgw_module/main.tf" 'tags = merge(var.ownership_tags, {'
 
 for resource in xcsh_token xcsh_securemesh_site_v2 xcsh_virtual_site xcsh_origin_pool xcsh_http_loadbalancer; do
   block=$(sed -n "/resource \"$resource\" /,/^}/p" "$xc")
