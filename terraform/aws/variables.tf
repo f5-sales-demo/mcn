@@ -46,6 +46,11 @@ variable "deployment_generation" {
     condition     = can(regex("^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$", var.deployment_generation))
     error_message = "deployment_generation must be a 1-32 character DNS-style label: lowercase alphanumerics and hyphens, not starting or ending with a hyphen."
   }
+
+  validation {
+    condition     = length("${var.component}-${var.deployment_generation}-aws-nlb") <= 32
+    error_message = "component and deployment_generation must leave room for the AWS NLB and target-group name suffix (-aws-nlb), whose maximum length is 32."
+  }
 }
 variable "ssh_public_key" {
   type    = string
