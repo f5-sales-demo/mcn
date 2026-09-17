@@ -8,6 +8,7 @@ bootstrap="$repo_root/terraform/bootstrap/state-backend/main.tf"
 bootstrap_versions="$repo_root/terraform/bootstrap/state-backend/versions.tf"
 variables="$repo_root/terraform/bootstrap/state-backend/variables.tf"
 configure_script="$repo_root/scripts/configure-aws-state-backend.sh"
+aws_lockfile="$repo_root/terraform/aws/.terraform.lock.hcl"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -65,5 +66,21 @@ require 'Terraform state backend bootstrap validation' "$repo_root/.github/workf
 require 'runs-on: ubuntu-latest' "$repo_root/.github/workflows/terraform.yml"
 reject 'runs-on: managed-socketless' "$repo_root/.github/workflows/terraform.yml"
 [ -x "$configure_script" ] || fail "backend configuration script is not executable"
+
+# The live AWS SMSv2 root is independently initialized, so its provider
+# selections must be versioned rather than inheriting an incidental developer
+# lockfile.  Keep this narrow exception to the repository-wide lockfile ignore
+# rule and let CI prove a clean, frozen initialization.
+require '!terraform/aws/.terraform.lock.hcl' "$repo_root/.gitignore"
+[ -f "$aws_lockfile" ] || fail "missing tracked AWS root lockfile"
+require 'registry.terraform.io/f5-sales-demo/xcsh' "$aws_lockfile"
+require 'version     = "9.2.2"' "$aws_lockfile"
+require 'registry.terraform.io/hashicorp/aws' "$aws_lockfile"
+require 'version     = "5.100.0"' "$aws_lockfile"
+require 'registry.terraform.io/hashicorp/external' "$aws_lockfile"
+require 'version     = "2.4.2"' "$aws_lockfile"
+require 'Terraform AWS SMSv2 frozen provider initialization' "$repo_root/.github/workflows/terraform.yml"
+require 'working-directory: terraform/aws' "$repo_root/.github/workflows/terraform.yml"
+require 'terraform init -backend=false -input=false -lockfile=readonly' "$repo_root/.github/workflows/terraform.yml"
 
 printf 'PASS: AWS state backend is isolated, encrypted, versioned, and lockfile-protected\n'
