@@ -1,4 +1,5 @@
 resource "aws_eip" "recovery" {
+  #checkov:skip=CKV2_AWS_19: Import-only recovery must not mutate an orphan EIP attachment before the reviewed destroy plan.
   for_each = local.collisions_by_type.aws_eip
   domain   = "vpc"
   tags     = each.value.observed_tags
