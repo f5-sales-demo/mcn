@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 aws_xc="$repo_root/terraform/aws/aws_xc.tf"
 aws_ce="$repo_root/terraform/aws/aws_ce.tf"
+aws_upgrade="$repo_root/terraform/aws/aws_upgrade.tf"
 variables="$repo_root/terraform/aws/variables_aws.tf"
 
 fail() {
@@ -44,5 +45,10 @@ require "var.aws_site_configuration_phase == \"configured\" || !var.enable_aws_t
 require "set aws_site_configuration_phase to configured before enabling AWS TGW Connect" "$variables"
 
 require "ignore_changes = [user_data]" "$aws_ce"
+
+# Discovery is intentionally pre-registration. Upgrade status is meaningful
+# only in the configured phase after the runtime gate can succeed.
+require 'var.aws_site_configuration_phase == "configured" && contains(var.aws_upgrade_observed_sites, key)' "$aws_upgrade"
+reject 'for key, site in local.aws_sites : key => site if contains(var.aws_upgrade_observed_sites, key)' "$aws_upgrade"
 
 printf "PASS: AWS SMSv2 device discovery is staged, exact-MAC-bound, fail-closed, and replacement-safe\\n"
