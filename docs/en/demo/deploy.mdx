@@ -88,8 +88,8 @@ The demo was built in one tenant. A credential file later began exporting a *dif
 tenant's `XCSH_API_URL`; subsequent applies minted a token for that tenant, the CE VMs
 re-registered there, and their original registrations were abandoned. Every plan in between
 was clean, because nothing in the configuration had an opinion about the tenant
-([issue 696](https://github.com/f5-sales-demo/mcn/issues/696), fixed in
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). Recovering it meant destroying the
+([issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696), fixed in
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697)). Recovering it meant destroying the
 stack in the wrong tenant and rebuilding it in the right one.
 
 The symptom to recognize, because it is not self-describing: a token minted for another
@@ -352,8 +352,8 @@ It used to be worse: a replaced CE could never re-register, because the destroye
 registration still held the control plane's unique `(tenant, cluster_name, hostname)`
 index — and `terraform plan` reported "No changes" for the whole time the fleet was down.
 Recovery took two full rebuilds. That is fixed
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674), closed by
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)): the site object's lifecycle is now
+([issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674), closed by
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693)): the site object's lifecycle is now
 coupled to the CE VM instance, so replacing the VM replaces the site, and deleting the site
 takes its registrations with it before the replacement node boots.
 

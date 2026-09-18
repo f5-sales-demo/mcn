@@ -79,8 +79,8 @@ cloud-init `write_files` ทำงาน **ครั้งเดียว เม
 การกู้คืนต้องใช้การสร้างใหม่สองครั้งเต็ม ตลอดเวลา `terraform plan` รายงาน **"No changes"**
 เพราะจากมุมมองของ Terraform สถานะที่ต้องการได้รับการบรรลุแล้ว
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) ปิดแล้ว โดย
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) ขณะนี้ `modules/xc-site` ตั้งชื่อ
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) ปิดแล้ว โดย
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) ขณะนี้ `modules/xc-site` ตั้งชื่อ
 CE VM instance ใน `replace_triggered_by` ดังนั้นการแทนที่ VM จะแทนที่ site object
 และการลบ site จะนำการลงทะเบียนไปด้วย — คีย์ดัชนีว่างก่อนที่โหนดทดแทนจะบูต
 ฟลีตได้รับการสร้างใหม่ตั้งแต่ต้นและทั้งสามไซต์ขึ้นมา `ONLINE` โดยไม่ต้องมีการแทรกแซง

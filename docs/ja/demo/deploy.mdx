@@ -89,8 +89,8 @@ f5-sales-demo
 `XCSH_API_URL` をエクスポートし始め、以降の apply がそのテナント向けのトークンを発行し、
 CE VM がそちらに再登録され、元の登録は放棄されました。その間のすべてのプランはクリーンでした。
 構成のどこにもテナントについての意見がなかったからです
-（[issue 696](https://github.com/f5-sales-demo/mcn/issues/696)、
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697) で修正）。
+（[issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696)、
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697) で修正）。
 復旧には、誤ったテナントのスタックを破棄し、正しいテナントで再構築する必要がありました。
 
 認識すべき症状は、それ自体では説明的でないため注意が必要です。別のテナント向けに発行された
@@ -168,8 +168,8 @@ cloud-init テンプレート内の他のあらゆる変更についても同じ
 ノードの登録が、コントロールプレーンの一意な `(tenant, cluster_name, hostname)` インデックスを
 保持し続けていたためです — そしてフリートがダウンしている間、`terraform plan` はずっと
 「No changes」と報告していました。復旧には 2 回の完全な再構築が必要でした。これは修正済みです
-（[issue 674](https://github.com/f5-sales-demo/mcn/issues/674)、
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) でクローズ）。サイトオブジェクトの
+（[issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674)、
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) でクローズ）。サイトオブジェクトの
 ライフサイクルは CE VM インスタンスに結び付けられたため、VM を置き換えるとサイトも置き換えられ、
 サイトの削除は、置き換えノードが起動する前にその登録も一緒に削除します。
 

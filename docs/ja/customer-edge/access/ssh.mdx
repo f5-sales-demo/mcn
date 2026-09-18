@@ -75,8 +75,8 @@ cloud-init の `write_files` は**初回ブート時に一度だけ**実行さ�
 回復には2回の完全な再ビルドが必要でした。その間ずっと `terraform plan` は**「変更なし」**を報告していました。
 Terraformの観点からは望ましい状態に達していたためです。
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) は
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) によってクローズされました。
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) は
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) によってクローズされました。
 `modules/xc-site` はCE VMインスタンスを `replace_triggered_by` に指定するようになり、
 VMを置換するとサイトオブジェクトも置換されます。サイトを削除するとその登録も削除されます —
 インデックスキーは代替ノードがブートする前に解放されます。フリートはその後スクラッチから再ビルドされ、

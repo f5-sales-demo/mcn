@@ -87,8 +87,8 @@ f5-sales-demo
 `XCSH_API_URL`을 내보내기 시작했고, 이후의 apply는 해당 테넌트에 대한 토큰을 발급했으며,
 CE VM은 거기에 재등록되고 원래 등록은 버려졌습니다. 그 사이의 모든 plan은 깨끗했습니다.
 구성에서 테넌트에 대해 어떤 의견도 갖고 있지 않았기 때문입니다
-([issue 696](https://github.com/f5-sales-demo/mcn/issues/696),
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)에서 수정됨). 복구를 위해서는
+([issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696),
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697)에서 수정됨). 복구를 위해서는
 잘못된 테넌트의 스택을 파괴하고 올바른 테넌트에서 다시 구축해야 했습니다.
 
 스스로를 설명하지 않기 때문에 반드시 인식해야 하는 증상: 다른 테넌트에 대해 발급된 토큰은
@@ -164,8 +164,8 @@ CE VM은 거기에 재등록되고 원래 등록은 버려졌습니다. 그 사�
 컨트롤 플레인의 고유 `(tenant, cluster_name, hostname)` 인덱스를 보유하고 있었기 때문입니다 —
 그리고 플릿이 다운된 전체 기간 동안 `terraform plan`은 "No changes"를 보고했습니다.
 복구에는 두 번의 전체 재구축이 필요했습니다. 이는 수정되었습니다
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674),
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)로 종료됨): 사이트 객체의 라이프사이클이
+([issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674),
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693)로 종료됨): 사이트 객체의 라이프사이클이
 이제 CE VM 인스턴스에 연결되어 있으므로, VM을 교체하면 사이트도 교체되고, 사이트를 삭제하면
 교체 노드가 부팅되기 전에 그 등록도 함께 삭제됩니다.
 
