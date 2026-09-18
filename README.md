@@ -1,28 +1,28 @@
 # Multi-Cloud Networking
 
 🌐 English |
-[日本語](https://f5-sales-demo.github.io/mcn/ja/) |
-[한국어](https://f5-sales-demo.github.io/mcn/ko/) |
-[简体中文](https://f5-sales-demo.github.io/mcn/zh-cn/) |
-[繁體中文](https://f5-sales-demo.github.io/mcn/zh-tw/) |
-[Español](https://f5-sales-demo.github.io/mcn/es/) |
-[Português](https://f5-sales-demo.github.io/mcn/pt-br/) |
-[Français](https://f5-sales-demo.github.io/mcn/fr/) |
-[Deutsch](https://f5-sales-demo.github.io/mcn/de/) |
-[Italiano](https://f5-sales-demo.github.io/mcn/it/) |
-[العربية](https://f5-sales-demo.github.io/mcn/ar/) |
-[हिन्दी](https://f5-sales-demo.github.io/mcn/hi/) |
-[ไทย](https://f5-sales-demo.github.io/mcn/th/)
+[日本語](https://f5-sales-demo.github.io/multi-cloud-networking/ja/) |
+[한국어](https://f5-sales-demo.github.io/multi-cloud-networking/ko/) |
+[简体中文](https://f5-sales-demo.github.io/multi-cloud-networking/zh-cn/) |
+[繁體中文](https://f5-sales-demo.github.io/multi-cloud-networking/zh-tw/) |
+[Español](https://f5-sales-demo.github.io/multi-cloud-networking/es/) |
+[Português](https://f5-sales-demo.github.io/multi-cloud-networking/pt-br/) |
+[Français](https://f5-sales-demo.github.io/multi-cloud-networking/fr/) |
+[Deutsch](https://f5-sales-demo.github.io/multi-cloud-networking/de/) |
+[Italiano](https://f5-sales-demo.github.io/multi-cloud-networking/it/) |
+[العربية](https://f5-sales-demo.github.io/multi-cloud-networking/ar/) |
+[हिन्दी](https://f5-sales-demo.github.io/multi-cloud-networking/hi/) |
+[ไทย](https://f5-sales-demo.github.io/multi-cloud-networking/th/)
 
-[![GitHub Pages Deploy](https://github.com/f5-sales-demo/mcn/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5-sales-demo/mcn/actions/workflows/github-pages-deploy.yml)
-[![Repository Settings](https://github.com/f5-sales-demo/mcn/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5-sales-demo/mcn/actions/workflows/enforce-repo-settings.yml)
-[![License](https://img.shields.io/github/license/f5-sales-demo/mcn)](LICENSE)
+[![GitHub Pages Deploy](https://github.com/f5-sales-demo/multi-cloud-networking/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5-sales-demo/multi-cloud-networking/actions/workflows/github-pages-deploy.yml)
+[![Repository Settings](https://github.com/f5-sales-demo/multi-cloud-networking/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5-sales-demo/multi-cloud-networking/actions/workflows/enforce-repo-settings.yml)
+[![License](https://img.shields.io/github/license/f5-sales-demo/multi-cloud-networking)](LICENSE)
 
 F5 XC multi-cloud networking
 
 ## Documentation
 
-Full documentation is available at __[https://f5-sales-demo.github.io/mcn/](https://f5-sales-demo.github.io/mcn/)__.
+Full documentation is available at __[https://f5-sales-demo.github.io/multi-cloud-networking/](https://f5-sales-demo.github.io/multi-cloud-networking/)__.
 
 ## Contributing
 
