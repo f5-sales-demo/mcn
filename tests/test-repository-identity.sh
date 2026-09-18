@@ -5,8 +5,8 @@ repo_root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo_root"
 
 old_identity='https://github.com/f5-sales-demo/mcn|https://f5-sales-demo\.github\.io/mcn|/mcn/images/'
-if findings=$(rg -n "$old_identity" docs); then
-  printf 'live old repository identity remains in documentation:\n%s\n' "$findings" >&2
+if findings=$(rg -n "$old_identity" README.md .github/config/repo-settings.json docs); then
+  printf 'live old repository identity remains in repository surfaces:\n%s\n' "$findings" >&2
   exit 1
 fi
 
