@@ -90,8 +90,8 @@ Die Demo wurde in einem Tenant erstellt. Eine Credential-Datei begann später, d
 *anderen* Tenants zu exportieren; nachfolgende Applies erzeugten ein Token für diesen Tenant, die CE-VMs
 registrierten sich dort neu, und ihre ursprünglichen Registrierungen wurden verwaist. Jeder Plan dazwischen
 war sauber, weil nichts in der Konfiguration eine Meinung zum Tenant hatte
-([Issue 696](https://github.com/f5-sales-demo/mcn/issues/696), behoben in
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). Die Wiederherstellung bedeutete, den
+([Issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696), behoben in
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697)). Die Wiederherstellung bedeutete, den
 Stack im falschen Tenant zu zerstören und ihn im richtigen neu aufzubauen.
 
 Das Symptom, das man erkennen muss, weil es nicht selbsterklärend ist: ein für einen anderen
@@ -169,8 +169,8 @@ Früher war es schlimmer: ein ersetztes CE konnte sich nie neu registrieren, wei
 zerstörten Knotens noch den eindeutigen Index `(tenant, cluster_name, hostname)` der Control Plane hielt
 — und `terraform plan` die ganze Zeit, in der die Flotte ausgefallen war, "No changes" meldete.
 Die Wiederherstellung erforderte zwei vollständige Neuaufbauten. Das ist behoben
-([Issue 674](https://github.com/f5-sales-demo/mcn/issues/674), geschlossen durch
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)): der Lebenszyklus des Site-Objekts ist nun
+([Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674), geschlossen durch
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693)): der Lebenszyklus des Site-Objekts ist nun
 an die CE-VM-Instanz gekoppelt, sodass das Ersetzen der VM die Site ersetzt und das Löschen der Site
 ihre Registrierungen mitnimmt, bevor der Ersatzknoten bootet.
 

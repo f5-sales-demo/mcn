@@ -55,8 +55,8 @@ cloud-init 中的 `write_files` **仅在首次启动时运行一次**。之后�
 
 过去，被销毁节点的注册记录会持有控制面唯一的 `(tenant, cluster_name, hostname)` 索引，导致替换节点的注册因 `UniqueSecondaryIndexViolationError` 而被拒绝并无限重试。单独删除注册记录并不够：残留的 `StatusObject` 随后对工作负载请求返回 `500`，而此时每个节点已持久化了一个 `registration-obj.yml`，将其绑定到您删除的注册记录，因此节点陷入 `404` 循环且无法自行恢复。恢复需要两次完整重建。在整个过程中，`terraform plan` 报告**"无变更"**，因为从 Terraform 的角度来看，期望状态已达成。
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) 已通过
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 关闭。`modules/xc-site` 现在在 `replace_triggered_by` 中指定了 CE 虚拟机实例，因此替换虚拟机会同时替换站点对象，删除站点时会连同其注册记录一起删除——索引键会在替换节点启动前被释放。此后集群已从零开始重建，三个站点均无需人工干预即上线为 `ONLINE`。
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) 已通过
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) 关闭。`modules/xc-site` 现在在 `replace_triggered_by` 中指定了 CE 虚拟机实例，因此替换虚拟机会同时替换站点对象，删除站点时会连同其注册记录一起删除——索引键会在替换节点启动前被释放。此后集群已从零开始重建，三个站点均无需人工干预即上线为 `ONLINE`。
 
 耦合关系是可观测的，而非假设的。每个站点绑定到一个虚拟机*实例* ID，匹配的注册记录中 `infra.instance_id` 报告相同的值：
 

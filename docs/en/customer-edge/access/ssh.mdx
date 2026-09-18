@@ -73,8 +73,8 @@ the registration you deleted, so it looped on `404` with no self-recovery. Recov
 two full rebuilds. Throughout all of it `terraform plan` reported **"No changes"**, because
 from Terraform's point of view the desired state had been reached.
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) is closed, by
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). `modules/xc-site` now names the CE
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) is closed, by
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693). `modules/xc-site` now names the CE
 VM instance in `replace_triggered_by`, so replacing the VM replaces the site object, and
 deleting a site takes its registrations with it — the index key is free before the
 replacement node boots. The fleet has since been rebuilt from scratch and all three sites

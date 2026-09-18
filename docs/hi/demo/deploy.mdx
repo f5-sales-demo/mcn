@@ -90,8 +90,8 @@ f5-sales-demo
 टेनेंट का `XCSH_API_URL` एक्सपोर्ट करने लगी; उसके बाद के applies ने उस टेनेंट के लिए एक टोकन बनाया, CE VMs ने
 वहाँ फिर से रजिस्टर किया, और उनकी मूल रजिस्ट्रेशन त्याग दी गईं। बीच का हर plan
 साफ़ था, क्योंकि कॉन्फ़िगरेशन में किसी भी चीज़ की टेनेंट के बारे में कोई राय नहीं थी
-([issue 696](https://github.com/f5-sales-demo/mcn/issues/696), जिसे
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697) में ठीक किया गया)। इसे ठीक करने का अर्थ था गलत टेनेंट में
+([issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696), जिसे
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697) में ठीक किया गया)। इसे ठीक करने का अर्थ था गलत टेनेंट में
 स्टैक को नष्ट करना और उसे सही टेनेंट में फिर से बनाना।
 
 पहचानने योग्य लक्षण, क्योंकि यह स्वयं-वर्णनात्मक नहीं है: किसी अन्य टेनेंट के लिए बनाया गया टोकन
@@ -169,8 +169,8 @@ Site CLI है। यह cloud-init `write_files` द्वारा लिख�
 रजिस्ट्रेशन अभी भी कंट्रोल प्लेन का अद्वितीय `(tenant, cluster_name, hostname)`
 इंडेक्स रखती थी — और जितने समय फ़्लीट डाउन रहा, `terraform plan` "No changes" रिपोर्ट करता रहा।
 रिकवरी में दो पूर्ण पुनर्निर्माण लगे। यह ठीक कर दिया गया है
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674), जिसे
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) द्वारा बंद किया गया): साइट ऑब्जेक्ट का जीवनचक्र अब
+([issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674), जिसे
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) द्वारा बंद किया गया): साइट ऑब्जेक्ट का जीवनचक्र अब
 CE VM इंस्टेंस से युग्मित है, इसलिए VM को प्रतिस्थापित करने पर साइट प्रतिस्थापित हो जाती है, और साइट को हटाने पर
 प्रतिस्थापन नोड बूट होने से पहले उसकी रजिस्ट्रेशन भी साथ चली जाती हैं।
 

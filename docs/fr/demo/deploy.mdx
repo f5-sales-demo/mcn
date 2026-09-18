@@ -90,8 +90,8 @@ La démo a été construite dans un tenant. Un fichier d'identifiants a ensuite 
 l'`XCSH_API_URL` d'un *autre* tenant ; les applies suivants ont émis un jeton pour ce tenant, les VM CE
 s'y sont réenregistrées, et leurs enregistrements d'origine ont été abandonnés. Chaque plan entre-temps
 était propre, car rien dans la configuration n'avait d'avis sur le tenant
-([issue 696](https://github.com/f5-sales-demo/mcn/issues/696), corrigée dans la
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). La récupération a impliqué de détruire la
+([issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696), corrigée dans la
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697)). La récupération a impliqué de détruire la
 stack dans le mauvais tenant et de la reconstruire dans le bon.
 
 Le symptôme à reconnaître, car il n'est pas explicite : un jeton émis pour un autre
@@ -169,8 +169,8 @@ C'était pire avant : un CE remplacé ne pouvait jamais se réenregistrer, car l
 détenait toujours l'index unique `(tenant, cluster_name, hostname)` du plan de contrôle
 — et `terraform plan` signalait « No changes » pendant tout le temps où la flotte était hors service.
 La récupération a nécessité deux reconstructions complètes. C'est corrigé
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674), close par la
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)) : le cycle de vie de l'objet site est désormais
+([issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674), close par la
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693)) : le cycle de vie de l'objet site est désormais
 couplé à l'instance de VM CE, si bien que remplacer la VM remplace le site, et supprimer le site
 emporte ses enregistrements avant que le nœud de remplacement ne démarre.
 

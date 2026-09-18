@@ -80,8 +80,8 @@ registro que você excluiu, então ele entrava em loop em `404` sem autorrecuper
 exigia duas reconstruções completas. Durante todo esse processo, o `terraform plan` reportava
 **"No changes"**, porque do ponto de vista do Terraform o estado desejado havia sido atingido.
 
-A [Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) está fechada, por meio da
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). `modules/xc-site` agora nomeia a instância
+A [Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) está fechada, por meio da
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693). `modules/xc-site` agora nomeia a instância
 da VM do CE em `replace_triggered_by`, de modo que substituir a VM substitui o objeto do site, e
 excluir um site leva seus registros consigo — a chave do índice fica livre antes da inicialização
 do nó substituto. A frota foi reconstruída do zero desde então e os três sites ficaram `ONLINE` sem

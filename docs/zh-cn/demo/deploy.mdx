@@ -84,8 +84,8 @@ f5-sales-demo
 该演示最初构建于某一个租户。后来某个凭据文件开始导出*另一个*租户的
 `XCSH_API_URL`；随后的 apply 为那个租户签发了令牌，CE VM 在那里重新注册，
 而它们原有的注册被弃置。期间每一次 plan 都是干净的，因为配置中没有任何东西对租户有主张
-（[issue 696](https://github.com/f5-sales-demo/mcn/issues/696)，已在
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697) 中修复）。恢复过程意味着在错误的
+（[issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696)，已在
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697) 中修复）。恢复过程意味着在错误的
 租户中销毁该 stack，并在正确的租户中重建。
 
 需要识别的症状是——因为它并不自我说明：为另一个租户签发的令牌在访问被锁定的端点时会以一个
@@ -157,8 +157,8 @@ f5-sales-demo
 过去情况更糟：被替换的 CE 永远无法重新注册，因为被销毁节点的注册仍然占据着控制平面的
 唯一 `(tenant, cluster_name, hostname)` 索引 —— 而在整个机队宕机期间，
 `terraform plan` 一直报告 "No changes"。恢复过程花了两次完整重建。该问题已修复
-（[issue 674](https://github.com/f5-sales-demo/mcn/issues/674)，由
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 关闭）：站点对象的生命周期现在与
+（[issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674)，由
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) 关闭）：站点对象的生命周期现在与
 CE VM 实例耦合，因此替换 VM 会替换站点，而删除站点会在替换节点启动之前一并带走其注册。
 
 任何打算在别处采用此做法的人都应先阅读

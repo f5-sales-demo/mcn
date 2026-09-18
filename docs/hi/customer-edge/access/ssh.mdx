@@ -82,8 +82,8 @@ coupling को समझाता है जो आप plan में देख
 rebuilds लगे। इस पूरे समय `terraform plan` ने **"No changes"** रिपोर्ट किया, क्योंकि Terraform
 के दृष्टिकोण से desired state प्राप्त हो चुकी थी।
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) बंद है,
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) द्वारा। `modules/xc-site` अब CE
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) बंद है,
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) द्वारा। `modules/xc-site` अब CE
 VM instance को `replace_triggered_by` में नामित करता है, इसलिए VM को बदलने से site object
 बदलता है, और किसी site को delete करने से उसकी registrations भी जाती हैं — replacement नोड के
 boot होने से पहले index key मुक्त हो जाती है। तब से fleet को शुरू से rebuild किया गया है और

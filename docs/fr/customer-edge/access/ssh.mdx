@@ -87,8 +87,8 @@ bien qu'il bouclait sur `404` sans auto-récupération. La récupération néces
 reconstructions complètes. Pendant tout ce temps, `terraform plan` rapportait **« No changes »**,
 car du point de vue de Terraform l'état souhaité avait été atteint.
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) est fermé, par
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). `modules/xc-site` nomme désormais
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) est fermé, par
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693). `modules/xc-site` nomme désormais
 l'instance VM CE dans `replace_triggered_by`, de sorte que remplacer la VM remplace l'objet
 site, et la suppression d'un site entraîne celle de ses enregistrements — la clé d'index est
 libérée avant le démarrage du nœud de remplacement. La flotte a depuis été reconstruite de
