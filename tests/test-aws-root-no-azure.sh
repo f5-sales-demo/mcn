@@ -5,9 +5,15 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../terraform" && pwd)
 providers="$root/providers.tf"
 grep -Fq 'subscription_id            = local.azure_provider_enabled ? var.subscription_id : null' "$providers" ||
-  { printf 'disabled Azure must not bind a stale subscription\n' >&2; exit 1; }
+  {
+    printf 'disabled Azure must not bind a stale subscription\n' >&2
+    exit 1
+  }
 grep -Fq 'skip_provider_registration = !local.azure_provider_enabled' "$providers" ||
-  { printf 'disabled Azure must not register resource providers\n' >&2; exit 1; }
+  {
+    printf 'disabled Azure must not register resource providers\n' >&2
+    exit 1
+  }
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
 data_dir=$(mktemp -d)
 trap "rm -rf \"$data_dir\"" EXIT

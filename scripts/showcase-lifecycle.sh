@@ -43,14 +43,38 @@ die() {
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-  --mode) MODE=${2:?}; shift 2 ;;
-  --tfvars) TFVARS=${2:?}; shift 2 ;;
-  --backend-config) BACKEND_CONFIG=${2:?}; shift 2 ;;
-  --credentials-file) CREDENTIAL_FILE=${2:?}; shift 2 ;;
-  --private-root) PRIVATE_ROOT=${2:?}; shift 2 ;;
-  --aws-profile) AWS_PROFILE=${2:?}; shift 2 ;;
-  --creator-id) CREATOR_ID=${2:?}; shift 2 ;;
-  -h | --help) usage; exit 0 ;;
+  --mode)
+    MODE=${2:?}
+    shift 2
+    ;;
+  --tfvars)
+    TFVARS=${2:?}
+    shift 2
+    ;;
+  --backend-config)
+    BACKEND_CONFIG=${2:?}
+    shift 2
+    ;;
+  --credentials-file)
+    CREDENTIAL_FILE=${2:?}
+    shift 2
+    ;;
+  --private-root)
+    PRIVATE_ROOT=${2:?}
+    shift 2
+    ;;
+  --aws-profile)
+    AWS_PROFILE=${2:?}
+    shift 2
+    ;;
+  --creator-id)
+    CREATOR_ID=${2:?}
+    shift 2
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
   *) die "unknown argument: $1" ;;
   esac
 done
@@ -67,7 +91,7 @@ done
 credential_owner=$(stat -c %U "$CREDENTIAL_FILE")
 credential_mode=$(stat -c %a "$CREDENTIAL_FILE")
 [ "$credential_owner" = "$(id -un)" ] || die "XC credential file owner mismatch"
-(( (8#$credential_mode & 077) == 0 )) || die "XC credential file must not be group/world accessible"
+(((8#$credential_mode & 077) == 0)) || die "XC credential file must not be group/world accessible"
 
 XCSH_API_URL_VALUE=""
 XCSH_API_TOKEN_VALUE=""
@@ -80,8 +104,14 @@ while IFS= read -r credential_line || [ -n "$credential_line" ]; do
   credential_key=${credential_line%%=*}
   credential_value=${credential_line#*=}
   case "$credential_key" in
-  XCSH_API_URL) XCSH_API_URL_VALUE=$credential_value; url_count=$((url_count + 1)) ;;
-  XCSH_API_TOKEN) XCSH_API_TOKEN_VALUE=$credential_value; token_count=$((token_count + 1)) ;;
+  XCSH_API_URL)
+    XCSH_API_URL_VALUE=$credential_value
+    url_count=$((url_count + 1))
+    ;;
+  XCSH_API_TOKEN)
+    XCSH_API_TOKEN_VALUE=$credential_value
+    token_count=$((token_count + 1))
+    ;;
   *) die "credential file contains an unexpected key" ;;
   esac
 done <"$CREDENTIAL_FILE"
@@ -190,7 +220,7 @@ run_phase() {
   args+=(--plan-file "$PLAN_FILE" --evidence-dir "$EVIDENCE_DIR")
   for site in "${sites[@]}"; do args+=(--expected-site "$site"); done
   if [ "$phase" = configured ]; then
-    args+=(--mapping-file "$MAPPING_FILE" --registration-projection "$REGISTRATION_PROJECTION" \
+    args+=(--mapping-file "$MAPPING_FILE" --registration-projection "$REGISTRATION_PROJECTION"
       --eni-projection "$ENI_PROJECTION" --configured-tgw "$configured_tgw")
   fi
   "$REPO_ROOT/scripts/aws-smsv2-lifecycle-plan.sh" "${args[@]}"
@@ -201,7 +231,7 @@ run_phase() {
 wait_for_approvals() {
   local phase=$1 expected_aws=$2 expected_kvm=$3 deadline=$((SECONDS + 5400))
   local probe="$PRIVATE_ROOT/registration-wait.tfplan" aws_count kvm_count
-  local -a args=(-input=false -no-color -lock=false -var-file="$TFVARS" \
+  local -a args=(-input=false -no-color -lock=false -var-file="$TFVARS"
     -var="aws_site_configuration_phase=$phase" -var='enable_aws_tgw_connect=false')
   if [ "$phase" = configured ]; then
     args+=(-var="aws_smsv2_device_mapping_file=$MAPPING_FILE")
@@ -235,8 +265,8 @@ capture_bootstrap_mapping_inputs() {
 
 verify_configured() {
   local cycle=$1 step=$2 execute_uat=${3:-false}
-  local -a args=("${common_phase_args[@]}" --phase configured --configured-tgw true \
-    --mapping-file "$MAPPING_FILE" --registration-projection "$REGISTRATION_PROJECTION" \
+  local -a args=("${common_phase_args[@]}" --phase configured --configured-tgw true
+    --mapping-file "$MAPPING_FILE" --registration-projection "$REGISTRATION_PROJECTION"
     --eni-projection "$ENI_PROJECTION")
   phase_paths "$cycle" configured "$step"
   args+=(--plan-file "$PLAN_FILE" --evidence-dir "$EVIDENCE_DIR")
@@ -323,9 +353,9 @@ verify_absence() {
   rm -f -- "$response_file"
   instance_count=$(AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_SDK_LOAD_CONFIG=1 \
     aws ec2 describe-instances --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-      --filters "Name=tag:component,Values=$COMPONENT" "Name=tag:managed_by,Values=terraform" \
-        'Name=instance-state-name,Values=pending,running,stopping,stopped' \
-      --query 'length(Reservations[].Instances[])' --output text)
+    --filters "Name=tag:component,Values=$COMPONENT" "Name=tag:managed_by,Values=terraform" \
+    'Name=instance-state-name,Values=pending,running,stopping,stopped' \
+    --query 'length(Reservations[].Instances[])' --output text)
   [ "$instance_count" = 0 ] || die "owned AWS instances remain after destroy"
 }
 
@@ -387,13 +417,13 @@ repair_eni_tag_drift() {
   drift_name="${expected_name}-drift-check"
   AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_SDK_LOAD_CONFIG=1 \
     aws ec2 create-tags --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-      --resources "$eni_id" --tags "Key=Name,Value=$drift_name"
+    --resources "$eni_id" --tags "Key=Name,Value=$drift_name"
   observe_refresh_only_drift "$cycle" eni-tag-drift 'aws_network_interface.slo[0]' eni_name "$expected_name" "$drift_name"
   run_phase "$cycle" configured eni-tag-drift-repair true
   repaired_name=$(AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_SDK_LOAD_CONFIG=1 \
     aws ec2 describe-tags --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-      --filters "Name=resource-id,Values=$eni_id" 'Name=key,Values=Name' \
-      --query 'Tags[0].Value' --output text)
+    --filters "Name=resource-id,Values=$eni_id" 'Name=key,Values=Name' \
+    --query 'Tags[0].Value' --output text)
   [ "$repaired_name" = "$expected_name" ] || die "managed ENI Name-tag drift was not repaired"
   verify_configured "$cycle" eni-tag-drift-zero-change false
 }

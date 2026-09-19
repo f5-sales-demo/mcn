@@ -81,6 +81,7 @@ terraform/modules/client-vm/versions.tf -> terraform/modules/client-vm/versions.
 terraform/modules/kvm-registration-mapping/main.tf -> terraform/modules/kvm-registration-mapping/main.tf
 terraform/modules/kvm-registration-mapping/outputs.tf -> terraform/modules/kvm-registration-mapping/outputs.tf
 terraform/modules/kvm-registration-mapping/variables.tf -> terraform/modules/kvm-registration-mapping/variables.tf
+terraform/modules/kvm-registration-mapping/versions.tf -> terraform/modules/kvm-registration-mapping/versions.tf
 terraform/modules/xc-site/main.tf -> terraform/modules/xc-site/main.tf
 terraform/modules/xc-site/outputs.tf -> terraform/modules/xc-site/outputs.tf
 terraform/modules/xc-site/variables.tf -> terraform/modules/xc-site/variables.tf
