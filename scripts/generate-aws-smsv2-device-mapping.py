@@ -47,14 +47,19 @@ def owned_enis(enis: Any) -> OwnedEnis:
     for item in enis:
         if not isinstance(item, dict):
             fail("eni_mapping_invalid")
-        key = (item.get("site_key"), item.get("role"))
+        site_key = item.get("site_key")
+        role = item.get("role")
         mac = str(item.get("mac", "")).lower()
         if (
-            key[0] not in SITE_KEYS
-            or key[1] not in {"slo", "sli"}
+            not isinstance(site_key, str)
+            or not isinstance(role, str)
+            or site_key not in SITE_KEYS
+            or role not in {"slo", "sli"}
             or not MAC.fullmatch(mac)
-            or key in owned
         ):
+            fail("eni_mapping_invalid")
+        key = (site_key, role)
+        if key in owned:
             fail("eni_mapping_invalid")
         owned[key] = mac
     if (
