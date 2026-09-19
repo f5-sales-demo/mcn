@@ -15,6 +15,7 @@ COMPONENT="mcn-ce-ha"
 EXPECTED_SITES=()
 XC_CONTEXT="f5-sales-demo"
 PLAN_MODE="apply"
+LIFECYCLE_PHASE=""
 EXECUTE_UAT=false
 CANDIDATE_PROVIDER_BINARY=""
 CANDIDATE_PROVIDER_SHA256=""
@@ -47,6 +48,9 @@ Required options:
 Optional:
   --terraform-dir PATH   Defaults to the dedicated AWS-only Terraform root.
   --plan-mode MODE       apply (default) or destroy.
+  --lifecycle-phase PHASE
+                         Required saved-plan phase: bootstrap,
+                         bootstrap_retirement, or configured.
   --xc-context NAME      Defaults to f5-sales-demo when XC environment values are absent.
   --candidate-provider-binary PATH
                          Select this local prerelease binary through dev_overrides.
@@ -124,6 +128,10 @@ while [ "$#" -gt 0 ]; do
     PLAN_MODE=${2:?}
     shift 2
     ;;
+  --lifecycle-phase)
+    LIFECYCLE_PHASE=${2:?}
+    shift 2
+    ;;
   --expected-aws-account)
     EXPECTED_AWS_ACCOUNT=${2:?}
     shift 2
@@ -180,6 +188,13 @@ for value in EVIDENCE_DIR PLAN_FILE EXPECTED_AWS_ACCOUNT EXPECTED_AWS_REGION EXP
   [ -n "${!value}" ] || die "missing required preflight argument"
 done
 [[ "$PLAN_MODE" == apply || "$PLAN_MODE" == destroy ]] || die "plan mode must be apply or destroy"
+[ -n "$LIFECYCLE_PHASE" ] || die "missing required preflight argument: --lifecycle-phase"
+case "$LIFECYCLE_PHASE" in
+bootstrap | bootstrap_retirement | configured) ;;
+*) die "lifecycle phase must be bootstrap, bootstrap_retirement, or configured" ;;
+esac
+[ "$LIFECYCLE_PHASE" != bootstrap_retirement ] || [ "$PLAN_MODE" = destroy ] || die "bootstrap_retirement requires destroy plan mode"
+[ "$LIFECYCLE_PHASE" = bootstrap_retirement ] || [ "$PLAN_MODE" = apply ] || die "only bootstrap_retirement uses destroy plan mode"
 [ "$PLAN_MODE" = apply ] || [ "$EXECUTE_UAT" = false ] || die "live UAT requires apply plan mode"
 case "${#EXPECTED_SITES[@]}" in
 1 | 3) ;;
@@ -290,7 +305,7 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 9.2.6"
+      version = "= 9.3.0"
     }
   }
 }
@@ -315,7 +330,7 @@ TF_CLI_CONFIG_FILE="$REGISTRY_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOK
   terraform -chdir="$SCRATCH" init -backend=false -input=false -no-color >/dev/null 2>&1 || block v9_provider_install_failed
 PROVIDER_VERSION=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH" version -json 2>/dev/null |
   jq -r '.provider_selections["registry.terraform.io/f5-sales-demo/xcsh"] // empty')
-[ "$PROVIDER_VERSION" = "9.2.6" ] || block v9_provider_resolution_mismatch
+[ "$PROVIDER_VERSION" = "9.3.0" ] || block v9_provider_resolution_mismatch
 TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" TF_VAR_api_url="$API_URL" XCSH_API_TOKEN="$API_TOKEN" \
   terraform -chdir="$SCRATCH" plan -refresh=false -input=false -lock=false \
   -out=contract.tfplan -no-color >/dev/null 2>&1 || block v9_contract_query_failed
@@ -325,11 +340,11 @@ CONTRACT=$(TF_CLI_CONFIG_FILE="$SELECTED_CLI_CONFIG" terraform -chdir="$SCRATCH"
 
 # This immutable Git revision is public provenance, not a credential. Keep it
 # assembled so generic token heuristics do not mistake it for one.
-EXPECTED_API_COMMIT="$(printf '%s%s' '55151d9bda8ea8f04c595' 'e76ee6b05aee96d7fc7')"
+EXPECTED_API_COMMIT="$(printf '%s%s' '92bf351c4f5dad4a6bd5' 'ba2149ac5f1eb41124bf')"
 jq -e --arg api_commit "$EXPECTED_API_COMMIT" '
   .contract_id == "f5xc-smsv2-api/v1" and
   .contract_version == "7.0.0" and
-  .api_release_tag == "v7.0.3" and
+  .api_release_tag == "v7.0.4" and
   .api_release_commit == $api_commit and
   .telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"' <<<"$CONTRACT" >/dev/null || block v9_contract_identity_mismatch
 jq -e '
@@ -337,8 +352,14 @@ jq -e '
   (.aws_authorities | sort) == (["eni", "transit_gateway", "transit_gateway_connect", "gre_endpoints", "bgp_inside_cidrs", "autonomous_system_numbers"] | sort)' \
   <<<"$CONTRACT" >/dev/null || block v9_authority_mismatch
 jq -e '
-  (.capabilities | keys | sort) == (["aws_ce_create", "runtime_status", "site_upgrade", "tgw_connect"] | sort) and
+  (.capabilities | keys | sort) == (["aws_ce_create", "aws_node_configuration", "runtime_status", "site_upgrade", "tgw_connect"] | sort) and
   ([.capabilities[]] | all(. == "available"))' <<<"$CONTRACT" >/dev/null || block v9_capabilities_unavailable
+jq -e '
+  (.aws_node_configuration | fromjson) as $aws |
+  $aws.strategy == "discovery_rebuild" and
+  $aws.enforcement == "required" and
+  $aws.invariants.device_source == "observed_registration_only" and
+  $aws.mapping.cardinality == "one_to_one"' <<<"$CONTRACT" >/dev/null || block v9_aws_node_configuration_contract_mismatch
 
 unset CONTRACT
 
@@ -393,6 +414,31 @@ jq -e '
     select((.address | test("^(aws_|module\\.aws_tgw_connect|xcsh_(securemesh_site_v2|site_cloud_init|registration_approval|virtual_site|origin_pool|http_loadbalancer|external_connector|bgp|token)\\.aws|terraform_data\\.aws|xcsh_token\\.ce)")) | not)
   ] | length == 0' <<<"$DEPLOYMENT_PLAN" >/dev/null || block plan_resource_outside_aws_allowlist
 EXPECTED_SITES_JSON=$(printf '%s\n' "${EXPECTED_SITES[@]}" | jq -Rsc 'split("\n") | map(select(length > 0)) | sort')
+case "$LIFECYCLE_PHASE" in
+bootstrap)
+  jq -e --argjson sites "$EXPECTED_SITES_JSON" '
+    ([.resource_changes[]? |
+      select(.type == "xcsh_securemesh_site_v2" and .name == "aws") |
+      select(.change.actions == ["create"]) |
+      .change.after.name] | unique | sort) == $sites and
+    ([.resource_changes[]? |
+      select(.type == "aws_instance" and .name == "ce") |
+      select(.change.actions == ["create"]) ] | length) == 3' <<<"$DEPLOYMENT_PLAN" >/dev/null || block bootstrap_plan_shape_invalid
+  jq -en --argjson sites "$EXPECTED_SITES_JSON" '$sites | all(endswith("-bootstrap"))' >/dev/null || block bootstrap_site_identity_invalid
+  ;;
+bootstrap_retirement)
+  jq -e --argjson sites "$EXPECTED_SITES_JSON" '
+    [.resource_changes[]? |
+      select(.change.actions != ["no-op"] and .change.actions != ["read"]) |
+      select(.change.actions == ["delete"]) |
+      select(.type as $type | ["aws_instance", "xcsh_securemesh_site_v2", "xcsh_site_cloud_init", "xcsh_token", "xcsh_registration_approval"] | index($type) | not)
+    ] | length == 0 and
+    ($sites | all(endswith("-bootstrap")))' <<<"$DEPLOYMENT_PLAN" >/dev/null || block bootstrap_retirement_allowlist_invalid
+  ;;
+configured)
+  jq -en --argjson sites "$EXPECTED_SITES_JSON" '$sites | all(endswith("-bootstrap") | not)' >/dev/null || block configured_site_identity_invalid
+  ;;
+esac
 if [ "$PLAN_MODE" = destroy ]; then
   jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"] and .change.actions != ["delete"])] | length == 0' \
     <<<"$DEPLOYMENT_PLAN" >/dev/null || block destroy_plan_contains_non_delete_actions

@@ -28,6 +28,33 @@ output "aws_site_names" {
   value       = { for key, site in local.aws_sites : key => site.name }
 }
 
+output "aws_smsv2_owned_eni_projection" {
+  description = "Private Terraform-owned AWS ENI MAC projection for the one-to-one bootstrap registration join."
+  sensitive   = true
+  value = flatten([
+    for key, site in local.aws_sites : [
+      { site_key = key, role = "slo", mac = aws_network_interface.slo[site.index].mac_address },
+      { site_key = key, role = "sli", mac = aws_network_interface.sli[site.index].mac_address },
+    ]
+  ])
+}
+
+output "aws_smsv2_bootstrap_registration_projection" {
+  description = "Private observed bootstrap hardware projection. Device values are joined to the owned ENI MAC projection outside Git."
+  sensitive   = true
+  value = flatten([
+    for key, registration in data.xcsh_site_registrations_by_site.aws_bootstrap : [
+      for item in coalesce(try(registration.items, null), []) : [
+        for network in try(item.get_spec.infra.hw_info.network, []) : {
+          site_key = key
+          mac      = network.mac_address
+          device   = network.name
+        }
+      ]
+    ]
+  ])
+}
+
 output "aws_tgw_id" {
   description = "AWS Transit Gateway identity."
   value       = try(module.aws_tgw_connect[0].transit_gateway_id, null)

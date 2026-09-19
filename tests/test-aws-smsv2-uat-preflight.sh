@@ -76,7 +76,7 @@ init)
   exit 0
   ;;
 version)
-  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"9.2.6"}}\n'
+  printf '{"provider_selections":{"registry.terraform.io/f5-sales-demo/xcsh":"9.3.0"}}\n'
   ;;
 plan)
   : >"${chdir}/contract.tfplan"
@@ -109,13 +109,15 @@ show)
     elif [ "${FAKE_INSTANCE_ONLY:-false}" = true ]; then
       printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"aws_instance.ce_0","type":"aws_instance","name":"ce","change":{"actions":[%s],"after":{"tags":{"ves-io-site-name":"mcn-ce-ha-aws-ap-northeast-1-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$extra"
     else
-      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$site_02_actions" "$site_03_actions" "$extra"
+      site_suffix=${FAKE_SITE_SUFFIX:-}
+      printf '{"planned_values":{"outputs":{"aws_vip":{"value":%s},"aws_smsv2_site_listener_ips":{"value":%s}}},"resource_changes":[{"address":"xcsh_securemesh_site_v2.aws_01","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-01%s","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-01%s","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_02","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-02%s","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-02%s","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}},{"address":"xcsh_securemesh_site_v2.aws_03","type":"xcsh_securemesh_site_v2","name":"aws","change":{"actions":[%s],"before":{"name":"mcn-ce-ha-aws-ap-northeast-1-03%s","namespace":"system"},"after":{"name":"mcn-ce-ha-aws-ap-northeast-1-03%s","namespace":"system","labels":{"mcn-deployment-generation":"gen-01"}}}}%s]}\n' "$plan_vip" "$plan_listeners" "$site_01_actions" "$site_suffix" "$site_suffix" "$site_02_actions" "$site_suffix" "$site_suffix" "$site_03_actions" "$site_suffix" "$site_suffix" "$extra"
     fi
   else
     capability=${FAKE_CAPABILITY_STATE:-available}
-    api_release_tag=${FAKE_API_RELEASE_TAG:-v7.0.3}
-    api_release_commit=${FAKE_API_RELEASE_COMMIT:-55151d9bda8ea8f04c595e76ee6b05aee96d7fc7}
-    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-smsv2-api/v1\",\"contract_version\":\"7.0.0\",\"api_release_tag\":\"${api_release_tag}\",\"api_release_commit\":\"${api_release_commit}\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
+    api_release_tag=${FAKE_API_RELEASE_TAG:-v7.0.4}
+    api_release_commit=${FAKE_API_RELEASE_COMMIT:-92bf351c4f5dad4a6bd5ba2149ac5f1eb41124bf}
+    node_strategy=${FAKE_AWS_NODE_STRATEGY:-discovery_rebuild}
+    printf '%s\n' "{\"planned_values\":{\"outputs\":{\"contract\":{\"value\":{\"contract_id\":\"f5xc-smsv2-api/v1\",\"contract_version\":\"7.0.0\",\"api_release_tag\":\"${api_release_tag}\",\"api_release_commit\":\"${api_release_commit}\",\"telemetry_schema_id\":\"f5xc-smsv2-aws-tgw-telemetry/v2\",\"capabilities\":{\"aws_ce_create\":\"${capability}\",\"aws_node_configuration\":\"${capability}\",\"runtime_status\":\"${capability}\",\"site_upgrade\":\"${capability}\",\"tgw_connect\":\"${capability}\"},\"aws_node_configuration\":\"{\\\"strategy\\\":\\\"${node_strategy}\\\",\\\"enforcement\\\":\\\"required\\\",\\\"invariants\\\":{\\\"device_source\\\":\\\"observed_registration_only\\\"},\\\"mapping\\\":{\\\"cardinality\\\":\\\"one_to_one\\\"}}\",\"f5xc_authorities\":[\"smsv2_configuration\",\"runtime_health\",\"bgp_peers\",\"bgp_routes\",\"simplified_routes\",\"site_upgrade_observation\"],\"aws_authorities\":[\"eni\",\"transit_gateway\",\"transit_gateway_connect\",\"gre_endpoints\",\"bgp_inside_cidrs\",\"autonomous_system_numbers\"]}}}}}"
   fi
   ;;
 output)
@@ -159,6 +161,7 @@ common=(
   --expected-xc-tenant f5-sales-demo
   --creator-id tester@example.test
   --deployment-generation gen-01
+  --lifecycle-phase configured
   --expected-site mcn-ce-ha-aws-ap-northeast-1-01
   --expected-site mcn-ce-ha-aws-ap-northeast-1-02
   --expected-site mcn-ce-ha-aws-ap-northeast-1-03
@@ -199,7 +202,7 @@ fi
 assert_sanitized "$evidence" "$output"
 [ "$(jq -r .provider_mode "$evidence/summary.json")" = registry ] || fail "registry mode not recorded"
 [ "$(jq -r .provider_sha256 "$evidence/summary.json")" = null ] || fail "registry digest must be null"
-echo "ok - exact v9.2.6 available contract passes with sanitized evidence"
+echo "ok - exact v9.3.0 available contract passes with sanitized evidence"
 
 evidence="${TMP_ROOT}/no-explicit-region"
 mkdir "$evidence"
@@ -371,6 +374,7 @@ single_site=(
   --expected-xc-tenant f5-sales-demo
   --creator-id tester@example.test
   --deployment-generation gen-01
+  --lifecycle-phase configured
   --expected-site mcn-ce-ha-aws-ap-northeast-1-01
 )
 evidence="${TMP_ROOT}/single-site"
@@ -499,8 +503,17 @@ echo "ok - targeted bootstrap accepts omitted apply-only plan outputs"
 evidence="${TMP_ROOT}/destroy"
 mkdir "$evidence"
 output="${TMP_ROOT}/destroy.out"
-if ! FAKE_SITE_ACTIONS='"delete"' FAKE_PLAN_AWS_VIP_JSON=null FAKE_PLAN_SITE_LISTENERS_JSON='{}' \
-  "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+retirement_sites=(
+  --terraform-dir "$TF_DIR" --plan-file "$PLAN_FILE"
+  --expected-aws-account 111122223333 --expected-aws-region ap-northeast-1
+  --expected-xc-tenant f5-sales-demo --creator-id tester@example.test
+  --deployment-generation gen-01 --lifecycle-phase bootstrap_retirement
+  --expected-site mcn-ce-ha-aws-ap-northeast-1-01-bootstrap
+  --expected-site mcn-ce-ha-aws-ap-northeast-1-02-bootstrap
+  --expected-site mcn-ce-ha-aws-ap-northeast-1-03-bootstrap
+)
+if ! FAKE_SITE_SUFFIX=-bootstrap FAKE_SITE_ACTIONS='"delete"' FAKE_PLAN_AWS_VIP_JSON=null FAKE_PLAN_SITE_LISTENERS_JSON='{}' \
+  "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${retirement_sites[@]}" >"$output" 2>&1; then
   cat "$output" >&2
   fail "AWS-only delete plan should pass destroy mode"
 fi
@@ -511,8 +524,8 @@ echo "ok - destroy mode accepts only the three expected site deletions without a
 evidence="${TMP_ROOT}/destroy-mixed"
 mkdir "$evidence"
 output="${TMP_ROOT}/destroy-mixed.out"
-if FAKE_SITE_ACTIONS='"delete"' FAKE_EXTRA_CHANGE=',{"address":"aws_instance.unexpected","type":"aws_instance","name":"unexpected","change":{"actions":["create"],"after":{}}}' \
-  "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+if FAKE_SITE_SUFFIX=-bootstrap FAKE_SITE_ACTIONS='"delete"' FAKE_EXTRA_CHANGE=',{"address":"aws_instance.unexpected","type":"aws_instance","name":"unexpected","change":{"actions":["create"],"after":{}}}' \
+  "$SCRIPT" --plan-mode destroy --evidence-dir "$evidence" "${retirement_sites[@]}" >"$output" 2>&1; then
   fail "destroy mode must reject non-delete actions"
 fi
 [ "$(jq -r .reason "$evidence/summary.json")" = destroy_plan_contains_non_delete_actions ] || fail "mixed destroy blocker not recorded"
@@ -528,6 +541,16 @@ fi
 [ "$(jq -r .reason "$evidence/summary.json")" = v9_capabilities_unavailable ] || fail "capability blocker not recorded"
 assert_sanitized "$evidence" "$output"
 echo "ok - unavailable capabilities fail closed"
+
+evidence="${TMP_ROOT}/wrong-node-strategy"
+mkdir "$evidence"
+output="${TMP_ROOT}/wrong-node-strategy.out"
+if FAKE_AWS_NODE_STRATEGY=same_site_replace "$SCRIPT" --evidence-dir "$evidence" "${common[@]}" >"$output" 2>&1; then
+  fail "a direct same-site node strategy must block"
+fi
+[ "$(jq -r .reason "$evidence/summary.json")" = v9_aws_node_configuration_contract_mismatch ] || fail "node strategy blocker not recorded"
+assert_sanitized "$evidence" "$output"
+echo "ok - non-rebuild AWS node strategy fails closed"
 
 evidence="${TMP_ROOT}/identity"
 mkdir "$evidence"

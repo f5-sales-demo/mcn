@@ -4,7 +4,7 @@ locals {
   # Keep the immutable source revision machine-readable without resembling an
   # access token to secret scanners. The evaluated value is the full release
   # commit recorded by the contract data source.
-  aws_smsv2_api_release_commit = format("%s%s", "55151d9bda8ea8f04c595", "e76ee6b05aee96d7fc7")
+  aws_smsv2_api_release_commit = format("%s%s", "92bf351c4f5dad4a6bd5", "ba2149ac5f1eb41124bf")
   aws_smsv2_bindings = merge(
     {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
@@ -95,21 +95,31 @@ resource "terraform_data" "aws_tgw_contract_gate" {
       condition = (
         data.xcsh_smsv2_contract.aws[0].contract_id == "f5xc-smsv2-api/v1" &&
         data.xcsh_smsv2_contract.aws[0].contract_version == "7.0.0" &&
-        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v7.0.3" &&
+        data.xcsh_smsv2_contract.aws[0].api_release_tag == "v7.0.4" &&
         data.xcsh_smsv2_contract.aws[0].api_release_commit == local.aws_smsv2_api_release_commit &&
         data.xcsh_smsv2_contract.aws[0].telemetry_schema_id == "f5xc-smsv2-aws-tgw-telemetry/v2"
       )
-      error_message = "Provider v9.2.6 must expose the exact immutable SMSv2 API v7.0 contract."
+      error_message = "Provider v9.3.0 must expose the exact immutable SMSv2 API v7.0.4 contract."
     }
     precondition {
       condition = (
-        length(data.xcsh_smsv2_contract.aws[0].capabilities) == 4 &&
+        length(data.xcsh_smsv2_contract.aws[0].capabilities) == 5 &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["aws_ce_create"], "") == "available" &&
+        try(data.xcsh_smsv2_contract.aws[0].capabilities["aws_node_configuration"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["runtime_status"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["tgw_connect"], "") == "available" &&
         try(data.xcsh_smsv2_contract.aws[0].capabilities["site_upgrade"], "") == "available"
       )
-      error_message = "Provider v9.2.6 must publish all and only the required SMSv2 capabilities as available."
+      error_message = "Provider v9.3.0 must publish all and only the required SMSv2 capabilities, including evidence-backed AWS node configuration, as available."
+    }
+    precondition {
+      condition = try(
+        jsondecode(data.xcsh_smsv2_contract.aws[0].aws_node_configuration).strategy == "discovery_rebuild" &&
+        jsondecode(data.xcsh_smsv2_contract.aws[0].aws_node_configuration).enforcement == "required" &&
+        jsondecode(data.xcsh_smsv2_contract.aws[0].aws_node_configuration).invariants.device_source == "observed_registration_only",
+        false,
+      )
+      error_message = "AWS configured creation requires the released discovery_rebuild contract with observed-registration-only device mapping."
     }
     precondition {
       condition = (

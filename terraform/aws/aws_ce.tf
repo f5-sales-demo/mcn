@@ -4,7 +4,7 @@
 locals {
   aws_ssh_public_key = var.aws_ssh_public_key != "" ? var.aws_ssh_public_key : local.ssh_public_key
   aws_ce_site_cloud_init = {
-    for key in keys(local.aws_sites) : key => replace(
+    for key in keys(local.aws_active_sites) : key => replace(
       replace(
         replace(
           try(xcsh_site_cloud_init.aws[key].cloud_init_config, ""),
@@ -117,7 +117,9 @@ resource "aws_eip" "ce" {
 }
 
 resource "aws_instance" "ce" {
-  count = var.enable_aws ? var.aws_ce_count : 0
+  # Retirement must destroy only the bootstrap CE instances while preserving
+  # ENIs, EIPs, VPC, IAM, and all other AWS networking for configured creation.
+  count = var.enable_aws && var.aws_site_configuration_phase != "bootstrap_retirement" ? var.aws_ce_count : 0
 
   ami                  = var.aws_ce_ami_id
   ebs_optimized        = true
@@ -154,7 +156,7 @@ resource "aws_instance" "ce" {
   user_data = templatefile("${path.module}/cloud-init/ce-node-aws.multipart.tpl", {
     site_cloud_init = local.aws_ce_site_cloud_init[format("%02d", count.index + 1)]
     sli_mac         = aws_network_interface.sli[count.index].mac_address
-    fqdn            = "${local.aws_sites[format("%02d", count.index + 1)].hostname}.${var.aws_location}.compute.internal"
+    fqdn            = "${local.aws_active_sites[format("%02d", count.index + 1)].hostname}.${var.aws_location}.compute.internal"
     ssh_public_key  = chomp(local.aws_ssh_public_key)
     # These non-secret fingerprints make the EC2 lifecycle follow immutable
     # site-version changes. A replacement site needs a first-boot CE, never a
@@ -164,9 +166,9 @@ resource "aws_instance" "ce" {
   })
 
   tags = merge(local.tags, {
-    Name                                                                             = local.aws_sites[format("%02d", count.index + 1)].name
-    "ves-io-site-name"                                                               = local.aws_sites[format("%02d", count.index + 1)].name
-    "kubernetes.io/cluster/${local.aws_sites[format("%02d", count.index + 1)].name}" = "owned"
+    Name                                                                                    = local.aws_active_sites[format("%02d", count.index + 1)].name
+    "ves-io-site-name"                                                                      = local.aws_active_sites[format("%02d", count.index + 1)].name
+    "kubernetes.io/cluster/${local.aws_active_sites[format("%02d", count.index + 1)].name}" = "owned"
   })
 
   lifecycle {
