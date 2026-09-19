@@ -14,7 +14,7 @@ Allow tens of minutes for bootstrap and hours for a full serial-upgrade rehearsa
 
 - **Terraform** at the version floor in `terraform/versions.tf` — `>= 1.16.1`, for
   provider-defined functions and the `check` block that guards the VIP.
-- **The `xcsh` provider at exactly v9.2.6 for normal deployments.** This deployment uses
+- **The `xcsh` provider at exactly v9.3.0 for normal deployments.** This deployment uses
   only the clean-break SMSv2 contract. A release-candidate acceptance run may substitute one
   reviewed local binary through the explicit procedure below. The local `.terraform.lock.hcl`
   remains gitignored; the exact source constraint is authoritative.
@@ -101,10 +101,11 @@ above before you mint another token.
 ## AWS SMSv2 preflight is mandatory
 
 The AWS Transit Gateway path is pinned to the immutable
-[`xcsh` v9.2.6 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v9.2.6).
+[`xcsh` v9.3.0 release](https://github.com/f5-sales-demo/terraform-provider-xcsh/releases/tag/v9.3.0).
 That release publishes contract `f5xc-smsv2-api/v1` version `7.0.0` from
-`api-specs-enriched` v7.0.2. Its four AWS SMSv2 capabilities, including
-`site_upgrade`, must all report `available`; do not bypass a failed gate.
+`api-specs-enriched` v7.0.4. Its five AWS SMSv2 capabilities, including
+the evidence-backed `aws_node_configuration` `discovery_rebuild` strategy,
+must all report `available`; do not bypass a failed gate.
 
 Use the [AWS SMSv2 procedure](../../customer-edge/smsv2/aws-tgw-connect/) for
 site-bound bootstrap, certified image ownership, MAC/device discovery, GRE transport,
@@ -114,8 +115,24 @@ upgrade, stage, or replace a site.
 
 Before applying an AWS plan, run the non-mutating preflight below. It checks the reviewed
 plan against the expected cloud account, region, XC tenant, site set, and provider artifact;
-it rejects Azure resource changes. Continue only on `ready` / `preflight_passed`.
-Use a new empty evidence directory outside the repository and keep saved plans private.
+it rejects Azure resource changes. The only supported lifecycle is three saved plans in this
+order: `bootstrap` for all three `-bootstrap` sites and CEs,
+`bootstrap_retirement` in destroy mode for only the disposable CE/site/material objects, then
+`configured` for the three distinct final sites using the private checksummed registration/ENI
+mapping. The preflight requires `--lifecycle-phase` and rejects a direct same-site transition.
+Continue only on `ready` / `preflight_passed`. Use a new empty evidence directory outside the
+repository, keep saved plans and the mapping private, and delete raw registration/mapping
+diagnostics after final creation.
+
+For this lifecycle, use `scripts/aws-smsv2-lifecycle-plan.sh` instead of a direct
+`terraform apply`. It uses `terraform-with-aws-sso.sh`, makes a phase-specific saved
+plan, runs preflight, records only a plan digest, rechecks that digest, and applies
+only when passed `--apply`. Use the same private `tfvars` and exact three expected
+site names in each phase. For `configured`, first write the two sensitive bootstrap
+outputs `aws_smsv2_bootstrap_registration_projection` and
+`aws_smsv2_owned_eni_projection` to private files, then pass those files and a
+private mapping path. The wrapper invokes the mapping generator and deletes all
+three private artifacts after a successful configured apply.
 
 Full UAT requires six physical interfaces, six Connect peers, and twelve established
 BGP sessions. `--execute-uat` is a consequential operation: it stops/restarts one CE,
@@ -209,6 +226,7 @@ mkdir -p "$COLLISION_EVIDENCE_DIR"
 
 ../scripts/aws-smsv2-uat-preflight.sh \
   --evidence-dir "$EVIDENCE_DIR" \
+  --lifecycle-phase configured \
   --terraform-dir . \
   --plan-file "$PLAN_FILE" \
   --expected-aws-account '<AWS_ACCOUNT_ID>' \
@@ -235,7 +253,7 @@ manifest bound to the expected plan digest, AWS account and region, Sales Demo
 tenant, creator, component, generation, provider IDs, and creation evidence. Its
 configuration-driven import blocks must first produce an import-only saved plan.
 Verify that plan with `scripts/verify-aws-smsv2-orphan-recovery-plan.sh` before
-applying it. Destroy the adopted resources only with provider v9.2.6 or newer,
+applying it. Destroy the adopted resources only with provider v9.3.0 or newer,
 then prove the recovery state is empty and every manifest identity is absent.
 CLI import, direct API deletion, state editing, taint, console cleanup, and broad
 tag-based deletion are not recovery mechanisms.

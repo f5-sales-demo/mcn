@@ -22,6 +22,8 @@ on:
       - 'tests/test-terraform-imports.sh'
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
+      - 'tests/test-aws-smsv2-lifecycle-plan.sh'
+      - 'tests/test-generate-aws-smsv2-device-mapping.sh'
       - 'tests/test-aws-smsv2-owned-collision-preflight.sh'
       - 'tests/test-aws-deployment-generation.sh'
       - 'tests/test-aws-smsv2-orphan-recovery.sh'
@@ -35,6 +37,8 @@ on:
       - 'scripts/configure-aws-state-backend.sh'
       - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
+      - 'scripts/aws-smsv2-lifecycle-plan.sh'
+      - 'scripts/generate-aws-smsv2-device-mapping.py'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
       - 'scripts/verify-aws-smsv2-orphan-recovery-plan.sh'
       - '.github/workflows/terraform.yml'
@@ -49,6 +53,8 @@ on:
       - 'tests/test-terraform-imports.sh'
       - 'tests/test-terraform-version-policy.sh'
       - 'tests/test-aws-smsv2-uat-preflight.sh'
+      - 'tests/test-aws-smsv2-lifecycle-plan.sh'
+      - 'tests/test-generate-aws-smsv2-device-mapping.sh'
       - 'tests/test-aws-smsv2-owned-collision-preflight.sh'
       - 'tests/test-aws-deployment-generation.sh'
       - 'tests/test-aws-smsv2-orphan-recovery.sh'
@@ -62,6 +68,8 @@ on:
       - 'scripts/configure-aws-state-backend.sh'
       - 'scripts/terraform-with-aws-sso.sh'
       - 'scripts/aws-smsv2-uat-preflight.sh'
+      - 'scripts/aws-smsv2-lifecycle-plan.sh'
+      - 'scripts/generate-aws-smsv2-device-mapping.py'
       - 'scripts/aws-smsv2-owned-collision-preflight.sh'
       - 'scripts/verify-aws-smsv2-orphan-recovery-plan.sh'
       - '.github/workflows/terraform.yml'
@@ -141,6 +149,14 @@ jobs:
         working-directory: .
         run: bash tests/test-aws-device-discovery.sh
 
+      - name: AWS SMSv2 lifecycle saved-plan automation
+        working-directory: .
+        run: bash tests/test-aws-smsv2-lifecycle-plan.sh
+
+      - name: AWS SMSv2 private mapping generator
+        working-directory: .
+        run: bash tests/test-generate-aws-smsv2-device-mapping.sh
+
       - name: Terraform AWS SSO credential isolation
         working-directory: .
         run: bash tests/test-terraform-with-aws-sso.sh
@@ -182,7 +198,7 @@ jobs:
   # xcsh provider, so the provider's own schema validators fire at plan with no XC API call.
   # This job resolves f5-sales-demo/xcsh from the public registry, so it only turns green once
   # the exact clean-break provider version required by
-  # `coverage/smsv2/versions.tf` (`= 9.2.6`) is published in the registry. Locally the same tests run
+  # `coverage/smsv2/versions.tf` (`= 9.3.0`) is published in the registry. Locally the same tests run
   # against the dev_overrides build via verify.sh.
   coverage-smsv2:
     name: coverage-smsv2
