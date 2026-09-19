@@ -5,7 +5,7 @@ locals {
   # access token to secret scanners. The evaluated value is the full release
   # commit recorded by the contract data source.
   aws_smsv2_api_release_commit = format("%s%s", "92bf351c4f5dad4a6bd5", "ba2149ac5f1eb41124bf")
-  aws_smsv2_bindings = merge(
+  aws_smsv2_bindings = var.enable_aws && var.enable_aws_tgw_connect && var.aws_site_configuration_phase == "configured" ? merge(
     {
       for index in range(var.enable_aws ? var.aws_ce_count : 0) :
       format("node_%02d_slo", index + 1) => {
@@ -39,7 +39,7 @@ locals {
         inside_cidr_block = cidrsubnet(var.aws_tgw_inside_cidr, 5, var.aws_ce_count + index)
       }
     },
-  )
+  ) : {}
   # Keep the live routing graph inside the same cumulative boundary as token
   # issuance and cloud-init. This lets each CE reach ONLINE and converge before
   # the next site is admitted without evaluating absent nodes from later stages.

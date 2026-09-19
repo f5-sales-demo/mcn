@@ -6,6 +6,8 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 EVIDENCE_DIR=""
 TERRAFORM_DIR="${REPO_ROOT}/terraform/aws"
 PLAN_FILE=""
+TFVARS=""
+MAPPING_FILE=""
 EXPECTED_AWS_ACCOUNT=""
 EXPECTED_AWS_REGION=""
 EXPECTED_XC_TENANT=""
@@ -47,6 +49,8 @@ Required options:
 
 Optional:
   --terraform-dir PATH   Defaults to the dedicated AWS-only Terraform root.
+  --tfvars PATH          Shared non-secret Terraform inputs for final plan checks.
+  --mapping-file PATH    Fresh private observed-registration mapping required for configured final plan checks.
   --plan-mode MODE       apply (default) or destroy.
   --lifecycle-phase PHASE
                          Required saved-plan phase: bootstrap,
@@ -122,6 +126,14 @@ while [ "$#" -gt 0 ]; do
     ;;
   --plan-file)
     PLAN_FILE=${2:?}
+    shift 2
+    ;;
+  --tfvars)
+    TFVARS=${2:?}
+    shift 2
+    ;;
+  --mapping-file)
+    MAPPING_FILE=${2:?}
     shift 2
     ;;
   --plan-mode)
@@ -572,6 +584,23 @@ tf() {
     terraform -chdir="$TERRAFORM_DIR" "$@"
 }
 
+tf_plan() {
+  local -a tfvars_args=() phase_args=()
+  if [ -n "$TFVARS" ]; then
+    [ -r "$TFVARS" ] || return 1
+    tfvars_args=(-var-file="$TFVARS")
+  fi
+  phase_args=(-var="aws_site_configuration_phase=$LIFECYCLE_PHASE")
+  if [ "$LIFECYCLE_PHASE" = configured ]; then
+    [ -n "$MAPPING_FILE" ] && [ -r "$MAPPING_FILE" ] || return 1
+    phase_args+=(-var='enable_aws_tgw_connect=true')
+    phase_args+=(-var="aws_smsv2_device_mapping_file=$MAPPING_FILE")
+  else
+    phase_args+=(-var='enable_aws_tgw_connect=false')
+  fi
+  tf plan "${tfvars_args[@]}" "${phase_args[@]}" "$@"
+}
+
 ssm_run() {
   local command_text=$1 command_id status deadline output
   verify_mutation_identities || return 1
@@ -646,7 +675,7 @@ wait_for_target_count() {
 status_plan() {
   local key=$1 software=$2 os=$3 plan_path
   plan_path="${SCRATCH}/status-${key}.tfplan"
-  tf plan -refresh-only -input=false -no-color -lock=false \
+  tf_plan -refresh-only -input=false -no-color -lock=false \
     -var='aws_upgrade_wait=true' \
     -var="aws_upgrade_observed_sites=[\"${key}\"]" \
     -var="aws_software_version=${software}" \
@@ -696,7 +725,7 @@ jq -e --argjson listeners "$SITE_LISTENERS" '
 unset TARGET_HEALTH
 
 TRAFFIC_MARKER="mcn-smsv2-uat-${RANDOM}${RANDOM}"
-TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 12 --retry-all-errors --retry-delay 2 --retry-max-time 45 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_DNS_NAME} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 5; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
+TRAFFIC_COMMAND="umask 077; : > /var/tmp/${TRAFFIC_MARKER}.log; nohup sh -c 'for _ in \$(seq 1 1440); do if curl -fsS --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo raw_ok; else echo raw_fail; fi; if curl -fsS --retry 12 --retry-all-errors --retry-delay 2 --retry-max-time 45 --connect-timeout 3 --max-time 10 -H Host:${AWS_LB_DOMAIN} http://${AWS_VIP} >/dev/null; then echo vip_ok; else echo vip_fail; fi; if curl -fsS --connect-timeout 3 --max-time 10 http://${ORIGIN_DNS_NAME} >/dev/null; then echo origin_ok; else echo origin_fail; fi; sleep 1; done' >> /var/tmp/${TRAFFIC_MARKER}.log 2>&1 & echo \$! >/var/tmp/${TRAFFIC_MARKER}.pid"
 ssm_run "$TRAFFIC_COMMAND" >/dev/null || block ssm_traffic_start_failed
 TRAFFIC_STARTED=true
 
@@ -724,10 +753,17 @@ done
 UAT_REASON=aws_smsv2_uat_complete
 SERIAL_UPGRADES=0
 
+traffic_deadline=$((SECONDS + 900))
+while ((SECONDS < traffic_deadline)); do
+  traffic_count=$(ssm_run "grep -c '^vip_ok$' /var/tmp/${TRAFFIC_MARKER}.log" 2>/dev/null || printf 0)
+  [ "$traffic_count" -ge 100 ] && break
+  sleep 5
+done
+
 TRAFFIC_RESULT=$(ssm_run "pid=\$(cat /var/tmp/${TRAFFIC_MARKER}.pid); kill \"\$pid\" 2>/dev/null || true; sleep 6; awk 'BEGIN{vo=0;vf=0;ro=0;rf=0;oo=0;of=0} /^vip_ok$/{vo++} /^vip_fail$/{vf++} /^raw_ok$/{ro++} /^raw_fail$/{rf++} /^origin_ok$/{oo++} /^origin_fail$/{of++} END{printf \"%d %d %d %d %d %d\",vo,vf,ro,rf,oo,of}' /var/tmp/${TRAFFIC_MARKER}.log; rm -f /var/tmp/${TRAFFIC_MARKER}.pid /var/tmp/${TRAFFIC_MARKER}.log") || block ssm_traffic_result_failed
 TRAFFIC_STARTED=false
 read -r VIP_OK VIP_FAILED RAW_TRAFFIC_OK RAW_TRAFFIC_FAILED ORIGIN_OK ORIGIN_FAILED <<<"$TRAFFIC_RESULT"
-if [ "$VIP_OK" -lt 2 ] || [ "$VIP_FAILED" -ne 0 ]; then
+if [ "$VIP_OK" -lt 100 ] || [ "$VIP_FAILED" -ne 0 ]; then
   block_traffic ssm_vip_retry_window_exhausted
 fi
 if [ "$ORIGIN_OK" -lt 2 ]; then
@@ -736,7 +772,7 @@ fi
 
 FINAL_REFRESH_PLAN="${SCRATCH}/final-refresh.tfplan"
 set +e
-tf plan -refresh-only -detailed-exitcode -input=false -no-color -lock=false \
+tf_plan -refresh-only -detailed-exitcode -input=false -no-color -lock=false \
   -out="$FINAL_REFRESH_PLAN" >/dev/null
 FINAL_REFRESH_EXIT=$?
 set -e
@@ -754,7 +790,7 @@ if [ "$FINAL_REFRESH_EXIT" -eq 2 ]; then
 fi
 rm -f "$FINAL_REFRESH_PLAN"
 
-if tf plan -detailed-exitcode -input=false -no-color -lock=false >/dev/null; then
+if tf_plan -detailed-exitcode -input=false -no-color -lock=false >/dev/null; then
   :
 else
   case $? in
