@@ -67,7 +67,7 @@ done
 credential_owner=$(stat -c %U "$CREDENTIAL_FILE")
 credential_mode=$(stat -c %a "$CREDENTIAL_FILE")
 [ "$credential_owner" = "$(id -un)" ] || die "XC credential file owner mismatch"
-((8#$credential_mode & 077 == 0)) || die "XC credential file must not be group/world accessible"
+(( (8#$credential_mode & 077) == 0 )) || die "XC credential file must not be group/world accessible"
 
 XCSH_API_URL_VALUE=""
 XCSH_API_TOKEN_VALUE=""
@@ -105,6 +105,29 @@ tf() {
   "${TF_RUNNER[@]}" -chdir="$TERRAFORM_DIR" "$@"
 }
 
+preflight_kvm_image() {
+  local plan_file="$PRIVATE_ROOT/kvm-image-preflight.tfplan"
+  local log_file="$PRIVATE_ROOT/kvm-image-preflight.log"
+  local diagnostic_sha256 reason
+
+  if tf plan -input=false -no-color -lock=false -refresh=false \
+    -target='data.xcsh_site_image.kvm' -var-file="$TFVARS" \
+    -var='enable_aws=false' -var='enable_aws_tgw_connect=false' \
+    -var='enable_kvm=true' -var='aws_site_configuration_phase=bootstrap' \
+    -out="$plan_file" >"$log_file" 2>&1; then
+    rm -f -- "$plan_file" "$log_file"
+    return 0
+  fi
+
+  diagnostic_sha256=$(sha256sum "$log_file" | awk '{print $1}')
+  reason=kvm_image_issuance_failed
+  if grep -Fq 'maurice_config_cardinality_exactly_one' "$log_file"; then
+    reason=maurice_config_cardinality_exactly_one
+  fi
+  rm -f -- "$plan_file" "$log_file"
+  die "KVM image prerequisite unavailable: $reason (sanitized_diagnostic_sha256=$diagnostic_sha256)"
+}
+
 terraform_version=$(terraform version -json | jq -r .terraform_version)
 [ "$terraform_version" = 1.16.3 ] || die "Terraform 1.16.3 is required"
 caller_account=$(AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_SDK_LOAD_CONFIG=1 \
@@ -112,6 +135,11 @@ caller_account=$(AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_SDK_LOAD_CONFIG=1 \
   die "AWS SSO identity is unavailable"
 [ "$caller_account" = "$AWS_ACCOUNT" ] || die "AWS account mismatch"
 unset caller_account
+
+tf init -reconfigure -input=false -lockfile=readonly -backend-config="$BACKEND_CONFIG"
+if [ "$MODE" != destroy ]; then
+  preflight_kvm_image
+fi
 
 libvirt_unit=""
 for candidate in libvirtd.service virtqemud.service; do
@@ -124,8 +152,6 @@ done
 sudo -n systemctl enable --now "$libvirt_unit"
 systemctl is-active --quiet "$libvirt_unit" || die "libvirt service did not become active"
 systemctl is-active --quiet docker.service || sudo -n systemctl enable --now docker.service
-
-tf init -reconfigure -input=false -lockfile=readonly -backend-config="$BACKEND_CONFIG"
 
 final_sites=()
 bootstrap_sites=()
@@ -259,7 +285,8 @@ destroy_all() {
   local cycle=$1 require_kvm=${2:-false}
   phase_paths "$cycle" full_destroy reviewed
   tf plan -destroy -input=false -no-color -var-file="$TFVARS" \
-    -var='aws_site_configuration_phase=bootstrap' -var='enable_aws_tgw_connect=false' -out="$PLAN_FILE"
+    -var='aws_site_configuration_phase=bootstrap' -var='enable_aws_tgw_connect=false' \
+    -var='enable_kvm=false' -out="$PLAN_FILE"
   DESTROY_JSON=$(tf show -json "$PLAN_FILE")
   jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"] and .change.actions != ["delete"])] | length == 0' \
     <<<"$DESTROY_JSON" >/dev/null || die "destroy plan contains a non-delete action"
