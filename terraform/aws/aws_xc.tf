@@ -258,18 +258,26 @@ resource "xcsh_http_loadbalancer" "aws" {
   domains   = [var.aws_lb_domain]
   labels    = local.xc_labels
 
+  # Final-site names are intentionally derived from stable locals so the
+  # retirement stage can retain this object without dereferencing an empty
+  # site map. Preserve the creation ordering explicitly for configured apply.
+  depends_on = [xcsh_securemesh_site_v2.aws]
+
   http {
     port = 80
   }
 
   advertise_custom {
     dynamic "advertise_where" {
-      for_each = local.aws_sites
+      # Retirement retains the load balancer and its advertisement shape while
+      # bootstrap sites are removed, avoiding an empty resource-map lookup or
+      # a retained-object mutation during the retirement-only phase.
+      for_each = var.aws_site_configuration_phase == "configured" ? local.aws_sites : local.aws_bootstrap_sites
       content {
         site {
           network = "SITE_NETWORK_INSIDE"
           site {
-            name      = xcsh_securemesh_site_v2.aws[advertise_where.key].name
+            name      = advertise_where.value.name
             namespace = "system"
           }
         }
