@@ -30,3 +30,15 @@ variable "enable_kvm" {
   type        = bool
   default     = false
 }
+
+variable "aws_origin_dns_name" {
+  description = "DNS name of the public HTTP origin for the AWS SMSv2 load balancer."
+  type        = string
+  default     = "httpbin.org"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", var.aws_origin_dns_name))
+    error_message = "aws_origin_dns_name must be a fully-qualified lowercase DNS name."
+  }
+}

@@ -90,6 +90,17 @@ locals {
 
   tags = merge(local.standard_tags, var.tags)
 
+  # F5 objects use the same immutable generation and tenant ownership identity
+  # as AWS and KVM resources in this one-state deployment.
+  xc_labels = {
+    "mcn-deployment-generation" = var.smsv2_site_generation
+    "mcn-topology"              = "${local.site_prefix}-aws"
+    "mcn-xc-tenant"             = var.expected_xc_tenant
+  }
+  kvm_xc_labels = merge(local.xc_labels, {
+    "mcn-topology" = "${local.site_prefix}-kvm"
+  })
+
   # --- SSH public key material, read once at the root ---
   # When ssh_public_key material is supplied (e.g. by the plan tests) it wins and
   # no file is read; otherwise read the key file once and pass the string down.
