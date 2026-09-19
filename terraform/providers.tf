@@ -21,10 +21,18 @@ provider "xcsh" {
 
 # Azure — deploys the hub VNet, Route Server, CE VMs and the test client.
 # Auth comes from the environment (az CLI login locally; ARM_* / a service
-# principal in CI). Only the subscription is set here, from a variable.
+# principal in CI). A disabled Azure topology must not bind the provider to a
+# stale or placeholder subscription; it uses the CLI's current context only to
+# initialize the provider and skips provider registration. No Azure resources
+# exist in the graph when the topology is disabled.
+locals {
+  azure_provider_enabled = var.enable_azure || var.enable_canada
+}
+
 provider "azurerm" {
   features {}
-  subscription_id = var.subscription_id
+  subscription_id            = local.azure_provider_enabled ? var.subscription_id : null
+  skip_provider_registration = !local.azure_provider_enabled
 }
 
 # AWS — deploys the VPC, subnets, CE EC2 instances and internet gateway.

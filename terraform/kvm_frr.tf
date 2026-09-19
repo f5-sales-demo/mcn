@@ -20,6 +20,7 @@ locals {
      bgp router-id 10.100.0.2
      no bgp ebgp-requires-policy
      maximum-paths 4
+     network 198.51.100.0/24
     %{for node in values(local.kvm_ce_nodes)~}
      neighbor ${node.address} remote-as 64512
     %{endfor~}
@@ -30,6 +31,7 @@ locals {
     %{endfor~}
      exit-address-family
     !
+    ip route 198.51.100.0/24 Null0
   EOF
 }
 

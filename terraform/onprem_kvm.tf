@@ -5,12 +5,13 @@ resource "xcsh_securemesh_site_v2" "onprem_kvm" {
   name        = local.kvm_site_name
   namespace   = "system"
   description = "On-Prem KVM SecureMesh Site v2"
+  labels      = local.kvm_xc_labels
 
-  azure {
+  kvm {
     not_managed {}
   }
 
-  disable_ha                 = {}
+  enable_ha                  = {}
   block_all_services         = {}
   no_network_policy          = {}
   no_forward_proxy           = {}
@@ -23,12 +24,86 @@ resource "xcsh_securemesh_site_v2" "onprem_kvm" {
   disable_management_network = {}
 }
 
+data "xcsh_site_registration" "kvm" {
+  for_each = local.kvm_enabled_nodes
+
+  site_name = local.kvm_site_name
+  hostname  = "onprem-ce-${each.key}"
+  namespace = "system"
+
+}
+
+resource "xcsh_registration_approval" "kvm" {
+  for_each = {
+    for key, registration in data.xcsh_site_registration.kvm :
+    key => registration if registration.found && registration.state == "NEW"
+  }
+
+  namespace    = "system"
+  name         = each.value.name
+  cluster_size = 3
+  state        = "APPROVED"
+
+  depends_on = [xcsh_securemesh_site_v2.onprem_kvm]
+}
+
+data "xcsh_site_registrations_by_site" "kvm" {
+  count = var.enable_kvm ? 1 : 0
+
+  namespace = "system"
+  site_name = local.kvm_site_name
+}
+
+locals {
+  kvm_registration_records = var.enable_kvm ? flatten([
+    for item in coalesce(try(data.xcsh_site_registrations_by_site.kvm[0].items, null), []) : [
+      for network in try(item.get_spec.infra.hw_info.network, []) : {
+        hostname = try(item.get_spec.infra.hostname, "")
+        provider = try(item.get_spec.infra.provider_ref, "")
+        mac      = lower(try(network.mac_address, ""))
+      }
+    ]
+  ]) : []
+  kvm_registration_mapping_valid = !var.enable_kvm || module.kvm_registration_mapping.mapping_valid
+  kvm_expected_bgp_peers = (
+    var.enable_kvm && module.kvm_registration_mapping.mapping_valid ?
+    module.kvm_registration_mapping.expected_bgp_peers : {}
+  )
+}
+
+module "kvm_registration_mapping" {
+  source = "./modules/kvm-registration-mapping"
+
+  enforce              = var.enable_kvm && var.aws_site_configuration_phase == "configured"
+  registration_records = local.kvm_registration_records
+  ce_nodes             = local.kvm_ce_nodes
+}
+
+data "xcsh_site_bgp_status" "kvm" {
+  count = var.enable_kvm && var.aws_site_configuration_phase == "configured" ? 1 : 0
+
+  namespace                = "system"
+  site                     = xcsh_securemesh_site_v2.onprem_kvm[0].name
+  expected_exported_routes = []
+  expected_peers           = local.kvm_expected_bgp_peers
+  timeout_seconds          = 1800
+  poll_interval_seconds    = 10
+
+  depends_on = [
+    module.kvm_registration_mapping,
+    xcsh_registration_approval.kvm,
+    xcsh_bgp.onprem_ebgp,
+    docker_container.kvm_frr,
+  ]
+}
+
 # eBGP Peering configuration for On-Prem KVM Site
 resource "xcsh_bgp" "onprem_ebgp" {
   count = var.enable_kvm ? 1 : 0
 
   name      = "onprem-kvm-ebgp"
   namespace = "system"
+  labels    = local.kvm_xc_labels
 
   where {
     site {
