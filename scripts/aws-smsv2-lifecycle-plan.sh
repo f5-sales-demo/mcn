@@ -24,11 +24,13 @@ Usage: aws-smsv2-lifecycle-plan.sh --phase bootstrap|bootstrap_retirement|config
   --creator-id EMAIL --deployment-generation VALUE --expected-site NAME [--expected-site NAME ...] \
   [--mapping-file PRIVATE_PATH --registration-projection PRIVATE_PATH --eni-projection PRIVATE_PATH] [--apply]
 
-The script creates a saved plan, records only its SHA-256 digest, calls the
-non-mutating AWS SMSv2 preflight, rechecks the digest, and applies that exact
-plan only with --apply.  bootstrap and bootstrap_retirement forcibly disable
-TGW Connect; configured forcibly enables it and generates the private mapping
-from the observed bootstrap registration and Terraform-owned ENI projections.
+Without --apply, the script creates a saved plan, records only its SHA-256
+digest, and calls the non-mutating AWS SMSv2 preflight. With --apply, it
+requires that existing reviewed plan and receipt, rechecks the digest, and
+applies that exact plan without generating a replacement. bootstrap and
+bootstrap_retirement forcibly disable TGW Connect; configured forcibly enables
+it and generates the private mapping from the observed bootstrap registration
+and Terraform-owned ENI projections during the planning invocation.
 EOF
 }
 
@@ -91,13 +93,19 @@ case "$PHASE" in bootstrap | bootstrap_retirement | configured) ;; *) die "--pha
 [ -n "$EXPECTED_AWS_REGION" ] || die "--expected-aws-region is required"
 [ -f "$TFVARS" ] || die "--tfvars is not readable"
 [ -d "$EVIDENCE_DIR" ] || die "--evidence-dir must already exist"
-[ -z "$(find "$EVIDENCE_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ] || die "--evidence-dir must be empty"
 
 PLAN_FILE=$(realpath -m "$PLAN_FILE")
 EVIDENCE_DIR=$(realpath "$EVIDENCE_DIR")
 case "$PLAN_FILE" in "$REPO_ROOT"/*) die "--plan-file must be outside the repository" ;; esac
 case "$EVIDENCE_DIR" in "$REPO_ROOT"/*) die "--evidence-dir must be outside the repository" ;; esac
-[ ! -e "$PLAN_FILE" ] || die "--plan-file must not already exist"
+if [ "$APPLY" = true ]; then
+  [ -f "$PLAN_FILE" ] || die "--apply requires an existing saved plan"
+  [ -f "$EVIDENCE_DIR/summary.json" ] || die "--apply requires a preflight receipt"
+  [ -f "$EVIDENCE_DIR/plan-receipt.json" ] || die "--apply requires a plan receipt"
+else
+  [ ! -e "$PLAN_FILE" ] || die "--plan-file must not already exist"
+  [ -z "$(find "$EVIDENCE_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ] || die "--evidence-dir must be empty"
+fi
 
 if [ "$PHASE" = configured ]; then
   [ -n "$MAPPING_FILE" ] || die "configured requires --mapping-file"
@@ -108,7 +116,11 @@ if [ "$PHASE" = configured ]; then
   ENI_PROJECTION=$(realpath "$ENI_PROJECTION")
   [ -f "$REGISTRATION_PROJECTION" ] || die "--registration-projection is not readable"
   [ -f "$ENI_PROJECTION" ] || die "--eni-projection is not readable"
-  [ ! -e "$MAPPING_FILE" ] || die "--mapping-file must not already exist"
+  if [ "$APPLY" = false ]; then
+    [ ! -e "$MAPPING_FILE" ] || die "--mapping-file must not already exist"
+  else
+    [ -f "$MAPPING_FILE" ] || die "--apply requires the reviewed mapping artifact for cleanup"
+  fi
   case "$MAPPING_FILE" in "$REPO_ROOT"/*) die "--mapping-file must be outside the repository" ;; esac
   case "$REGISTRATION_PROJECTION" in "$REPO_ROOT"/*) die "--registration-projection must be outside the repository" ;; esac
   case "$ENI_PROJECTION" in "$REPO_ROOT"/*) die "--eni-projection must be outside the repository" ;; esac
@@ -125,6 +137,20 @@ else
   TF_PHASE_ARGS+=(-var='enable_aws_tgw_connect=false')
 fi
 if [ "$PHASE" = bootstrap_retirement ]; then PLAN_MODE=destroy; fi
+
+if [ "$APPLY" = true ]; then
+  PLAN_SHA256="sha256:$(sha256sum "$PLAN_FILE" | awk '{print $1}')"
+  jq -e --arg phase "$PHASE" --arg plan_sha256 "$PLAN_SHA256" '
+    .phase == $phase and .plan_sha256 == $plan_sha256' "$EVIDENCE_DIR/plan-receipt.json" >/dev/null ||
+    die "saved plan receipt does not match the requested phase and digest"
+  jq -e '.status == "ready" and .reason == "preflight_passed"' "$EVIDENCE_DIR/summary.json" >/dev/null ||
+    die "saved plan does not have a ready preflight receipt"
+  "${TF_RUNNER[@]}" -- -chdir="$TERRAFORM_DIR" apply -input=false -no-color "$PLAN_FILE"
+  if [ "$PHASE" = configured ]; then
+    rm -f -- "$MAPPING_FILE" "$REGISTRATION_PROJECTION" "$ENI_PROJECTION"
+  fi
+  exit 0
+fi
 
 if [ "$PHASE" = configured ]; then
   "$REPO_ROOT/scripts/generate-aws-smsv2-device-mapping.py" \
@@ -148,8 +174,4 @@ jq -n --arg phase "$PHASE" --arg plan_sha256 "$PLAN_SHA256" \
   '{phase:$phase, plan_sha256:$plan_sha256}' >"$EVIDENCE_DIR/plan-receipt.json"
 chmod 600 "$EVIDENCE_DIR/plan-receipt.json"
 
-[ "$APPLY" = true ] || exit 0
-"${TF_RUNNER[@]}" -- -chdir="$TERRAFORM_DIR" apply -input=false -no-color "$PLAN_FILE"
-if [ "$PHASE" = configured ]; then
-  rm -f -- "$MAPPING_FILE" "$REGISTRATION_PROJECTION" "$ENI_PROJECTION"
-fi
+exit 0

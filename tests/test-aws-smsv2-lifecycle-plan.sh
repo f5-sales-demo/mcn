@@ -10,7 +10,7 @@ fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
 }
-require() { grep -Fq "$1" "$2" || fail "missing $1 in $2"; }
+require() { grep -Fq -- "$1" "$2" || fail "missing $1 in $2"; }
 
 "$SCRIPT" --help >/dev/null
 if "$SCRIPT" --plan-file "$SCRATCH/plan" --evidence-dir "$SCRATCH/evidence" --tfvars "$SCRATCH/missing" >"$SCRATCH/out" 2>&1; then
@@ -40,6 +40,9 @@ require 'generate-aws-smsv2-device-mapping.py' "$SCRIPT"
 require 'registration-projection must be outside the repository' "$SCRIPT"
 require 'plan-file must not already exist' "$SCRIPT"
 require 'mapping-file must not already exist' "$SCRIPT"
+require '--apply requires an existing saved plan' "$SCRIPT"
+require 'saved plan receipt does not match the requested phase and digest' "$SCRIPT"
+require 'saved plan does not have a ready preflight receipt' "$SCRIPT"
 require 'aws-smsv2-uat-preflight.sh' "$SCRIPT"
 require 'saved plan changed during review' "$SCRIPT"
 require 'plan-receipt.json' "$SCRIPT"
