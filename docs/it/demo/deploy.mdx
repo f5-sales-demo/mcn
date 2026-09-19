@@ -90,8 +90,8 @@ La demo è stata costruita in un tenant. Successivamente un file di credenziali 
 l'`XCSH_API_URL` di un tenant *diverso*; gli apply successivi hanno generato un token per quel tenant, le VM CE
 si sono registrate di nuovo lì e le loro registrazioni originali sono state abbandonate. Ogni plan nel frattempo
 risultava pulito, perché nulla nella configurazione aveva un'opinione sul tenant
-([issue 696](https://github.com/f5-sales-demo/mcn/issues/696), risolto in
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)). Il recupero ha richiesto la distruzione dello
+([issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696), risolto in
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697)). Il recupero ha richiesto la distruzione dello
 stack nel tenant sbagliato e la sua ricostruzione in quello corretto.
 
 Il sintomo da riconoscere, perché non è autoesplicativo: un token generato per un altro
@@ -169,8 +169,8 @@ Un tempo era peggio: un CE sostituito non poteva mai registrarsi di nuovo, perch
 registrazione del nodo distrutto deteneva ancora l'indice univoco `(tenant, cluster_name, hostname)`
 del control plane — e `terraform plan` riportava "No changes" per tutto il tempo in cui la flotta era inattiva.
 Il recupero ha richiesto due ricostruzioni complete. Il problema è stato risolto
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674), chiusa da
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)): il ciclo di vita dell'oggetto sito è ora
+([issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674), chiusa da
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693)): il ciclo di vita dell'oggetto sito è ora
 accoppiato all'istanza della VM CE, quindi sostituire la VM sostituisce il sito, ed eliminare il sito
 porta con sé le sue registrazioni prima che il nodo sostitutivo si avvii.
 

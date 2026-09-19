@@ -88,8 +88,8 @@ f5-sales-demo
 租戶的 `XCSH_API_URL`；後續的 apply 為該租戶鑄造了 token，CE VM 便
 在那裡重新註冊，而它們原本的註冊被棄置。期間每一次 plan
 都是乾淨的，因為設定中沒有任何地方對租戶有任何主張
-（[issue 696](https://github.com/f5-sales-demo/mcn/issues/696)，已於
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697) 修正）。要復原就必須摧毀
+（[issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696)，已於
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697) 修正）。要復原就必須摧毀
 錯誤租戶中的堆疊，並在正確的租戶中重建。
 
 需要認得的症狀，因為它並不會自我說明：為另一個
@@ -167,8 +167,8 @@ web 應用防火牆封鎖或 token 被撤銷，但兩者都不是。請稍候後
 註冊仍持有控制平面唯一的 `(tenant, cluster_name, hostname)`
 索引 —— 而在整批機隊停擺的整段時間裡，`terraform plan` 都回報「No changes」。
 復原花了兩次完整重建。這個問題已修正
-（[issue 674](https://github.com/f5-sales-demo/mcn/issues/674)，由
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 關閉）：站點物件的生命週期現在
+（[issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674)，由
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) 關閉）：站點物件的生命週期現在
 與 CE VM 實例耦合，因此替換 VM 就會替換站點，而刪除站點
 會在替換節點開機之前一併帶走它的註冊。
 

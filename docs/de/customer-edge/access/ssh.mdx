@@ -63,8 +63,8 @@ Es lohnt sich, dies vor einem geplanten Neuaufbau zu wissen, weil die Form des F
 
 Früher behielt die Registrierung des gelöschten Knotens den eindeutigen `(tenant, cluster_name, hostname)`-Index der Steuerungsebene, sodass die Registrierung des Ersatzknotens mit `UniqueSecondaryIndexViolationError` abgelehnt und endlos wiederholt wurde. Das Löschen der Registrierung allein war nicht ausreichend: Ein verbliebenes `StatusObject` gab dann `500` für die Workload-Anfrage zurück, und zu diesem Zeitpunkt hatte jeder Knoten eine `registration-obj.yml` persistiert, die ihn an die gelöschte Registrierung band, sodass er mit `404` ohne Selbstheilung in einer Schleife lief. Die Wiederherstellung erforderte zwei vollständige Neuaufbauten. Während der gesamten Zeit meldete `terraform plan` **„No changes"**, weil aus Terraform-Sicht der gewünschte Zustand erreicht war.
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) ist geschlossen, durch
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). `modules/xc-site` benennt nun die CE-VM-Instanz in `replace_triggered_by`, sodass das Ersetzen der VM das Site-Objekt ersetzt, und das Löschen einer Site nimmt ihre Registrierungen mit — der Indexschlüssel ist frei, bevor der Ersatzknoten startet. Die Flotte wurde seitdem von Grund auf neu aufgebaut und alle drei Sites kamen ohne Eingriff `ONLINE`.
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) ist geschlossen, durch
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693). `modules/xc-site` benennt nun die CE-VM-Instanz in `replace_triggered_by`, sodass das Ersetzen der VM das Site-Objekt ersetzt, und das Löschen einer Site nimmt ihre Registrierungen mit — der Indexschlüssel ist frei, bevor der Ersatzknoten startet. Die Flotte wurde seitdem von Grund auf neu aufgebaut und alle drei Sites kamen ohne Eingriff `ONLINE`.
 
 Die Kopplung ist beobachtbar, nicht angenommen. Jede Site ist an eine VM-*Instanz*-ID gebunden, und die entsprechende Registrierung meldet denselben Wert als `infra.instance_id`:
 

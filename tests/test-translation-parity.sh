@@ -98,6 +98,27 @@ FAIL=0
 CHECKED=0
 MISSING=0
 UNCHANGED=0
+RENAMED=0
+
+repository_rename_only() {
+  local relative_path="$1" current_file="$2" before
+  before=$(mktemp "${TMPDIR:-/tmp}/mcn-rename-before.XXXXXX")
+  if ! git -C "$ROOT" show "${BASE_REF}:${relative_path}" >"$before" 2>/dev/null; then
+    rm -f "$before"
+    return 1
+  fi
+  perl -pi -e '
+    s#https://github\.com/f5-sales-demo/mcn#https://github.com/f5-sales-demo/multi-cloud-networking#g;
+    s#https://f5-sales-demo\.github\.io/mcn#https://f5-sales-demo.github.io/multi-cloud-networking#g;
+    s#/mcn/images/#/multi-cloud-networking/images/#g
+  ' "$before"
+  if cmp -s "$before" "$current_file"; then
+    rm -f "$before"
+    return 0
+  fi
+  rm -f "$before"
+  return 1
+}
 
 while IFS= read -r enfile; do
   rel="${enfile#"${EN}"/}"
@@ -125,6 +146,13 @@ while IFS= read -r enfile; do
       elif [ "$unchanged" -ne 1 ]; then
         echo "cannot determine locale changes" >&2
         exit 2
+      fi
+      # A repository rename changes only opaque URL targets. It cannot alter
+      # translated prose or document structure, and regenerating translations
+      # for this mechanical migration is intentionally forbidden.
+      if repository_rename_only "docs/${loc}/${rel}" "$lf"; then
+        RENAMED=$((RENAMED + 1))
+        continue
       fi
     fi
     CHECKED=$((CHECKED + 1))
@@ -154,7 +182,7 @@ while IFS= read -r enfile; do
   done
 done < <(find "$EN" -name '*.mdx' -type f | sort)
 
-echo "checked ${CHECKED} supplied locale files; ${UNCHANGED} unchanged; ${MISSING} missing counterparts allowed"
+echo "checked ${CHECKED} supplied locale files; ${UNCHANGED} unchanged; ${RENAMED} URL-only renames; ${MISSING} missing counterparts allowed"
 if [ "$FAIL" -eq 0 ]; then
   echo "PASS: every in-scope translation matches its English source structurally"
 else

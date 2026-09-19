@@ -90,8 +90,8 @@ f5-sales-demo
 *อีกแห่งหนึ่ง* การ apply ครั้งต่อ ๆ มาจึงสร้างโทเคนสำหรับ tenant นั้น CE VM ไป
 ลงทะเบียนใหม่ที่นั่น และการลงทะเบียนเดิมของพวกมันก็ถูกทิ้งร้าง ทุก plan ที่เกิดขึ้นระหว่างนั้น
 สะอาดหมดจด เพราะไม่มีสิ่งใดในการตั้งค่าที่มีความเห็นเกี่ยวกับ tenant
-([issue 696](https://github.com/f5-sales-demo/mcn/issues/696) แก้ไขใน
-[PR 697](https://github.com/f5-sales-demo/mcn/pull/697)) การกู้คืนหมายถึงการทำลาย
+([issue 696](https://github.com/f5-sales-demo/multi-cloud-networking/issues/696) แก้ไขใน
+[PR 697](https://github.com/f5-sales-demo/multi-cloud-networking/pull/697)) การกู้คืนหมายถึงการทำลาย
 สแตกใน tenant ที่ผิดและสร้างขึ้นใหม่ใน tenant ที่ถูกต้อง
 
 อาการที่ควรจำได้ เพราะมันไม่ได้อธิบายตัวเอง: โทเคนที่สร้างขึ้นสำหรับ tenant อื่นจะ
@@ -169,8 +169,8 @@ f5-sales-demo
 ยังคงถือดัชนีที่ไม่ซ้ำกัน `(tenant, cluster_name, hostname)` ของ control plane อยู่ — และ
 `terraform plan` รายงานว่า "No changes" ตลอดเวลาที่ฟลีตล่ม
 การกู้คืนต้องสร้างใหม่เต็มรูปแบบสองครั้ง ปัญหานั้นได้รับการแก้ไขแล้ว
-([issue 674](https://github.com/f5-sales-demo/mcn/issues/674) ปิดโดย
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693)): วงจรชีวิตของออบเจ็กต์ไซต์ตอนนี้
+([issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) ปิดโดย
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693)): วงจรชีวิตของออบเจ็กต์ไซต์ตอนนี้
 ผูกกับอินสแตนซ์ CE VM ดังนั้นการแทนที่ VM จะแทนที่ไซต์ และการลบไซต์
 จะพาการลงทะเบียนของมันไปด้วยก่อนที่โหนดตัวแทนจะบูตขึ้น
 

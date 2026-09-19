@@ -80,8 +80,8 @@ registro que eliminó, por lo que hacía bucle en `404` sin autorrecuperación. 
 dos reconstrucciones completas. Durante todo ese tiempo `terraform plan` reportaba **"No changes"**, porque
 desde el punto de vista de Terraform se había alcanzado el estado deseado.
 
-El [Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) está cerrado, mediante
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). `modules/xc-site` ahora nombra la instancia
+El [Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) está cerrado, mediante
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693). `modules/xc-site` ahora nombra la instancia
 de VM CE en `replace_triggered_by`, por lo que reemplazar la VM reemplaza el objeto del sitio, y
 eliminar un sitio lleva consigo sus registros — la clave del índice está libre antes de que
 el nodo de reemplazo arranque. La flota se ha reconstruido desde cero y los tres sitios

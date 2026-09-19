@@ -53,7 +53,7 @@ cloud-init의 `write_files`는 **최초 부팅 시 한 번만** 실행됩니다.
 
 이전에는 삭제된 노드의 등록이 컨트롤 플레인의 고유한 `(tenant, cluster_name, hostname)` 인덱스를 유지했기 때문에, 교체 노드의 등록이 `UniqueSecondaryIndexViolationError`로 거부되고 무한 재시도 상태가 되었습니다. 등록을 삭제하는 것만으로는 충분하지 않았습니다: 남아 있는 `StatusObject`가 워크로드 요청에 `500`을 반환했고, 그 시점에서 각 노드는 삭제한 등록에 고정된 `registration-obj.yml`을 영구 저장했기 때문에 자기 복구 없이 `404`로 루프했습니다. 복구에는 두 번의 완전한 재구축이 필요했습니다. 그 과정 내내 `terraform plan`은 **"No changes"** 를 보고했는데, Terraform의 관점에서는 원하는 상태에 도달했기 때문입니다.
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674)는 [PR 693](https://github.com/f5-sales-demo/mcn/pull/693)에 의해 해결되었습니다. 이제 `modules/xc-site`는 CE VM 인스턴스를 `replace_triggered_by`에 명시하여, VM을 교체하면 사이트 객체도 교체되고, 사이트를 삭제하면 해당 등록도 함께 삭제됩니다 — 교체 노드가 부팅되기 전에 인덱스 키가 해제됩니다. 이후 플릿이 처음부터 재구축되었으며 세 사이트 모두 개입 없이 `ONLINE` 상태로 올라왔습니다.
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674)는 [PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693)에 의해 해결되었습니다. 이제 `modules/xc-site`는 CE VM 인스턴스를 `replace_triggered_by`에 명시하여, VM을 교체하면 사이트 객체도 교체되고, 사이트를 삭제하면 해당 등록도 함께 삭제됩니다 — 교체 노드가 부팅되기 전에 인덱스 키가 해제됩니다. 이후 플릿이 처음부터 재구축되었으며 세 사이트 모두 개입 없이 `ONLINE` 상태로 올라왔습니다.
 
 결합은 가정이 아닌 관찰 가능한 사실입니다. 각 사이트는 VM *인스턴스* ID에 바인딩되며, 일치하는 등록이 `infra.instance_id`와 동일한 값을 보고합니다:
 

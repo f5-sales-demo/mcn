@@ -55,7 +55,7 @@ cloud-init `write_files` **僅在首次開機時執行一次**。之後節點上
 
 過去的情況是，被銷毀節點的註冊會保留控制平面唯一的 `(tenant, cluster_name, hostname)` 索引，導致替換節點的註冊被拒絕並出現 `UniqueSecondaryIndexViolationError`，且持續重試。單純刪除註冊本身並不夠：殘留的 `StatusObject` 隨後會對工作負載請求返回 `500`，而此時每個節點都已持久化一個 `registration-obj.yml`，將其固定至您已刪除的註冊，因此它在沒有自我恢復機制的情況下不斷以 `404` 循環。恢復需要兩次完整重建。在此期間，`terraform plan` 始終報告**「無變更」**，因為從 Terraform 的角度來看，期望的狀態已達成。
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) 已由 [PR 693](https://github.com/f5-sales-demo/mcn/pull/693) 關閉。`modules/xc-site` 現在在 `replace_triggered_by` 中指定 CE 虛擬機器實例，因此替換虛擬機器會同時替換站台物件，而刪除站台時其註冊也會一併移除——索引鍵在替換節點開機之前就已釋放。此後機群已從頭重建，三個站台均無需人工介入即上線 `ONLINE`。
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) 已由 [PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693) 關閉。`modules/xc-site` 現在在 `replace_triggered_by` 中指定 CE 虛擬機器實例，因此替換虛擬機器會同時替換站台物件，而刪除站台時其註冊也會一併移除——索引鍵在替換節點開機之前就已釋放。此後機群已從頭重建，三個站台均無需人工介入即上線 `ONLINE`。
 
 耦合關係是可觀察的，而非假設的。每個站台都綁定至一個虛擬機器*實例* id，對應的註冊報告與 `infra.instance_id` 相同的值：
 

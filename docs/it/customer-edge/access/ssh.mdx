@@ -85,8 +85,8 @@ andava in loop su `404` senza auto-recupero. Il ripristino richiedeva due ricost
 complete. Per tutto il tempo `terraform plan` riportava **"No changes"**, perché dal punto
 di vista di Terraform lo stato desiderato era stato raggiunto.
 
-[Issue 674](https://github.com/f5-sales-demo/mcn/issues/674) è chiusa, dalla
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). `modules/xc-site` ora nomina
+[Issue 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) è chiusa, dalla
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693). `modules/xc-site` ora nomina
 l'istanza della VM CE in `replace_triggered_by`, quindi sostituire la VM sostituisce
 l'oggetto site, e l'eliminazione di un site porta con sé le sue registrazioni — la chiave
 dell'indice è libera prima che il nodo sostitutivo si avvii. Da allora il parco macchine è

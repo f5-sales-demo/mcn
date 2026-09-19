@@ -76,8 +76,8 @@ az network nic show -g "$(terraform output -raw resource_group_name)" \
 كاملتين. وطوال ذلك أفادت `terraform plan` بـ **"لا تغييرات"**، لأن من منظور Terraform قد
 تحقق الوضع المطلوب.
 
-[المسألة 674](https://github.com/f5-sales-demo/mcn/issues/674) مُغلقة بواسطة
-[PR 693](https://github.com/f5-sales-demo/mcn/pull/693). يُسمّي `modules/xc-site` الآن مثيل
+[المسألة 674](https://github.com/f5-sales-demo/multi-cloud-networking/issues/674) مُغلقة بواسطة
+[PR 693](https://github.com/f5-sales-demo/multi-cloud-networking/pull/693). يُسمّي `modules/xc-site` الآن مثيل
 CE VM في `replace_triggered_by`، لذا فإن استبدال الـ VM يستبدل كائن الموقع، وحذف موقع يأخذ
 معه تسجيلاته — مفتاح الفهرس يكون حرًا قبل تشغيل العقدة البديلة. منذ ذلك الحين أُعيد بناء
 الأسطول من الصفر ووصلت الثلاثة مواقع إلى `ONLINE` دون تدخل.
